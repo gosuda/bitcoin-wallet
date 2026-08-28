@@ -183,13 +183,19 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
                 .map_err(|e| e.to_string())?;
             let signed = w.sign(&built.psbt_base64).map_err(|e| e.to_string())?;
             let tx = WalletHandle::extract_tx(&signed).map_err(|e| e.to_string())?;
-            let txid = if dry_run {
-                tx.compute_txid().to_string()
+            let (txid, persist_error) = if dry_run {
+                (tx.compute_txid().to_string(), None)
             } else {
-                w.broadcast(&signed).await.map_err(|e| e.to_string())?
+                let out = w.broadcast(&signed).await.map_err(|e| e.to_string())?;
+                (out.txid, out.persist_error)
             };
+            if let Some(err) = &persist_error {
+                eprintln!(
+                    "warning: transaction was broadcast but local wallet state was not saved: {err}"
+                );
+            }
             Ok(serde_json::json!({
-                "txid": txid, "broadcast": !dry_run, "fee_sat": built.fee_sat, "fee_rate_sat_vb": rate,
+                "txid": txid, "broadcast": !dry_run, "persist_error": persist_error, "fee_sat": built.fee_sat, "fee_rate_sat_vb": rate,
                 "vsize": tx.vsize(), "change_sat": built.change_sat, "inputs": built.input_count,
                 "explorer": network.explorer_tx_url(&txid), "psbt": if dry_run { Some(signed) } else { None },
             }))

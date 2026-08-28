@@ -79,9 +79,23 @@ pub struct BuiltTx {
     pub input_count: u32,
 }
 
+/// Outcome of a broadcast. `txid` is always the accepted transaction; the
+/// backend has it even when the local wallet state could not be persisted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Broadcast {
+    pub txid: String,
+    /// `Some(reason)` when the backend accepted the transaction but the local
+    /// wallet state failed to persist. The wallet still tracks it in memory;
+    /// the next successful sync/persist reconciles it. Callers must not treat
+    /// this as a failed send.
+    pub persist_error: Option<String>,
+}
+
 struct Inner {
     wallet: PersistedWallet<Connection>,
     db: Connection,
+    #[cfg(test)]
+    fail_next_persist: bool,
 }
 
 /// Thread-safe wallet. Synchronous BDK calls run under a short-lived mutex;
@@ -151,7 +165,12 @@ impl WalletHandle {
         };
 
         Ok(Self {
-            inner: Mutex::new(Inner { wallet, db }),
+            inner: Mutex::new(Inner {
+                wallet,
+                db,
+                #[cfg(test)]
+                fail_next_persist: false,
+            }),
             backend,
             network: config.network,
             address_type: config.address_type,
@@ -166,6 +185,10 @@ impl WalletHandle {
     }
 
     fn persist(inner: &mut Inner) -> Result<()> {
+        #[cfg(test)]
+        if std::mem::take(&mut inner.fail_next_persist) {
+            return Err(Error::Persist("injected persistence failure".into()));
+        }
         inner
             .wallet
             .persist(&mut inner.db)
@@ -345,13 +368,25 @@ impl WalletHandle {
     }
 
     /// Broadcast a finalized PSBT and record it as unconfirmed locally.
-    pub async fn broadcast(&self, signed_psbt_base64: &str) -> Result<String> {
+    ///
+    /// Network acceptance and local persistence are reported separately: once
+    /// the backend has accepted the transaction this returns `Ok` with the
+    /// txid, and a persistence failure is carried in [`Broadcast::persist_error`]
+    /// rather than turning a successful send into an error.
+    pub async fn broadcast(&self, signed_psbt_base64: &str) -> Result<Broadcast> {
         let tx = Self::extract_tx(signed_psbt_base64)?;
-        let txid = self.backend.broadcast(&tx).await?;
-        let mut inner = self.lock()?;
-        inner.wallet.apply_unconfirmed_txs([(tx, now_secs())]);
-        Self::persist(&mut inner)?;
-        Ok(txid.to_string())
+        let txid = self.backend.broadcast(&tx).await?.to_string();
+        let persist_error = match self.lock() {
+            Ok(mut inner) => {
+                inner.wallet.apply_unconfirmed_txs([(tx, now_secs())]);
+                Self::persist(&mut inner).err().map(|e| e.to_string())
+            }
+            Err(e) => Some(e.to_string()),
+        };
+        Ok(Broadcast {
+            txid,
+            persist_error,
+        })
     }
 
     /// One-shot transfer with Go `BroadcastTx` semantics:
@@ -360,7 +395,7 @@ impl WalletHandle {
         &self,
         recipients: &[Recipient],
         fee_rate_sat_vb: Option<f64>,
-    ) -> Result<String> {
+    ) -> Result<Broadcast> {
         let rate = match fee_rate_sat_vb {
             Some(r) => r,
             None => self
@@ -500,13 +535,14 @@ mod tests {
             let signed = handle
                 .sign(&built.psbt_base64)
                 .unwrap_or_else(|e| panic!("{t:?}: {e}"));
-            let txid = handle.broadcast(&signed).await.unwrap();
+            let out = handle.broadcast(&signed).await.unwrap();
+            assert_eq!(out.persist_error, None);
             assert_eq!(mock.broadcasts.lock().unwrap().len(), 1);
             assert_eq!(
                 mock.broadcasts.lock().unwrap()[0]
                     .compute_txid()
                     .to_string(),
-                txid
+                out.txid
             );
             // Change is now an unconfirmed UTXO of ours.
             assert_eq!(handle.balance().unwrap().total(), built.change_sat);
@@ -532,6 +568,118 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(mock.broadcasts.lock().unwrap().len(), 1);
+    }
+
+    /// Backend accepted the tx but local persistence failed: the caller must
+    /// still get the txid and be able to tell this apart from a failed send.
+    #[tokio::test]
+    async fn broadcast_reports_persist_failure_separately() {
+        let (handle, mock) = open(AddressType::P2wpkh);
+        fund(&handle, 50_000);
+        let dest = crate::keys::generate_key(Network::Regtest, AddressType::P2wpkh)
+            .unwrap()
+            .address
+            .clone();
+        let built = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest,
+                    amount_sat: 10_000,
+                }],
+                1.0,
+            )
+            .unwrap();
+        let signed = handle.sign(&built.psbt_base64).unwrap();
+        handle.inner.lock().unwrap().fail_next_persist = true;
+
+        let out = handle
+            .broadcast(&signed)
+            .await
+            .expect("broadcast success must not become an error");
+        assert_eq!(
+            mock.broadcasts.lock().unwrap().len(),
+            1,
+            "backend received the tx"
+        );
+        assert_eq!(
+            out.txid,
+            mock.broadcasts.lock().unwrap()[0]
+                .compute_txid()
+                .to_string()
+        );
+        assert!(
+            out.persist_error
+                .as_deref()
+                .unwrap_or("")
+                .contains("injected"),
+            "{out:?}"
+        );
+        // In-memory state still tracks the spend even though persistence failed.
+        assert_eq!(handle.balance().unwrap().total(), built.change_sat);
+
+        // A genuinely failed broadcast is still an Err and touches nothing.
+        struct Failing;
+        #[async_trait::async_trait]
+        impl ChainBackend for Failing {
+            async fn full_scan(
+                &self,
+                _: bdk_wallet::chain::spk_client::FullScanRequest<KeychainKind>,
+            ) -> Result<bdk_wallet::chain::spk_client::FullScanResponse<KeychainKind>> {
+                unreachable!()
+            }
+            async fn sync(
+                &self,
+                _: bdk_wallet::chain::spk_client::SyncRequest<(KeychainKind, u32)>,
+            ) -> Result<bdk_wallet::chain::spk_client::SyncResponse> {
+                unreachable!()
+            }
+            async fn broadcast(&self, _: &Transaction) -> Result<bdk_wallet::bitcoin::Txid> {
+                Err(Error::Backend("relay refused".into()))
+            }
+            async fn fee_estimates(&self) -> Result<FeeEstimate> {
+                unreachable!()
+            }
+            async fn height(&self) -> Result<u32> {
+                unreachable!()
+            }
+        }
+        let cfg = WalletConfig {
+            network: Network::Regtest,
+            address_type: AddressType::P2wpkh,
+            backend: BackendConfig::Esplora {
+                url: "unused".into(),
+            },
+            db_path: None,
+        };
+        let h2 = WalletHandle::open_with_backend(
+            cfg,
+            &KeyMaterial::PrivHex(SK_HEX.into()),
+            Box::new(Failing),
+        )
+        .unwrap();
+        fund(&h2, 50_000);
+        let built = h2
+            .build_transfer(
+                &[Recipient {
+                    address: crate::keys::generate_key(Network::Regtest, AddressType::P2tr)
+                        .unwrap()
+                        .address
+                        .clone(),
+                    amount_sat: 10_000,
+                }],
+                1.0,
+            )
+            .unwrap();
+        let signed = h2.sign(&built.psbt_base64).unwrap();
+        assert!(matches!(
+            h2.broadcast(&signed).await,
+            Err(Error::Backend(_))
+        ));
+        assert_eq!(
+            h2.balance().unwrap().total(),
+            50_000,
+            "nothing applied on failed broadcast"
+        );
     }
 
     #[test]

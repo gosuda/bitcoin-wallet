@@ -22,4 +22,4 @@ pub use error::{Error, Result};
 pub use keys::{AddressType, GeneratedKey, KeyMaterial, address_for_key, generate_key};
 pub use keystore::{Keystore, MemoryKeystore};
 pub use network::Network;
-pub use wallet::{Balance, BuiltTx, Recipient, Utxo, WalletConfig, WalletHandle};
+pub use wallet::{Balance, Broadcast, BuiltTx, Recipient, Utxo, WalletConfig, WalletHandle};

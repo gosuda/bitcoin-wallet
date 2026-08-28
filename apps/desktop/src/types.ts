@@ -67,6 +67,8 @@ export interface TxPreview {
 export interface BroadcastResult {
   txid: string;
   explorer_url: string;
+  /** Set when the send succeeded but local wallet state could not be saved. */
+  persist_error: string | null;
 }
 
 export interface AppError {

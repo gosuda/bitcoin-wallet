@@ -48,4 +48,7 @@ pub struct TxPreview {
 pub struct BroadcastResult {
     pub txid: String,
     pub explorer_url: String,
+    /// Set when the backend accepted the transaction but local wallet state
+    /// could not be saved; the send itself succeeded.
+    pub persist_error: Option<String>,
 }

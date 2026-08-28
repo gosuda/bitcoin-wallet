@@ -14,6 +14,12 @@ export function renderResult(): HTMLElement {
   }
 
   const alert = banner();
+  if (result.persist_error) {
+    alert.show(
+      "warn",
+      `Broadcast succeeded, but local wallet state was not saved (${result.persist_error}). It will reconcile on the next sync.`,
+    );
+  }
 
   const openBtn = button(
     "Open in explorer",

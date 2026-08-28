@@ -182,9 +182,15 @@ pub async fn sign_and_broadcast(
     let signer = Arc::clone(&wallet);
     let signed =
         tauri::async_runtime::spawn_blocking(move || signer.sign(&pending.psbt_base64)).await??;
-    let txid = wallet.broadcast(&signed).await?;
-    let explorer_url = wallet.network().explorer_tx_url(&txid);
-    Ok(BroadcastResult { txid, explorer_url })
+    // Network acceptance and local persistence are reported separately by the
+    // core: a persist failure must not be shown as a failed send.
+    let out = wallet.broadcast(&signed).await?;
+    let explorer_url = wallet.network().explorer_tx_url(&out.txid);
+    Ok(BroadcastResult {
+        txid: out.txid,
+        explorer_url,
+        persist_error: out.persist_error,
+    })
 }
 
 #[tauri::command]
