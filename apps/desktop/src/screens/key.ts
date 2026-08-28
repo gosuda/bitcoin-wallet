@@ -3,15 +3,7 @@ import { navigate } from "../router";
 import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
-import { banner, button, el, field, mono, textInput, withBusy } from "../ui/dom";
-
-function secretLine(label: string, value: string): HTMLElement {
-  return el("div", { className: "secret-line" }, [
-    el("span", { className: "muted small", text: label }),
-    mono(value),
-    copyButton(() => value),
-  ]);
-}
+import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
 
 export function renderKey(): HTMLElement {
   const cfg = session.config;
@@ -30,16 +22,20 @@ export function renderKey(): HTMLElement {
   const generated = el("div", { className: "hidden" });
 
   const showGenerated = (key: GeneratedKey) => {
-    generated.className = "secret-box";
+    generated.className = "card secret-box";
     generated.replaceChildren(
-      el("p", {
-        className: "small",
-        text: "Shown once. Copy the private key now; it is not stored anywhere.",
-      }),
-      secretLine("priv hex", key.priv_hex),
-      secretLine("WIF", key.wif),
-      secretLine("address", key.address),
+      el("div", { className: "card-head" }, [
+        sectionLabel("New key — shown once"),
+        el("span", { className: "secret-note", text: "Copy it now; it is not stored anywhere." }),
+      ]),
+      kv([
+        ["Address", mono(key.address)],
+        ["Private key (hex)", mono(key.priv_hex)],
+        ["WIF", mono(key.wif)],
+      ]),
       el("div", { className: "actions" }, [
+        copyButton(() => key.priv_hex, "Copy hex", "sm"),
+        copyButton(() => key.wif, "Copy WIF", "sm"),
         button(
           "Use this key",
           () => {
@@ -92,6 +88,8 @@ export function renderKey(): HTMLElement {
         }
       }),
     "primary",
+    "md",
+    { name: "key" },
   );
 
   secret.addEventListener("keydown", (ev) => {
@@ -107,18 +105,18 @@ export function renderKey(): HTMLElement {
       }),
     ]),
     alert.node,
-    el("section", { className: "card" }, [
+    el("section", { className: "card card-loose" }, [
       field(
         "Private key",
         secret,
         "Hex (64 chars) or WIF for the selected network. Kept in memory only.",
       ),
-      generated,
       el("div", { className: "actions" }, [
         openBtn,
         generateBtn,
-        button("Back", () => navigate("setup")),
+        button("Back", () => navigate("setup"), "quiet"),
       ]),
     ]),
+    generated,
   ]);
 }

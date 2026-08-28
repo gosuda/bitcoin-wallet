@@ -3,7 +3,8 @@ import { navigate } from "../router";
 import { session } from "../session";
 import { errorMessage } from "../types";
 import { copyButton } from "../ui/clipboard";
-import { banner, button, el, mono, withBusy } from "../ui/dom";
+import { banner, button, el, readout, sectionLabel, withBusy } from "../ui/dom";
+import { icon } from "../ui/icons";
 
 export function renderResult(): HTMLElement {
   const result = session.lastResult;
@@ -13,35 +14,47 @@ export function renderResult(): HTMLElement {
   }
 
   const alert = banner();
-  alert.show("ok", "Transaction broadcast. It will appear as pending until confirmed.");
 
-  const openBtn = button("Open in explorer", () =>
-    withBusy(openBtn, async () => {
-      try {
-        await openUrl(result.explorer_url);
-      } catch (e) {
-        alert.show("error", `Could not open ${result.explorer_url}: ${errorMessage(e)}`);
-      }
-    }),
+  const openBtn = button(
+    "Open in explorer",
+    () =>
+      withBusy(openBtn, async () => {
+        try {
+          await openUrl(result.explorer_url);
+        } catch (e) {
+          alert.show("error", `Could not open ${result.explorer_url}: ${errorMessage(e)}`);
+        }
+      }),
+    "primary",
+    "md",
+    { name: "external" },
   );
 
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [el("h1", { text: "Sent" })]),
     alert.node,
-    el("section", { className: "card" }, [
-      el("h2", { text: "Transaction id" }),
-      el("div", { className: "address-row" }, [mono(result.txid), copyButton(() => result.txid)]),
-      el("p", { className: "muted small mono break", text: result.explorer_url }),
+    el("section", { className: "card result-card" }, [
+      el("div", { className: "result-head" }, [
+        el("span", { className: "check-circle" }, [icon("check", 18)]),
+        el("div", { className: "stack-2" }, [
+          el("span", { className: "result-title", text: "Transaction broadcast" }),
+          el("span", { className: "hint", text: "It will show as pending until it confirms." }),
+        ]),
+      ]),
+      el("div", { className: "stack-6" }, [
+        sectionLabel("Transaction id"),
+        el("div", { className: "address-row" }, [
+          readout(result.txid, "readout-sm"),
+          copyButton(() => result.txid),
+        ]),
+        el("span", { className: "hint mono break", text: result.explorer_url }),
+      ]),
       el("div", { className: "actions" }, [
         openBtn,
-        button(
-          "Back to wallet",
-          () => {
-            session.lastResult = null;
-            navigate("dashboard");
-          },
-          "primary",
-        ),
+        button("Back to wallet", () => {
+          session.lastResult = null;
+          navigate("dashboard");
+        }),
       ]),
     ]),
   ]);

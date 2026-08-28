@@ -1,3 +1,5 @@
+import { type IconName, icon } from "./icons";
+
 type Child = Node | string | null | undefined | false;
 
 interface Props {
@@ -38,22 +40,64 @@ export function clear(node: Node): void {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
 
+export type ButtonVariant = "default" | "primary" | "danger" | "quiet";
+
+export interface ButtonIcon {
+  name: IconName;
+  /** Place the icon after the label (e.g. "Continue →"). */
+  trailing?: boolean;
+  size?: number;
+}
+
 export function button(
   label: string,
   onClick: (ev: MouseEvent) => void,
-  variant: "default" | "primary" | "danger" = "default",
+  variant: ButtonVariant = "default",
   size: "md" | "sm" = "md",
+  withIcon?: ButtonIcon,
 ): HTMLButtonElement {
   const cls = ["btn"];
   if (variant === "primary") cls.push("btn-primary");
   if (variant === "danger") cls.push("btn-danger");
+  if (variant === "quiet") cls.push("btn-quiet");
   if (size === "sm") cls.push("btn-sm");
-  return el("button", {
+  const btn = el("button", {
     className: cls.join(" "),
-    text: label,
     attrs: { type: "button" },
     on: { click: onClick },
   });
+  if (withIcon) {
+    const svg = icon(withIcon.name, withIcon.size ?? (size === "sm" ? 14 : 16));
+    const text = el("span", { className: "btn-label", text: label });
+    append(btn, withIcon.trailing ? [text, svg] : [svg, text]);
+  } else {
+    btn.textContent = label;
+  }
+  return btn;
+}
+
+/** Icon-only square button (34px) with an accessible name. */
+export function iconButton(
+  name: IconName,
+  ariaLabel: string,
+  onClick: (ev: MouseEvent) => void,
+): HTMLButtonElement {
+  return el(
+    "button",
+    {
+      className: "btn btn-quiet btn-icon",
+      attrs: { type: "button", "aria-label": ariaLabel, title: ariaLabel },
+      on: { click: onClick },
+    },
+    [icon(name, 16)],
+  );
+}
+
+/** Replace a button's visible label, preserving any icon. */
+export function setButtonLabel(btn: HTMLButtonElement, label: string): void {
+  const span = btn.querySelector(".btn-label");
+  if (span) span.textContent = label;
+  else btn.textContent = label;
 }
 
 /** Run `work` with the button disabled and a spinner; restores state afterwards. */
@@ -151,8 +195,30 @@ export function kv(rows: readonly [string, Node | string][]): HTMLElement {
 
 const satFormatter = new Intl.NumberFormat("en-US");
 
+/** Thousands-separated integer, no unit. */
+export function formatNumber(n: number): string {
+  return satFormatter.format(n);
+}
+
 export function formatSats(sats: number): string {
-  return `${satFormatter.format(sats)} sat`;
+  return `${formatNumber(sats)} sat`;
+}
+
+/** Whole-sat amount as BTC with 8 decimals (integer math; exact for any sat count). */
+export function formatBtc(sats: number): string {
+  const whole = Math.floor(sats / 1e8);
+  const frac = String(sats - whole * 1e8).padStart(8, "0");
+  return `${whole}.${frac} BTC`;
+}
+
+/** Uppercase card heading (mockup `.label`). */
+export function sectionLabel(text: string): HTMLElement {
+  return el("span", { className: "section-label", text });
+}
+
+/** Read-only mono value box styled like an input. */
+export function readout(text: string, extra = ""): HTMLElement {
+  return el("span", { className: `readout mono ${extra}`.trim(), text, attrs: { title: text } });
 }
 
 export function mono(text: string, extra = ""): HTMLElement {

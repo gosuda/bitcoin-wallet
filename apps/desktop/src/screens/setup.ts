@@ -76,6 +76,8 @@ export function renderSetup(): HTMLElement {
         }
       }),
     "primary",
+    "md",
+    { name: "arrow", trailing: true },
   );
 
   return el("main", { className: "screen" }, [
@@ -87,7 +89,7 @@ export function renderSetup(): HTMLElement {
       }),
     ]),
     alert.node,
-    el("section", { className: "card" }, [
+    el("section", { className: "card card-loose" }, [
       field("Network", networkGroup),
       field(
         "Esplora URL",

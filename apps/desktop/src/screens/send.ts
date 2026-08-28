@@ -1,8 +1,26 @@
 import { api } from "../api";
 import { navigate } from "../router";
 import { session } from "../session";
-import { errorMessage, type FeeEstimate, type Recipient, type TxPreview } from "../types";
-import { banner, button, el, field, formatSats, kv, textInput, withBusy } from "../ui/dom";
+import {
+  backendHost,
+  errorMessage,
+  type FeeEstimate,
+  type Recipient,
+  type TxPreview,
+} from "../types";
+import {
+  banner,
+  button,
+  el,
+  field,
+  formatSats,
+  iconButton,
+  kv,
+  radioGroup,
+  sectionLabel,
+  textInput,
+  withBusy,
+} from "../ui/dom";
 
 const FEE_TARGETS = [1, 3, 6] as const;
 
@@ -32,12 +50,18 @@ function parseSats(raw: string): number | null {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
+type FeeTarget = `${(typeof FEE_TARGETS)[number]}`;
+
+const FLOOR_NOTE = "floor 1 sat/vB";
+
 export function renderSend(): HTMLElement {
   const wallet = session.wallet;
-  if (!wallet) {
+  const cfg = session.config;
+  if (!wallet || !cfg) {
     navigate("setup");
     return el("main");
   }
+  const host = backendHost(cfg.backend);
 
   const alert = banner();
   const rows: RecipientRow[] = [];
@@ -49,30 +73,36 @@ export function renderSend(): HTMLElement {
   feeRate.min = "1";
   feeRate.step = "0.1";
   feeRate.addEventListener("input", () => {
-    feeHint.textContent = "Custom rate";
+    feeHint.textContent = `Custom rate · ${FLOOR_NOTE}`;
   });
-  const feeHint = el("span", { className: "muted small", text: "Fetching estimate…" });
+  const feeHint = el("span", { className: "hint fee-source", text: "Fetching estimate…" });
 
-  const target = el("select", { attrs: { name: "fee_target" } });
-  for (const t of FEE_TARGETS) {
-    target.appendChild(
-      el("option", { text: `${t} block${t > 1 ? "s" : ""}`, attrs: { value: String(t) } }),
-    );
-  }
-  target.value = "6";
+  let targetBlocks: FeeTarget = "6";
+  const target = radioGroup(
+    "fee_target",
+    FEE_TARGETS.map((t) => ({
+      value: `${t}` as FeeTarget,
+      label: `${t} block${t > 1 ? "s" : ""}`,
+    })),
+    targetBlocks,
+    (v) => {
+      targetBlocks = v;
+      applyEstimate();
+    },
+  );
+  const targetInputs = (): HTMLInputElement[] => Array.from(target.querySelectorAll("input"));
 
   const applyEstimate = () => {
     if (!estimate) return;
-    const rate = rateForTarget(estimate, Number(target.value));
+    const rate = rateForTarget(estimate, Number(targetBlocks));
     if (rate === null) {
       feeHint.textContent = "No estimate available; enter a rate.";
       return;
     }
     const rounded = Math.max(1, Math.ceil(rate * 10) / 10);
     feeRate.value = String(rounded);
-    feeHint.textContent = `Estimate for ${target.value} block(s): ${rate.toFixed(1)} sat/vB`;
+    feeHint.textContent = `${host} estimate for ${targetBlocks} block${targetBlocks === "1" ? "" : "s"} · ${FLOOR_NOTE}`;
   };
-  target.addEventListener("change", applyEstimate);
 
   const loadEstimate = async () => {
     try {
@@ -106,15 +136,16 @@ export function renderSend(): HTMLElement {
     row.node.append(
       field("Address", address),
       field("Amount (sat)", amount),
-      button("Remove", () => removeRow(row), "default"),
+      iconButton("x", "Remove recipient", () => removeRow(row)),
     );
     rows.push(row);
-    rowsBox.insertBefore(row.node, addBtn.parentElement);
+    rowsBox.appendChild(row.node);
     syncRemoveButtons();
   };
 
-  const addBtn = button("Add recipient", addRow, "default", "sm");
-  rowsBox.append(el("h2", { text: "Recipients" }), el("div", { className: "actions" }, [addBtn]));
+  const addBtn = button("Add recipient", addRow, "default", "sm", { name: "plus" });
+  const rowsHead = el("div", { className: "card-head" }, [sectionLabel("Recipients"), addBtn]);
+  rowsBox.append(rowsHead);
   addRow();
 
   const collectRecipients = (): Recipient[] | null => {
@@ -135,11 +166,11 @@ export function renderSend(): HTMLElement {
     return out;
   };
 
-  const previewBox = el("section", { className: "card hidden" });
-  const formControls = (): (HTMLInputElement | HTMLSelectElement | HTMLButtonElement)[] => [
+  const previewBox = el("section", { className: "card review-card hidden" });
+  const formControls = (): (HTMLInputElement | HTMLButtonElement)[] => [
     ...rows.flatMap((r) => [r.address, r.amount]),
     feeRate,
-    target,
+    ...targetInputs(),
     addBtn,
     reviewBtn,
   ];
@@ -148,11 +179,11 @@ export function renderSend(): HTMLElement {
     if (!locked) syncRemoveButtons();
   };
 
-  const showPreview = (p: TxPreview, recipients: Recipient[]) => {
+  const showPreview = (p: TxPreview) => {
     preview = p;
-    previewBox.className = "card";
+    previewBox.className = "card review-card";
     const confirmBtn = button(
-      "Confirm and broadcast",
+      "Confirm & broadcast",
       () =>
         withBusy(confirmBtn, async () => {
           alert.hide();
@@ -163,7 +194,7 @@ export function renderSend(): HTMLElement {
             navigate("result");
           } catch (e) {
             preview = null;
-            previewBox.className = "card hidden";
+            previewBox.className = "card review-card hidden";
             setFormLocked(false);
             alert.show("error", errorMessage(e));
           }
@@ -178,24 +209,32 @@ export function renderSend(): HTMLElement {
           // Pending map is best-effort; nothing to surface.
         }
         preview = null;
-        previewBox.className = "card hidden";
+        previewBox.className = "card review-card hidden";
         setFormLocked(false);
       }),
     );
+    const muted = (text: string) => el("span", { className: "muted", text });
     previewBox.replaceChildren(
-      el("h2", { text: "Review" }),
+      sectionLabel("Review"),
       kv([
-        ["Recipients", `${recipients.length}`],
         ["Total out", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
         [
           "Fee",
-          el("span", { className: "mono", text: `${formatSats(p.fee_sat)} (${p.vsize} vB)` }),
+          el("span", { className: "mono" }, [
+            `${formatSats(p.fee_sat)} `,
+            muted(`(${p.vsize} vB · ${p.input_count} in)`),
+          ]),
         ],
-        ["Change", el("span", { className: "mono", text: formatSats(p.change_sat) })],
-        ["Inputs", `${p.input_count}`],
+        [
+          "Change",
+          el("span", { className: "mono" }, [
+            `${formatSats(p.change_sat)} `,
+            muted("→ back to this wallet"),
+          ]),
+        ],
         [
           "Total spent",
-          el("span", { className: "mono", text: formatSats(p.total_out_sat + p.fee_sat) }),
+          el("span", { className: "mono strong", text: formatSats(p.total_out_sat + p.fee_sat) }),
         ],
       ]),
       el("div", { className: "actions actions-end" }, [backBtn, confirmBtn]),
@@ -218,7 +257,7 @@ export function renderSend(): HTMLElement {
         try {
           const p = await api.buildTransfer(recipients, rate);
           setFormLocked(true);
-          showPreview(p, recipients);
+          showPreview(p);
         } catch (e) {
           alert.show("error", errorMessage(e));
         }
@@ -247,7 +286,7 @@ export function renderSend(): HTMLElement {
     alert.node,
     rowsBox,
     el("section", { className: "card" }, [
-      el("h2", { text: "Fee" }),
+      sectionLabel("Fee"),
       el("div", { className: "fee-row" }, [
         field("Target", target),
         field("Rate (sat/vB)", feeRate),

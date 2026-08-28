@@ -1,23 +1,28 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { button } from "./dom";
+import { button, setButtonLabel } from "./dom";
 
-/** Small "Copy" button that briefly confirms success. */
-export function copyButton(getText: () => string, label = "Copy"): HTMLButtonElement {
+/** "Copy" button with a copy icon that briefly confirms success. */
+export function copyButton(
+  getText: () => string,
+  label = "Copy",
+  size: "md" | "sm" = "md",
+): HTMLButtonElement {
   const btn = button(
     label,
     async () => {
       try {
         await writeText(getText());
-        btn.textContent = "Copied";
+        setButtonLabel(btn, "Copied");
       } catch {
-        btn.textContent = "Failed";
+        setButtonLabel(btn, "Failed");
       }
       window.setTimeout(() => {
-        btn.textContent = label;
+        setButtonLabel(btn, label);
       }, 1200);
     },
     "default",
-    "sm",
+    size,
+    { name: "copy" },
   );
   return btn;
 }

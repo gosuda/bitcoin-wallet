@@ -6,25 +6,59 @@ import { renderResult } from "./screens/result";
 import { renderSend } from "./screens/send";
 import { renderSetup } from "./screens/setup";
 import { session } from "./session";
-import { ADDRESS_TYPE_LABELS, backendHost, NETWORK_LABELS } from "./types";
+import { backendHost, NETWORK_LABELS } from "./types";
 import { clear, el } from "./ui/dom";
+import { brandMark, icon } from "./ui/icons";
 
 const appRoot = document.getElementById("app");
 if (!appRoot) throw new Error("missing #app root");
 const root: HTMLElement = appRoot;
 
-function topbar(): HTMLElement {
+const STEPS = ["Setup", "Key", "Wallet"] as const;
+
+function stepIndex(route: Route): number {
+  if (route === "setup") return 0;
+  if (route === "key") return 1;
+  return 2;
+}
+
+function stepIndicator(active: number): HTMLElement {
+  const nav = el("nav", { className: "steps", attrs: { "aria-label": "Progress" } });
+  STEPS.forEach((name, i) => {
+    const state = i === active ? "step-active" : i < active ? "step-done" : "";
+    nav.appendChild(
+      el("span", {
+        className: `step ${state}`.trim(),
+        text: name,
+        attrs: i === active ? { "aria-current": "step" } : {},
+      }),
+    );
+    if (i < STEPS.length - 1) {
+      const chev = icon("chevron", 12);
+      chev.classList.add("step-chevron");
+      nav.appendChild(chev);
+    }
+  });
+  return nav;
+}
+
+function topbar(route: Route): HTMLElement {
   const meta = el("div", { className: "topbar-meta" });
   const cfg = session.config;
   if (cfg) {
-    meta.appendChild(el("span", { text: NETWORK_LABELS[cfg.network] }));
-    meta.appendChild(el("span", { text: backendHost(cfg.backend) }));
-  }
-  if (session.wallet) {
-    meta.appendChild(el("span", { text: ADDRESS_TYPE_LABELS[session.wallet.address_type] }));
+    meta.appendChild(
+      el("span", { className: "pill" }, [
+        el("span", { className: "pill-dot" }),
+        `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`,
+      ]),
+    );
   }
   return el("header", { className: "topbar" }, [
-    el("span", { className: "topbar-title", text: "Bitcoin Wallet" }),
+    el("div", { className: "topbar-brand" }, [
+      el("span", { className: "topbar-mark" }, [brandMark()]),
+      el("span", { className: "topbar-title", text: "Bitcoin Wallet" }),
+    ]),
+    stepIndicator(stepIndex(route)),
     meta,
   ]);
 }
@@ -53,7 +87,7 @@ function render(): void {
     return;
   }
   clear(root);
-  root.appendChild(topbar());
+  root.appendChild(topbar(route));
   root.appendChild(SCREENS[route]());
 }
 
