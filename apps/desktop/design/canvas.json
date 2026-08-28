@@ -22,13 +22,13 @@
       "x": 2080,
       "y": 0,
       "w": 960,
-      "h": 780
+      "h": 1040
     },
     {
       "file": "Send.dc.html",
       "title": "4 \u00b7 Send + Review",
       "x": 0,
-      "y": 940,
+      "y": 1200,
       "w": 960,
       "h": 760
     },
@@ -36,7 +36,7 @@
       "file": "Sent.dc.html",
       "title": "5 \u00b7 Sent",
       "x": 1040,
-      "y": 940,
+      "y": 1200,
       "w": 960,
       "h": 640
     },
@@ -44,7 +44,7 @@
       "file": "Icon.dc.html",
       "title": "App icon",
       "x": 2080,
-      "y": 940,
+      "y": 1200,
       "w": 720,
       "h": 480
     },
@@ -52,16 +52,23 @@
       "file": "Unlock.dc.html",
       "title": "2b \u00b7 Unlock (returning user)",
       "x": 0,
-      "y": 1820,
+      "y": 2080,
       "w": 960,
       "h": 640
     }
   ],
   "annotations": [
     {
+      "id": "history-note",
+      "x": 3120,
+      "y": 0,
+      "w": 380,
+      "text": "Roadmap item 4 \u2014 Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row \u2192 explorer (later)."
+    },
+    {
       "id": "unlock-note",
       "x": 1040,
-      "y": 1820,
+      "y": 2080,
       "w": 420,
       "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock \u2192 Wallet. \"Use a different key\" \u2192 Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."
     },

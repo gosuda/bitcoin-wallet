@@ -169,6 +169,23 @@ def _tr(o,a,v,c):
     st = ' style="color: #6B6B66;"' if c=="pending" else ""
     return f'<tr><td class="mono">{o}</td><td class="mono" style="color: #6B6B66;">{a}</td><td class="num mono">{v}</td><td class="num mono"{st}>{c}</td></tr>'
 trs = "".join(_tr(*r) for r in rows)
+def _hrow(dirn, txid, amt, conf, when):
+    up = dirn == "out"
+    col = "#1A1A1A" if up else "#166534"
+    sign = "−" if up else "+"
+    ic = icon("arrow", 14, "#6B6B66") if up else icon("arrow", 14, "#166534")
+    rot = ' style="display: inline-flex; transform: rotate(180deg);"' if not up else ' style="display: inline-flex;"'
+    cst = ' style="color: #6B6B66;"' if conf == "pending" else ""
+    return (f'<tr><td><span{rot}>{ic}</span></td><td class="mono">{txid}</td>'
+            f'<td class="num mono" style="color: {col}; font-weight: 500;">{sign}{amt}</td>'
+            f'<td class="num mono"{cst}>{conf}</td><td class="num" style="color: #6B6B66;">{when}</td></tr>')
+hrows = "".join([
+    _hrow("in",  "e19f4a7d05…b2c8d4a0", "18,420",  "pending", "2 min ago"),
+    _hrow("out", "3b9d1e7f2a…b3c4d5e6", "150,141", "3",       "Today 14:02"),
+    _hrow("in",  "7c02d8b1e4…9a6f0c3b", "120,000", "31",      "Aug 27"),
+    _hrow("in",  "a41e9c2f7b…3d08e1f2", "250,000", "142",     "Aug 24"),
+])
+
 dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b") + f'''
 <section class="card" style="gap: 8px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -206,9 +223,19 @@ dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
     <tbody>{trs}</tbody>
   </table>
 </section>
+<section class="card">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Transactions</span>
+    <span class="hint">4 · newest first</span>
+  </div>
+  <table>
+    <thead><tr><th style="width: 24px;"></th><th>Txid</th><th class="num">Amount (sat)</th><th class="num">Conf.</th><th class="num">When</th></tr></thead>
+    <tbody>{hrows}</tbody>
+  </table>
+</section>
 <div style="display: flex; justify-content: flex-end;">
   <span class="btn btn-danger">Close wallet</span>
-</div>''', step=2, minh=720)
+</div>''', step=2, minh=980)
 
 send = page(head("Send", f"From {ADDR}") + f'''
 <section class="card">
@@ -304,14 +331,15 @@ canvas = {
   "artboards": [
     {"file": "Setup.dc.html", "title": "1 · Setup", "x": 0, "y": 0, "w": 960, "h": 640},
     {"file": "Key.dc.html", "title": "2 · Key", "x": 1040, "y": 0, "w": 960, "h": 640},
-    {"file": "Main.dc.html", "title": "3 · Wallet", "x": 2080, "y": 0, "w": 960, "h": 780},
-    {"file": "Send.dc.html", "title": "4 · Send + Review", "x": 0, "y": 940, "w": 960, "h": 760},
-    {"file": "Sent.dc.html", "title": "5 · Sent", "x": 1040, "y": 940, "w": 960, "h": 640},
-    {"file": "Icon.dc.html", "title": "App icon", "x": 2080, "y": 940, "w": 720, "h": 480},
-    {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 1820, "w": 960, "h": 640},
+    {"file": "Main.dc.html", "title": "3 · Wallet", "x": 2080, "y": 0, "w": 960, "h": 1040},
+    {"file": "Send.dc.html", "title": "4 · Send + Review", "x": 0, "y": 1200, "w": 960, "h": 760},
+    {"file": "Sent.dc.html", "title": "5 · Sent", "x": 1040, "y": 1200, "w": 960, "h": 640},
+    {"file": "Icon.dc.html", "title": "App icon", "x": 2080, "y": 1200, "w": 720, "h": 480},
+    {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 2080, "w": 960, "h": 640},
   ],
   "annotations": [
-    {"id": "unlock-note", "x": 1040, "y": 1820, "w": 420, "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."},
+    {"id": "history-note", "x": 3120, "y": 0, "w": 380, "text": "Roadmap item 4 — Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row → explorer (later)."},
+    {"id": "unlock-note", "x": 1040, "y": 2080, "w": 420, "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."},
     {"id": "brief", "x": 0, "y": -200, "w": 520, "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."}
   ],
   "launch": {"view": "canvas"}
