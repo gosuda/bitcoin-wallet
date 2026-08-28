@@ -3,7 +3,20 @@ import { navigate } from "../router";
 import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
-import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
+import {
+  banner,
+  button,
+  checkbox,
+  el,
+  field,
+  kv,
+  mono,
+  sectionLabel,
+  textInput,
+  withBusy,
+} from "../ui/dom";
+
+const KEYCHAIN_NAME = navigator.platform.startsWith("Mac") ? "macOS Keychain" : "OS keychain";
 
 export function renderKey(): HTMLElement {
   const cfg = session.config;
@@ -20,6 +33,11 @@ export function renderKey(): HTMLElement {
     name: "secret",
   });
   const generated = el("div", { className: "hidden" });
+  const remember = checkbox(
+    "Remember on this device",
+    `· stored in the ${KEYCHAIN_NAME}, unlocked with your login`,
+    "remember",
+  );
 
   const showGenerated = (key: GeneratedKey) => {
     generated.className = "card secret-box";
@@ -76,11 +94,12 @@ export function renderKey(): HTMLElement {
           return;
         }
         try {
-          const info = await api.openWallet(value, cfg.address_type);
+          const info = await api.openWallet(value, cfg.address_type, remember.input.checked);
           secret.value = "";
           generated.replaceChildren();
           generated.className = "hidden";
           session.wallet = info;
+          if (remember.input.checked) session.remembered = info;
           session.lastSyncedAt = null;
           navigate("dashboard");
         } catch (e) {
@@ -111,6 +130,7 @@ export function renderKey(): HTMLElement {
         secret,
         "Hex (64 chars) or WIF for the selected network. Kept in memory only.",
       ),
+      remember.node,
       el("div", { className: "actions" }, [
         openBtn,
         generateBtn,

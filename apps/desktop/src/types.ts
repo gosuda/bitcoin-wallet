@@ -23,6 +23,14 @@ export interface WalletInfo {
   wallet_id: string;
 }
 
+/** Non-secret record of the wallet whose key is kept in the OS keystore. */
+export interface RememberedWallet {
+  wallet_id: string;
+  address: string;
+  network: Network;
+  address_type: AddressType;
+}
+
 export interface Balance {
   confirmed: number;
   trusted_pending: number;

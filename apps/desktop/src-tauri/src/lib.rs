@@ -1,6 +1,7 @@
 //! Tauri shell around `wallet_core`. Every command maps 1:1 onto the core API;
 //! secret material only ever crosses the IPC boundary inbound (`open_wallet`)
-//! or as the one-time output of `generate_key`.
+//! or as the one-time output of `generate_key`. Remembered keys live in the OS
+//! keystore and are loaded by `unlock_wallet` without ever reaching the UI.
 
 mod commands;
 mod dto;
@@ -19,6 +20,9 @@ pub fn run() {
             commands::generate_key,
             commands::open_wallet,
             commands::close_wallet,
+            commands::get_remembered,
+            commands::unlock_wallet,
+            commands::forget_wallet,
             commands::sync,
             commands::get_balance,
             commands::list_utxos,
