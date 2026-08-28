@@ -1,0 +1,60 @@
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+:root {
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6b6b66;
+  --faint: #a19f97;
+  --rule: #c9c7c1;
+  --border: #e4e3df;
+  --accent: #c2410c;
+  --accent-deep: #9a3412;
+  --accent-fg: #ffffff;
+  --danger: #b91c1c;
+  --ok: #166534;
+  --ok-border: #bbe5c8;
+  --warn-bg: #fff7ed;
+  --danger-bg: #fef2f2;
+  --ok-bg: #f0fdf4;
+  --subtle: #f4f4f2;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius: 4px;
+
+  --font-sans: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --text-base: 14px;
+  --text-sm: 12px;
+  --text-xs: 11px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131312;
+    --surface: #1c1c1a;
+    --fg: #eceae4;
+    --muted: #a19f97;
+    --faint: #6b6b66;
+    --rule: #3a3a36;
+    --border: #2a2a27;
+    --accent-deep: #fdba74;
+    --ok-border: #1f4d30;
+    --warn-bg: #2a1a10;
+    --danger-bg: #2a1414;
+    --ok-bg: #12241a;
+    --subtle: #222220;
+  }
+}

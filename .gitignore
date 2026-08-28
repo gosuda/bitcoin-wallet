@@ -25,3 +25,13 @@ go.work.sum
 .env
 
 /bin
+# Rust / Tauri
+/target
+**/target
+apps/desktop/node_modules
+apps/desktop/dist
+apps/desktop/src-tauri/gen
+*.sqlite
+*.sqlite-journal
+.lean-ctx/
+apps/desktop/design/bitcoin-wallet-desktop.html

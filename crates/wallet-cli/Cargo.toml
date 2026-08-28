@@ -1,0 +1,18 @@
+[package]
+name = "wallet-cli"
+version = "0.1.0"
+description = "Developer CLI exercising wallet-core (Go TUI parity flows)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "btcw"
+path = "src/main.rs"
+
+[dependencies]
+wallet-core = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
