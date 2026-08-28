@@ -1,9 +1,13 @@
-# btctxbuilder
-A Bitcoin toolkit with your own keys, independent of Wallets.
+# bitcoin-wallet
+A Bitcoin wallet with your own keys, independent of custodians.
 
-## Quick Start
+The maintained implementation is the Rust tree (`crates/`, `apps/`). The original Go
+`btctxbuilder` lives under [`reference/go/`](reference/go/) as a behavioral reference
+only — it is not extended; use it for parity checks and to recover intended behavior.
+
+## Quick Start (reference Go TUI)
 ```bash
-make run
+cd reference/go && make run
 ```
 
 ## Features
