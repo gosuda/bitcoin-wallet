@@ -47,9 +47,24 @@
       "y": 940,
       "w": 720,
       "h": 480
+    },
+    {
+      "file": "Unlock.dc.html",
+      "title": "2b \u00b7 Unlock (returning user)",
+      "x": 0,
+      "y": 1820,
+      "w": 960,
+      "h": 640
     }
   ],
   "annotations": [
+    {
+      "id": "unlock-note",
+      "x": 1040,
+      "y": 1820,
+      "w": 420,
+      "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock \u2192 Wallet. \"Use a different key\" \u2192 Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."
+    },
     {
       "id": "brief",
       "x": 0,

@@ -115,6 +115,7 @@ setup = page(head("Setup", "Network and Esplora endpoint. Stored locally; no sec
 key = page(head("Key", "Signet · mempool.space") + f'''
 <section class="card" style="gap: 16px;">
   {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "Hex (64 chars) or WIF. Used for this session only — never written to disk.")}
+  <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;">{icon("check", 12, "#FFFFFF")}</span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn btn-primary">{icon("key", 16, "#FFFFFF")} Open wallet</span>
     <span class="btn">Generate new key</span>
@@ -135,6 +136,27 @@ key = page(head("Key", "Signet · mempool.space") + f'''
     <span class="btn btn-sm">{icon("copy", 14)} Copy hex</span>
     <span class="btn btn-sm">{icon("copy", 14)} Copy WIF</span>
     <span class="btn btn-sm">Use this key</span>
+  </div>
+</section>''', step=1)
+
+unlock = page(head("Unlock", "Signet · mempool.space") + f'''
+<section class="card" style="gap: 16px; padding: 24px;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <span style="width: 36px; height: 36px; border-radius: 50%; background: #F4F4F2; border: 1px solid #E4E3DF; display: inline-flex; align-items: center; justify-content: center;">{icon("key", 18, "#1A1A1A")}</span>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <span style="font-weight: 600; font-size: 16px;">Wallet saved on this device</span>
+      <span class="hint">The key is kept in the macOS Keychain. Unlocking may ask for your login password.</span>
+    </div>
+  </div>
+  <dl class="kv" style="margin: 0;">
+    <dt>Address</dt><dd class="mono">{ADDR}</dd>
+    <dt>Network</dt><dd>Signet · P2WPKH (segwit)</dd>
+    <dt>Wallet id</dt><dd class="mono">signet-p2wpkh-3f0c9a1b</dd>
+  </dl>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn btn-primary">{icon("key", 16, "#FFFFFF")} Unlock</span>
+    <span class="btn">Use a different key</span>
+    <span class="btn btn-quiet" style="margin-left: auto; color: #B91C1C;">Forget this wallet</span>
   </div>
 </section>''', step=1)
 
@@ -275,7 +297,7 @@ iconboard = HEAD + f'''<div style="width: 720px; min-height: 480px; background: 
 </div>
 ''' + TAIL
 
-files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Icon.dc.html": iconboard}
+files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Icon.dc.html": iconboard}
 for n, c in files.items(): pathlib.Path(n).write_text(c)
 
 canvas = {
@@ -286,8 +308,10 @@ canvas = {
     {"file": "Send.dc.html", "title": "4 · Send + Review", "x": 0, "y": 940, "w": 960, "h": 760},
     {"file": "Sent.dc.html", "title": "5 · Sent", "x": 1040, "y": 940, "w": 960, "h": 640},
     {"file": "Icon.dc.html", "title": "App icon", "x": 2080, "y": 940, "w": 720, "h": 480},
+    {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 1820, "w": 960, "h": 640},
   ],
   "annotations": [
+    {"id": "unlock-note", "x": 1040, "y": 1820, "w": 420, "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."},
     {"id": "brief", "x": 0, "y": -200, "w": 520, "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."}
   ],
   "launch": {"view": "canvas"}
