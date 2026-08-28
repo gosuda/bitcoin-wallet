@@ -25,6 +25,15 @@ impl Default for AppConfig {
     }
 }
 
+/// Non-secret record of the wallet whose key lives in the OS keystore.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RememberedWallet {
+    pub wallet_id: String,
+    pub address: String,
+    pub network: Network,
+    pub address_type: AddressType,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletInfo {
     pub address: String,

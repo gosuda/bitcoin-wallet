@@ -5,6 +5,7 @@ import { renderKey } from "./screens/key";
 import { renderResult } from "./screens/result";
 import { renderSend } from "./screens/send";
 import { renderSetup } from "./screens/setup";
+import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
 import { backendHost, NETWORK_LABELS } from "./types";
 import { clear, el } from "./ui/dom";
@@ -18,7 +19,7 @@ const STEPS = ["Setup", "Key", "Wallet"] as const;
 
 function stepIndex(route: Route): number {
   if (route === "setup") return 0;
-  if (route === "key") return 1;
+  if (route === "key" || route === "unlock") return 1;
   return 2;
 }
 
@@ -66,6 +67,7 @@ function topbar(route: Route): HTMLElement {
 const SCREENS: Record<Route, () => HTMLElement> = {
   setup: renderSetup,
   key: renderKey,
+  unlock: renderUnlock,
   dashboard: renderDashboard,
   send: renderSend,
   result: renderResult,
@@ -76,6 +78,8 @@ function guard(route: Route): Route {
   if ((route === "dashboard" || route === "send") && !session.wallet) return "setup";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
   if (route === "key" && !session.config) return "setup";
+  if (route === "unlock" && !session.config) return "setup";
+  if (route === "unlock" && !session.remembered) return "key";
   return route;
 }
 
@@ -97,8 +101,16 @@ async function boot(): Promise<void> {
   } catch {
     session.config = null;
   }
+  if (session.config) {
+    try {
+      session.remembered = await api.getRemembered();
+    } catch {
+      session.remembered = null;
+    }
+  }
   window.addEventListener("hashchange", render);
-  render();
+  if (session.remembered && currentRoute() === "setup") navigate("unlock");
+  else render();
 }
 
 void boot();

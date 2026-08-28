@@ -9,17 +9,19 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 use wallet_core::{
-    AddressType, Balance, FeeEstimate, GeneratedKey, KeyMaterial, Network, Recipient, Utxo,
-    WalletConfig, WalletHandle,
+    AddressType, Balance, FeeEstimate, GeneratedKey, KeyMaterial, Keystore, NativeKeystore,
+    Network, Recipient, Utxo, WalletConfig, WalletHandle,
 };
 use zeroize::Zeroizing;
 
-use crate::dto::{AppConfig, BroadcastResult, TxPreview, WalletInfo};
+use crate::dto::{AppConfig, BroadcastResult, RememberedWallet, TxPreview, WalletInfo};
 use crate::error::{AppError, AppResult};
 use crate::state::{AppState, PendingTx};
 
 const STORE_FILE: &str = "config.json";
 const STORE_KEY: &str = "config";
+const REMEMBERED_KEY: &str = "remembered_wallet";
+const KEYSTORE_SERVICE: &str = "dev.gosuda.bitcoinwallet";
 
 fn load_config(app: &AppHandle) -> AppResult<AppConfig> {
     let store = app.store(STORE_FILE)?;
@@ -37,8 +39,75 @@ fn wallet_db_path(app: &AppHandle, network: Network, wallet_id: &str) -> AppResu
         .join(format!("{wallet_id}.sqlite")))
 }
 
+fn load_remembered(app: &AppHandle) -> AppResult<Option<RememberedWallet>> {
+    let store = app.store(STORE_FILE)?;
+    Ok(store
+        .get(REMEMBERED_KEY)
+        .and_then(|v| serde_json::from_value(v).ok()))
+}
+
+fn save_remembered(app: &AppHandle, remembered: Option<&RememberedWallet>) -> AppResult<()> {
+    let store = app.store(STORE_FILE)?;
+    match remembered {
+        Some(r) => {
+            let value =
+                serde_json::to_value(r).map_err(|e| AppError::new("config", e.to_string()))?;
+            store.set(REMEMBERED_KEY, value);
+        }
+        None => {
+            store.delete(REMEMBERED_KEY);
+        }
+    }
+    store.save()?;
+    Ok(())
+}
+
+/// Keystore calls may block on an OS prompt (Keychain), so they never run on
+/// the async runtime directly.
+async fn with_keystore<T: Send + 'static>(
+    f: impl FnOnce(&NativeKeystore) -> wallet_core::Result<T> + Send + 'static,
+) -> AppResult<T> {
+    Ok(
+        tauri::async_runtime::spawn_blocking(move || f(&NativeKeystore::new(KEYSTORE_SERVICE)))
+            .await??,
+    )
+}
+
 async fn open_wallet_or_err(state: &AppState) -> AppResult<Arc<WalletHandle>> {
     state.wallet().await.ok_or_else(AppError::no_wallet)
+}
+
+/// Opens the wallet for `key` at its canonical DB path and installs it as the
+/// current wallet. `key` is consumed; nothing secret is returned.
+async fn open_and_install(
+    app: &AppHandle,
+    state: &AppState,
+    key: KeyMaterial,
+    network: Network,
+    address_type: AddressType,
+) -> AppResult<WalletInfo> {
+    let cfg = load_config(app)?;
+    let wallet_id = wallet_core::keys::wallet_id(&key, network, address_type)?;
+    let db_path = wallet_db_path(app, network, &wallet_id)?;
+    let wallet_cfg = WalletConfig {
+        network,
+        address_type,
+        backend: cfg.backend,
+        db_path: Some(db_path),
+    };
+
+    let handle = tauri::async_runtime::spawn_blocking(move || WalletHandle::open(wallet_cfg, &key))
+        .await??;
+    let info = WalletInfo {
+        address: handle.address()?,
+        network: handle.network(),
+        address_type: handle.address_type(),
+        wallet_id: handle.id().to_owned(),
+    };
+
+    state.clear_pending();
+    *state.wallet.write().await = Some(Arc::new(handle));
+    Ok(info)
 }
 
 #[tauri::command]
@@ -68,34 +137,67 @@ pub async fn open_wallet(
     state: State<'_, AppState>,
     secret: String,
     address_type: AddressType,
+    remember: bool,
 ) -> AppResult<WalletInfo> {
     let secret = Zeroizing::new(secret);
     let key = KeyMaterial::parse(&secret);
     drop(secret);
 
-    let cfg = load_config(&app)?;
-    let network = cfg.network;
-    let wallet_id = wallet_core::keys::wallet_id(&key, network, address_type)?;
-    let db_path = wallet_db_path(&app, network, &wallet_id)?;
-    let wallet_cfg = WalletConfig {
-        network,
-        address_type,
-        backend: cfg.backend,
-        db_path: Some(db_path),
-    };
+    let network = load_config(&app)?.network;
+    // Only cloned when the user asked to remember; the clone is consumed by the keystore.
+    let to_remember = remember.then(|| key.clone());
+    let info = open_and_install(&app, &state, key, network, address_type).await?;
 
-    let handle = tauri::async_runtime::spawn_blocking(move || WalletHandle::open(wallet_cfg, &key))
-        .await??;
-    let info = WalletInfo {
-        address: handle.address()?,
-        network: handle.network(),
-        address_type: handle.address_type(),
-        wallet_id: handle.id().to_owned(),
-    };
-
-    state.clear_pending();
-    *state.wallet.write().await = Some(Arc::new(handle));
+    if let Some(key) = to_remember {
+        let wallet_id = info.wallet_id.clone();
+        with_keystore(move |ks| ks.store(&wallet_id, key)).await?;
+        let record = RememberedWallet {
+            wallet_id: info.wallet_id.clone(),
+            address: info.address.clone(),
+            network: info.network,
+            address_type: info.address_type,
+        };
+        save_remembered(&app, Some(&record))?;
+    }
     Ok(info)
+}
+
+#[tauri::command]
+pub async fn get_remembered(app: AppHandle) -> AppResult<Option<RememberedWallet>> {
+    load_remembered(&app)
+}
+
+/// Opens the remembered wallet with the key loaded from the OS keystore.
+#[tauri::command]
+pub async fn unlock_wallet(app: AppHandle, state: State<'_, AppState>) -> AppResult<WalletInfo> {
+    let not_remembered = || AppError::new("not_remembered", "no wallet is saved on this device");
+    let remembered = load_remembered(&app)?.ok_or_else(not_remembered)?;
+    let wallet_id = remembered.wallet_id.clone();
+    let key = with_keystore(move |ks| ks.load(&wallet_id))
+        .await?
+        .ok_or_else(not_remembered)?;
+    open_and_install(
+        &app,
+        &state,
+        key,
+        remembered.network,
+        remembered.address_type,
+    )
+    .await
+}
+
+/// Removes the keystore entry and the remembered record, closing the wallet if open.
+#[tauri::command]
+pub async fn forget_wallet(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
+    if let Some(remembered) = load_remembered(&app)? {
+        let wallet_id = remembered.wallet_id;
+        with_keystore(move |ks| ks.remove(&wallet_id)).await?;
+    }
+    save_remembered(&app, None)?;
+    state.clear_pending();
+    let previous = state.wallet.write().await.take();
+    drop(previous);
+    Ok(())
 }
 
 #[tauri::command]

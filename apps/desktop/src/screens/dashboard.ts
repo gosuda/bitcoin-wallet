@@ -144,7 +144,7 @@ export function renderDashboard(): HTMLElement {
           session.wallet = null;
           session.lastSyncedAt = null;
           session.lastResult = null;
-          navigate("key");
+          navigate(session.remembered ? "unlock" : "key");
         }
       }),
     "danger",
