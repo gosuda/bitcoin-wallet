@@ -20,6 +20,8 @@ pub mod wallet;
 pub use backend::{BackendConfig, ChainBackend, FeeEstimate};
 pub use error::{Error, Result};
 pub use keys::{AddressType, GeneratedKey, KeyMaterial, address_for_key, generate_key};
+#[cfg(feature = "keystore-native")]
+pub use keystore::NativeKeystore;
 pub use keystore::{Keystore, MemoryKeystore};
 pub use network::Network;
 pub use wallet::{Balance, Broadcast, BuiltTx, Recipient, Utxo, WalletConfig, WalletHandle};

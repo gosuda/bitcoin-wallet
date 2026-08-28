@@ -8,10 +8,12 @@ repository.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["backend-esplora"]
+default = ["backend-esplora", "keystore-native"]
 backend-esplora = ["dep:bdk_esplora"]
+keystore-native = ["dep:keyring"]
 
 [dependencies]
+serde_json = { workspace = true }
 bdk_wallet = { workspace = true }
 bdk_esplora = { workspace = true, optional = true }
 tokio = { workspace = true }
@@ -20,7 +22,7 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 hex = { workspace = true }
 zeroize = { workspace = true }
+keyring = { version = "4", default-features = false, features = ["v1"], optional = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros"] }

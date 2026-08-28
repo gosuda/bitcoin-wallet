@@ -1,8 +1,10 @@
 //! Key storage boundary.
 //!
-//! Milestone 1 ships only an in-memory store: the UI supplies key material for
-//! the session and it is zeroized on drop. OS-keychain and browser-safe
-//! implementations plug in behind the same trait later.
+//! [`MemoryKeystore`] keeps material for the session only. [`NativeKeystore`]
+//! (feature `keystore-native`) stores it in the OS credential store — macOS
+//! Keychain, Windows Credential Manager, Secret Service on Linux — so a wallet
+//! can be unlocked on later launches without re-entering the key. Browser
+//! builds get their own implementation later.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -51,6 +53,56 @@ impl Keystore for MemoryKeystore {
     }
 }
 
+/// OS-credential-store keystore. One entry per wallet id under `service`.
+#[cfg(feature = "keystore-native")]
+pub struct NativeKeystore {
+    service: String,
+}
+
+#[cfg(feature = "keystore-native")]
+impl NativeKeystore {
+    /// `service` is the credential-store namespace, e.g. the app identifier.
+    pub fn new(service: impl Into<String>) -> Self {
+        Self {
+            service: service.into(),
+        }
+    }
+
+    fn entry(&self, wallet_id: &str) -> Result<keyring::Entry> {
+        keyring::Entry::new(&self.service, wallet_id).map_err(|e| Error::Persist(e.to_string()))
+    }
+}
+
+#[cfg(feature = "keystore-native")]
+impl Keystore for NativeKeystore {
+    fn load(&self, wallet_id: &str) -> Result<Option<KeyMaterial>> {
+        match self.entry(wallet_id)?.get_password() {
+            Ok(json) => {
+                let key = serde_json::from_str(&json).map_err(|e| Error::Persist(e.to_string()))?;
+                Ok(Some(key))
+            }
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(Error::Persist(e.to_string())),
+        }
+    }
+
+    fn store(&self, wallet_id: &str, key: KeyMaterial) -> Result<()> {
+        let json = zeroize::Zeroizing::new(
+            serde_json::to_string(&key).map_err(|e| Error::Persist(e.to_string()))?,
+        );
+        self.entry(wallet_id)?
+            .set_password(&json)
+            .map_err(|e| Error::Persist(e.to_string()))
+    }
+
+    fn remove(&self, wallet_id: &str) -> Result<()> {
+        match self.entry(wallet_id)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(Error::Persist(e.to_string())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,5 +115,22 @@ mod tests {
         assert!(matches!(ks.load("a").unwrap(), Some(KeyMaterial::Wif(_))));
         ks.remove("a").unwrap();
         assert!(ks.load("a").unwrap().is_none());
+    }
+
+    #[test]
+    #[ignore = "touches the OS credential store"]
+    #[cfg(feature = "keystore-native")]
+    fn native_roundtrip() {
+        let ks = NativeKeystore::new("dev.gosuda.bitcoinwallet.test");
+        let id = "wallet-core-test";
+        ks.remove(id).unwrap();
+        assert!(ks.load(id).unwrap().is_none());
+        ks.store(id, KeyMaterial::PrivHex("aa".repeat(32))).unwrap();
+        match &ks.load(id).unwrap() {
+            Some(KeyMaterial::PrivHex(h)) => assert_eq!(*h, "aa".repeat(32)),
+            other => panic!("unexpected {other:?}"),
+        }
+        ks.remove(id).unwrap();
+        assert!(ks.load(id).unwrap().is_none());
     }
 }
