@@ -1,0 +1,64 @@
+{
+  "artboards": [
+    {
+      "file": "Setup.dc.html",
+      "title": "1 \u00b7 Setup",
+      "x": 0,
+      "y": 0,
+      "w": 960,
+      "h": 640
+    },
+    {
+      "file": "Key.dc.html",
+      "title": "2 \u00b7 Key",
+      "x": 1040,
+      "y": 0,
+      "w": 960,
+      "h": 640
+    },
+    {
+      "file": "Main.dc.html",
+      "title": "3 \u00b7 Wallet",
+      "x": 2080,
+      "y": 0,
+      "w": 960,
+      "h": 780
+    },
+    {
+      "file": "Send.dc.html",
+      "title": "4 \u00b7 Send + Review",
+      "x": 0,
+      "y": 940,
+      "w": 960,
+      "h": 760
+    },
+    {
+      "file": "Sent.dc.html",
+      "title": "5 \u00b7 Sent",
+      "x": 1040,
+      "y": 940,
+      "w": 960,
+      "h": 640
+    },
+    {
+      "file": "Icon.dc.html",
+      "title": "App icon",
+      "x": 2080,
+      "y": 940,
+      "w": 720,
+      "h": 480
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -200,
+      "w": 520,
+      "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

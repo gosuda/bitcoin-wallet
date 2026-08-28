@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #FAFAF9; color: #1A1A1A; font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+    a { color: #C2410C; } a:hover { color: #A3360A; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B6B66; }
+    .card { background: #FFFFFF; border: 1px solid #E4E3DF; border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; font-weight: 500; font-size: 14px; white-space: nowrap; }
+    .btn-primary { background: #C2410C; border-color: #C2410C; color: #FFFFFF; }
+    .btn-quiet { border-color: transparent; background: transparent; color: #6B6B66; }
+    .btn-danger { color: #B91C1C; border-color: #E4E3DF; }
+    .btn-sm { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+    .input { display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; }
+    .input.placeholder { color: #A19F97; }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; }
+    .chip.on { border-color: #1A1A1A; background: #F4F4F2; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #A19F97; background: #FFFFFF; box-sizing: border-box; }
+    .chip.on .dot { border: 4px solid #C2410C; }
+    .hint { font-size: 12px; color: #6B6B66; }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; align-items: baseline; }
+    .kv dt { color: #6B6B66; font-size: 12px; } .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid #E4E3DF; white-space: nowrap; }
+    th { color: #6B6B66; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    td.num, th.num { text-align: right; }
+    tr:last-child td { border-bottom: none; }
+  </style>
+</helmet>
+<div style="width: 960px; min-height: 640px; background: #FAFAF9; display: flex; flex-direction: column;">
+<header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
+    <span style="font-weight: 600; font-size: 14px;">Bitcoin Wallet</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 600; color: #1A1A1A;">Setup</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 500; color: #A19F97;">Key</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 500; color: #A19F97;">Wallet</span></div>
+  <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B6B66;">
+    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid #E4E3DF; border-radius: 999px; background: #F4F4F2;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #166534;"></span>Signet · mempool.space</span>
+  </div>
+</header>
+<main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Setup</h1>
+  <p style="margin: 0; font-size: 12px; color: #6B6B66;">Network and Esplora endpoint. Stored locally; no secrets.</p>
+</div>
+<section class="card" style="gap: 16px;">
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Network</span><div class="seg"><span class="chip"><span class="dot"></span><span>Bitcoin</span></span><span class="chip"><span class="dot"></span><span>Testnet3</span></span><span class="chip"><span class="dot"></span><span>Testnet4</span></span><span class="chip on"><span class="dot"></span><span>Signet</span></span><span class="chip"><span class="dot"></span><span>Regtest</span></span></div></div>
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Esplora URL</span><span class="input mono">https://mempool.space/signet/api</span><span class="hint">Any Esplora-compatible API — mempool.space, blockstream.info, electrs, bitcoin-rs.</span></div>
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Address type</span><div class="seg"><span class="chip"><span class="dot"></span><span>P2PKH (legacy)</span></span><span class="chip on"><span class="dot"></span><span>P2WPKH (segwit)</span></span><span class="chip"><span class="dot"></span><span>P2SH-P2WPKH (nested)</span></span><span class="chip"><span class="dot"></span><span>P2TR (taproot)</span></span><span class="chip"><span class="dot"></span><span>P2PK (bare)</span></span></div><span class="hint">P2PK funds are not discoverable by public indexers.</span></div>
+</section>
+<div style="display: flex; justify-content: flex-end; gap: 8px;">
+  <span class="btn btn-primary">Continue <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span>
+</div>
+</main>
+</div>
+</x-dc>
+</body>
+</html>
