@@ -30,18 +30,25 @@ cd reference/go && make run
 - Bitcoin Testnet4
 - Bitcoin Signet
 
-## Rust wallet core (preview)
+## Rust wallet core
 
-A portable Rust core is being built alongside the Go toolkit (see issues #1 and #2).
-It uses [BDK](https://bitcoindevkit.org) (`bdk_wallet`, `bdk_esplora`) and
-runs against any Esplora-compatible HTTP API — mempool.space, blockstream.info, electrs,
+The maintained implementation. One wallet core, compiled once and reused everywhere:
+natively for the CLI and tests, and as WASM in the browser and the Tauri webview.
+It uses [BDK](https://bitcoindevkit.org) (`bdk_wallet`, `bdk_esplora`) and runs against
+any Esplora-compatible HTTP API — mempool.space, blockstream.info, electrs,
 [bitcoin-rs](https://github.com/gosuda/bitcoin-rs).
 
 ```
-crates/wallet-core   # wallet logic: keys, sync, balance, build → sign → broadcast (no UI)
-crates/wallet-cli    # `btcw` developer CLI mirroring the TUI flows
-apps/desktop         # Tauri v2 desktop app over the same core
+crates/wallet-core   # wallet logic: keys, sync, balance, build → sign → broadcast (no UI, no database)
+crates/wallet-wasm   # wasm-bindgen bindings: the same core for browser and Tauri webview
+crates/wallet-cli    # `btcw` developer CLI
+apps/desktop         # Tauri v2 shell: window, OS keychain — no wallet logic
 ```
+
+**Persistence.** The core never picks a database: it stages BDK `ChangeSet`s through a
+`Persister` the platform supplies. Browser and desktop both use the same IndexedDB store
+and the same JSON format; the CLI keeps state in memory. Secrets never go through that
+boundary — they live behind `Keystore` (OS keychain on native).
 
 ### CLI quick start
 ```bash
@@ -57,7 +64,7 @@ $btcw send -n signet --to tb1q...:10000            # broadcast; fee = 6-block es
 ```
 
 Address types: `p2pk`, `p2pkh`, `p2wpkh`, `np2wpkh`, `p2tr`. Networks: `bitcoin`, `testnet3`, `testnet4`, `signet`, `regtest`.
-Wallet state is kept in memory unless `--db <file.sqlite>` is given. Keys are never persisted.
+The CLI keeps wallet state in memory for the run and re-syncs each time; keys are never persisted.
 
 ### Desktop app
 ```bash
