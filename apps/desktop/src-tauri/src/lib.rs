@@ -1,7 +1,10 @@
-//! Tauri shell around `wallet_core`. Every command maps 1:1 onto the core API;
-//! secret material only ever crosses the IPC boundary inbound (`open_wallet`)
-//! or as the one-time output of `generate_key`. Remembered keys live in the OS
-//! keystore and are loaded by `unlock_wallet` without ever reaching the UI.
+//! Thin native shell for the wallet.
+//!
+//! The wallet core runs in the webview as WASM, with public state in
+//! IndexedDB. This process owns only what a browser cannot: the config store
+//! and the OS credential store. Secret material crosses the IPC boundary just
+//! twice — inbound to `remember_secret`, outbound from `load_secret` to the
+//! webview that is about to open the wallet — and is never logged.
 
 mod commands;
 mod dto;
@@ -17,19 +20,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::set_config,
-            commands::generate_key,
-            commands::open_wallet,
-            commands::close_wallet,
-            commands::get_remembered,
-            commands::unlock_wallet,
-            commands::forget_wallet,
-            commands::sync,
-            commands::get_balance,
-            commands::list_utxos,
-            commands::estimate_fee,
-            commands::build_transfer,
-            commands::sign_and_broadcast,
-            commands::discard_tx,
+            commands::remember_secret,
+            commands::load_secret,
+            commands::forget_secret,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

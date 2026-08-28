@@ -16,10 +16,6 @@ impl AppError {
         }
     }
 
-    pub fn no_wallet() -> Self {
-        Self::new("no_wallet", "no wallet is open")
-    }
-
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new("internal", message)
     }

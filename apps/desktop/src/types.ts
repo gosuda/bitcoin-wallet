@@ -84,6 +84,17 @@ export interface AppError {
   message: string;
 }
 
+/** Frontend failure carrying the same `{ code, message }` shape the commands return. */
+export class WalletError extends Error implements AppError {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "WalletError";
+    this.code = code;
+  }
+}
+
 export function isAppError(value: unknown): value is AppError {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
