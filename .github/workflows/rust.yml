@@ -28,3 +28,18 @@ jobs:
       - run: cargo clippy -p wallet-core -p wallet-cli --all-targets -- -D warnings
       - run: cargo test -p wallet-core -p wallet-cli
       - run: cargo build -p wallet-cli --release
+
+  wasm:
+    name: wallet-core + wallet-wasm (wasm32)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p wallet-core --target wasm32-unknown-unknown --no-default-features --features backend-esplora -- -D warnings
+      - run: cargo clippy -p wallet-wasm --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo install wasm-pack --locked
+      - run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../apps/desktop/src/wasm/pkg

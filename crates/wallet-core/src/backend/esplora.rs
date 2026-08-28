@@ -1,7 +1,8 @@
 //! Esplora HTTP backend (async, rustls).
 
-use async_trait::async_trait;
 use bdk_esplora::EsploraAsyncExt;
+#[cfg(target_arch = "wasm32")]
+use bdk_esplora::esplora_client::Sleeper;
 use bdk_esplora::esplora_client::{AsyncClient, Builder};
 use bdk_wallet::KeychainKind;
 use bdk_wallet::bitcoin::{Transaction, Txid};
@@ -13,15 +14,42 @@ use crate::{Error, Result};
 const STOP_GAP: usize = 20;
 const PARALLEL_REQUESTS: usize = 4;
 
+/// Retry/backoff sleeper for the browser: `setTimeout` via gloo. wasm is
+/// single-threaded, so wrapping the non-`Send` timer future is sound.
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, Copy)]
+pub struct WebSleeper;
+
+#[cfg(target_arch = "wasm32")]
+impl Sleeper for WebSleeper {
+    type Sleep = send_wrapper::SendWrapper<gloo_timers::future::TimeoutFuture>;
+
+    fn sleep(dur: std::time::Duration) -> Self::Sleep {
+        send_wrapper::SendWrapper::new(gloo_timers::future::TimeoutFuture::new(
+            dur.as_millis() as u32
+        ))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+type Client = AsyncClient;
+#[cfg(target_arch = "wasm32")]
+type Client = AsyncClient<WebSleeper>;
+
 pub struct EsploraBackend {
-    client: AsyncClient,
+    client: Client,
 }
 
 impl EsploraBackend {
     pub fn new(url: &str) -> Result<Self> {
-        let client = Builder::new(url.trim_end_matches('/'))
-            .timeout(30)
+        let builder = Builder::new(url.trim_end_matches('/')).timeout(30);
+        #[cfg(not(target_arch = "wasm32"))]
+        let client = builder
             .build_async()
+            .map_err(|e| Error::Backend(e.to_string()))?;
+        #[cfg(target_arch = "wasm32")]
+        let client = builder
+            .build_async_with_sleeper::<WebSleeper>()
             .map_err(|e| Error::Backend(e.to_string()))?;
         Ok(Self { client })
     }
@@ -31,7 +59,8 @@ fn map_err(e: impl std::fmt::Display) -> Error {
     Error::Backend(e.to_string())
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl ChainBackend for EsploraBackend {
     async fn full_scan(
         &self,

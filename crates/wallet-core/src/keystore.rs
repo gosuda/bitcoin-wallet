@@ -54,12 +54,12 @@ impl Keystore for MemoryKeystore {
 }
 
 /// OS-credential-store keystore. One entry per wallet id under `service`.
-#[cfg(feature = "keystore-native")]
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 pub struct NativeKeystore {
     service: String,
 }
 
-#[cfg(feature = "keystore-native")]
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 impl NativeKeystore {
     /// `service` is the credential-store namespace, e.g. the app identifier.
     pub fn new(service: impl Into<String>) -> Self {
@@ -73,7 +73,7 @@ impl NativeKeystore {
     }
 }
 
-#[cfg(feature = "keystore-native")]
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 impl Keystore for NativeKeystore {
     fn load(&self, wallet_id: &str) -> Result<Option<KeyMaterial>> {
         match self.entry(wallet_id)?.get_password() {
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     #[ignore = "touches the OS credential store"]
-    #[cfg(feature = "keystore-native")]
+    #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
     fn native_roundtrip() {
         let ks = NativeKeystore::new("dev.gosuda.bitcoinwallet.test");
         let id = "wallet-core-test";

@@ -1,19 +1,18 @@
-//! Single-key wallet handle: BDK wallet + persistence + chain backend.
+//! Single-key wallet handle: BDK wallet + portable persistence + chain backend.
 
-use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
+use async_lock::Mutex;
 use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, Transaction};
-use bdk_wallet::chain::ChainPosition;
-use bdk_wallet::rusqlite::Connection;
-use bdk_wallet::{KeychainKind, PersistedWallet, SignOptions, Wallet};
+use bdk_wallet::chain::{ChainPosition, Merge};
+use bdk_wallet::{KeychainKind, SignOptions, Wallet};
 use serde::{Deserialize, Serialize};
+use web_time::{SystemTime, UNIX_EPOCH};
 
 use crate::backend::{BackendConfig, ChainBackend, FeeEstimate};
 use crate::keys::{AddressType, KeyMaterial, descriptor_for, wallet_id};
 use crate::network::Network;
+use crate::persist::Persister;
 use crate::{Error, Result};
 
 /// Confirmation target used when the caller does not choose a fee rate (Go parity: 6 blocks).
@@ -21,15 +20,13 @@ pub const DEFAULT_FEE_TARGET: u16 = 6;
 /// Floor applied to any fee rate (Go parity: 1 sat/vB).
 pub const MIN_FEE_RATE_SAT_VB: f64 = 1.0;
 
-/// Everything needed to open a wallet.
+/// Everything needed to open a wallet. Where state is stored is the
+/// platform's choice — see [`Persister`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletConfig {
     pub network: Network,
     pub address_type: AddressType,
     pub backend: BackendConfig,
-    /// SQLite file for wallet state; `None` keeps state in memory only.
-    #[serde(default)]
-    pub db_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,14 +89,15 @@ pub struct Broadcast {
 }
 
 struct Inner {
-    wallet: PersistedWallet<Connection>,
-    db: Connection,
+    wallet: Wallet,
+    persister: Box<dyn Persister>,
     #[cfg(test)]
     fail_next_persist: bool,
 }
 
-/// Thread-safe wallet. Synchronous BDK calls run under a short-lived mutex;
-/// network I/O happens outside the lock.
+/// Wallet handle. BDK calls run under a short-lived async mutex; network I/O
+/// happens outside the lock. All methods are `async` so the same API serves
+/// native runtimes and the browser.
 pub struct WalletHandle {
     inner: Mutex<Inner>,
     backend: Box<dyn ChainBackend>,
@@ -122,55 +120,53 @@ pub fn fee_rate_from_sat_vb(sat_per_vb: f64) -> FeeRate {
 }
 
 impl WalletHandle {
-    /// Open (or create) the wallet for `key` using the configured backend.
-    pub fn open(config: WalletConfig, key: &KeyMaterial) -> Result<Self> {
+    /// Open (or create) the wallet for `key`, connecting the configured backend.
+    pub async fn open(
+        config: WalletConfig,
+        key: &KeyMaterial,
+        persister: Box<dyn Persister>,
+    ) -> Result<Self> {
         let backend = crate::backend::connect(&config.backend)?;
-        Self::open_with_backend(config, key, backend)
+        Self::open_with(config, key, backend, persister).await
     }
 
-    /// Open with an explicit backend (used by tests and custom providers).
-    pub fn open_with_backend(
+    /// Open with explicit backend and persister (tests, custom providers).
+    pub async fn open_with(
         config: WalletConfig,
         key: &KeyMaterial,
         backend: Box<dyn ChainBackend>,
+        mut persister: Box<dyn Persister>,
     ) -> Result<Self> {
         let net = bdk_wallet::bitcoin::Network::from(config.network);
         let descriptor = descriptor_for(key, config.network, config.address_type)?;
         let id = wallet_id(key, config.network, config.address_type)?;
 
-        let mut db = match &config.db_path {
-            Some(path) => {
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent).map_err(|e| Error::Persist(e.to_string()))?;
-                }
-                Connection::open(path)
-            }
-            None => Connection::open_in_memory(),
-        }
-        .map_err(|e| Error::Persist(e.to_string()))?;
-
-        let loaded = Wallet::load()
-            .descriptor(KeychainKind::External, Some(descriptor.clone()))
-            .extract_keys()
-            .check_network(net)
-            .load_wallet(&mut db)
-            .map_err(|e| Error::Persist(e.to_string()))?;
-
-        let wallet = match loaded {
-            Some(w) => w,
-            None => Wallet::create_single(descriptor)
+        let stored = persister.initialize().await?;
+        let wallet = if stored.is_empty() {
+            Wallet::create_single(descriptor)
                 .network(net)
-                .create_wallet(&mut db)
-                .map_err(|e| Error::Descriptor(e.to_string()))?,
+                .create_wallet_no_persist()
+                .map_err(|e| Error::Descriptor(e.to_string()))?
+        } else {
+            Wallet::load()
+                .descriptor(KeychainKind::External, Some(descriptor))
+                .extract_keys()
+                .check_network(net)
+                .load_wallet_no_persist(stored)
+                .map_err(|e| Error::Persist(e.to_string()))?
+                .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?
         };
 
+        let mut inner = Inner {
+            wallet,
+            persister,
+            #[cfg(test)]
+            fail_next_persist: false,
+        };
+        Self::persist(&mut inner).await?;
+
         Ok(Self {
-            inner: Mutex::new(Inner {
-                wallet,
-                db,
-                #[cfg(test)]
-                fail_next_persist: false,
-            }),
+            inner: Mutex::new(inner),
             backend,
             network: config.network,
             address_type: config.address_type,
@@ -178,22 +174,19 @@ impl WalletHandle {
         })
     }
 
-    fn lock(&self) -> Result<std::sync::MutexGuard<'_, Inner>> {
-        self.inner
-            .lock()
-            .map_err(|_| Error::Persist("wallet mutex poisoned".into()))
-    }
-
-    fn persist(inner: &mut Inner) -> Result<()> {
+    async fn persist(inner: &mut Inner) -> Result<()> {
         #[cfg(test)]
         if std::mem::take(&mut inner.fail_next_persist) {
             return Err(Error::Persist("injected persistence failure".into()));
         }
-        inner
-            .wallet
-            .persist(&mut inner.db)
-            .map(|_| ())
-            .map_err(|e| Error::Persist(e.to_string()))
+        let Inner {
+            wallet, persister, ..
+        } = inner;
+        if let Some(stage) = wallet.staged_mut() {
+            persister.persist(&*stage).await?;
+            let _ = stage.take();
+        }
+        Ok(())
     }
 
     pub fn id(&self) -> &str {
@@ -209,16 +202,16 @@ impl WalletHandle {
     }
 
     /// The wallet's single receiving address.
-    pub fn address(&self) -> Result<String> {
-        let inner = self.lock()?;
+    pub async fn address(&self) -> String {
+        let inner = self.inner.lock().await;
         let info = inner.wallet.peek_address(KeychainKind::External, 0);
-        Ok(match self.address_type {
+        match self.address_type {
             AddressType::P2pk => {
                 crate::keys::pubkey_from_p2pk_script(&info.address.script_pubkey())
                     .unwrap_or_else(|| info.address.to_string())
             }
             _ => info.address.to_string(),
-        })
+        }
     }
 
     /// Pull chain state from the backend and persist it.
@@ -228,7 +221,7 @@ impl WalletHandle {
             Partial(bdk_wallet::chain::spk_client::SyncRequest<(KeychainKind, u32)>),
         }
         let req = {
-            let inner = self.lock()?;
+            let inner = self.inner.lock().await;
             let has_history = inner.wallet.transactions().next().is_some();
             if has_history {
                 Req::Partial(inner.wallet.start_sync_with_revealed_spks().build())
@@ -240,26 +233,26 @@ impl WalletHandle {
             Req::Full(r) => self.backend.full_scan(r).await?.into(),
             Req::Partial(r) => self.backend.sync(r).await?.into(),
         };
-        let mut inner = self.lock()?;
+        let mut inner = self.inner.lock().await;
         inner
             .wallet
             .apply_update(update)
             .map_err(|e| Error::Backend(e.to_string()))?;
-        Self::persist(&mut inner)
+        Self::persist(&mut inner).await
     }
 
-    pub fn balance(&self) -> Result<Balance> {
-        let b = self.lock()?.wallet.balance();
-        Ok(Balance {
+    pub async fn balance(&self) -> Balance {
+        let b = self.inner.lock().await.wallet.balance();
+        Balance {
             confirmed: b.confirmed.to_sat(),
             trusted_pending: b.trusted_pending.to_sat(),
             untrusted_pending: b.untrusted_pending.to_sat(),
             immature: b.immature.to_sat(),
-        })
+        }
     }
 
-    pub fn list_utxos(&self) -> Result<Vec<Utxo>> {
-        let inner = self.lock()?;
+    pub async fn list_utxos(&self) -> Vec<Utxo> {
+        let inner = self.inner.lock().await;
         let tip = inner.wallet.latest_checkpoint().height();
         let net = bdk_wallet::bitcoin::Network::from(self.network);
         let mut utxos: Vec<Utxo> = inner
@@ -281,7 +274,7 @@ impl WalletHandle {
             })
             .collect();
         utxos.sort_by(|a, b| b.value.cmp(&a.value).then_with(|| a.txid.cmp(&b.txid)));
-        Ok(utxos)
+        utxos
     }
 
     pub async fn estimate_fee(&self) -> Result<FeeEstimate> {
@@ -293,7 +286,7 @@ impl WalletHandle {
     }
 
     /// Build an unsigned transfer; change returns to the wallet address.
-    pub fn build_transfer(
+    pub async fn build_transfer(
         &self,
         recipients: &[Recipient],
         fee_rate_sat_vb: f64,
@@ -314,7 +307,7 @@ impl WalletHandle {
             outputs.push((addr.script_pubkey(), Amount::from_sat(r.amount_sat)));
         }
 
-        let mut inner = self.lock()?;
+        let mut inner = self.inner.lock().await;
         let psbt = {
             let mut builder = inner.wallet.build_tx();
             builder
@@ -324,7 +317,7 @@ impl WalletHandle {
                 .finish()
                 .map_err(|e| Error::BuildTx(e.to_string()))?
         };
-        Self::persist(&mut inner)?;
+        Self::persist(&mut inner).await?;
 
         let fee_sat = psbt.fee().map_err(|e| Error::Psbt(e.to_string()))?.to_sat();
         let tx = &psbt.unsigned_tx;
@@ -346,9 +339,9 @@ impl WalletHandle {
     }
 
     /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
-    pub fn sign(&self, psbt_base64: &str) -> Result<String> {
+    pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
         let mut psbt = Psbt::from_str(psbt_base64).map_err(|e| Error::Psbt(e.to_string()))?;
-        let inner = self.lock()?;
+        let inner = self.inner.lock().await;
         let finalized = inner
             .wallet
             .sign(&mut psbt, SignOptions::default())
@@ -376,13 +369,9 @@ impl WalletHandle {
     pub async fn broadcast(&self, signed_psbt_base64: &str) -> Result<Broadcast> {
         let tx = Self::extract_tx(signed_psbt_base64)?;
         let txid = self.backend.broadcast(&tx).await?.to_string();
-        let persist_error = match self.lock() {
-            Ok(mut inner) => {
-                inner.wallet.apply_unconfirmed_txs([(tx, now_secs())]);
-                Self::persist(&mut inner).err().map(|e| e.to_string())
-            }
-            Err(e) => Some(e.to_string()),
-        };
+        let mut inner = self.inner.lock().await;
+        inner.wallet.apply_unconfirmed_txs([(tx, now_secs())]);
+        let persist_error = Self::persist(&mut inner).await.err().map(|e| e.to_string());
         Ok(Broadcast {
             txid,
             persist_error,
@@ -404,43 +393,37 @@ impl WalletHandle {
                 .for_target(DEFAULT_FEE_TARGET)
                 .unwrap_or(MIN_FEE_RATE_SAT_VB),
         };
-        let built = self.build_transfer(recipients, rate)?;
-        let signed = self.sign(&built.psbt_base64)?;
+        let built = self.build_transfer(recipients, rate).await?;
+        let signed = self.sign(&built.psbt_base64).await?;
         self.broadcast(&signed).await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use bdk_wallet::bitcoin::{
         OutPoint, ScriptBuf, Sequence, TxIn, TxOut, Witness, absolute, transaction,
     };
 
     use super::*;
     use crate::backend::mock::MockBackend;
+    use crate::persist::MemoryPersister;
 
     const SK_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
-    fn open(address_type: AddressType) -> (WalletHandle, std::sync::Arc<MockBackend>) {
-        let mock = std::sync::Arc::new(MockBackend::with_fee(6, 2.0));
-        let cfg = WalletConfig {
+    fn cfg(address_type: AddressType) -> WalletConfig {
+        WalletConfig {
             network: Network::Regtest,
             address_type,
             backend: BackendConfig::Esplora {
                 url: "unused".into(),
             },
-            db_path: None,
-        };
-        let handle = WalletHandle::open_with_backend(
-            cfg,
-            &KeyMaterial::PrivHex(SK_HEX.into()),
-            Box::new(ArcBackend(mock.clone())),
-        )
-        .unwrap();
-        (handle, mock)
+        }
     }
 
-    struct ArcBackend(std::sync::Arc<MockBackend>);
+    struct ArcBackend(Arc<MockBackend>);
     #[async_trait::async_trait]
     impl ChainBackend for ArcBackend {
         async fn full_scan(
@@ -466,14 +449,21 @@ mod tests {
         }
     }
 
-    fn fund(handle: &WalletHandle, sats: u64) {
-        let mut inner = handle.inner.lock().unwrap();
-        let spk = inner
-            .wallet
-            .peek_address(KeychainKind::External, 0)
-            .address
-            .script_pubkey();
-        let tx = Transaction {
+    async fn open(address_type: AddressType) -> (WalletHandle, Arc<MockBackend>) {
+        let mock = Arc::new(MockBackend::with_fee(6, 2.0));
+        let handle = WalletHandle::open_with(
+            cfg(address_type),
+            &KeyMaterial::PrivHex(SK_HEX.into()),
+            Box::new(ArcBackend(mock.clone())),
+            Box::new(MemoryPersister::new()),
+        )
+        .await
+        .unwrap();
+        (handle, mock)
+    }
+
+    fn funding_tx(spk: ScriptBuf, sats: u64) -> Transaction {
+        Transaction {
             version: transaction::Version::TWO,
             lock_time: absolute::LockTime::ZERO,
             input: vec![TxIn {
@@ -489,8 +479,27 @@ mod tests {
                 value: Amount::from_sat(sats),
                 script_pubkey: spk,
             }],
-        };
-        inner.wallet.apply_unconfirmed_txs([(tx, 1)]);
+        }
+    }
+
+    async fn fund(handle: &WalletHandle, sats: u64) {
+        let mut inner = handle.inner.lock().await;
+        let spk = inner
+            .wallet
+            .peek_address(KeychainKind::External, 0)
+            .address
+            .script_pubkey();
+        inner
+            .wallet
+            .apply_unconfirmed_txs([(funding_tx(spk, sats), 1)]);
+        WalletHandle::persist(&mut inner).await.unwrap();
+    }
+
+    fn dest(t: AddressType) -> String {
+        crate::keys::generate_key(Network::Regtest, t)
+            .unwrap()
+            .address
+            .clone()
     }
 
     #[tokio::test]
@@ -501,28 +510,22 @@ mod tests {
             AddressType::NestedP2wpkh,
             AddressType::P2tr,
         ] {
-            let (handle, mock) = open(t);
-            assert_eq!(handle.balance().unwrap().total(), 0);
-            fund(&handle, 100_000);
-            assert_eq!(handle.balance().unwrap().total(), 100_000);
-            assert_eq!(handle.list_utxos().unwrap().len(), 1);
-            assert_eq!(
-                handle.list_utxos().unwrap()[0].address,
-                handle.address().unwrap()
-            );
+            let (handle, mock) = open(t).await;
+            assert_eq!(handle.balance().await.total(), 0);
+            fund(&handle, 100_000).await;
+            assert_eq!(handle.balance().await.total(), 100_000);
+            assert_eq!(handle.list_utxos().await.len(), 1);
+            assert_eq!(handle.list_utxos().await[0].address, handle.address().await);
 
-            let dest = crate::keys::generate_key(Network::Regtest, AddressType::P2wpkh)
-                .unwrap()
-                .address
-                .clone();
             let built = handle
                 .build_transfer(
                     &[Recipient {
-                        address: dest.clone(),
+                        address: dest(AddressType::P2wpkh),
                         amount_sat: 40_000,
                     }],
                     2.0,
                 )
+                .await
                 .unwrap_or_else(|e| panic!("{t:?}: {e}"));
             assert_eq!(built.total_out_sat, 40_000);
             assert!(
@@ -534,6 +537,7 @@ mod tests {
 
             let signed = handle
                 .sign(&built.psbt_base64)
+                .await
                 .unwrap_or_else(|e| panic!("{t:?}: {e}"));
             let out = handle.broadcast(&signed).await.unwrap();
             assert_eq!(out.persist_error, None);
@@ -544,23 +548,18 @@ mod tests {
                     .to_string(),
                 out.txid
             );
-            // Change is now an unconfirmed UTXO of ours.
-            assert_eq!(handle.balance().unwrap().total(), built.change_sat);
+            assert_eq!(handle.balance().await.total(), built.change_sat);
         }
     }
 
     #[tokio::test]
     async fn send_uses_estimate_and_floor() {
-        let (handle, mock) = open(AddressType::P2wpkh);
-        fund(&handle, 50_000);
-        let dest = crate::keys::generate_key(Network::Regtest, AddressType::P2tr)
-            .unwrap()
-            .address
-            .clone();
+        let (handle, mock) = open(AddressType::P2wpkh).await;
+        fund(&handle, 50_000).await;
         handle
             .send(
                 &[Recipient {
-                    address: dest,
+                    address: dest(AddressType::P2tr),
                     amount_sat: 10_000,
                 }],
                 None,
@@ -574,23 +573,20 @@ mod tests {
     /// still get the txid and be able to tell this apart from a failed send.
     #[tokio::test]
     async fn broadcast_reports_persist_failure_separately() {
-        let (handle, mock) = open(AddressType::P2wpkh);
-        fund(&handle, 50_000);
-        let dest = crate::keys::generate_key(Network::Regtest, AddressType::P2wpkh)
-            .unwrap()
-            .address
-            .clone();
+        let (handle, mock) = open(AddressType::P2wpkh).await;
+        fund(&handle, 50_000).await;
         let built = handle
             .build_transfer(
                 &[Recipient {
-                    address: dest,
+                    address: dest(AddressType::P2wpkh),
                     amount_sat: 10_000,
                 }],
                 1.0,
             )
+            .await
             .unwrap();
-        let signed = handle.sign(&built.psbt_base64).unwrap();
-        handle.inner.lock().unwrap().fail_next_persist = true;
+        let signed = handle.sign(&built.psbt_base64).await.unwrap();
+        handle.inner.lock().await.fail_next_persist = true;
 
         let out = handle
             .broadcast(&signed)
@@ -614,10 +610,12 @@ mod tests {
                 .contains("injected"),
             "{out:?}"
         );
-        // In-memory state still tracks the spend even though persistence failed.
-        assert_eq!(handle.balance().unwrap().total(), built.change_sat);
+        assert_eq!(
+            handle.balance().await.total(),
+            built.change_sat,
+            "in-memory state still tracks the spend"
+        );
 
-        // A genuinely failed broadcast is still an Err and touches nothing.
         struct Failing;
         #[async_trait::async_trait]
         impl ChainBackend for Failing {
@@ -643,76 +641,68 @@ mod tests {
                 unreachable!()
             }
         }
-        let cfg = WalletConfig {
-            network: Network::Regtest,
-            address_type: AddressType::P2wpkh,
-            backend: BackendConfig::Esplora {
-                url: "unused".into(),
-            },
-            db_path: None,
-        };
-        let h2 = WalletHandle::open_with_backend(
-            cfg,
+        let h2 = WalletHandle::open_with(
+            cfg(AddressType::P2wpkh),
             &KeyMaterial::PrivHex(SK_HEX.into()),
             Box::new(Failing),
+            Box::new(MemoryPersister::new()),
         )
+        .await
         .unwrap();
-        fund(&h2, 50_000);
+        fund(&h2, 50_000).await;
         let built = h2
             .build_transfer(
                 &[Recipient {
-                    address: crate::keys::generate_key(Network::Regtest, AddressType::P2tr)
-                        .unwrap()
-                        .address
-                        .clone(),
+                    address: dest(AddressType::P2tr),
                     amount_sat: 10_000,
                 }],
                 1.0,
             )
+            .await
             .unwrap();
-        let signed = h2.sign(&built.psbt_base64).unwrap();
+        let signed = h2.sign(&built.psbt_base64).await.unwrap();
         assert!(matches!(
             h2.broadcast(&signed).await,
             Err(Error::Backend(_))
         ));
         assert_eq!(
-            h2.balance().unwrap().total(),
+            h2.balance().await.total(),
             50_000,
             "nothing applied on failed broadcast"
         );
     }
 
-    #[test]
-    fn build_rejects_bad_input() {
-        let (handle, _) = open(AddressType::P2wpkh);
-        fund(&handle, 50_000);
+    #[tokio::test]
+    async fn build_rejects_bad_input() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 50_000).await;
         assert!(matches!(
-            handle.build_transfer(&[], 1.0),
+            handle.build_transfer(&[], 1.0).await,
             Err(Error::BuildTx(_))
         ));
         let mainnet = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".to_string();
         assert!(matches!(
-            handle.build_transfer(
-                &[Recipient {
-                    address: mainnet,
-                    amount_sat: 1
-                }],
-                1.0
-            ),
+            handle
+                .build_transfer(
+                    &[Recipient {
+                        address: mainnet,
+                        amount_sat: 1
+                    }],
+                    1.0
+                )
+                .await,
             Err(Error::InvalidAddress(_))
         ));
-        let dest = crate::keys::generate_key(Network::Regtest, AddressType::P2wpkh)
-            .unwrap()
-            .address
-            .clone();
         assert!(matches!(
-            handle.build_transfer(
-                &[Recipient {
-                    address: dest,
-                    amount_sat: 1_000_000
-                }],
-                1.0
-            ),
+            handle
+                .build_transfer(
+                    &[Recipient {
+                        address: dest(AddressType::P2wpkh),
+                        amount_sat: 1_000_000
+                    }],
+                    1.0
+                )
+                .await,
             Err(Error::BuildTx(_))
         ));
     }
@@ -724,28 +714,60 @@ mod tests {
         assert_eq!(fee_rate_from_sat_vb(2.5).to_sat_per_kwu(), 625);
     }
 
-    #[test]
-    fn persists_and_reloads() {
-        let dir = std::env::temp_dir().join(format!("wallet-core-test-{}", std::process::id()));
-        let path = dir.join("w.sqlite");
-        let cfg = WalletConfig {
-            network: Network::Signet,
-            address_type: AddressType::P2wpkh,
-            backend: BackendConfig::Esplora {
-                url: "unused".into(),
-            },
-            db_path: Some(path.clone()),
-        };
+    /// State persisted through the portable boundary reloads into a new handle
+    /// — the same path IndexedDB takes: one aggregated changeset per wallet.
+    #[tokio::test]
+    async fn persists_and_reloads_through_persister() {
+        /// Persister sharing one aggregated changeset between handles.
+        #[derive(Clone, Default)]
+        struct SharedPersister(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
+
+        #[async_trait::async_trait]
+        impl crate::persist::Persister for SharedPersister {
+            async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
+                Ok(self.0.lock().unwrap().clone())
+            }
+
+            async fn persist(&mut self, delta: &bdk_wallet::ChangeSet) -> Result<()> {
+                use bdk_wallet::chain::Merge;
+                self.0.lock().unwrap().merge(delta.clone());
+                Ok(())
+            }
+        }
+
         let key = KeyMaterial::PrivHex(SK_HEX.into());
-        let a =
-            WalletHandle::open_with_backend(cfg.clone(), &key, Box::new(MockBackend::default()))
-                .unwrap();
-        fund(&a, 1234);
-        WalletHandle::persist(&mut a.inner.lock().unwrap()).unwrap();
+        let store = SharedPersister::default();
+
+        let a = WalletHandle::open_with(
+            cfg(AddressType::P2wpkh),
+            &key,
+            Box::new(MockBackend::default()),
+            Box::new(store.clone()),
+        )
+        .await
+        .unwrap();
+        fund(&a, 1234).await;
+        let address = a.address().await;
         drop(a);
-        let b =
-            WalletHandle::open_with_backend(cfg, &key, Box::new(MockBackend::default())).unwrap();
-        assert_eq!(b.balance().unwrap().total(), 1234);
-        let _ = std::fs::remove_dir_all(dir);
+
+        // Stored state is JSON-portable (what a browser store would hold).
+        let json = crate::persist::changeset_to_json(&store.0.lock().unwrap().clone()).unwrap();
+        assert!(!json.is_empty());
+        let restored = crate::persist::changeset_from_json(Some(&json)).unwrap();
+
+        let mut reloaded = SharedPersister::default();
+        crate::persist::Persister::persist(&mut reloaded, &restored)
+            .await
+            .unwrap();
+        let b = WalletHandle::open_with(
+            cfg(AddressType::P2wpkh),
+            &key,
+            Box::new(MockBackend::default()),
+            Box::new(reloaded),
+        )
+        .await
+        .unwrap();
+        assert_eq!(b.balance().await.total(), 1234);
+        assert_eq!(b.address().await, address);
     }
 }

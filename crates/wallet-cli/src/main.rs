@@ -3,12 +3,12 @@
 //! Secrets are read from `--key`, the `BTCW_KEY` env var, or stdin (`--key -`).
 
 use std::io::Read;
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
 use wallet_core::{
-    AddressType, BackendConfig, KeyMaterial, Network, Recipient, WalletConfig, WalletHandle,
+    AddressType, BackendConfig, KeyMaterial, MemoryPersister, Network, Recipient, WalletConfig,
+    WalletHandle,
 };
 
 #[derive(Parser)]
@@ -32,9 +32,6 @@ struct BackendArgs {
     /// Esplora base URL (defaults to mempool.space for the network)
     #[arg(short, long)]
     url: Option<String>,
-    /// SQLite wallet DB path (default: in-memory)
-    #[arg(long)]
-    db: Option<PathBuf>,
     /// Private key (hex or WIF); "-" reads stdin; falls back to $BTCW_KEY
     #[arg(short, long)]
     key: Option<String>,
@@ -90,7 +87,7 @@ fn read_key(arg: Option<String>) -> Result<KeyMaterial, String> {
     Ok(KeyMaterial::parse(&raw))
 }
 
-fn open(
+async fn open(
     network: Network,
     address_type: AddressType,
     a: &BackendArgs,
@@ -105,9 +102,15 @@ fn open(
         network,
         address_type,
         backend,
-        db_path: a.db.clone(),
     };
-    WalletHandle::open(cfg, &read_key(a.key.clone())?).map_err(|e| e.to_string())
+    // The CLI keeps wallet state in memory for the run; it re-syncs each time.
+    WalletHandle::open(
+        cfg,
+        &read_key(a.key.clone())?,
+        Box::new(MemoryPersister::new()),
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 fn parse_recipient(s: &str) -> Result<Recipient, String> {
@@ -142,16 +145,16 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
             Ok(serde_json::json!({ "address": address }))
         }
         Cmd::Balance(a) => {
-            let w = open(network, address_type, &a)?;
+            let w = open(network, address_type, &a).await?;
             w.sync().await.map_err(|e| e.to_string())?;
-            let balance = w.balance().map_err(|e| e.to_string())?;
-            let utxos = w.list_utxos().map_err(|e| e.to_string())?;
+            let balance = w.balance().await;
+            let utxos = w.list_utxos().await;
             Ok(
-                serde_json::json!({ "address": w.address().map_err(|e| e.to_string())?, "balance": balance, "spendable": balance.spendable(), "utxos": utxos }),
+                serde_json::json!({ "address": w.address().await, "balance": balance, "spendable": balance.spendable(), "utxos": utxos }),
             )
         }
         Cmd::Fees(a) => {
-            let w = open(network, address_type, &a)?;
+            let w = open(network, address_type, &a).await?;
             let fees = w.estimate_fee().await.map_err(|e| e.to_string())?;
             Ok(
                 serde_json::json!({ "height": w.chain_height().await.map_err(|e| e.to_string())?, "sat_per_vb": fees.sat_per_vb_by_target }),
@@ -167,7 +170,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
                 .iter()
                 .map(|s| parse_recipient(s))
                 .collect::<Result<Vec<_>, _>>()?;
-            let w = open(network, address_type, &backend)?;
+            let w = open(network, address_type, &backend).await?;
             w.sync().await.map_err(|e| e.to_string())?;
             let rate = match fee_rate {
                 Some(r) => r,
@@ -180,8 +183,12 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
             };
             let built = w
                 .build_transfer(&recipients, rate)
+                .await
                 .map_err(|e| e.to_string())?;
-            let signed = w.sign(&built.psbt_base64).map_err(|e| e.to_string())?;
+            let signed = w
+                .sign(&built.psbt_base64)
+                .await
+                .map_err(|e| e.to_string())?;
             let tx = WalletHandle::extract_tx(&signed).map_err(|e| e.to_string())?;
             let (txid, persist_error) = if dry_run {
                 (tx.compute_txid().to_string(), None)
@@ -218,7 +225,7 @@ fn print_text(v: &serde_json::Value) {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;

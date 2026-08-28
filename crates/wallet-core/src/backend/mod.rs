@@ -3,13 +3,12 @@
 
 use std::collections::BTreeMap;
 
-use async_trait::async_trait;
 use bdk_wallet::KeychainKind;
 use bdk_wallet::bitcoin::{Transaction, Txid};
 use bdk_wallet::chain::spk_client::{FullScanRequest, FullScanResponse, SyncRequest, SyncResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::Result;
+use crate::{MaybeSend, MaybeSync, Result};
 
 #[cfg(feature = "backend-esplora")]
 pub mod esplora;
@@ -45,8 +44,9 @@ impl FeeEstimate {
 }
 
 /// Provider-neutral chain access used by [`crate::WalletHandle`].
-#[async_trait]
-pub trait ChainBackend: Send + Sync {
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+pub trait ChainBackend: MaybeSend + MaybeSync {
     /// Discover all history for the keychains in `request`.
     async fn full_scan(
         &self,

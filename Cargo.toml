@@ -11,10 +11,9 @@ rust-version = "1.85"
 [workspace.dependencies]
 wallet-core = { path = "crates/wallet-core" }
 
-bdk_wallet = { version = "3.1.0", features = ["std", "rusqlite"] }
-bdk_esplora = { version = "0.22.2", default-features = false, features = ["async-https-rustls", "tokio"] }
+bdk_wallet = { version = "3.1.0", default-features = false, features = ["std"] }
 
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1", features = ["rt", "macros"] }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -22,6 +21,8 @@ thiserror = "2"
 hex = "0.4"
 zeroize = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive"] }
+async-lock = "3"
+web-time = "1"
 
 [profile.release]
 lto = "thin"

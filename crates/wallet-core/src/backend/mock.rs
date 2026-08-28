@@ -2,7 +2,6 @@
 
 use std::sync::Mutex;
 
-use async_trait::async_trait;
 use bdk_wallet::KeychainKind;
 use bdk_wallet::bitcoin::{Transaction, Txid};
 use bdk_wallet::chain::spk_client::{FullScanRequest, FullScanResponse, SyncRequest, SyncResponse};
@@ -30,7 +29,8 @@ impl MockBackend {
     }
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 impl ChainBackend for MockBackend {
     async fn full_scan(
         &self,
