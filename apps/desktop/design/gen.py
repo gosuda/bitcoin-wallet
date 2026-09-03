@@ -140,6 +140,67 @@ key = page(head("Key", "Signet · mempool.space") + f'''
   </div>
 </section>''', step=1)
 
+def word_grid(words, blanks=()):
+    cells = []
+    for i, w in enumerate(words, start=1):
+        if i in blanks:
+            body = '<span style="flex: 1; border-bottom: 1px solid #C2410C; min-height: 18px;"></span>'
+        else:
+            body = f'<span class="mono" style="flex: 1;">{w}</span>'
+        cells.append(
+            '<div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;">'
+            f'<span class="hint" style="width: 16px; text-align: right;">{i}</span>{body}</div>'
+        )
+    return '<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;">' + "".join(cells) + '</div>'
+
+WORDS = ['ridge', 'olive', 'spider', 'canyon', 'fabric', 'velvet', 'hazard', 'meadow', 'tunnel', 'orbit', 'cactus', 'spoon']
+
+create = page(head("New wallet", "Signet · mempool.space") + f'''
+<section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label" style="color: #9A3412;">Recovery phrase — shown once</span>
+    <span style="font-size: 12px; color: #9A3412;">Anyone with these words can spend your bitcoin.</span>
+  </div>
+  {word_grid(WORDS)}
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn btn-sm">{icon("copy", 14)} Copy</span>
+    <span class="hint">Write them down in order. This wallet cannot show them again.</span>
+  </div>
+</section>
+<section class="card" style="gap: 12px;">
+  <span class="label">Confirm your backup</span>
+  <span class="hint">Fill in the missing words to continue.</span>
+  {word_grid(WORDS, blanks=(3, 7, 11))}
+</section>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span class="btn btn-quiet">Back</span>
+  <div style="display: flex; gap: 8px;">
+    <span class="btn">Advanced: use a single key</span>
+    <span class="btn btn-primary">Create wallet {icon("arrow", 16, "#FFFFFF")}</span>
+  </div>
+</div>''', step=1, minh=760)
+
+restore = page(head("Restore wallet", "Signet · mempool.space") + f'''
+<section class="card" style="gap: 16px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Recovery phrase</span>
+    <div class="seg">
+      <span class="chip on"><span class="dot"></span><span>12 words</span></span>
+      <span class="chip"><span class="dot"></span><span>24 words</span></span>
+    </div>
+  </div>
+  {word_grid(WORDS[:8] + ["spooon", "orbit", "cactus", "spoon"])}
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 12px; color: #B91C1C;">Word 9 &quot;spooon&quot; is not in the word list.</span>
+  </div>
+  {field("Passphrase (optional)", '<span class="input placeholder">Leave empty unless you added one</span>', "A passphrase creates a different wallet from the same words.")}
+</section>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span class="btn btn-quiet">Back</span>
+  <span class="btn btn-primary" style="opacity: 0.55;">{icon("key", 16, "#FFFFFF")} Restore wallet</span>
+</div>''', step=1, minh=700)
+
+
 unlock = page(head("Unlock", "Signet · mempool.space") + f'''
 <section class="card" style="gap: 16px; padding: 24px;">
   <div style="display: flex; align-items: center; gap: 12px;">
@@ -332,7 +393,7 @@ iconboard = HEAD + f'''<div style="width: 720px; min-height: 480px; background: 
 </div>
 ''' + TAIL
 
-files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Icon.dc.html": iconboard}
+files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Create.dc.html": create, "Restore.dc.html": restore, "Icon.dc.html": iconboard}
 for n, c in files.items(): pathlib.Path(n).write_text(c)
 
 canvas = {
@@ -344,8 +405,11 @@ canvas = {
     {"file": "Sent.dc.html", "title": "5 · Sent", "x": 1040, "y": 1200, "w": 960, "h": 640},
     {"file": "Icon.dc.html", "title": "App icon", "x": 2080, "y": 1200, "w": 720, "h": 480},
     {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 2320, "w": 960, "h": 640},
+    {"file": "Create.dc.html", "title": "2c · New wallet (recovery phrase)", "x": 1040, "y": 2320, "w": 960, "h": 760},
+    {"file": "Restore.dc.html", "title": "2d · Restore wallet", "x": 2080, "y": 2320, "w": 960, "h": 700},
   ],
   "annotations": [
+    {"id": "hd-note", "x": 3120, "y": 2320, "w": 400, "text": "Roadmap 6 - HD wallet\n\nKey screen becomes a choice: New wallet (BIP39 phrase), Restore wallet, or Advanced: single key (what the app does today).\n\nNew wallet shows the 12 words once, then makes you fill three back in before it will continue. Restore validates each word against the BIP39 list and can take an optional passphrase.\n\nOnce HD, the dashboard's receive address is the next UNUSED one and change goes to a separate internal keychain."},
     {"id": "bump-note", "x": 3120, "y": 1180, "w": 380, "text": "Roadmap 7 + 8\n\nHistory: an unconfirmed OUTGOING row gets a \"Bump fee\" button (BDK signals RBF on everything we build). Confirmed and incoming rows show nothing.\n\nSend: amount takes sat or BTC via the unit chips; \"Max\" fills the spendable balance minus fee. An address that fails validation turns the field red with the reason underneath, and Review stays disabled."},
     {"id": "history-note", "x": 3120, "y": 0, "w": 380, "text": "Roadmap item 4 — Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row → explorer (later)."},
     {"id": "unlock-note", "x": 1040, "y": 2080, "w": 420, "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."},

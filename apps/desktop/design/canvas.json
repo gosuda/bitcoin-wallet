@@ -55,9 +55,32 @@
       "y": 2320,
       "w": 960,
       "h": 640
+    },
+    {
+      "file": "Create.dc.html",
+      "title": "2c \u00b7 New wallet (recovery phrase)",
+      "x": 1040,
+      "y": 2320,
+      "w": 960,
+      "h": 760
+    },
+    {
+      "file": "Restore.dc.html",
+      "title": "2d \u00b7 Restore wallet",
+      "x": 2080,
+      "y": 2320,
+      "w": 960,
+      "h": 700
     }
   ],
   "annotations": [
+    {
+      "id": "hd-note",
+      "x": 3120,
+      "y": 2320,
+      "w": 400,
+      "text": "Roadmap 6 - HD wallet\n\nKey screen becomes a choice: New wallet (BIP39 phrase), Restore wallet, or Advanced: single key (what the app does today).\n\nNew wallet shows the 12 words once, then makes you fill three back in before it will continue. Restore validates each word against the BIP39 list and can take an optional passphrase.\n\nOnce HD, the dashboard's receive address is the next UNUSED one and change goes to a separate internal keychain."
+    },
     {
       "id": "bump-note",
       "x": 3120,
