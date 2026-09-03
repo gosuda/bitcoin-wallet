@@ -22,7 +22,7 @@
       "x": 2080,
       "y": 0,
       "w": 960,
-      "h": 1040
+      "h": 1100
     },
     {
       "file": "Send.dc.html",
@@ -58,6 +58,13 @@
     }
   ],
   "annotations": [
+    {
+      "id": "bump-note",
+      "x": 3120,
+      "y": 1180,
+      "w": 380,
+      "text": "Roadmap 7 + 8\n\nHistory: an unconfirmed OUTGOING row gets a \"Bump fee\" button (BDK signals RBF on everything we build). Confirmed and incoming rows show nothing.\n\nSend: amount takes sat or BTC via the unit chips; \"Max\" fills the spendable balance minus fee. An address that fails validation turns the field red with the reason underneath, and Review stays disabled."
+    },
     {
       "id": "history-note",
       "x": 3120,
