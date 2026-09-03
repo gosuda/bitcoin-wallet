@@ -3,9 +3,9 @@ name: rust
 on:
   push:
     branches: [main]
-    paths: ["Cargo.*", "crates/**", "apps/desktop/src-tauri/**", ".github/workflows/rust.yml"]
+    paths: ["Cargo.*", "crates/**", "apps/desktop/**", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["Cargo.*", "crates/**", "apps/desktop/src-tauri/**", ".github/workflows/rust.yml"]
+    paths: ["Cargo.*", "crates/**", "apps/desktop/**", ".github/workflows/rust.yml"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -54,3 +54,42 @@ jobs:
       - run: cargo clippy -p wallet-wasm --target wasm32-unknown-unknown -- -D warnings
       - run: cargo install wasm-pack --locked
       - run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../apps/desktop/src/wasm/pkg
+
+  desktop:
+    name: desktop app
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+      # Tauri's Linux build needs the webkit stack.
+      - name: Install Linux build dependencies
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      # The frontend imports the wasm package, so build it before typechecking.
+      - name: Build the wasm core
+        working-directory: .
+        run: |
+          cargo install wasm-pack --locked
+          wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../apps/desktop/src/wasm/pkg
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm biome ci .
+      - run: pnpm tsc --noEmit
+      - run: pnpm vite build
+      - name: Build the Tauri shell
+        working-directory: .
+        run: cargo clippy -p bitcoin-wallet-desktop --all-targets -- -D warnings
