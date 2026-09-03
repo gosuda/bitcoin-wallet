@@ -1,6 +1,6 @@
 module github.com/gosuda/btctxbuilder
 
-go 1.24.6
+go 1.26.0
 
 require (
 	github.com/benma/miniscript-go v0.0.0-20240226152043-f7c34099edf9
@@ -44,9 +44,9 @@ require (
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/crypto v0.22.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/crypto v0.56.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
