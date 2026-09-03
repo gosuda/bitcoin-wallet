@@ -28,6 +28,7 @@ import type {
   WalletInfo,
 } from "./types";
 import { WalletError } from "./types";
+import type { BuiltTx } from "./wasm";
 import { explorerTxUrl, generateKey, WalletApi, walletIdForKey } from "./wasm";
 
 const STORE_FILE = "config.json";
@@ -144,11 +145,8 @@ async function syncWallet(): Promise<Balance> {
   return wallet.balance();
 }
 
-async function buildTransfer(recipients: Recipient[], feeRateSatVb: number): Promise<TxPreview> {
-  if (!Number.isFinite(feeRateSatVb) || feeRateSatVb <= 0) {
-    throw new WalletError("build_tx", "fee rate must be a positive number");
-  }
-  const built = await requireWallet().build_transfer(recipients, feeRateSatVb);
+/** Holds the unsigned PSBT for `signAndBroadcast` and hands the screen its preview. */
+function retainPsbt(built: BuiltTx): TxPreview {
   const psbtId = `${Date.now().toString(16)}-${(psbtCounter++).toString(16)}`;
   pending.set(psbtId, built.psbt_base64);
   return {
@@ -159,6 +157,26 @@ async function buildTransfer(recipients: Recipient[], feeRateSatVb: number): Pro
     change_sat: built.change_sat,
     input_count: built.input_count,
   };
+}
+
+function requireRate(feeRateSatVb: number): void {
+  if (!Number.isFinite(feeRateSatVb) || feeRateSatVb <= 0) {
+    throw new WalletError("build_tx", "fee rate must be a positive number");
+  }
+}
+
+async function buildTransfer(recipients: Recipient[], feeRateSatVb: number): Promise<TxPreview> {
+  requireRate(feeRateSatVb);
+  return retainPsbt(await requireWallet().build_transfer(recipients, feeRateSatVb));
+}
+
+/**
+ * Replacement for an unconfirmed transaction of ours at a higher rate. The
+ * preview is interchangeable with `buildTransfer`'s: confirm it the same way.
+ */
+async function buildFeeBump(txid: string, feeRateSatVb: number): Promise<TxPreview> {
+  requireRate(feeRateSatVb);
+  return retainPsbt(await requireWallet().build_fee_bump(txid, feeRateSatVb));
 }
 
 async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
@@ -197,6 +215,7 @@ export const api = {
   estimateFee: async (): Promise<FeeEstimate> => requireWallet().estimate_fee(),
   buildTransfer: (recipients: Recipient[], feeRateSatVb: number) =>
     buildTransfer(recipients, feeRateSatVb),
+  buildFeeBump: (txid: string, feeRateSatVb: number) => buildFeeBump(txid, feeRateSatVb),
   signAndBroadcast: (psbtId: string) => signAndBroadcast(psbtId),
   discardTx: async (psbtId: string): Promise<void> => {
     pending.delete(psbtId);

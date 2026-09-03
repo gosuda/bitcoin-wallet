@@ -186,6 +186,14 @@ export class WalletApi {
     return (await this.inner.build_transfer(recipients, feeRateSatVb)) as BuiltTx;
   }
 
+  /**
+   * Replacement for an unconfirmed transaction of ours at a higher fee rate.
+   * Same shape as `build_transfer`, so it signs and broadcasts the same way.
+   */
+  async build_fee_bump(txid: string, feeRateSatVb: number): Promise<BuiltTx> {
+    return (await this.inner.build_fee_bump(txid, feeRateSatVb)) as BuiltTx;
+  }
+
   sign(psbtBase64: string): Promise<string> {
     return this.inner.sign(psbtBase64);
   }

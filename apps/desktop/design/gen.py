@@ -101,7 +101,7 @@ def field(label, inner, hint=None):
     return f'<div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">{label}</span>{inner}{h}</div>'
 
 ADDR = "tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc"
-TR_ADDR = "tb1p8xk2p0hz9q5m4vd7l3c6t8s2e5x9m3a0v6u2j5f7g4k1b0d9h8csqx7r2w"
+TR_ADDR = "tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32"
 
 setup = page(head("Setup", "Network and Esplora endpoint. Stored locally; no secrets.") + f'''
 <section class="card" style="gap: 16px;">

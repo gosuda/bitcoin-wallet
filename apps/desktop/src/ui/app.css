@@ -228,7 +228,8 @@ p {
 input:focus-visible,
 select:focus-visible,
 button:focus-visible,
-.radio:focus-within {
+.radio:focus-within,
+.unit-chip:focus-within {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -339,6 +340,15 @@ input::placeholder {
 input[disabled],
 select[disabled] {
   opacity: 0.6;
+}
+
+input.input-invalid {
+  border-color: var(--danger);
+}
+
+.field-error {
+  font-size: var(--text-sm);
+  color: var(--danger);
 }
 
 /* Read-only mono box styled like an input (mockup `.input`). */
@@ -634,13 +644,107 @@ tr:last-child td {
   font-weight: 500;
 }
 
+/* Trailing action cell: as narrow as its button. */
+.tx-actions {
+  width: 1%;
+}
+
+.bump-row td {
+  border-bottom: 1px solid var(--border);
+  background: var(--subtle);
+}
+
+.bump-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.bump-label {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.bump-confirm .bump-rate {
+  width: 96px;
+  text-align: right;
+}
+
 /* Send */
 
 .recipient-row {
   display: grid;
-  grid-template-columns: 1fr 160px 34px;
+  grid-template-columns: 1fr 210px 34px;
   gap: var(--space-2);
-  align-items: end;
+  /* Rows grow downwards when a field reports an error, so they align at the top. */
+  align-items: start;
+}
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.amount-row .amount-input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  text-align: right;
+}
+
+.unit-group {
+  display: inline-flex;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.unit-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.unit-chip:has(input:checked) {
+  border-color: var(--fg);
+  background: var(--subtle);
+}
+
+/* The radio stays in the tab order and drives `:checked`; the chip is the skin. */
+.unit-chip input {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  flex: none;
+}
+
+.unit-chip input:focus-visible {
+  outline: none;
+}
+
+.unit-chip:has(input[disabled]) {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.amount-max {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .fee-row {

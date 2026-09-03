@@ -67,6 +67,23 @@ export interface FeeEstimate {
   sat_per_vb_by_target: Record<string, number>;
 }
 
+/**
+ * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):
+ * the exact target, else the closest faster one, else the closest slower one.
+ */
+export function rateForTarget(estimate: FeeEstimate, target: number): number | null {
+  const entries = Object.entries(estimate.sat_per_vb_by_target)
+    .map(([k, v]) => [Number(k), v] as const)
+    .filter(([k]) => Number.isFinite(k))
+    .sort((a, b) => a[0] - b[0]);
+  const exact = entries.find(([k]) => k === target);
+  if (exact) return exact[1];
+  const faster = entries.filter(([k]) => k < target).at(-1);
+  if (faster) return faster[1];
+  const slower = entries.find(([k]) => k > target);
+  return slower ? slower[1] : null;
+}
+
 /** Returned once by `generate_key`; never persisted by the UI. */
 export interface GeneratedKey {
   priv_hex: string;

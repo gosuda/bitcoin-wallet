@@ -6,6 +6,7 @@ import {
   type Balance,
   errorMessage,
   NETWORK_LABELS,
+  rateForTarget,
   type TxSummary,
   type Utxo,
 } from "../types";
@@ -20,6 +21,7 @@ import {
   formatSats,
   readout,
   sectionLabel,
+  textInput,
   withBusy,
 } from "../ui/dom";
 import { icon } from "../ui/icons";
@@ -87,7 +89,14 @@ function formatWhen(timestamp: number | null): string {
   });
 }
 
-function txTable(txs: TxSummary[]): HTMLElement {
+/** Only our own unconfirmed sends can be replaced; everything else is settled. */
+function isBumpable(tx: TxSummary): boolean {
+  return tx.confirmations === null && tx.net_sat < 0;
+}
+
+type BumpRequest = (tx: TxSummary, row: HTMLTableRowElement, trigger: HTMLButtonElement) => void;
+
+function txTable(txs: TxSummary[], onBump: BumpRequest): HTMLElement {
   if (txs.length === 0) {
     return el("p", { className: "empty", text: "No transactions yet." });
   }
@@ -97,35 +106,45 @@ function txTable(txs: TxSummary[]): HTMLElement {
     el("th", { className: "num", text: "Amount (sat)" }),
     el("th", { className: "num", text: "Conf." }),
     el("th", { className: "num", text: "When" }),
+    el("th", { className: "num tx-actions" }),
   ]);
   const body = el("tbody");
   for (const tx of txs) {
     // `net_sat` is negative for a send, and the fee is already part of it.
     const incoming = tx.net_sat >= 0;
     const pending = tx.confirmations === null;
-    body.appendChild(
-      el("tr", {}, [
-        el("td", { className: "tx-dir" }, [
-          el("span", { className: `tx-arrow ${incoming ? "tx-in rot180" : "muted"}` }, [
-            icon("arrow", 14),
-          ]),
+    const row = el("tr");
+    const actions = el("td", { className: "num tx-actions" });
+    if (isBumpable(tx)) {
+      const bumpBtn = button("Bump fee", () => onBump(tx, row, bumpBtn), "default", "sm", {
+        name: "refresh",
+        size: 12,
+      });
+      actions.appendChild(bumpBtn);
+    }
+    row.append(
+      el("td", { className: "tx-dir" }, [
+        el("span", { className: `tx-arrow ${incoming ? "tx-in rot180" : "muted"}` }, [
+          icon("arrow", 14),
         ]),
-        el("td", {
-          className: "mono",
-          text: shortTxid(tx.txid),
-          attrs: { title: tx.txid },
-        }),
-        el("td", {
-          className: `num mono tx-amount ${incoming ? "tx-in" : ""}`.trim(),
-          text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
-        }),
-        el("td", {
-          className: `num mono ${pending ? "muted" : ""}`.trim(),
-          text: pending ? "pending" : String(tx.confirmations),
-        }),
-        el("td", { className: "num muted", text: formatWhen(tx.timestamp) }),
       ]),
+      el("td", {
+        className: "mono",
+        text: shortTxid(tx.txid),
+        attrs: { title: tx.txid },
+      }),
+      el("td", {
+        className: `num mono tx-amount ${incoming ? "tx-in" : ""}`.trim(),
+        text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
+      }),
+      el("td", {
+        className: `num mono ${pending ? "muted" : ""}`.trim(),
+        text: pending ? "pending" : String(tx.confirmations),
+      }),
+      el("td", { className: "num muted", text: formatWhen(tx.timestamp) }),
+      actions,
     );
+    body.appendChild(row);
   }
   return el("div", { className: "table-wrap" }, [el("table", {}, [el("thead", {}, [head]), body])]);
 }
@@ -165,9 +184,86 @@ export function renderDashboard(): HTMLElement {
     utxoBox.replaceChildren(utxoTable(utxos));
   };
 
+  /** At most one inline confirm is open, in a row of its own under its tx. */
+  let bumpRow: HTMLTableRowElement | null = null;
+
+  const closeBump = () => {
+    bumpRow?.remove();
+    bumpRow = null;
+  };
+
+  const openBumpConfirm = (tx: TxSummary, row: HTMLTableRowElement, suggested: number) => {
+    const rate = textInput({ value: String(suggested), type: "number", mono: true });
+    rate.id = `bump-rate-${tx.txid.slice(0, 8)}`;
+    rate.min = "1";
+    rate.step = "0.1";
+    rate.classList.add("bump-rate");
+    const bumpBtn = button(
+      "Bump",
+      () =>
+        withBusy(bumpBtn, async () => {
+          alert.hide();
+          const value = Number(rate.value);
+          if (!Number.isFinite(value) || value < 1) {
+            alert.show("error", "Fee rate must be at least 1 sat/vB.");
+            return;
+          }
+          try {
+            const preview = await api.buildFeeBump(tx.txid, value);
+            const result = await api.signAndBroadcast(preview.psbt_id);
+            closeBump();
+            session.lastResult = result;
+            navigate("result");
+          } catch (e) {
+            // A rate below the replacement rules is refused by the node; the
+            // node's own wording is the most useful thing to show.
+            alert.show("error", errorMessage(e));
+          }
+        }),
+      "primary",
+      "sm",
+    );
+    closeBump();
+    bumpRow = el("tr", { className: "bump-row" }, [
+      el("td", { attrs: { colspan: "6" } }, [
+        el("div", { className: "bump-confirm", attrs: { role: "group" } }, [
+          el("label", {
+            className: "bump-label",
+            text: "New rate (sat/vB)",
+            attrs: { for: rate.id },
+          }),
+          rate,
+          bumpBtn,
+          button("Cancel", closeBump, "quiet", "sm"),
+        ]),
+      ]),
+    ]);
+    row.after(bumpRow);
+    rate.focus();
+    rate.select();
+  };
+
+  const requestBump: BumpRequest = (tx, row, trigger) => {
+    closeBump();
+    void withBusy(trigger, async () => {
+      alert.hide();
+      let suggested = 1;
+      try {
+        // Replacing means outbidding the original: the 1-block rate is the ask.
+        const rate = rateForTarget(await api.estimateFee(), 1);
+        suggested = Math.max(1, Math.ceil((rate ?? 1) * 10) / 10);
+      } catch (e) {
+        alert.show("warn", `Fee estimate unavailable: ${errorMessage(e)} — starting at 1 sat/vB.`);
+      }
+      openBumpConfirm(tx, row, suggested);
+    });
+  };
+
   const renderTxs = (txs: TxSummary[]) => {
+    // The confirm belongs to a row that is about to be replaced.
+    bumpRow = null;
     txCount.textContent = `${txs.length} · newest first`;
-    txBox.replaceChildren(txTable(txs));
+    txBox.replaceChildren(txTable(txs, requestBump));
   };
 
   let autoSyncFailed = false;
@@ -196,6 +292,8 @@ export function renderDashboard(): HTMLElement {
   // instead of raising a banner the user never asked for.
   const runSync = async (silent: boolean) => {
     if (syncing) return;
+    // Never redraw the history out from under an open bump confirm.
+    if (silent && bumpRow) return;
     syncing = true;
     try {
       if (!silent) alert.hide();
