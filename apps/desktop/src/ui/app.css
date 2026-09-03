@@ -612,6 +612,28 @@ tr:last-child td {
   font-size: var(--text-sm);
 }
 
+/* Transaction history */
+
+.tx-dir {
+  width: 24px;
+}
+
+.tx-arrow {
+  display: inline-flex;
+}
+
+.rot180 {
+  transform: rotate(180deg);
+}
+
+.tx-in {
+  color: var(--ok);
+}
+
+.tx-amount {
+  font-weight: 500;
+}
+
 /* Send */
 
 .recipient-row {

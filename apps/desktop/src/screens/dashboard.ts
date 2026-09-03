@@ -6,6 +6,7 @@ import {
   type Balance,
   errorMessage,
   NETWORK_LABELS,
+  type TxSummary,
   type Utxo,
 } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -21,6 +22,7 @@ import {
   sectionLabel,
   withBusy,
 } from "../ui/dom";
+import { icon } from "../ui/icons";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
@@ -65,6 +67,66 @@ function utxoTable(utxos: Utxo[]): HTMLElement {
   return el("div", { className: "table-wrap" }, [el("table", {}, [el("thead", {}, [head]), body])]);
 }
 
+const MINUTE = 60;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** Relative within a day ("2 min ago", "3 h ago"), a short local date before that. */
+function formatWhen(timestamp: number | null): string {
+  if (timestamp === null) return "—";
+  const age = Math.max(0, Math.floor(Date.now() / 1000) - timestamp);
+  if (age < MINUTE) return "just now";
+  if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`;
+  if (age < DAY) return `${Math.floor(age / HOUR)} h ago`;
+  return new Date(timestamp * 1000).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function txTable(txs: TxSummary[]): HTMLElement {
+  if (txs.length === 0) {
+    return el("p", { className: "empty", text: "No transactions yet." });
+  }
+  const head = el("tr", {}, [
+    el("th", { className: "tx-dir" }),
+    el("th", { text: "Txid" }),
+    el("th", { className: "num", text: "Amount (sat)" }),
+    el("th", { className: "num", text: "Conf." }),
+    el("th", { className: "num", text: "When" }),
+  ]);
+  const body = el("tbody");
+  for (const tx of txs) {
+    // `net_sat` is negative for a send, and the fee is already part of it.
+    const incoming = tx.net_sat >= 0;
+    const pending = tx.confirmations === null;
+    body.appendChild(
+      el("tr", {}, [
+        el("td", { className: "tx-dir" }, [
+          el("span", { className: `tx-arrow ${incoming ? "tx-in rot180" : "muted"}` }, [
+            icon("arrow", 14),
+          ]),
+        ]),
+        el("td", {
+          className: "mono",
+          text: shortTxid(tx.txid),
+          attrs: { title: tx.txid },
+        }),
+        el("td", {
+          className: `num mono tx-amount ${incoming ? "tx-in" : ""}`.trim(),
+          text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
+        }),
+        el("td", {
+          className: `num mono ${pending ? "muted" : ""}`.trim(),
+          text: pending ? "pending" : String(tx.confirmations),
+        }),
+        el("td", { className: "num muted", text: formatWhen(tx.timestamp) }),
+      ]),
+    );
+  }
+  return el("div", { className: "table-wrap" }, [el("table", {}, [el("thead", {}, [head]), body])]);
+}
+
 export function renderDashboard(): HTMLElement {
   const wallet = session.wallet;
   if (!wallet) {
@@ -78,6 +140,8 @@ export function renderDashboard(): HTMLElement {
   const stats = el("div", { className: "stat-row" });
   const utxoBox = el("div");
   const utxoCount = el("span", { className: "hint", text: "" });
+  const txBox = el("div");
+  const txCount = el("span", { className: "hint", text: "" });
   const syncedLabel = el("span", { className: "hint", text: "Not synced yet" });
 
   const renderBalance = (b: Balance) => {
@@ -98,15 +162,25 @@ export function renderDashboard(): HTMLElement {
     utxoBox.replaceChildren(utxoTable(utxos));
   };
 
+  const renderTxs = (txs: TxSummary[]) => {
+    txCount.textContent = `${txs.length} · newest first`;
+    txBox.replaceChildren(txTable(txs));
+  };
+
   const renderSynced = () => {
     const at = session.lastSyncedAt;
     syncedLabel.textContent = at ? `Last synced ${at.toLocaleTimeString()}` : "Not synced yet";
   };
 
   const refreshLocal = async () => {
-    const [balance, utxos] = await Promise.all([api.getBalance(), api.listUtxos()]);
+    const [balance, utxos, txs] = await Promise.all([
+      api.getBalance(),
+      api.listUtxos(),
+      api.listTransactions(),
+    ]);
     renderBalance(balance);
     renderUtxos(utxos);
+    renderTxs(txs);
   };
 
   const syncBtn = button(
@@ -118,7 +192,9 @@ export function renderDashboard(): HTMLElement {
           const balance = await api.sync();
           session.lastSyncedAt = new Date();
           renderBalance(balance);
-          renderUtxos(await api.listUtxos());
+          const [utxos, txs] = await Promise.all([api.listUtxos(), api.listTransactions()]);
+          renderUtxos(utxos);
+          renderTxs(txs);
           renderSynced();
         } catch (e) {
           alert.show("error", errorMessage(e));
@@ -153,6 +229,7 @@ export function renderDashboard(): HTMLElement {
   renderBalance({ confirmed: 0, trusted_pending: 0, untrusted_pending: 0, immature: 0 });
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
+  txBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
   void refreshLocal().catch((e: unknown) => alert.show("error", errorMessage(e)));
 
   return el("main", { className: "screen" }, [
@@ -186,6 +263,10 @@ export function renderDashboard(): HTMLElement {
     el("section", { className: "card" }, [
       el("div", { className: "card-head" }, [sectionLabel("Unspent outputs"), utxoCount]),
       utxoBox,
+    ]),
+    el("section", { className: "card" }, [
+      el("div", { className: "card-head" }, [sectionLabel("Transactions"), txCount]),
+      txBox,
     ]),
     el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);

@@ -23,6 +23,7 @@ import type {
   Recipient,
   RememberedWallet,
   TxPreview,
+  TxSummary,
   Utxo,
   WalletInfo,
 } from "./types";
@@ -192,6 +193,7 @@ export const api = {
   sync: (): Promise<Balance> => syncWallet(),
   getBalance: async (): Promise<Balance> => requireWallet().balance(),
   listUtxos: async (): Promise<Utxo[]> => requireWallet().list_utxos(),
+  listTransactions: async (): Promise<TxSummary[]> => requireWallet().list_transactions(),
   estimateFee: async (): Promise<FeeEstimate> => requireWallet().estimate_fee(),
   buildTransfer: (recipients: Recipient[], feeRateSatVb: number) =>
     buildTransfer(recipients, feeRateSatVb),

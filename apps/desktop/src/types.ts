@@ -46,6 +46,23 @@ export interface Utxo {
   address: string;
 }
 
+/** One wallet-relevant transaction, newest first from `list_transactions`. */
+export interface TxSummary {
+  txid: string;
+  /** Net effect in sats: positive when received, negative when sent (fee included). */
+  net_sat: number;
+  /** Total value of inputs this wallet owns. */
+  sent_sat: number;
+  /** Total value of outputs this wallet owns (change included). */
+  received_sat: number;
+  /** `null` when the wallet does not know every input. */
+  fee_sat: number | null;
+  /** `null` while unconfirmed. */
+  confirmations: number | null;
+  /** Seconds since the epoch; `null` when the transaction was never seen. */
+  timestamp: number | null;
+}
+
 export interface FeeEstimate {
   sat_per_vb_by_target: Record<string, number>;
 }

@@ -20,6 +20,7 @@ import type {
   GeneratedKey,
   Network,
   Recipient,
+  TxSummary,
   Utxo,
 } from "../types";
 import init, {
@@ -103,6 +104,25 @@ function toFeeEstimate(raw: unknown): FeeEstimate {
   return { sat_per_vb_by_target: byTarget };
 }
 
+/** A history row; `None` fields cross as `undefined`, and the UI contract is `null`. */
+function toTxSummary(raw: unknown): TxSummary {
+  const read = (key: string): unknown =>
+    raw instanceof Map ? raw.get(key) : (raw as Record<string, unknown>)[key];
+  const optional = (key: string): number | null => {
+    const value = read(key);
+    return value === undefined || value === null ? null : Number(value);
+  };
+  return {
+    txid: String(read("txid")),
+    net_sat: Number(read("net_sat")),
+    sent_sat: Number(read("sent_sat")),
+    received_sat: Number(read("received_sat")),
+    fee_sat: optional("fee_sat"),
+    confirmations: optional("confirmations"),
+    timestamp: optional("timestamp"),
+  };
+}
+
 /** An open wallet. Every chain operation runs here, in the webview. */
 export class WalletApi {
   private readonly inner: Wallet;
@@ -147,6 +167,11 @@ export class WalletApi {
 
   async list_utxos(): Promise<Utxo[]> {
     return (await this.inner.list_utxos()) as Utxo[];
+  }
+
+  async list_transactions(): Promise<TxSummary[]> {
+    const rows = (await this.inner.list_transactions()) as unknown[];
+    return rows.map(toTxSummary);
   }
 
   async estimate_fee(): Promise<FeeEstimate> {
