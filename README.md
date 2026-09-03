@@ -93,6 +93,12 @@ cargo test -p regtest-tests        # end-to-end against a real bitcoind + Esplor
 drives the whole flow — receive, spend, fee bump, reopen from persisted state, and the HD
 account with its separate change keychain — so no faucet or Docker is needed.
 
+### Releases
+
+Installers are built by `.github/workflows/release.yml` — run it by hand to
+check the bundles, or push a `v*` tag to attach them to a draft release. Signing
+is a matter of adding secrets; see [docs/RELEASING.md](docs/RELEASING.md).
+
 ### Desktop app
 ```bash
 cd apps/desktop && pnpm install && pnpm tauri dev

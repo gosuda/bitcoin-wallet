@@ -40,6 +40,17 @@ jobs:
       # on first build, so no services or Docker are needed here.
       - run: cargo test -p regtest-tests -- --test-threads=1
 
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-audit --locked
+      # Advisories we cannot act on are listed with reasons in .cargo/audit.toml.
+      - run: cargo audit
+
   wasm:
     name: wallet-core + wallet-wasm (wasm32)
     runs-on: ubuntu-24.04

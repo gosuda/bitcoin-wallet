@@ -1,0 +1,25 @@
+# Advisories we cannot act on from here. Everything else fails `cargo audit`,
+# so a new advisory in our own dependencies still breaks the build.
+# Re-check these whenever tauri or bdk_testenv moves.
+
+[advisories]
+ignore = [
+    # --- rustls-webpki 0.101.7: certificate-validation flaws.
+    # Reached only through `minreq`, a BUILD dependency of bitcoind/electrsd in
+    # the regtest harness, i.e. code that downloads test binaries at build time.
+    # The shipped wallet's TLS resolves rustls-webpki 0.103.x instead.
+    # Pinned by `minreq ^0.101`; nothing to bump until electrsd moves.
+    "RUSTSEC-2026-0104", # reachable panic parsing a CRL
+    "RUSTSEC-2026-0098", # name constraints wrongly accepted for URI names
+    "RUSTSEC-2026-0099", # name constraints accepted for wildcard names
+
+    # --- quick-xml 0.38.4: denial of service on hostile XML.
+    # `plist 1.8` (via tauri 2.11) requires ^0.38, so the patched 0.41 cannot be
+    # selected. The app parses only its own bundle plists, not attacker input.
+    "RUSTSEC-2026-0195", # unbounded namespace-declaration allocation
+    "RUSTSEC-2026-0194", # quadratic duplicate-attribute check
+
+    # --- glib 0.18.5 unsoundness in VariantStrIter.
+    # tauri's `gtk 0.18` pins `glib ^0.18`. Linux only, upstream-blocked.
+    "RUSTSEC-2024-0429",
+]
