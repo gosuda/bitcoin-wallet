@@ -68,7 +68,11 @@ jobs:
           components: clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      # package.json lives under apps/desktop, so the action cannot infer a
+      # version from the repo root: pin it here.
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
