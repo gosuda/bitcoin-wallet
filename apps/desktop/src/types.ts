@@ -21,6 +21,8 @@ export interface WalletInfo {
   network: Network;
   address_type: AddressType;
   wallet_id: string;
+  /** True for a BIP32 account (mnemonic): it can reveal further addresses. */
+  is_hd: boolean;
 }
 
 /** Non-secret record of the wallet whose key is kept in the OS keystore. */
@@ -91,6 +93,20 @@ export interface GeneratedKey {
   pub_hex: string;
   address: string;
 }
+
+/**
+ * Returned once by `generate_mnemonic`. `words` is the backup phrase: show it,
+ * let the user copy it, and drop it — it is never stored by the UI.
+ */
+export interface GeneratedMnemonic {
+  words: string;
+  /** First receive address of the account (external keychain, index 0). */
+  address: string;
+}
+
+/** Word counts `generate_mnemonic` accepts. */
+export const WORD_COUNTS = [12, 24] as const;
+export type WordCount = (typeof WORD_COUNTS)[number];
 
 export interface Recipient {
   address: string;

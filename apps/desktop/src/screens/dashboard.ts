@@ -342,6 +342,32 @@ export function renderDashboard(): HTMLElement {
     "danger",
   );
 
+  // The receiving address changes under an HD wallet, so the readout and the
+  // copy button read one variable instead of the snapshot they were built from.
+  let receiving = wallet.address;
+  const addressBox = readout(receiving);
+  const addressActions = el("div", { className: "actions" }, [copyButton(() => receiving)]);
+  if (wallet.is_hd) {
+    const newAddressBtn = button(
+      "New address",
+      () =>
+        withBusy(newAddressBtn, async () => {
+          alert.hide();
+          try {
+            receiving = await api.newAddress();
+            addressBox.textContent = receiving;
+            addressBox.setAttribute("title", receiving);
+          } catch (e) {
+            alert.show("error", errorMessage(e));
+          }
+        }),
+      "default",
+      "md",
+      { name: "plus" },
+    );
+    addressActions.appendChild(newAddressBtn);
+  }
+
   renderBalance({ confirmed: 0, trusted_pending: 0, untrusted_pending: 0, immature: 0 });
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
@@ -371,10 +397,7 @@ export function renderDashboard(): HTMLElement {
     ]),
     el("section", { className: "card" }, [
       sectionLabel("Receiving address"),
-      el("div", { className: "address-row" }, [
-        readout(wallet.address),
-        copyButton(() => wallet.address),
-      ]),
+      el("div", { className: "address-row" }, [addressBox, addressActions]),
     ]),
     el("section", { className: "card" }, [
       el("div", { className: "card-head" }, [sectionLabel("Unspent outputs"), utxoCount]),

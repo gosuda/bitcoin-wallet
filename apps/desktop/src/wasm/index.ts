@@ -18,6 +18,7 @@ import type {
   Balance,
   FeeEstimate,
   GeneratedKey,
+  GeneratedMnemonic,
   Network,
   Recipient,
   TxSummary,
@@ -28,6 +29,8 @@ import init, {
   default_esplora_url,
   explorer_tx_url,
   generate_key,
+  generate_mnemonic,
+  validate_mnemonic,
   Wallet,
   wallet_id_for_key,
 } from "./pkg/wallet_wasm.js";
@@ -153,8 +156,18 @@ export class WalletApi {
     return fromCoreAddressType(this.inner.address_type);
   }
 
+  /** A BIP32 account (mnemonic) rather than a single key. */
+  get isHd(): boolean {
+    return this.inner.is_hd;
+  }
+
   address(): Promise<string> {
     return this.inner.address();
+  }
+
+  /** Reveal a fresh receive address. A single-key wallet returns its one address. */
+  newAddress(): Promise<string> {
+    return this.inner.new_address();
   }
 
   sync(): Promise<void> {
@@ -220,6 +233,25 @@ export async function generateKey(
 ): Promise<GeneratedKey> {
   await load();
   return generate_key(network, CORE_ADDRESS_TYPE[addressType]) as GeneratedKey;
+}
+
+/**
+ * Generate a fresh BIP39 phrase and the account's first address. Returns secret
+ * material: hand `words` to the user once and never persist it.
+ */
+export async function generateMnemonic(
+  network: Network,
+  addressType: AddressType,
+  wordCount: number,
+): Promise<GeneratedMnemonic> {
+  await load();
+  return generate_mnemonic(network, CORE_ADDRESS_TYPE[addressType], wordCount) as GeneratedMnemonic;
+}
+
+/** Throws with a readable reason when `words` is not a valid BIP39 phrase. */
+export async function validateMnemonic(words: string): Promise<void> {
+  await load();
+  validate_mnemonic(words);
 }
 
 /** Address for a hex/WIF secret, without opening a wallet. */

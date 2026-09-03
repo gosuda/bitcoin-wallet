@@ -19,6 +19,7 @@ import type {
   BroadcastResult,
   FeeEstimate,
   GeneratedKey,
+  GeneratedMnemonic,
   Network,
   Recipient,
   RememberedWallet,
@@ -29,7 +30,14 @@ import type {
 } from "./types";
 import { WalletError } from "./types";
 import type { BuiltTx } from "./wasm";
-import { explorerTxUrl, generateKey, WalletApi, walletIdForKey } from "./wasm";
+import {
+  explorerTxUrl,
+  generateKey,
+  generateMnemonic,
+  validateMnemonic,
+  WalletApi,
+  walletIdForKey,
+} from "./wasm";
 
 const STORE_FILE = "config.json";
 const REMEMBERED_KEY = "remembered_wallet";
@@ -92,6 +100,7 @@ async function install(
     network,
     address_type: addressType,
     wallet_id: wallet.id,
+    is_hd: wallet.isHd,
   };
   session.wallet = info;
   return info;
@@ -137,6 +146,17 @@ async function forgetWallet(): Promise<void> {
   }
   await saveRemembered(null);
   releaseWallet();
+}
+
+/**
+ * Reveals the next unused receive address (HD only) and updates the open
+ * wallet's description, so every screen shows the same one.
+ */
+async function newAddress(): Promise<string> {
+  const address = await requireWallet().newAddress();
+  const info = session.wallet;
+  if (info) session.wallet = { ...info, address };
+  return address;
 }
 
 async function syncWallet(): Promise<Balance> {
@@ -202,6 +222,12 @@ export const api = {
   setConfig: (config: AppConfig) => invoke<void>("set_config", { config }),
   generateKey: (network: Network, addressType: AddressType): Promise<GeneratedKey> =>
     generateKey(network, addressType),
+  generateMnemonic: (
+    network: Network,
+    addressType: AddressType,
+    wordCount: number,
+  ): Promise<GeneratedMnemonic> => generateMnemonic(network, addressType, wordCount),
+  validateMnemonic: (words: string): Promise<void> => validateMnemonic(words),
   openWallet: (secret: string, addressType: AddressType, remember: boolean) =>
     openWallet(secret, addressType, remember),
   closeWallet: async (): Promise<void> => releaseWallet(),
@@ -209,6 +235,7 @@ export const api = {
   unlockWallet: () => unlockWallet(),
   forgetWallet: () => forgetWallet(),
   sync: (): Promise<Balance> => syncWallet(),
+  newAddress: (): Promise<string> => newAddress(),
   getBalance: async (): Promise<Balance> => requireWallet().balance(),
   listUtxos: async (): Promise<Utxo[]> => requireWallet().list_utxos(),
   listTransactions: async (): Promise<TxSummary[]> => requireWallet().list_transactions(),
