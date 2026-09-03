@@ -250,10 +250,13 @@ impl WalletHandle {
         let req = {
             let inner = self.inner.lock().await;
             let has_history = inner.wallet.transactions().next().is_some();
+            // The `_at` variants take the start time from us: BDK's plain
+            // builders read `std::time`, which aborts on wasm32.
+            let start = now_secs();
             if has_history {
-                Req::Partial(inner.wallet.start_sync_with_revealed_spks().build())
+                Req::Partial(inner.wallet.start_sync_with_revealed_spks_at(start).build())
             } else {
-                Req::Full(inner.wallet.start_full_scan().build())
+                Req::Full(inner.wallet.start_full_scan_at(start).build())
             }
         };
         let update: bdk_wallet::Update = match req {
