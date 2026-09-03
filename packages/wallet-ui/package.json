@@ -1,0 +1,22 @@
+{
+  "name": "@bitcoin-wallet/ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts",
+    "./platform": "./src/platform/index.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "check": "biome check .",
+    "format": "biome check --write ."
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.12"
+  }
+}

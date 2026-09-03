@@ -42,8 +42,17 @@ any Esplora-compatible HTTP API — mempool.space, blockstream.info, electrs,
 crates/wallet-core   # wallet logic: keys, sync, balance, build → sign → broadcast (no UI, no database)
 crates/wallet-wasm   # wasm-bindgen bindings: the same core for browser and Tauri webview
 crates/wallet-cli    # `btcw` developer CLI
+packages/wallet-ui   # the whole frontend: screens, router, wasm glue, IndexedDB — no platform APIs
 apps/desktop         # Tauri v2 shell: window, OS keychain — no wallet logic
+apps/web             # browser shell: static bundle, keys in memory for the tab
 ```
+
+**One frontend, two shells.** `packages/wallet-ui` is the app; each shell supplies a
+`Platform` (config, remembered-wallet record, key store, clipboard, open-url) and calls
+`boot()`. The desktop shell answers with Tauri IPC and the OS keychain; the browser shell
+answers with `localStorage` and reports `canRememberWallet: false`, so "Remember on this
+device" is not offered, no key is written anywhere, and the wallet lives only as long as
+the tab.
 
 **Persistence.** The core never picks a database: it stages BDK `ChangeSet`s through a
 `Persister` the platform supplies. Browser and desktop both use the same IndexedDB store
@@ -99,9 +108,18 @@ Installers are built by `.github/workflows/release.yml` — run it by hand to
 check the bundles, or push a `v*` tag to attach them to a draft release. Signing
 is a matter of adding secrets; see [docs/RELEASING.md](docs/RELEASING.md).
 
-### Desktop app
+### Apps
+
+Both shells share one pnpm workspace and one lockfile, and both import the WASM core, so
+build it first:
+
 ```bash
-cd apps/desktop && pnpm install && pnpm tauri dev
+wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
+pnpm install                                  # from the repo root
+
+cd apps/desktop && pnpm tauri dev             # desktop, on :14200
+cd apps/web     && pnpm dev                   # browser, on :14400
+cd apps/web     && pnpm build                 # static bundle in apps/web/dist
 ```
 
 ## Contributing

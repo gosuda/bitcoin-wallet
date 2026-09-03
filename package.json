@@ -1,0 +1,12 @@
+{
+  "name": "bitcoin-wallet-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "check": "pnpm -r check",
+    "format": "pnpm -r format",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build"
+  }
+}

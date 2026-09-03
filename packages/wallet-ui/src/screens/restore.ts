@@ -2,10 +2,9 @@ import { api } from "../api";
 import { navigate } from "../router";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount } from "../types";
-import { banner, button, checkbox, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { rememberCheckbox } from "../ui/remember";
 import { wordCell, wordGrid, wordInput } from "../ui/words";
-
-const KEYCHAIN_NAME = navigator.platform.startsWith("Mac") ? "macOS Keychain" : "OS keychain";
 
 /** Quiet period after a keystroke before the phrase is checked again. */
 const VALIDATE_DELAY_MS = 250;
@@ -49,11 +48,7 @@ export function renderRestore(): HTMLElement {
   const alert = banner();
   const errorLine = el("p", { className: "field-error", attrs: { role: "status" } });
   const gridBox = el("div");
-  const remember = checkbox(
-    "Remember on this device",
-    `· stored in the ${KEYCHAIN_NAME}, unlocked with your login`,
-    "remember",
-  );
+  const remember = rememberCheckbox();
 
   // Optional, and part of the wallet's identity rather than a lock on it: the
   // phrase is valid with or without one, and each passphrase restores a
@@ -193,13 +188,13 @@ export function renderRestore(): HTMLElement {
       const info = await api.openWallet(
         secret,
         cfg.address_type,
-        remember.input.checked,
+        remember.checked(),
         passphrase.value || undefined,
       );
       for (const box of boxes) box.value = "";
       passphrase.value = "";
       session.wallet = info;
-      if (remember.input.checked) session.remembered = info;
+      if (remember.checked()) session.remembered = info;
       session.lastSyncedAt = null;
       navigate("dashboard");
     } catch (e) {

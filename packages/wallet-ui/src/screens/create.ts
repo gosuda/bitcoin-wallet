@@ -3,11 +3,10 @@ import { navigate } from "../router";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
-import { banner, button, checkbox, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { rememberCheckbox } from "../ui/remember";
 import { wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
-
-const KEYCHAIN_NAME = navigator.platform.startsWith("Mac") ? "macOS Keychain" : "OS keychain";
 
 const WORD_COUNT = 12;
 
@@ -65,11 +64,7 @@ export function renderCreate(): HTMLElement {
   const alert = banner();
   const phraseBox = el("div", {}, [el("p", { className: "empty", text: "Generating…" })]);
   const confirmBox = el("div", {}, [el("p", { className: "empty", text: "Generating…" })]);
-  const remember = checkbox(
-    "Remember on this device",
-    `· stored in the ${KEYCHAIN_NAME}, unlocked with your login`,
-    "remember",
-  );
+  const remember = rememberCheckbox();
 
   // Optional and not shown again: the phrase above is only half the backup when
   // one is set, so the hint says what losing it costs. Left empty it means no
@@ -124,13 +119,13 @@ export function renderCreate(): HTMLElement {
       const info = await api.openWallet(
         secret,
         cfg.address_type,
-        remember.input.checked,
+        remember.checked(),
         passphrase.value || undefined,
       );
       phrase = null;
       passphrase.value = "";
       session.wallet = info;
-      if (remember.input.checked) session.remembered = info;
+      if (remember.checked()) session.remembered = info;
       session.lastSyncedAt = null;
       navigate("dashboard");
     } catch (e) {

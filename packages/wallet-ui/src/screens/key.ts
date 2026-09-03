@@ -1,22 +1,11 @@
 import { api } from "../api";
+import { platform } from "../platform";
 import { navigate } from "../router";
 import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
-import {
-  banner,
-  button,
-  checkbox,
-  el,
-  field,
-  kv,
-  mono,
-  sectionLabel,
-  textInput,
-  withBusy,
-} from "../ui/dom";
-
-const KEYCHAIN_NAME = navigator.platform.startsWith("Mac") ? "macOS Keychain" : "OS keychain";
+import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { NO_KEYSTORE_HINT, rememberCheckbox } from "../ui/remember";
 
 /**
  * Whether the single-key disclosure is expanded. Sticky for the session so the
@@ -45,11 +34,7 @@ export function renderKey(): HTMLElement {
     name: "secret",
   });
   const generated = el("div", { className: "hidden" });
-  const remember = checkbox(
-    "Remember on this device",
-    `· stored in the ${KEYCHAIN_NAME}, unlocked with your login`,
-    "remember",
-  );
+  const remember = rememberCheckbox();
 
   const showGenerated = (key: GeneratedKey) => {
     generated.className = "card secret-box";
@@ -106,12 +91,12 @@ export function renderKey(): HTMLElement {
           return;
         }
         try {
-          const info = await api.openWallet(value, cfg.address_type, remember.input.checked);
+          const info = await api.openWallet(value, cfg.address_type, remember.checked());
           secret.value = "";
           generated.replaceChildren();
           generated.className = "hidden";
           session.wallet = info;
-          if (remember.input.checked) session.remembered = info;
+          if (remember.checked()) session.remembered = info;
           session.lastSyncedAt = null;
           navigate("dashboard");
         } catch (e) {
@@ -184,6 +169,7 @@ export function renderKey(): HTMLElement {
           ? "A recovery phrase backs up every address this wallet will ever use. Restoring one brings its history back."
           : "P2PK has no BIP32 account layout, so it cannot be backed up by a recovery phrase. Choose another address type in Setup, or use a single key below.",
       }),
+      platform().canRememberWallet ? null : el("p", { className: "hint", text: NO_KEYSTORE_HINT }),
     ]),
     advanced,
   ]);

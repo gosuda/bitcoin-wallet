@@ -3,9 +3,11 @@ name: rust
 on:
   push:
     branches: [main]
-    paths: ["Cargo.*", "crates/**", "apps/desktop/**", ".github/workflows/rust.yml"]
+    paths:
+      ["Cargo.*", "crates/**", "apps/**", "packages/**", "pnpm-*", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["Cargo.*", "crates/**", "apps/desktop/**", ".github/workflows/rust.yml"]
+    paths:
+      ["Cargo.*", "crates/**", "apps/**", "packages/**", "pnpm-*", ".github/workflows/rust.yml"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -64,14 +66,11 @@ jobs:
       - run: cargo clippy -p wallet-core --target wasm32-unknown-unknown --no-default-features --features backend-esplora -- -D warnings
       - run: cargo clippy -p wallet-wasm --target wasm32-unknown-unknown -- -D warnings
       - run: cargo install wasm-pack --locked
-      - run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../apps/desktop/src/wasm/pkg
+      - run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
 
-  desktop:
-    name: desktop app
+  apps:
+    name: desktop + web apps
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -79,8 +78,6 @@ jobs:
           components: clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      # package.json lives under apps/desktop, so the action cannot infer a
-      # version from the repo root: pin it here.
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -88,23 +85,37 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       # Tauri's Linux build needs the webkit stack.
       - name: Install Linux build dependencies
-        working-directory: .
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      # The frontend imports the wasm package, so build it before typechecking.
+      # Both apps import the wasm core through @bitcoin-wallet/ui, so build it
+      # before anything typechecks.
       - name: Build the wasm core
-        working-directory: .
         run: |
           cargo install wasm-pack --locked
-          wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../apps/desktop/src/wasm/pkg
+          wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
       - run: pnpm install --frozen-lockfile
-      - run: pnpm biome ci .
-      - run: pnpm tsc --noEmit
-      - run: pnpm vite build
+
+      - name: Check the shared UI package
+        working-directory: packages/wallet-ui
+        run: pnpm biome ci .
+
+      - name: Desktop app
+        working-directory: apps/desktop
+        run: |
+          pnpm biome ci .
+          pnpm tsc --noEmit
+          pnpm vite build
+
+      - name: Web app
+        working-directory: apps/web
+        run: |
+          pnpm biome ci .
+          pnpm tsc --noEmit
+          pnpm vite build
+
       - name: Build the Tauri shell
-        working-directory: .
         run: cargo clippy -p bitcoin-wallet-desktop --all-targets -- -D warnings

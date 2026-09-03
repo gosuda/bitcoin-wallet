@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install Linux build dependencies
         if: matrix.os == 'ubuntu-24.04'
@@ -63,10 +63,10 @@ jobs:
       - name: Build the wasm core
         run: |
           cargo install wasm-pack --locked
-          wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../apps/desktop/src/wasm/pkg
+          wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
 
+      # One workspace, one lockfile: install from the repo root.
       - run: pnpm install --frozen-lockfile
-        working-directory: apps/desktop
 
       - uses: tauri-apps/tauri-action@v0
         env:
