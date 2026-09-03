@@ -30,7 +30,7 @@
       "x": 0,
       "y": 1200,
       "w": 960,
-      "h": 760
+      "h": 1000
     },
     {
       "file": "Sent.dc.html",
@@ -52,7 +52,7 @@
       "file": "Unlock.dc.html",
       "title": "2b \u00b7 Unlock (returning user)",
       "x": 0,
-      "y": 2080,
+      "y": 2320,
       "w": 960,
       "h": 640
     }

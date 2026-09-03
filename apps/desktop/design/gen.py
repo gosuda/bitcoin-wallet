@@ -282,7 +282,7 @@ send = page(head("Send", f"From {ADDR}") + f'''
     <span class="btn">Edit</span>
     <span class="btn btn-primary">Confirm &amp; broadcast</span>
   </div>
-</section>''', step=2, minh=760)
+</section>''', step=2, minh=1000)
 
 result = page(head("Sent", "Signet · mempool.space") + f'''
 <section class="card" style="align-items: flex-start; gap: 16px; padding: 24px;">
@@ -340,10 +340,10 @@ canvas = {
     {"file": "Setup.dc.html", "title": "1 · Setup", "x": 0, "y": 0, "w": 960, "h": 640},
     {"file": "Key.dc.html", "title": "2 · Key", "x": 1040, "y": 0, "w": 960, "h": 640},
     {"file": "Main.dc.html", "title": "3 · Wallet", "x": 2080, "y": 0, "w": 960, "h": 1100},
-    {"file": "Send.dc.html", "title": "4 · Send + Review", "x": 0, "y": 1200, "w": 960, "h": 760},
+    {"file": "Send.dc.html", "title": "4 · Send + Review", "x": 0, "y": 1200, "w": 960, "h": 1000},
     {"file": "Sent.dc.html", "title": "5 · Sent", "x": 1040, "y": 1200, "w": 960, "h": 640},
     {"file": "Icon.dc.html", "title": "App icon", "x": 2080, "y": 1200, "w": 720, "h": 480},
-    {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 2080, "w": 960, "h": 640},
+    {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 2320, "w": 960, "h": 640},
   ],
   "annotations": [
     {"id": "bump-note", "x": 3120, "y": 1180, "w": 380, "text": "Roadmap 7 + 8\n\nHistory: an unconfirmed OUTGOING row gets a \"Bump fee\" button (BDK signals RBF on everything we build). Confirmed and incoming rows show nothing.\n\nSend: amount takes sat or BTC via the unit chips; \"Max\" fills the spendable balance minus fee. An address that fails validation turns the field red with the reason underneath, and Review stays disabled."},
