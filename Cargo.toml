@@ -6,7 +6,7 @@ members = ["crates/*", "apps/desktop/src-tauri"]
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/gosuda/bitcoin-wallet"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [workspace.dependencies]
 wallet-core = { path = "crates/wallet-core" }
