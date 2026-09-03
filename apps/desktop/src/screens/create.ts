@@ -3,7 +3,7 @@ import { navigate } from "../router";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
-import { banner, button, checkbox, el, sectionLabel, withBusy } from "../ui/dom";
+import { banner, button, checkbox, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
 
@@ -71,6 +71,23 @@ export function renderCreate(): HTMLElement {
     "remember",
   );
 
+  // Optional and not shown again: the phrase above is only half the backup when
+  // one is set, so the hint says what losing it costs. Left empty it means no
+  // passphrase at all.
+  const passphrase = textInput({
+    type: "password",
+    placeholder: "Leave empty for none",
+    name: "passphrase",
+  });
+  // Secret, like the phrase itself: out of the DOM the moment the route changes.
+  window.addEventListener(
+    "hashchange",
+    () => {
+      passphrase.value = "";
+    },
+    { once: true },
+  );
+
   const copyBtn = copyButton(() => phrase ?? "", "Copy", "sm");
   copyBtn.disabled = true;
 
@@ -104,8 +121,14 @@ export function renderCreate(): HTMLElement {
       return;
     }
     try {
-      const info = await api.openWallet(secret, cfg.address_type, remember.input.checked);
+      const info = await api.openWallet(
+        secret,
+        cfg.address_type,
+        remember.input.checked,
+        passphrase.value || undefined,
+      );
       phrase = null;
+      passphrase.value = "";
       session.wallet = info;
       if (remember.input.checked) session.remembered = info;
       session.lastSyncedAt = null;
@@ -193,6 +216,11 @@ export function renderCreate(): HTMLElement {
       sectionLabel("Confirm your backup"),
       el("span", { className: "hint", text: "Fill in the missing words to continue." }),
       confirmBox,
+      field(
+        "Passphrase (optional)",
+        passphrase,
+        "A passphrase creates a different wallet from the same words. It is stored with them if you choose to remember this device. Write it down too — without it the words alone cannot recover this wallet.",
+      ),
       remember.node,
     ]),
     el("div", { className: "actions actions-split" }, [

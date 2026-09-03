@@ -33,6 +33,20 @@ export interface RememberedWallet {
   address_type: AddressType;
 }
 
+/**
+ * What `load_secret` returns: secret material, held only long enough to open
+ * the wallet.
+ *
+ * The BIP39 passphrase is stored alongside the words because it is part of the
+ * same wallet's identity — the words on their own open a different wallet — and
+ * the OS keystore is already the boundary that protects them.
+ */
+export interface StoredSecret {
+  secret: string;
+  /** `null` for a single key, and for a mnemonic saved without one. */
+  passphrase: string | null;
+}
+
 export interface Balance {
   confirmed: number;
   trusted_pending: number;

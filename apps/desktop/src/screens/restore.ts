@@ -55,11 +55,14 @@ export function renderRestore(): HTMLElement {
     "remember",
   );
 
-  // The core accepts a BIP39 passphrase, but nothing between here and
-  // `open_wallet` carries one — so the field is shown and refused rather than
-  // accepting a passphrase this screen would silently drop.
-  const passphrase = textInput({ placeholder: "Not supported yet" });
-  passphrase.disabled = true;
+  // Optional, and part of the wallet's identity rather than a lock on it: the
+  // phrase is valid with or without one, and each passphrase restores a
+  // different wallet. Left empty it means no passphrase at all.
+  const passphrase = textInput({
+    type: "password",
+    placeholder: "Leave empty for none",
+    name: "passphrase",
+  });
 
   let count: WordCount = 12;
   let boxes: HTMLInputElement[] = [];
@@ -187,8 +190,14 @@ export function renderRestore(): HTMLElement {
     }
     const secret = words().join(" ");
     try {
-      const info = await api.openWallet(secret, cfg.address_type, remember.input.checked);
+      const info = await api.openWallet(
+        secret,
+        cfg.address_type,
+        remember.input.checked,
+        passphrase.value || undefined,
+      );
       for (const box of boxes) box.value = "";
+      passphrase.value = "";
       session.wallet = info;
       if (remember.input.checked) session.remembered = info;
       session.lastSyncedAt = null;
@@ -211,12 +220,14 @@ export function renderRestore(): HTMLElement {
 
   buildGrid();
 
-  // Typed words are secret: drop them from the DOM the moment the route changes.
+  // Typed words are secret, and so is the passphrase: drop both from the DOM
+  // the moment the route changes.
   window.addEventListener(
     "hashchange",
     () => {
       window.clearTimeout(timer);
       for (const box of boxes) box.value = "";
+      passphrase.value = "";
     },
     { once: true },
   );
@@ -244,7 +255,7 @@ export function renderRestore(): HTMLElement {
       field(
         "Passphrase (optional)",
         passphrase,
-        "Not supported yet. A passphrase creates a different wallet from the same words.",
+        "A passphrase creates a different wallet from the same words. It is stored with them if you choose to remember this device.",
       ),
       remember.node,
     ]),

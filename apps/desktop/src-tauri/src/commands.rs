@@ -10,7 +10,7 @@ use tauri_plugin_store::StoreExt;
 use wallet_core::{KeyMaterial, Keystore};
 use zeroize::Zeroizing;
 
-use crate::dto::AppConfig;
+use crate::dto::{AppConfig, StoredSecret};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
@@ -37,30 +37,43 @@ pub async fn set_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
 }
 
 /// Saves the unlock key for `wallet_id` in the OS credential store.
+///
+/// `passphrase` is the optional BIP39 passphrase and is stored *with* the
+/// words: it is part of this wallet's identity — the same words under another
+/// passphrase are another wallet, with another `wallet_id` — and the credential
+/// store is already the security boundary for the words themselves. It applies
+/// only to a mnemonic; with a hex or WIF secret it is an error, not a no-op.
 #[tauri::command]
 pub async fn remember_secret(
     state: State<'_, AppState>,
     wallet_id: String,
     secret: String,
+    passphrase: Option<String>,
 ) -> AppResult<()> {
     let secret = Zeroizing::new(secret);
-    let key = KeyMaterial::parse(&secret);
+    let passphrase = passphrase.map(Zeroizing::new);
+    let key = KeyMaterial::parse_with_passphrase(&secret, passphrase.as_ref().map(|p| p.as_str()))?;
     drop(secret);
+    drop(passphrase);
     let keystore = state.keystore();
     Ok(tauri::async_runtime::spawn_blocking(move || keystore.store(&wallet_id, key)).await??)
 }
 
-/// Returns the stored key for `wallet_id`, or `None` when nothing is saved.
-/// The webview needs the material itself to open the wallet.
+/// Returns the stored secret for `wallet_id`, or `None` when nothing is saved.
+/// The webview needs the material itself — words and passphrase both — to open
+/// the wallet.
 #[tauri::command]
 pub async fn load_secret(
     state: State<'_, AppState>,
     wallet_id: String,
-) -> AppResult<Option<String>> {
+) -> AppResult<Option<StoredSecret>> {
     let keystore = state.keystore();
     let key = tauri::async_runtime::spawn_blocking(move || keystore.load(&wallet_id)).await??;
-    // `KeyMaterial` is zeroized on drop, so the string is copied out, not moved.
-    Ok(key.map(|k| k.secret()))
+    // `KeyMaterial` is zeroized on drop, so the strings are copied out, not moved.
+    Ok(key.map(|k| StoredSecret {
+        secret: k.secret(),
+        passphrase: k.passphrase().map(str::to_owned),
+    }))
 }
 
 /// Removes the credential-store entry for `wallet_id`; missing is not an error.

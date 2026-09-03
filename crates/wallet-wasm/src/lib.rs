@@ -130,11 +130,26 @@ pub fn validate_mnemonic(words: &str) -> Result<(), JsError> {
     wallet_core::validate_mnemonic(words).map_err(js_err)
 }
 
+/// Key material for a secret plus an optional BIP39 passphrase.
+///
+/// The passphrase is part of the wallet's identity, so every entry point whose
+/// answer depends on the seed takes it. It only applies to a mnemonic: handing
+/// one in with a hex or WIF secret is an error rather than a silent no-op.
+fn parse_key(secret: &str, passphrase: Option<String>) -> Result<KeyMaterial, JsError> {
+    KeyMaterial::parse_with_passphrase(secret, passphrase.as_deref()).map_err(js_err)
+}
+
 /// Address for a secret: hex/WIF gives that key's address, a mnemonic gives
-/// the account's first receive address.
+/// the account's first receive address. `passphrase` is the optional BIP39
+/// passphrase and applies only to a mnemonic.
 #[wasm_bindgen]
-pub fn address_for_key(secret: &str, network: &str, address_type: &str) -> Result<String, JsError> {
-    let key = KeyMaterial::parse(secret);
+pub fn address_for_key(
+    secret: &str,
+    network: &str,
+    address_type: &str,
+    passphrase: Option<String>,
+) -> Result<String, JsError> {
+    let key = parse_key(secret, passphrase)?;
     wallet_core::address_for_key(
         &key,
         parse_network(network)?,
@@ -145,13 +160,18 @@ pub fn address_for_key(secret: &str, network: &str, address_type: &str) -> Resul
 
 /// Non-secret wallet identifier for a secret (used as the persistence/keychain key).
 /// Named `walletIdForKey` in JS — `Wallet.id` already owns the `wallet_id` symbol.
+///
+/// A different `passphrase` over the same words is a different wallet, so it is
+/// a different id: passing it here is what keeps the two from sharing a
+/// persistence record or a keychain entry.
 #[wasm_bindgen]
 pub fn wallet_id_for_key(
     secret: &str,
     network: &str,
     address_type: &str,
+    passphrase: Option<String>,
 ) -> Result<String, JsError> {
-    let key = KeyMaterial::parse(secret);
+    let key = parse_key(secret, passphrase)?;
     wallet_core::keys::wallet_id(
         &key,
         parse_network(network)?,
@@ -185,13 +205,18 @@ impl Wallet {
     /// `secret`: hex, WIF, or a BIP39 mnemonic — more than one word means a
     /// mnemonic, which opens an HD wallet (consumed; never stored by this module).
     /// `persister`: object with `initialize()` / `persist(json)` returning promises.
+    /// `passphrase`: optional BIP39 passphrase. It is part of the seed, so the
+    /// same words with a different passphrase open a different wallet, with a
+    /// different id — give the persister the record for *that* id. Only a
+    /// mnemonic accepts one.
     pub async fn open(
         config: JsValue,
         secret: &str,
         persister: JsValue,
+        passphrase: Option<String>,
     ) -> Result<Wallet, JsError> {
         let config: WalletConfig = serde_wasm_bindgen::from_value(config).map_err(js_err)?;
-        let key = KeyMaterial::parse(secret);
+        let key = parse_key(secret, passphrase)?;
         let persister = JsPersister::new(persister).map_err(js_err)?;
         let handle = WalletHandle::open(config, &key, Box::new(persister))
             .await

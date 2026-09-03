@@ -134,14 +134,22 @@ export class WalletApi {
     this.inner = inner;
   }
 
-  /** Open (or create) the wallet for `secret`, backed by `persister`. */
+  /**
+   * Open (or create) the wallet for `secret`, backed by `persister`.
+   *
+   * `passphrase` is the optional BIP39 one and applies only to a mnemonic. It
+   * is part of the seed, so the same words under a different passphrase are a
+   * different wallet with a different id: `persister` has to be the one for
+   * that id (see `walletIdForKey`).
+   */
   static async open(
     config: AppConfig,
     secret: string,
     persister: WalletPersister,
+    passphrase?: string,
   ): Promise<WalletApi> {
     await load();
-    return new WalletApi(await Wallet.open(config, secret, persister));
+    return new WalletApi(await Wallet.open(config, secret, persister, passphrase));
   }
 
   get id(): string {
@@ -254,24 +262,36 @@ export async function validateMnemonic(words: string): Promise<void> {
   validate_mnemonic(words);
 }
 
-/** Address for a hex/WIF secret, without opening a wallet. */
+/**
+ * Address for a secret, without opening a wallet: that key's address for
+ * hex/WIF, the account's first receive address for a mnemonic. `passphrase` is
+ * the optional BIP39 one and applies only to a mnemonic.
+ */
 export async function addressForKey(
   secret: string,
   network: Network,
   addressType: AddressType,
+  passphrase?: string,
 ): Promise<string> {
   await load();
-  return address_for_key(secret, network, CORE_ADDRESS_TYPE[addressType]);
+  return address_for_key(secret, network, CORE_ADDRESS_TYPE[addressType], passphrase);
 }
 
-/** Non-secret wallet id: the IndexedDB record key and the OS-keystore entry name. */
+/**
+ * Non-secret wallet id: the IndexedDB record key and the OS-keystore entry name.
+ *
+ * `passphrase` belongs in the id, not beside it — the same words under two
+ * passphrases are two wallets, and this is what keeps them from sharing a
+ * stored record or a keychain entry.
+ */
 export async function walletIdForKey(
   secret: string,
   network: Network,
   addressType: AddressType,
+  passphrase?: string,
 ): Promise<string> {
   await load();
-  return wallet_id_for_key(secret, network, CORE_ADDRESS_TYPE[addressType]);
+  return wallet_id_for_key(secret, network, CORE_ADDRESS_TYPE[addressType], passphrase);
 }
 
 /** Default public Esplora endpoint for a network. */

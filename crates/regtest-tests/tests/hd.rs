@@ -42,16 +42,31 @@ fn regtest_address(addr: &str) -> Address {
 
 /// Derive an address straight from the seed with BDK's BIP84 template, so the
 /// assertions below do not just re-read what the wallet under test believes.
-fn derived(words: &str, keychain: KeychainKind, index: u32) -> String {
+/// `passphrase` is the BIP39 one: it changes the seed, so it changes every
+/// address the account derives.
+fn derived_with(
+    words: &str,
+    passphrase: Option<&str>,
+    keychain: KeychainKind,
+    index: u32,
+) -> String {
     let mnemonic = Mnemonic::parse_in(Language::English, words).expect("generated mnemonic parses");
+    let passphrase = passphrase.map(str::to_owned);
     let reference = BdkWallet::create(
-        Bip84((mnemonic.clone(), None), KeychainKind::External),
-        Bip84((mnemonic, None), KeychainKind::Internal),
+        Bip84(
+            (mnemonic.clone(), passphrase.clone()),
+            KeychainKind::External,
+        ),
+        Bip84((mnemonic, passphrase), KeychainKind::Internal),
     )
     .network(wallet_core::bitcoin::Network::Regtest)
     .create_wallet_no_persist()
     .expect("reference wallet builds");
     reference.peek_address(keychain, index).address.to_string()
+}
+
+fn derived(words: &str, keychain: KeychainKind, index: u32) -> String {
+    derived_with(words, None, keychain, index)
 }
 
 #[tokio::test]
@@ -124,6 +139,43 @@ async fn hd_wallet_receives_on_fresh_addresses_and_changes_internally() -> anyho
     let mut expected = vec![first.clone(), second.clone()];
     expected.sort();
     assert_eq!(funded_addresses, expected);
+
+    // --- the same words under a passphrase are a different wallet
+    //
+    // BIP39 mixes the passphrase into the seed, so this is a separate account
+    // with its own address space. Against the same chain and the same funded
+    // words it must hand out an address this wallet does not own, and find none
+    // of the coins.
+    let passphrased = WalletHandle::open(
+        config(esplora_url.clone()),
+        &KeyMaterial::parse_with_passphrase(&words, Some("regtest passphrase"))?,
+        Box::new(MemoryPersister::new()),
+    )
+    .await?;
+    assert_ne!(
+        passphrased.id(),
+        wallet.id(),
+        "a passphrase makes it a different wallet id"
+    );
+    let passphrased_first = passphrased.address().await;
+    assert_ne!(passphrased_first, first);
+    assert_ne!(passphrased_first, second);
+    assert_eq!(
+        passphrased_first,
+        derived_with(
+            &words,
+            Some("regtest passphrase"),
+            KeychainKind::External,
+            0
+        ),
+        "the passphrase account is BIP84 of the passphrased seed"
+    );
+    passphrased.sync().await?;
+    assert_eq!(
+        passphrased.balance().await.confirmed,
+        0,
+        "the passphrase account sees none of the coins sent to these words"
+    );
 
     // --- spend: the change must not come back to a receive address
     let destination = wallet_core::generate_key(Network::Regtest, AddressType::P2tr)?;

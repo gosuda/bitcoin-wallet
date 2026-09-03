@@ -119,6 +119,33 @@ impl KeyMaterial {
         }
     }
 
+    /// [`Self::parse`] with a BIP39 passphrase attached.
+    ///
+    /// The passphrase is part of the wallet's identity: BIP39 mixes it into the
+    /// seed, so the same words with a different passphrase derive a different
+    /// account — a different address space and a different [`wallet_id`].
+    ///
+    /// It only means anything for a mnemonic. A passphrase handed in with a hex
+    /// or WIF secret is refused rather than dropped, so a caller cannot open a
+    /// wallet that quietly ignores half of what the user typed. `None` and an
+    /// empty string both mean "no passphrase", and both leave the result
+    /// identical to [`Self::parse`].
+    pub fn parse_with_passphrase(input: &str, passphrase: Option<&str>) -> Result<Self> {
+        let key = Self::parse(input);
+        let Some(passphrase) = passphrase.filter(|p| !p.is_empty()) else {
+            return Ok(key);
+        };
+        if !key.is_hd() {
+            return Err(Error::InvalidKey(
+                "a passphrase applies only to a BIP39 mnemonic, not a single private key".into(),
+            ));
+        }
+        Ok(KeyMaterial::Mnemonic {
+            words: key.secret(),
+            passphrase: Some(passphrase.to_owned()),
+        })
+    }
+
     /// Whether this material expands into a BIP32 account (receive + change
     /// keychains) rather than a single key.
     pub fn is_hd(&self) -> bool {
@@ -129,12 +156,25 @@ impl KeyMaterial {
     /// so a caller that stored [`KeyMaterial`] can hand the string back and
     /// have [`Self::parse`] read it the same way again.
     ///
-    /// A mnemonic passphrase is not part of this string; [`Self::parse`] never
-    /// sets one, so material that went through it round-trips exactly.
+    /// A mnemonic passphrase is not part of this string — it is the separate
+    /// [`Self::passphrase`] — so material round-trips exactly through
+    /// [`Self::parse`] alone, or through [`Self::parse_with_passphrase`] when
+    /// it carries one.
     pub fn secret(&self) -> String {
         match self {
             KeyMaterial::PrivHex(s) | KeyMaterial::Wif(s) => s.clone(),
             KeyMaterial::Mnemonic { words, .. } => words.clone(),
+        }
+    }
+
+    /// The BIP39 passphrase this material carries, if any. The other half of
+    /// [`Self::secret`]: together they round-trip through
+    /// [`Self::parse_with_passphrase`] unchanged, which is what stored material
+    /// is put back together from.
+    pub fn passphrase(&self) -> Option<&str> {
+        match self {
+            KeyMaterial::Mnemonic { passphrase, .. } => passphrase.as_deref(),
+            KeyMaterial::PrivHex(_) | KeyMaterial::Wif(_) => None,
         }
     }
 
@@ -706,6 +746,70 @@ mod tests {
         assert_ne!(
             wallet_id(&plain, Network::Bitcoin, AddressType::P2wpkh).unwrap(),
             wallet_id(&with_pass, Network::Bitcoin, AddressType::P2wpkh).unwrap()
+        );
+    }
+
+    /// The passphrase is part of the wallet's identity, and it only belongs to
+    /// a mnemonic: attaching one to a single key is refused rather than dropped.
+    #[test]
+    fn passphrase_only_attaches_to_a_mnemonic() {
+        let with_pass = KeyMaterial::parse_with_passphrase(ABANDON, Some("TREZOR")).unwrap();
+        assert_eq!(with_pass.secret(), ABANDON);
+        assert_eq!(with_pass.passphrase(), Some("TREZOR"));
+        // Same words, two wallets: different address space, different id.
+        let plain = KeyMaterial::parse_with_passphrase(ABANDON, None).unwrap();
+        for t in [
+            AddressType::P2pkh,
+            AddressType::NestedP2wpkh,
+            AddressType::P2wpkh,
+            AddressType::P2tr,
+        ] {
+            assert_ne!(
+                address_for_key(&plain, Network::Signet, t).unwrap(),
+                address_for_key(&with_pass, Network::Signet, t).unwrap(),
+                "{t:?}"
+            );
+            assert_ne!(
+                wallet_id(&plain, Network::Signet, t).unwrap(),
+                wallet_id(&with_pass, Network::Signet, t).unwrap(),
+                "{t:?}"
+            );
+        }
+        // And two different passphrases are two different wallets again.
+        let other = KeyMaterial::parse_with_passphrase(ABANDON, Some("trezor")).unwrap();
+        assert_ne!(
+            wallet_id(&other, Network::Signet, AddressType::P2wpkh).unwrap(),
+            wallet_id(&with_pass, Network::Signet, AddressType::P2wpkh).unwrap()
+        );
+
+        // A single key has no seed to mix a passphrase into, so it is an error
+        // rather than a wallet that silently ignores what the user typed.
+        for secret in [SK1_HEX, "cN9..."] {
+            let err = KeyMaterial::parse_with_passphrase(secret, Some("TREZOR")).unwrap_err();
+            assert!(matches!(err, Error::InvalidKey(_)), "{err:?}");
+            assert!(format!("{err}").contains("mnemonic"), "{err}");
+        }
+
+        // No passphrase — absent or empty — leaves the material exactly as
+        // `parse` would build it, so no stored wallet moves.
+        for passphrase in [None, Some("")] {
+            for secret in [SK1_HEX, "cN9...", ABANDON] {
+                let key = KeyMaterial::parse_with_passphrase(secret, passphrase).unwrap();
+                assert_eq!(key.passphrase(), None);
+                assert_eq!(
+                    serde_json::to_string(&key).unwrap(),
+                    serde_json::to_string(&KeyMaterial::parse(secret)).unwrap()
+                );
+            }
+        }
+        assert_eq!(
+            wallet_id(
+                &KeyMaterial::parse_with_passphrase(ABANDON, Some("")).unwrap(),
+                Network::Signet,
+                AddressType::P2wpkh
+            )
+            .unwrap(),
+            "signet-p2wpkh-e99b862826a40a32"
         );
     }
 

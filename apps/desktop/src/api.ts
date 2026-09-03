@@ -23,6 +23,7 @@ import type {
   Network,
   Recipient,
   RememberedWallet,
+  StoredSecret,
   TxPreview,
   TxSummary,
   Utxo,
@@ -82,16 +83,21 @@ function releaseWallet(): void {
 /**
  * Opens the wallet for `secret` against `network`/`addressType`, backed by the
  * IndexedDB record for its wallet id. The secret is used here and dropped.
+ *
+ * `passphrase` is the optional BIP39 one. It goes into the wallet id as much as
+ * the words do, so the same phrase under two passphrases gets two ids — two
+ * IndexedDB records and two keystore entries, never a collision.
  */
 async function install(
   secret: string,
   network: Network,
   addressType: AddressType,
+  passphrase?: string,
 ): Promise<WalletInfo> {
   const base = await requireConfig();
   const config: AppConfig = { ...base, network, address_type: addressType };
-  const walletId = await walletIdForKey(secret, network, addressType);
-  const wallet = await WalletApi.open(config, secret, makePersister(walletId));
+  const walletId = await walletIdForKey(secret, network, addressType, passphrase);
+  const wallet = await WalletApi.open(config, secret, makePersister(walletId), passphrase);
 
   releaseWallet();
   session.handle = wallet;
@@ -106,15 +112,26 @@ async function install(
   return info;
 }
 
+/**
+ * Opens the wallet the user just entered, optionally saving its key.
+ *
+ * "Remember" stores the passphrase with the words: the two are one wallet's
+ * identity, and the OS keystore already guards the words.
+ */
 async function openWallet(
   secret: string,
   addressType: AddressType,
   remember: boolean,
+  passphrase?: string,
 ): Promise<WalletInfo> {
   const { network } = await requireConfig();
-  const info = await install(secret, network, addressType);
+  const info = await install(secret, network, addressType, passphrase);
   if (remember) {
-    await invoke<void>("remember_secret", { walletId: info.wallet_id, secret });
+    await invoke<void>("remember_secret", {
+      walletId: info.wallet_id,
+      secret,
+      passphrase: passphrase ?? null,
+    });
     const record: RememberedWallet = {
       wallet_id: info.wallet_id,
       address: info.address,
@@ -126,15 +143,23 @@ async function openWallet(
   return info;
 }
 
-/** Opens the remembered wallet with the key loaded from the OS keystore. */
+/**
+ * Opens the remembered wallet with the key loaded from the OS keystore. The
+ * stored entry carries the passphrase too, so unlocking never asks for one.
+ */
 async function unlockWallet(): Promise<WalletInfo> {
   const notRemembered = () =>
     new WalletError("not_remembered", "no wallet is saved on this device");
   const record = await remembered();
   if (!record) throw notRemembered();
-  const secret = await invoke<string | null>("load_secret", { walletId: record.wallet_id });
-  if (!secret) throw notRemembered();
-  return install(secret, record.network, record.address_type);
+  const stored = await invoke<StoredSecret | null>("load_secret", { walletId: record.wallet_id });
+  if (!stored?.secret) throw notRemembered();
+  return install(
+    stored.secret,
+    record.network,
+    record.address_type,
+    stored.passphrase ?? undefined,
+  );
 }
 
 /** Removes the keystore entry, the local wallet state and the remembered record. */
@@ -228,8 +253,8 @@ export const api = {
     wordCount: number,
   ): Promise<GeneratedMnemonic> => generateMnemonic(network, addressType, wordCount),
   validateMnemonic: (words: string): Promise<void> => validateMnemonic(words),
-  openWallet: (secret: string, addressType: AddressType, remember: boolean) =>
-    openWallet(secret, addressType, remember),
+  openWallet: (secret: string, addressType: AddressType, remember: boolean, passphrase?: string) =>
+    openWallet(secret, addressType, remember, passphrase),
   closeWallet: async (): Promise<void> => releaseWallet(),
   getRemembered: (): Promise<RememberedWallet | null> => remembered(),
   unlockWallet: () => unlockWallet(),
