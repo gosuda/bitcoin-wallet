@@ -67,6 +67,9 @@ function utxoTable(utxos: Utxo[]): HTMLElement {
   return el("div", { className: "table-wrap" }, [el("table", {}, [el("thead", {}, [head]), body])]);
 }
 
+/** How often the dashboard re-syncs while it is on screen and visible. */
+const AUTO_SYNC_MS = 60_000;
+
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -167,9 +170,12 @@ export function renderDashboard(): HTMLElement {
     txBox.replaceChildren(txTable(txs));
   };
 
+  let autoSyncFailed = false;
+
   const renderSynced = () => {
     const at = session.lastSyncedAt;
-    syncedLabel.textContent = at ? `Last synced ${at.toLocaleTimeString()}` : "Not synced yet";
+    const base = at ? `Last synced ${at.toLocaleTimeString()}` : "Not synced yet";
+    syncedLabel.textContent = autoSyncFailed ? `${base} · retrying` : base;
   };
 
   const refreshLocal = async () => {
@@ -183,27 +189,39 @@ export function renderDashboard(): HTMLElement {
     renderTxs(txs);
   };
 
-  const syncBtn = button(
-    "Sync",
-    () =>
-      withBusy(syncBtn, async () => {
-        alert.hide();
-        try {
-          const balance = await api.sync();
-          session.lastSyncedAt = new Date();
-          renderBalance(balance);
-          const [utxos, txs] = await Promise.all([api.listUtxos(), api.listTransactions()]);
-          renderUtxos(utxos);
-          renderTxs(txs);
-          renderSynced();
-        } catch (e) {
-          alert.show("error", errorMessage(e));
-        }
-      }),
-    "default",
-    "md",
-    { name: "refresh" },
-  );
+  // Guards the button press and the interval against overlapping syncs.
+  let syncing = false;
+
+  // `silent` is the periodic sync: a transient failure marks the label
+  // instead of raising a banner the user never asked for.
+  const runSync = async (silent: boolean) => {
+    if (syncing) return;
+    syncing = true;
+    try {
+      if (!silent) alert.hide();
+      const balance = await api.sync();
+      session.lastSyncedAt = new Date();
+      autoSyncFailed = false;
+      renderBalance(balance);
+      const [utxos, txs] = await Promise.all([api.listUtxos(), api.listTransactions()]);
+      renderUtxos(utxos);
+      renderTxs(txs);
+      renderSynced();
+    } catch (e) {
+      if (silent) {
+        autoSyncFailed = true;
+        renderSynced();
+      } else {
+        alert.show("error", errorMessage(e));
+      }
+    } finally {
+      syncing = false;
+    }
+  };
+
+  const syncBtn = button("Sync", () => withBusy(syncBtn, () => runSync(false)), "default", "md", {
+    name: "refresh",
+  });
 
   const sendBtn = button("Send", () => navigate("send"), "primary", "md", {
     name: "arrow",
@@ -232,7 +250,7 @@ export function renderDashboard(): HTMLElement {
   txBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
   void refreshLocal().catch((e: unknown) => alert.show("error", errorMessage(e)));
 
-  return el("main", { className: "screen" }, [
+  const screen = el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [
       el("h1", { text: "Wallet" }),
       el("p", {
@@ -270,4 +288,17 @@ export function renderDashboard(): HTMLElement {
     ]),
     el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);
+
+  // Keep the wallet fresh while this screen is open. The router swaps screens
+  // without a teardown hook, so the timer retires itself once the node is gone.
+  const timer = window.setInterval(() => {
+    if (!screen.isConnected) {
+      window.clearInterval(timer);
+      return;
+    }
+    if (document.hidden) return;
+    void withBusy(syncBtn, () => runSync(true));
+  }, AUTO_SYNC_MS);
+
+  return screen;
 }
