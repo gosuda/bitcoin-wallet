@@ -1,6 +1,7 @@
 //! Portable Bitcoin wallet core built on BDK.
 //!
-//! - [`keys`]: single-key material, address derivation, key generation.
+//! - [`keys`]: key material (single key or BIP39 mnemonic), address derivation,
+//!   key and mnemonic generation.
 //! - [`backend`]: provider-neutral chain access (Esplora, mock).
 //! - [`persist`]: portable persistence boundary for public wallet state.
 //! - [`WalletHandle`]: sync, balance, UTXOs, build → sign → broadcast.
@@ -23,7 +24,10 @@ pub mod wallet;
 
 pub use backend::{BackendConfig, ChainBackend, FeeEstimate};
 pub use error::{Error, Result};
-pub use keys::{AddressType, GeneratedKey, KeyMaterial, address_for_key, generate_key};
+pub use keys::{
+    AddressType, GeneratedKey, GeneratedMnemonic, KeyMaterial, address_for_key, generate_key,
+    generate_mnemonic, validate_mnemonic,
+};
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 pub use keystore::NativeKeystore;
 pub use keystore::{Keystore, MemoryKeystore};

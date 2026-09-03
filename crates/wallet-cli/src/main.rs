@@ -1,6 +1,10 @@
 //! `btcw` — thin CLI over wallet-core mirroring the Go TUI flows.
 //!
 //! Secrets are read from `--key`, the `BTCW_KEY` env var, or stdin (`--key -`).
+//! A secret is a private key (hex or WIF) for a single-address wallet, or a
+//! BIP39 mnemonic — anything with more than one word — for an HD wallet with a
+//! separate change keychain. Quote a mnemonic so the shell keeps it in one
+//! argument, or pipe it in with `--key -`.
 
 use std::io::Read;
 use std::process::ExitCode;
@@ -32,17 +36,32 @@ struct BackendArgs {
     /// Esplora base URL (defaults to mempool.space for the network)
     #[arg(short, long)]
     url: Option<String>,
-    /// Private key (hex or WIF); "-" reads stdin; falls back to $BTCW_KEY
+    /// Private key (hex or WIF) or BIP39 mnemonic; "-" reads stdin; falls back to $BTCW_KEY
     #[arg(short, long)]
     key: Option<String>,
 }
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Generate a fresh key and address (Go "newAddress")
-    Generate,
-    /// Show the address for a key
-    Address(BackendArgs),
+    /// Generate a fresh key, or a BIP39 mnemonic with --mnemonic (Go "newAddress")
+    Generate {
+        /// Generate a 12/24-word BIP39 mnemonic (HD wallet) instead of one private key
+        #[arg(long)]
+        mnemonic: bool,
+        /// Mnemonic length with --mnemonic: 12 or 24
+        #[arg(long, default_value_t = 12)]
+        words: u8,
+    },
+    /// Show a receive address for a key
+    Address {
+        #[command(flatten)]
+        backend: BackendArgs,
+        /// Reveal a fresh receive address instead of the first one. Syncs, so
+        /// used addresses are skipped. HD only: a single-key wallet has one
+        /// address and returns it again.
+        #[arg(long)]
+        new: bool,
+    },
     /// Sync and show balance + UTXOs
     Balance(BackendArgs),
     /// Sync and show transaction history, newest first
@@ -147,18 +166,32 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
     let network = parse_network(&cli.network)?;
     let address_type = parse_address_type(&cli.address_type)?;
     match cli.cmd {
-        Cmd::Generate => {
+        Cmd::Generate { mnemonic, words } => {
+            if mnemonic {
+                let m = wallet_core::generate_mnemonic(network, address_type, words)
+                    .map_err(|e| e.to_string())?;
+                return Ok(serde_json::json!({
+                    "network": network.id(), "address_type": address_type.id(),
+                    "address": m.address, "mnemonic": m.words,
+                }));
+            }
             let k = wallet_core::generate_key(network, address_type).map_err(|e| e.to_string())?;
             Ok(serde_json::json!({
                 "network": network.id(), "address_type": address_type.id(),
                 "address": k.address, "pub_hex": k.pub_hex, "priv_hex": k.priv_hex, "wif": k.wif,
             }))
         }
-        Cmd::Address(a) => {
-            let key = read_key(a.key)?;
+        Cmd::Address { backend, new } => {
+            if new {
+                let w = open(network, address_type, &backend).await?;
+                w.sync().await.map_err(|e| e.to_string())?;
+                let address = w.new_address().await.map_err(|e| e.to_string())?;
+                return Ok(serde_json::json!({ "address": address, "hd": w.is_hd() }));
+            }
+            let key = read_key(backend.key)?;
             let address = wallet_core::address_for_key(&key, network, address_type)
                 .map_err(|e| e.to_string())?;
-            Ok(serde_json::json!({ "address": address }))
+            Ok(serde_json::json!({ "address": address, "hd": key.is_hd() }))
         }
         Cmd::Balance(a) => {
             let w = open(network, address_type, &a).await?;

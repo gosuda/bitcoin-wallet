@@ -60,9 +60,7 @@ pub async fn load_secret(
     let keystore = state.keystore();
     let key = tauri::async_runtime::spawn_blocking(move || keystore.load(&wallet_id)).await??;
     // `KeyMaterial` is zeroized on drop, so the string is copied out, not moved.
-    Ok(key.map(|k| match &k {
-        KeyMaterial::PrivHex(s) | KeyMaterial::Wif(s) => s.clone(),
-    }))
+    Ok(key.map(|k| k.secret()))
 }
 
 /// Removes the credential-store entry for `wallet_id`; missing is not an error.

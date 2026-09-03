@@ -104,7 +104,34 @@ pub fn generate_key(network: &str, address_type: &str) -> Result<JsValue, JsErro
     to_js(&k)
 }
 
-/// Address for a hex/WIF secret.
+/// Generate a fresh BIP39 mnemonic: `{ words, address }`, where `address` is
+/// the account's first receive address. `word_count` must be 12 or 24, and
+/// `address_type` cannot be `p2pk` (it has no BIP32 account layout).
+/// Returns a secret — hand it to the user once and do not store it.
+#[wasm_bindgen]
+pub fn generate_mnemonic(
+    network: &str,
+    address_type: &str,
+    word_count: u8,
+) -> Result<JsValue, JsError> {
+    let m = wallet_core::generate_mnemonic(
+        parse_network(network)?,
+        parse_address_type(address_type)?,
+        word_count,
+    )
+    .map_err(js_err)?;
+    to_js(&m)
+}
+
+/// Check a BIP39 phrase (English wordlist plus checksum). Throws with a
+/// readable reason when it is wrong; use it for restore-screen feedback.
+#[wasm_bindgen]
+pub fn validate_mnemonic(words: &str) -> Result<(), JsError> {
+    wallet_core::validate_mnemonic(words).map_err(js_err)
+}
+
+/// Address for a secret: hex/WIF gives that key's address, a mnemonic gives
+/// the account's first receive address.
 #[wasm_bindgen]
 pub fn address_for_key(secret: &str, network: &str, address_type: &str) -> Result<String, JsError> {
     let key = KeyMaterial::parse(secret);
@@ -155,7 +182,8 @@ pub struct Wallet {
 impl Wallet {
     /// Open (or create) a wallet.
     /// `config`: `{ network, address_type, backend: { kind: "esplora", url } }`.
-    /// `secret`: hex or WIF (consumed; never stored by this module).
+    /// `secret`: hex, WIF, or a BIP39 mnemonic — more than one word means a
+    /// mnemonic, which opens an HD wallet (consumed; never stored by this module).
     /// `persister`: object with `initialize()` / `persist(json)` returning promises.
     pub async fn open(
         config: JsValue,
@@ -188,8 +216,23 @@ impl Wallet {
         self.inner.address_type().id().to_string()
     }
 
+    /// Whether this wallet is a BIP32 account (separate change keychain)
+    /// rather than a single key.
+    #[wasm_bindgen(getter)]
+    pub fn is_hd(&self) -> bool {
+        self.inner.is_hd()
+    }
+
+    /// The address to receive at: the next unused one for HD, the single
+    /// address otherwise. Stable until it is used.
     pub async fn address(&self) -> String {
         self.inner.address().await
+    }
+
+    /// Reveal a fresh receive address (HD only; a single-key wallet returns the
+    /// same address as `address()`).
+    pub async fn new_address(&self) -> Result<String, JsError> {
+        self.inner.new_address().await.map_err(js_err)
     }
 
     pub async fn sync(&self) -> Result<(), JsError> {

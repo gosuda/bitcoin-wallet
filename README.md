@@ -50,13 +50,25 @@ apps/desktop         # Tauri v2 shell: window, OS keychain — no wallet logic
 and the same JSON format; the CLI keeps state in memory. Secrets never go through that
 boundary — they live behind `Keystore` (OS keychain on native).
 
+**Single-key or HD.** A private key (hex or WIF) opens a single-address wallet: one key,
+one address, and change comes straight back to it. A BIP39 mnemonic opens an HD wallet
+instead — a BIP32 account with separate receive and change keychains, so every payment can
+be received on a fresh address and change never reuses one. The script type picks the
+account layout: BIP44 for `p2pkh`, BIP49 for `np2wpkh`, BIP84 for `p2wpkh`, BIP86 for
+`p2tr`, with the coin type following the network (`p2pk` has no HD layout). Both kinds use
+the same `WalletHandle`; `is_hd` says which one you have.
+
 ### CLI quick start
 ```bash
 cargo build -p wallet-cli
 btcw=target/debug/btcw
 
 $btcw generate -n signet -t p2wpkh                 # new key + address (printed once)
-export BTCW_KEY=<priv_hex_or_wif>
+$btcw generate -n signet -t p2wpkh --mnemonic      # 12-word BIP39 seed + first address
+$btcw generate -n signet --mnemonic --words 24     # 24 words instead
+export BTCW_KEY=<priv_hex_or_wif_or_mnemonic>      # quote a mnemonic; `--key -` reads stdin
+$btcw address -n signet                            # first receive address, offline
+$btcw address -n signet --new                      # HD: sync, then reveal a fresh one
 $btcw balance -n signet                            # Esplora (mempool.space by default)
 $btcw balance -n signet -u https://blockstream.info/signet/api
 $btcw send -n signet --to tb1q...:10000 --dry-run  # build + sign, print PSBT
@@ -68,6 +80,7 @@ $btcw bump -n signet --txid <txid> -f 8            # re-send an unconfirmed tx a
 Address types: `p2pk`, `p2pkh`, `p2wpkh`, `np2wpkh`, `p2tr`. Networks: `bitcoin`, `testnet3`, `testnet4`, `signet`, `regtest`.
 Every transaction the wallet builds signals replaceability, so a stuck payment can be re-sent with `bump`.
 The CLI keeps wallet state in memory for the run and re-syncs each time; keys are never persisted.
+Because of that, `address --new` reveals the address after the last one the sync found used.
 
 ### Tests
 
@@ -77,8 +90,8 @@ cargo test -p regtest-tests        # end-to-end against a real bitcoind + Esplor
 ```
 
 `regtest-tests` downloads `bitcoind` and `electrs` on first build (via `bdk_testenv`) and
-drives the whole flow — receive, spend, fee bump, reopen from persisted state — so no
-faucet or Docker is needed.
+drives the whole flow — receive, spend, fee bump, reopen from persisted state, and the HD
+account with its separate change keychain — so no faucet or Docker is needed.
 
 ### Desktop app
 ```bash

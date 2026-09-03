@@ -1,16 +1,21 @@
-//! Single-key wallet handle: BDK wallet + portable persistence + chain backend.
+//! Wallet handle: BDK wallet + portable persistence + chain backend.
+//!
+//! Two shapes, one handle. Single-key material opens a one-keychain wallet
+//! whose change comes back to the same address; a BIP39 mnemonic opens a BIP32
+//! account with a separate internal keychain, so change never reuses a receive
+//! address. [`WalletHandle::is_hd`] says which one you have.
 
 use std::str::FromStr;
 
 use async_lock::Mutex;
 use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, Transaction};
 use bdk_wallet::chain::{ChainPosition, Merge};
-use bdk_wallet::{KeychainKind, SignOptions, Wallet};
+use bdk_wallet::{AddressInfo, KeychainKind, SignOptions, Wallet};
 use serde::{Deserialize, Serialize};
 use web_time::{SystemTime, UNIX_EPOCH};
 
 use crate::backend::{BackendConfig, ChainBackend, FeeEstimate};
-use crate::keys::{AddressType, KeyMaterial, descriptor_for, wallet_id};
+use crate::keys::{AddressType, Descriptors, KeyMaterial, descriptors_for, wallet_id};
 use crate::network::Network;
 use crate::persist::Persister;
 use crate::{Error, Result};
@@ -131,6 +136,7 @@ pub struct WalletHandle {
     network: Network,
     address_type: AddressType,
     id: String,
+    is_hd: bool,
 }
 
 fn now_secs() -> u64 {
@@ -165,23 +171,36 @@ impl WalletHandle {
         mut persister: Box<dyn Persister>,
     ) -> Result<Self> {
         let net = bdk_wallet::bitcoin::Network::from(config.network);
-        let descriptor = descriptor_for(key, config.network, config.address_type)?;
+        let descriptors = descriptors_for(key, config.network, config.address_type)?;
         let id = wallet_id(key, config.network, config.address_type)?;
+        let is_hd = matches!(descriptors, Descriptors::Hd { .. });
 
         let stored = persister.initialize().await?;
-        let wallet = if stored.is_empty() {
-            Wallet::create_single(descriptor)
+        let fresh = stored.is_empty();
+        let wallet = match descriptors {
+            Descriptors::Single(descriptor) if fresh => Wallet::create_single(descriptor)
                 .network(net)
                 .create_wallet_no_persist()
-                .map_err(|e| Error::Descriptor(e.to_string()))?
-        } else {
-            Wallet::load()
+                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            Descriptors::Single(descriptor) => Wallet::load()
                 .descriptor(KeychainKind::External, Some(descriptor))
                 .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
                 .map_err(|e| Error::Persist(e.to_string()))?
-                .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?
+                .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
+            Descriptors::Hd { external, internal } if fresh => Wallet::create(external, internal)
+                .network(net)
+                .create_wallet_no_persist()
+                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            Descriptors::Hd { external, internal } => Wallet::load()
+                .descriptor(KeychainKind::External, Some(external))
+                .descriptor(KeychainKind::Internal, Some(internal))
+                .extract_keys()
+                .check_network(net)
+                .load_wallet_no_persist(stored)
+                .map_err(|e| Error::Persist(e.to_string()))?
+                .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
         };
 
         let mut inner = Inner {
@@ -198,6 +217,7 @@ impl WalletHandle {
             network: config.network,
             address_type: config.address_type,
             id,
+            is_hd,
         })
     }
 
@@ -228,10 +248,60 @@ impl WalletHandle {
         self.address_type
     }
 
-    /// The wallet's single receiving address.
+    /// Whether this wallet is a BIP32 account (receive and change keychains)
+    /// rather than a single key.
+    pub fn is_hd(&self) -> bool {
+        self.is_hd
+    }
+
+    /// The address to receive at.
+    ///
+    /// Single-key: the wallet's one and only address. HD: the next external
+    /// address that has not been used yet, revealing one if every revealed
+    /// address is spent to. Calling this repeatedly returns the same address
+    /// until it is used.
+    ///
+    /// Revealing an address stages a change, which is persisted on a
+    /// best-effort basis here: this returns an address, not a `Result`, and a
+    /// failed write is reconciled by the next successful persist (the revealed
+    /// index is re-derived deterministically). Use [`Self::new_address`] when
+    /// the caller needs to know that the reveal was stored.
     pub async fn address(&self) -> String {
-        let inner = self.inner.lock().await;
-        let info = inner.wallet.peek_address(KeychainKind::External, 0);
+        let mut inner = self.inner.lock().await;
+        let info = if self.is_hd {
+            inner.wallet.next_unused_address(KeychainKind::External)
+        } else {
+            inner.wallet.peek_address(KeychainKind::External, 0)
+        };
+        let address = self.encode(&info);
+        if self.is_hd {
+            let _ = Self::persist(&mut inner).await;
+        }
+        address
+    }
+
+    /// Reveal a fresh receiving address.
+    ///
+    /// HD: the next external address after everything revealed so far, even if
+    /// the current one is still unused — this is the "give me another address"
+    /// button. The revealed index is persisted before returning.
+    ///
+    /// Single-key: there is only one address, so this returns the same value as
+    /// [`Self::address`].
+    pub async fn new_address(&self) -> Result<String> {
+        let mut inner = self.inner.lock().await;
+        let info = if self.is_hd {
+            inner.wallet.reveal_next_address(KeychainKind::External)
+        } else {
+            inner.wallet.peek_address(KeychainKind::External, 0)
+        };
+        let address = self.encode(&info);
+        Self::persist(&mut inner).await?;
+        Ok(address)
+    }
+
+    /// P2PK has no address encoding, so the bare public key is reported instead.
+    fn encode(&self, info: &AddressInfo) -> String {
         match self.address_type {
             AddressType::P2pk => {
                 crate::keys::pubkey_from_p2pk_script(&info.address.script_pubkey())
@@ -242,6 +312,10 @@ impl WalletHandle {
     }
 
     /// Pull chain state from the backend and persist it.
+    ///
+    /// The first pass is a full scan, which walks every keychain the wallet has
+    /// — for an HD wallet that is receive *and* change, so change outputs are
+    /// discovered too. Later passes only re-check revealed scripts.
     pub async fn sync(&self) -> Result<()> {
         enum Req {
             Full(bdk_wallet::chain::spk_client::FullScanRequest<KeychainKind>),
@@ -368,7 +442,8 @@ impl WalletHandle {
         self.backend.height().await
     }
 
-    /// Build an unsigned transfer; change returns to the wallet address.
+    /// Build an unsigned transfer. Change goes to the internal keychain for an
+    /// HD wallet, and back to the single address otherwise.
     pub async fn build_transfer(
         &self,
         recipients: &[Recipient],
@@ -534,6 +609,7 @@ mod tests {
     use crate::persist::MemoryPersister;
 
     const SK_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000001";
+    const MNEMONIC: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
     fn cfg(address_type: AddressType) -> WalletConfig {
         WalletConfig {
@@ -571,17 +647,35 @@ mod tests {
         }
     }
 
-    async fn open(address_type: AddressType) -> (WalletHandle, Arc<MockBackend>) {
+    async fn open_key(
+        address_type: AddressType,
+        key: KeyMaterial,
+    ) -> (WalletHandle, Arc<MockBackend>) {
         let mock = Arc::new(MockBackend::with_fee(6, 2.0));
         let handle = WalletHandle::open_with(
             cfg(address_type),
-            &KeyMaterial::PrivHex(SK_HEX.into()),
+            &key,
             Box::new(ArcBackend(mock.clone())),
             Box::new(MemoryPersister::new()),
         )
         .await
         .unwrap();
         (handle, mock)
+    }
+
+    async fn open(address_type: AddressType) -> (WalletHandle, Arc<MockBackend>) {
+        open_key(address_type, KeyMaterial::PrivHex(SK_HEX.into())).await
+    }
+
+    async fn open_hd(address_type: AddressType) -> (WalletHandle, Arc<MockBackend>) {
+        open_key(
+            address_type,
+            KeyMaterial::Mnemonic {
+                words: MNEMONIC.into(),
+                passphrase: None,
+            },
+        )
+        .await
     }
 
     fn funding_tx(spk: ScriptBuf, sats: u64) -> Transaction {
@@ -870,6 +964,85 @@ mod tests {
                 .await,
             Err(Error::BuildTx(_))
         ));
+    }
+
+    /// The point of the internal keychain: change leaves the receive addresses
+    /// alone. Also pins the `address()` / `new_address()` split.
+    #[tokio::test]
+    async fn hd_reveals_addresses_and_keeps_change_off_them() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        assert!(handle.is_hd());
+        assert!(
+            handle.id().starts_with("regtest-p2wpkh-"),
+            "{}",
+            handle.id()
+        );
+
+        let first = handle.address().await;
+        assert_eq!(handle.address().await, first, "an unused address is stable");
+        let second = handle.new_address().await.unwrap();
+        assert_ne!(second, first, "new_address reveals a fresh one");
+        assert_eq!(handle.address().await, first, "…and first is still unused");
+
+        fund(&handle, 100_000).await;
+        assert_eq!(
+            handle.address().await,
+            second,
+            "once the first is used, address() moves on"
+        );
+
+        let built = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2tr),
+                    amount_sat: 40_000,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap();
+        assert!(built.change_sat > 0, "the spend must produce change");
+
+        let psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let inner = handle.inner.lock().await;
+        let net = bdk_wallet::bitcoin::Network::Regtest;
+        let change: Vec<String> = psbt
+            .unsigned_tx
+            .output
+            .iter()
+            .filter(|o| inner.wallet.is_mine(o.script_pubkey.clone()))
+            .map(|o| {
+                Address::from_script(&o.script_pubkey, net)
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
+        assert_eq!(change.len(), 1, "exactly one output comes back to us");
+        assert_ne!(change[0], first, "change is not the funded receive address");
+        assert_ne!(change[0], second, "change is not a receive address at all");
+        assert_eq!(
+            inner
+                .wallet
+                .derivation_of_spk(
+                    Address::from_str(&change[0])
+                        .unwrap()
+                        .assume_checked()
+                        .script_pubkey()
+                )
+                .map(|(keychain, _)| keychain),
+            Some(KeychainKind::Internal),
+            "change lives on the internal keychain"
+        );
+    }
+
+    /// A single-key wallet has one address, so "give me a new one" gives it back.
+    #[tokio::test]
+    async fn single_key_new_address_is_the_same_address() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        assert!(!handle.is_hd());
+        let address = handle.address().await;
+        assert_eq!(handle.new_address().await.unwrap(), address);
+        assert_eq!(handle.address().await, address);
     }
 
     #[test]

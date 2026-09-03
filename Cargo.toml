@@ -11,7 +11,7 @@ rust-version = "1.88"
 [workspace.dependencies]
 wallet-core = { path = "crates/wallet-core" }
 
-bdk_wallet = { version = "3.1.0", default-features = false, features = ["std"] }
+bdk_wallet = { version = "3.1.0", default-features = false, features = ["std", "keys-bip39"] }
 
 tokio = { version = "1", features = ["rt", "macros"] }
 async-trait = "0.1"
