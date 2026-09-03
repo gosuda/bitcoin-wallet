@@ -58,6 +58,33 @@ pub struct Utxo {
     pub address: String,
 }
 
+/// One wallet-relevant transaction, as shown in history.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TxSummary {
+    pub txid: String,
+    /// Net effect on this wallet in sats: positive when received, negative when
+    /// sent (the fee is part of the negative amount).
+    pub net_sat: i64,
+    /// Total value of inputs this wallet owns.
+    pub sent_sat: u64,
+    /// Total value of outputs this wallet owns (change included).
+    pub received_sat: u64,
+    /// `None` when the wallet does not know every input, so BDK cannot compute it.
+    pub fee_sat: Option<u64>,
+    /// `None` while unconfirmed.
+    pub confirmations: Option<u32>,
+    /// Block time when confirmed, else when the transaction was last seen in the
+    /// mempool; seconds since the epoch, `None` if never seen.
+    pub timestamp: Option<u64>,
+}
+
+impl TxSummary {
+    /// Whether this transaction moved value out of the wallet.
+    pub fn is_outgoing(&self) -> bool {
+        self.net_sat < 0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Recipient {
     pub address: String,
@@ -275,6 +302,59 @@ impl WalletHandle {
             .collect();
         utxos.sort_by(|a, b| b.value.cmp(&a.value).then_with(|| a.txid.cmp(&b.txid)));
         utxos
+    }
+
+    /// Wallet history, newest first: unconfirmed transactions, then confirmed
+    /// ones by descending block height.
+    pub async fn list_transactions(&self) -> Vec<TxSummary> {
+        let inner = self.inner.lock().await;
+        let tip = inner.wallet.latest_checkpoint().height();
+
+        // Sort key: unconfirmed outrank confirmed, then higher block first.
+        let mut rows: Vec<(u8, u32, u64, TxSummary)> = inner
+            .wallet
+            .transactions()
+            .map(|tx| {
+                let (sent, received) = inner.wallet.sent_and_received(&tx.tx_node.tx);
+                let (sent_sat, received_sat) = (sent.to_sat(), received.to_sat());
+                let (tier, height, timestamp) = match tx.chain_position {
+                    ChainPosition::Confirmed { anchor, .. } => {
+                        (0, anchor.block_id.height, Some(anchor.confirmation_time))
+                    }
+                    ChainPosition::Unconfirmed {
+                        last_seen,
+                        first_seen,
+                    } => (1, u32::MAX, last_seen.or(first_seen)),
+                };
+                let summary = TxSummary {
+                    txid: tx.tx_node.txid.to_string(),
+                    net_sat: received_sat as i64 - sent_sat as i64,
+                    sent_sat,
+                    received_sat,
+                    fee_sat: inner
+                        .wallet
+                        .calculate_fee(&tx.tx_node.tx)
+                        .ok()
+                        .map(|f| f.to_sat()),
+                    confirmations: match tx.chain_position {
+                        ChainPosition::Confirmed { .. } => {
+                            Some(tip.saturating_sub(height).saturating_add(1))
+                        }
+                        ChainPosition::Unconfirmed { .. } => None,
+                    },
+                    timestamp,
+                };
+                (tier, height, timestamp.unwrap_or(0), summary)
+            })
+            .collect();
+
+        rows.sort_by(|a, b| {
+            b.0.cmp(&a.0)
+                .then_with(|| b.1.cmp(&a.1))
+                .then_with(|| b.2.cmp(&a.2))
+                .then_with(|| a.3.txid.cmp(&b.3.txid))
+        });
+        rows.into_iter().map(|(_, _, _, s)| s).collect()
     }
 
     pub async fn estimate_fee(&self) -> Result<FeeEstimate> {
@@ -550,6 +630,49 @@ mod tests {
             );
             assert_eq!(handle.balance().await.total(), built.change_sat);
         }
+    }
+
+    /// History shows both sides of a spend: the incoming funding and the
+    /// outgoing transfer, whose net includes the fee.
+    #[tokio::test]
+    async fn list_transactions_reports_direction_and_fee() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        assert!(handle.list_transactions().await.is_empty());
+        fund(&handle, 100_000).await;
+
+        let history = handle.list_transactions().await;
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].net_sat, 100_000);
+        assert_eq!(history[0].received_sat, 100_000);
+        assert_eq!(history[0].sent_sat, 0);
+        assert!(!history[0].is_outgoing());
+        assert_eq!(history[0].confirmations, None, "funding tx is unconfirmed");
+
+        let built = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2tr),
+                    amount_sat: 40_000,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap();
+        let signed = handle.sign(&built.psbt_base64).await.unwrap();
+        let out = handle.broadcast(&signed).await.unwrap();
+
+        let history = handle.list_transactions().await;
+        assert_eq!(history.len(), 2);
+        let spend = history
+            .iter()
+            .find(|t| t.txid == out.txid)
+            .expect("spend in history");
+        assert!(spend.is_outgoing());
+        // Leaving the wallet: the recipient's 40k plus the fee.
+        assert_eq!(spend.net_sat, -((40_000 + built.fee_sat) as i64));
+        assert_eq!(spend.sent_sat, 100_000, "the whole funded utxo is an input");
+        assert_eq!(spend.received_sat, built.change_sat);
+        assert_eq!(spend.fee_sat, Some(built.fee_sat));
     }
 
     #[tokio::test]

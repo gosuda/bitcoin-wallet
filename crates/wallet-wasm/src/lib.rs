@@ -206,6 +206,12 @@ impl Wallet {
         to_js(&self.inner.list_utxos().await)
     }
 
+    /// `[{ txid, net_sat, sent_sat, received_sat, fee_sat, confirmations, timestamp }]`,
+    /// newest first. `net_sat` is negative for outgoing transactions.
+    pub async fn list_transactions(&self) -> Result<JsValue, JsError> {
+        to_js(&self.inner.list_transactions().await)
+    }
+
     /// `{ sat_per_vb_by_target: { "1": 12.3, ... } }`.
     pub async fn estimate_fee(&self) -> Result<JsValue, JsError> {
         let fee = self.inner.estimate_fee().await.map_err(js_err)?;

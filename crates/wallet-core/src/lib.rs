@@ -29,7 +29,9 @@ pub use keystore::NativeKeystore;
 pub use keystore::{Keystore, MemoryKeystore};
 pub use network::Network;
 pub use persist::{MemoryPersister, Persister};
-pub use wallet::{Balance, Broadcast, BuiltTx, Recipient, Utxo, WalletConfig, WalletHandle};
+pub use wallet::{
+    Balance, Broadcast, BuiltTx, Recipient, TxSummary, Utxo, WalletConfig, WalletHandle,
+};
 
 /// `Send` on native targets, nothing on WASM (browser futures are not `Send`).
 #[cfg(not(target_arch = "wasm32"))]

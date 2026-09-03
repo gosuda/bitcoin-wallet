@@ -45,6 +45,8 @@ enum Cmd {
     Address(BackendArgs),
     /// Sync and show balance + UTXOs
     Balance(BackendArgs),
+    /// Sync and show transaction history, newest first
+    History(BackendArgs),
     /// Show fee estimates from the backend
     Fees(BackendArgs),
     /// Build, sign and broadcast a transfer
@@ -152,6 +154,11 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
             Ok(
                 serde_json::json!({ "address": w.address().await, "balance": balance, "spendable": balance.spendable(), "utxos": utxos }),
             )
+        }
+        Cmd::History(a) => {
+            let w = open(network, address_type, &a).await?;
+            w.sync().await.map_err(|e| e.to_string())?;
+            Ok(serde_json::json!({ "transactions": w.list_transactions().await }))
         }
         Cmd::Fees(a) => {
             let w = open(network, address_type, &a).await?;
