@@ -1,10 +1,13 @@
 import { api } from "./api";
 import { currentRoute, navigate, type Route } from "./router";
+import { renderCreate } from "./screens/create";
 import { renderDashboard } from "./screens/dashboard";
 import { renderKey } from "./screens/key";
+import { renderRestore } from "./screens/restore";
 import { renderResult } from "./screens/result";
 import { renderSend } from "./screens/send";
 import { renderSetup } from "./screens/setup";
+import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
 import { backendHost, NETWORK_LABELS } from "./types";
 import { clear, el } from "./ui/dom";
@@ -16,10 +19,12 @@ const root: HTMLElement = appRoot;
 
 const STEPS = ["Setup", "Key", "Wallet"] as const;
 
+/** Every way of getting a key sits on step 1. */
+const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>(["key", "create", "restore", "unlock"]);
+
 function stepIndex(route: Route): number {
   if (route === "setup") return 0;
-  if (route === "key") return 1;
-  return 2;
+  return KEY_ROUTES.has(route) ? 1 : 2;
 }
 
 function stepIndicator(active: number): HTMLElement {
@@ -66,6 +71,9 @@ function topbar(route: Route): HTMLElement {
 const SCREENS: Record<Route, () => HTMLElement> = {
   setup: renderSetup,
   key: renderKey,
+  create: renderCreate,
+  restore: renderRestore,
+  unlock: renderUnlock,
   dashboard: renderDashboard,
   send: renderSend,
   result: renderResult,
@@ -75,7 +83,8 @@ const SCREENS: Record<Route, () => HTMLElement> = {
 function guard(route: Route): Route {
   if ((route === "dashboard" || route === "send") && !session.wallet) return "setup";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
-  if (route === "key" && !session.config) return "setup";
+  if (KEY_ROUTES.has(route) && !session.config) return "setup";
+  if (route === "unlock" && !session.remembered) return "key";
   return route;
 }
 
@@ -97,8 +106,16 @@ async function boot(): Promise<void> {
   } catch {
     session.config = null;
   }
+  if (session.config) {
+    try {
+      session.remembered = await api.getRemembered();
+    } catch {
+      session.remembered = null;
+    }
+  }
   window.addEventListener("hashchange", render);
-  render();
+  if (session.remembered && currentRoute() === "setup") navigate("unlock");
+  else render();
 }
 
 void boot();

@@ -36,7 +36,7 @@
     tr:last-child td { border-bottom: none; }
   </style>
 </helmet>
-<div style="width: 960px; min-height: 640px; background: #FAFAF9; display: flex; flex-direction: column;">
+<div style="width: 960px; min-height: 700px; background: #FAFAF9; display: flex; flex-direction: column;">
 <header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
   <div style="display: flex; align-items: center; gap: 12px;">
     <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
@@ -49,34 +49,27 @@
 </header>
 <main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
 <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
-  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Key</h1>
+  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Restore wallet</h1>
   <p style="margin: 0; font-size: 12px; color: #6B6B66;">Signet · mempool.space</p>
 </div>
 <section class="card" style="gap: 16px;">
-  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Private key</span><span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></span><span class="hint">Hex (64 chars) or WIF. Used for this session only — never written to disk.</span></div>
-  <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>
-  <div style="display: flex; gap: 8px; align-items: center;">
-    <span class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path></svg> Open wallet</span>
-    <span class="btn">Generate new key</span>
-    <span class="btn btn-quiet">Back</span>
-  </div>
-</section>
-<section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
-    <span class="label" style="color: #9A3412;">New key — shown once</span>
-    <span style="font-size: 12px; color: #9A3412;">Copy it now; it is not stored anywhere.</span>
+    <span class="label">Recovery phrase</span>
+    <div class="seg">
+      <span class="chip on"><span class="dot"></span><span>12 words</span></span>
+      <span class="chip"><span class="dot"></span><span>24 words</span></span>
+    </div>
   </div>
-  <dl class="kv" style="margin: 0;">
-    <dt>Address</dt><dd class="mono">tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc</dd>
-    <dt>Private key (hex)</dt><dd class="mono">5f1c…a9e3 <span class="hint">(hidden)</span></dd>
-    <dt>WIF</dt><dd class="mono">cV3m…Qk7t <span class="hint">(hidden)</span></dd>
-  </dl>
-  <div style="display: flex; gap: 8px;">
-    <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy hex</span>
-    <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy WIF</span>
-    <span class="btn btn-sm">Use this key</span>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;"><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">1</span><span class="mono" style="flex: 1;">ridge</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">2</span><span class="mono" style="flex: 1;">olive</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">3</span><span class="mono" style="flex: 1;">spider</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">4</span><span class="mono" style="flex: 1;">canyon</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">5</span><span class="mono" style="flex: 1;">fabric</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">6</span><span class="mono" style="flex: 1;">velvet</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">7</span><span class="mono" style="flex: 1;">hazard</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">8</span><span class="mono" style="flex: 1;">meadow</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">9</span><span class="mono" style="flex: 1;">spooon</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">10</span><span class="mono" style="flex: 1;">orbit</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">11</span><span class="mono" style="flex: 1;">cactus</span></div><div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;"><span class="hint" style="width: 16px; text-align: right;">12</span><span class="mono" style="flex: 1;">spoon</span></div></div>
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 12px; color: #B91C1C;">Word 9 &quot;spooon&quot; is not in the word list.</span>
   </div>
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Passphrase (optional)</span><span class="input placeholder">Leave empty unless you added one</span><span class="hint">A passphrase creates a different wallet from the same words.</span></div>
 </section>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span class="btn btn-quiet">Back</span>
+  <span class="btn btn-primary" style="opacity: 0.55;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path></svg> Restore wallet</span>
+</div>
 </main>
 </div>
 </x-dc>

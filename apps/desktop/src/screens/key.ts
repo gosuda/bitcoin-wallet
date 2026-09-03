@@ -3,7 +3,32 @@ import { navigate } from "../router";
 import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
-import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
+import {
+  banner,
+  button,
+  checkbox,
+  el,
+  field,
+  kv,
+  mono,
+  sectionLabel,
+  textInput,
+  withBusy,
+} from "../ui/dom";
+
+const KEYCHAIN_NAME = navigator.platform.startsWith("Mac") ? "macOS Keychain" : "OS keychain";
+
+/**
+ * Whether the single-key disclosure is expanded. Sticky for the session so the
+ * screen reopens where the user left it — and so "Advanced: use a single key"
+ * on the Create screen lands on an open panel.
+ */
+let advancedOpen = false;
+
+/** Expands the single-key disclosure on the next render of this screen. */
+export function showKeyAdvanced(): void {
+  advancedOpen = true;
+}
 
 export function renderKey(): HTMLElement {
   const cfg = session.config;
@@ -20,6 +45,11 @@ export function renderKey(): HTMLElement {
     name: "secret",
   });
   const generated = el("div", { className: "hidden" });
+  const remember = checkbox(
+    "Remember on this device",
+    `· stored in the ${KEYCHAIN_NAME}, unlocked with your login`,
+    "remember",
+  );
 
   const showGenerated = (key: GeneratedKey) => {
     generated.className = "card secret-box";
@@ -76,11 +106,12 @@ export function renderKey(): HTMLElement {
           return;
         }
         try {
-          const info = await api.openWallet(value, cfg.address_type);
+          const info = await api.openWallet(value, cfg.address_type, remember.input.checked);
           secret.value = "";
           generated.replaceChildren();
           generated.className = "hidden";
           session.wallet = info;
+          if (remember.input.checked) session.remembered = info;
           session.lastSyncedAt = null;
           navigate("dashboard");
         } catch (e) {
@@ -96,6 +127,41 @@ export function renderKey(): HTMLElement {
     if (ev.key === "Enter") openBtn.click();
   });
 
+  // P2PK has no BIP32 account layout, so no phrase can describe one: offering
+  // the phrase screens here would only dead-end in the core's refusal.
+  const hdCapable = cfg.address_type !== "p2pk";
+  const newWalletBtn = button("New wallet", () => navigate("create"), "primary", "md", {
+    name: "plus",
+  });
+  const restoreBtn = button("Restore wallet", () => navigate("restore"), "default", "md", {
+    name: "key",
+  });
+  newWalletBtn.disabled = !hdCapable;
+  restoreBtn.disabled = !hdCapable;
+
+  // The single-key path is intact, just folded away: a recovery phrase is the
+  // default, and one raw key is the escape hatch.
+  const advanced = el("details", { className: "disclosure" }, [
+    el("summary", {
+      className: "disclosure-summary",
+      text: "Advanced: use a single key",
+    }),
+    el("div", { className: "disclosure-body" }, [
+      field(
+        "Private key",
+        secret,
+        "Hex (64 chars) or WIF for the selected network. Kept in memory only.",
+      ),
+      remember.node,
+      el("div", { className: "actions" }, [openBtn, generateBtn]),
+      generated,
+    ]),
+  ]);
+  advanced.open = advancedOpen || !hdCapable;
+  advanced.addEventListener("toggle", () => {
+    advancedOpen = advanced.open;
+  });
+
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [
       el("h1", { text: "Key" }),
@@ -106,17 +172,19 @@ export function renderKey(): HTMLElement {
     ]),
     alert.node,
     el("section", { className: "card card-loose" }, [
-      field(
-        "Private key",
-        secret,
-        "Hex (64 chars) or WIF for the selected network. Kept in memory only.",
-      ),
+      sectionLabel("Start a wallet"),
       el("div", { className: "actions" }, [
-        openBtn,
-        generateBtn,
+        newWalletBtn,
+        restoreBtn,
         button("Back", () => navigate("setup"), "quiet"),
       ]),
+      el("p", {
+        className: "hint",
+        text: hdCapable
+          ? "A recovery phrase backs up every address this wallet will ever use. Restoring one brings its history back."
+          : "P2PK has no BIP32 account layout, so it cannot be backed up by a recovery phrase. Choose another address type in Setup, or use a single key below.",
+      }),
     ]),
-    generated,
+    advanced,
   ]);
 }

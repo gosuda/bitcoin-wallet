@@ -228,7 +228,8 @@ p {
 input:focus-visible,
 select:focus-visible,
 button:focus-visible,
-.radio:focus-within {
+.radio:focus-within,
+.unit-chip:focus-within {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -280,6 +281,41 @@ button:focus-visible,
   outline: none;
 }
 
+/* Checkbox */
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox input {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--fg);
+  background: var(--surface);
+  cursor: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkbox input:checked {
+  background: var(--fg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
+}
+
 /* Inputs */
 
 input[type="text"],
@@ -304,6 +340,15 @@ input::placeholder {
 input[disabled],
 select[disabled] {
   opacity: 0.6;
+}
+
+input.input-invalid {
+  border-color: var(--danger);
+}
+
+.field-error {
+  font-size: var(--text-sm);
+  color: var(--danger);
 }
 
 /* Read-only mono box styled like an input (mockup `.input`). */
@@ -577,13 +622,129 @@ tr:last-child td {
   font-size: var(--text-sm);
 }
 
+/* Transaction history */
+
+.tx-dir {
+  width: 24px;
+}
+
+.tx-arrow {
+  display: inline-flex;
+}
+
+.rot180 {
+  transform: rotate(180deg);
+}
+
+.tx-in {
+  color: var(--ok);
+}
+
+.tx-amount {
+  font-weight: 500;
+}
+
+/* Trailing action cell: as narrow as its button. */
+.tx-actions {
+  width: 1%;
+}
+
+.bump-row td {
+  border-bottom: 1px solid var(--border);
+  background: var(--subtle);
+}
+
+.bump-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.bump-label {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.bump-confirm .bump-rate {
+  width: 96px;
+  text-align: right;
+}
+
 /* Send */
 
 .recipient-row {
   display: grid;
-  grid-template-columns: 1fr 160px 34px;
+  grid-template-columns: 1fr 210px 34px;
   gap: var(--space-2);
-  align-items: end;
+  /* Rows grow downwards when a field reports an error, so they align at the top. */
+  align-items: start;
+}
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.amount-row .amount-input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  text-align: right;
+}
+
+.unit-group {
+  display: inline-flex;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.unit-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.unit-chip:has(input:checked) {
+  border-color: var(--fg);
+  background: var(--subtle);
+}
+
+/* The radio stays in the tab order and drives `:checked`; the chip is the skin. */
+.unit-chip input {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  flex: none;
+}
+
+.unit-chip input:focus-visible {
+  outline: none;
+}
+
+.unit-chip:has(input[disabled]) {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.amount-max {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .fee-row {
@@ -597,6 +758,53 @@ tr:last-child td {
   min-height: 34px;
   display: flex;
   align-items: center;
+}
+
+/* Unlock */
+
+.unlock-card {
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+
+.unlock-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.key-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.unlock-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.push-end {
+  margin-left: auto;
+}
+
+.btn-quiet.btn-quiet-danger {
+  color: var(--danger);
+}
+
+.confirm-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--danger);
 }
 
 /* Result */
@@ -654,4 +862,113 @@ tr:last-child td {
 
 .danger {
   color: var(--danger);
+}
+
+/* Recovery phrase grid (mockup `word_grid()`) */
+
+.word-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.word-cell {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.word-index {
+  width: 16px;
+  flex: none;
+  text-align: right;
+}
+
+.word-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Beats the shared `input[type="text"]` box: a word sits in its cell, not in
+   an input of its own. */
+.word-cell .word-input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.word-cell .word-input-blank {
+  border-bottom: 1px solid var(--accent);
+}
+
+/* Advanced disclosure */
+
+.disclosure {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.disclosure-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure-summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+}
+
+.disclosure[open] .disclosure-summary::before {
+  transform: rotate(45deg);
+}
+
+.disclosure-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.disclosure-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+/* A footer that keeps "Back" opposite the primary action. */
+.actions-split {
+  justify-content: space-between;
+}
+
+.field-error:empty {
+  display: none;
 }

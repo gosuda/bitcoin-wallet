@@ -1,14 +1,18 @@
 //! `btcw` — thin CLI over wallet-core mirroring the Go TUI flows.
 //!
 //! Secrets are read from `--key`, the `BTCW_KEY` env var, or stdin (`--key -`).
+//! A secret is a private key (hex or WIF) for a single-address wallet, or a
+//! BIP39 mnemonic — anything with more than one word — for an HD wallet with a
+//! separate change keychain. Quote a mnemonic so the shell keeps it in one
+//! argument, or pipe it in with `--key -`.
 
 use std::io::Read;
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
 use wallet_core::{
-    AddressType, BackendConfig, KeyMaterial, Network, Recipient, WalletConfig, WalletHandle,
+    AddressType, BackendConfig, KeyMaterial, MemoryPersister, Network, Recipient, WalletConfig,
+    WalletHandle,
 };
 
 #[derive(Parser)]
@@ -32,22 +36,50 @@ struct BackendArgs {
     /// Esplora base URL (defaults to mempool.space for the network)
     #[arg(short, long)]
     url: Option<String>,
-    /// SQLite wallet DB path (default: in-memory)
-    #[arg(long)]
-    db: Option<PathBuf>,
-    /// Private key (hex or WIF); "-" reads stdin; falls back to $BTCW_KEY
+    /// Private key (hex or WIF) or BIP39 mnemonic; "-" reads stdin; falls back to $BTCW_KEY
     #[arg(short, long)]
     key: Option<String>,
 }
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Generate a fresh key and address (Go "newAddress")
-    Generate,
-    /// Show the address for a key
-    Address(BackendArgs),
+    /// Generate a fresh key, or a BIP39 mnemonic with --mnemonic (Go "newAddress")
+    Generate {
+        /// Generate a 12/24-word BIP39 mnemonic (HD wallet) instead of one private key
+        #[arg(long)]
+        mnemonic: bool,
+        /// Mnemonic length with --mnemonic: 12 or 24
+        #[arg(long, default_value_t = 12)]
+        words: u8,
+    },
+    /// Show a receive address for a key
+    Address {
+        #[command(flatten)]
+        backend: BackendArgs,
+        /// Reveal a fresh receive address instead of the first one. Syncs, so
+        /// used addresses are skipped. HD only: a single-key wallet has one
+        /// address and returns it again.
+        #[arg(long)]
+        new: bool,
+    },
     /// Sync and show balance + UTXOs
     Balance(BackendArgs),
+    /// Sync and show transaction history, newest first
+    History(BackendArgs),
+    /// Re-send an unconfirmed transaction of yours at a higher fee rate
+    Bump {
+        #[command(flatten)]
+        backend: BackendArgs,
+        /// Transaction id to replace
+        #[arg(long)]
+        txid: String,
+        /// New fee rate in sat/vB (must beat the original)
+        #[arg(short, long)]
+        fee_rate: f64,
+        /// Build and sign only; print the txid without broadcasting
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Show fee estimates from the backend
     Fees(BackendArgs),
     /// Build, sign and broadcast a transfer
@@ -90,7 +122,7 @@ fn read_key(arg: Option<String>) -> Result<KeyMaterial, String> {
     Ok(KeyMaterial::parse(&raw))
 }
 
-fn open(
+async fn open(
     network: Network,
     address_type: AddressType,
     a: &BackendArgs,
@@ -105,9 +137,15 @@ fn open(
         network,
         address_type,
         backend,
-        db_path: a.db.clone(),
     };
-    WalletHandle::open(cfg, &read_key(a.key.clone())?).map_err(|e| e.to_string())
+    // The CLI keeps wallet state in memory for the run; it re-syncs each time.
+    WalletHandle::open(
+        cfg,
+        &read_key(a.key.clone())?,
+        Box::new(MemoryPersister::new()),
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 fn parse_recipient(s: &str) -> Result<Recipient, String> {
@@ -128,30 +166,77 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
     let network = parse_network(&cli.network)?;
     let address_type = parse_address_type(&cli.address_type)?;
     match cli.cmd {
-        Cmd::Generate => {
+        Cmd::Generate { mnemonic, words } => {
+            if mnemonic {
+                let m = wallet_core::generate_mnemonic(network, address_type, words)
+                    .map_err(|e| e.to_string())?;
+                return Ok(serde_json::json!({
+                    "network": network.id(), "address_type": address_type.id(),
+                    "address": m.address, "mnemonic": m.words,
+                }));
+            }
             let k = wallet_core::generate_key(network, address_type).map_err(|e| e.to_string())?;
             Ok(serde_json::json!({
                 "network": network.id(), "address_type": address_type.id(),
                 "address": k.address, "pub_hex": k.pub_hex, "priv_hex": k.priv_hex, "wif": k.wif,
             }))
         }
-        Cmd::Address(a) => {
-            let key = read_key(a.key)?;
+        Cmd::Address { backend, new } => {
+            if new {
+                let w = open(network, address_type, &backend).await?;
+                w.sync().await.map_err(|e| e.to_string())?;
+                let address = w.new_address().await.map_err(|e| e.to_string())?;
+                return Ok(serde_json::json!({ "address": address, "hd": w.is_hd() }));
+            }
+            let key = read_key(backend.key)?;
             let address = wallet_core::address_for_key(&key, network, address_type)
                 .map_err(|e| e.to_string())?;
-            Ok(serde_json::json!({ "address": address }))
+            Ok(serde_json::json!({ "address": address, "hd": key.is_hd() }))
         }
         Cmd::Balance(a) => {
-            let w = open(network, address_type, &a)?;
+            let w = open(network, address_type, &a).await?;
             w.sync().await.map_err(|e| e.to_string())?;
-            let balance = w.balance().map_err(|e| e.to_string())?;
-            let utxos = w.list_utxos().map_err(|e| e.to_string())?;
+            let balance = w.balance().await;
+            let utxos = w.list_utxos().await;
             Ok(
-                serde_json::json!({ "address": w.address().map_err(|e| e.to_string())?, "balance": balance, "spendable": balance.spendable(), "utxos": utxos }),
+                serde_json::json!({ "address": w.address().await, "balance": balance, "spendable": balance.spendable(), "utxos": utxos }),
             )
         }
+        Cmd::History(a) => {
+            let w = open(network, address_type, &a).await?;
+            w.sync().await.map_err(|e| e.to_string())?;
+            Ok(serde_json::json!({ "transactions": w.list_transactions().await }))
+        }
+        Cmd::Bump {
+            backend,
+            txid,
+            fee_rate,
+            dry_run,
+        } => {
+            let w = open(network, address_type, &backend).await?;
+            w.sync().await.map_err(|e| e.to_string())?;
+            let built = w
+                .build_fee_bump(&txid, fee_rate)
+                .await
+                .map_err(|e| e.to_string())?;
+            let signed = w
+                .sign(&built.psbt_base64)
+                .await
+                .map_err(|e| e.to_string())?;
+            let tx = WalletHandle::extract_tx(&signed).map_err(|e| e.to_string())?;
+            let new_txid = if dry_run {
+                tx.compute_txid().to_string()
+            } else {
+                w.broadcast(&signed).await.map_err(|e| e.to_string())?.txid
+            };
+            Ok(serde_json::json!({
+                "replaced": txid, "txid": new_txid, "broadcast": !dry_run,
+                "fee_sat": built.fee_sat, "fee_rate_sat_vb": fee_rate, "vsize": tx.vsize(),
+                "explorer": network.explorer_tx_url(&new_txid),
+            }))
+        }
         Cmd::Fees(a) => {
-            let w = open(network, address_type, &a)?;
+            let w = open(network, address_type, &a).await?;
             let fees = w.estimate_fee().await.map_err(|e| e.to_string())?;
             Ok(
                 serde_json::json!({ "height": w.chain_height().await.map_err(|e| e.to_string())?, "sat_per_vb": fees.sat_per_vb_by_target }),
@@ -167,7 +252,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
                 .iter()
                 .map(|s| parse_recipient(s))
                 .collect::<Result<Vec<_>, _>>()?;
-            let w = open(network, address_type, &backend)?;
+            let w = open(network, address_type, &backend).await?;
             w.sync().await.map_err(|e| e.to_string())?;
             let rate = match fee_rate {
                 Some(r) => r,
@@ -180,8 +265,12 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
             };
             let built = w
                 .build_transfer(&recipients, rate)
+                .await
                 .map_err(|e| e.to_string())?;
-            let signed = w.sign(&built.psbt_base64).map_err(|e| e.to_string())?;
+            let signed = w
+                .sign(&built.psbt_base64)
+                .await
+                .map_err(|e| e.to_string())?;
             let tx = WalletHandle::extract_tx(&signed).map_err(|e| e.to_string())?;
             let (txid, persist_error) = if dry_run {
                 (tx.compute_txid().to_string(), None)
@@ -218,7 +307,7 @@ fn print_text(v: &serde_json::Value) {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;

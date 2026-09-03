@@ -101,6 +101,7 @@ def field(label, inner, hint=None):
     return f'<div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">{label}</span>{inner}{h}</div>'
 
 ADDR = "tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc"
+TR_ADDR = "tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32"
 
 setup = page(head("Setup", "Network and Esplora endpoint. Stored locally; no secrets.") + f'''
 <section class="card" style="gap: 16px;">
@@ -115,6 +116,7 @@ setup = page(head("Setup", "Network and Esplora endpoint. Stored locally; no sec
 key = page(head("Key", "Signet · mempool.space") + f'''
 <section class="card" style="gap: 16px;">
   {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "Hex (64 chars) or WIF. Used for this session only — never written to disk.")}
+  <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;">{icon("check", 12, "#FFFFFF")}</span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn btn-primary">{icon("key", 16, "#FFFFFF")} Open wallet</span>
     <span class="btn">Generate new key</span>
@@ -138,6 +140,88 @@ key = page(head("Key", "Signet · mempool.space") + f'''
   </div>
 </section>''', step=1)
 
+def word_grid(words, blanks=()):
+    cells = []
+    for i, w in enumerate(words, start=1):
+        if i in blanks:
+            body = '<span style="flex: 1; border-bottom: 1px solid #C2410C; min-height: 18px;"></span>'
+        else:
+            body = f'<span class="mono" style="flex: 1;">{w}</span>'
+        cells.append(
+            '<div style="display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;">'
+            f'<span class="hint" style="width: 16px; text-align: right;">{i}</span>{body}</div>'
+        )
+    return '<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;">' + "".join(cells) + '</div>'
+
+WORDS = ['ridge', 'olive', 'spider', 'canyon', 'fabric', 'velvet', 'hazard', 'meadow', 'tunnel', 'orbit', 'cactus', 'spoon']
+
+create = page(head("New wallet", "Signet · mempool.space") + f'''
+<section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label" style="color: #9A3412;">Recovery phrase — shown once</span>
+    <span style="font-size: 12px; color: #9A3412;">Anyone with these words can spend your bitcoin.</span>
+  </div>
+  {word_grid(WORDS)}
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn btn-sm">{icon("copy", 14)} Copy</span>
+    <span class="hint">Write them down in order. This wallet cannot show them again.</span>
+  </div>
+</section>
+<section class="card" style="gap: 12px;">
+  <span class="label">Confirm your backup</span>
+  <span class="hint">Fill in the missing words to continue.</span>
+  {word_grid(WORDS, blanks=(3, 7, 11))}
+</section>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span class="btn btn-quiet">Back</span>
+  <div style="display: flex; gap: 8px;">
+    <span class="btn">Advanced: use a single key</span>
+    <span class="btn btn-primary">Create wallet {icon("arrow", 16, "#FFFFFF")}</span>
+  </div>
+</div>''', step=1, minh=760)
+
+restore = page(head("Restore wallet", "Signet · mempool.space") + f'''
+<section class="card" style="gap: 16px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Recovery phrase</span>
+    <div class="seg">
+      <span class="chip on"><span class="dot"></span><span>12 words</span></span>
+      <span class="chip"><span class="dot"></span><span>24 words</span></span>
+    </div>
+  </div>
+  {word_grid(WORDS[:8] + ["spooon", "orbit", "cactus", "spoon"])}
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <span style="font-size: 12px; color: #B91C1C;">Word 9 &quot;spooon&quot; is not in the word list.</span>
+  </div>
+  {field("Passphrase (optional)", '<span class="input placeholder">Leave empty unless you added one</span>', "A passphrase creates a different wallet from the same words.")}
+</section>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span class="btn btn-quiet">Back</span>
+  <span class="btn btn-primary" style="opacity: 0.55;">{icon("key", 16, "#FFFFFF")} Restore wallet</span>
+</div>''', step=1, minh=700)
+
+
+unlock = page(head("Unlock", "Signet · mempool.space") + f'''
+<section class="card" style="gap: 16px; padding: 24px;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <span style="width: 36px; height: 36px; border-radius: 50%; background: #F4F4F2; border: 1px solid #E4E3DF; display: inline-flex; align-items: center; justify-content: center;">{icon("key", 18, "#1A1A1A")}</span>
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+      <span style="font-weight: 600; font-size: 16px;">Wallet saved on this device</span>
+      <span class="hint">The key is kept in the macOS Keychain. Unlocking may ask for your login password.</span>
+    </div>
+  </div>
+  <dl class="kv" style="margin: 0;">
+    <dt>Address</dt><dd class="mono">{ADDR}</dd>
+    <dt>Network</dt><dd>Signet · P2WPKH (segwit)</dd>
+    <dt>Wallet id</dt><dd class="mono">signet-p2wpkh-3f0c9a1b</dd>
+  </dl>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn btn-primary">{icon("key", 16, "#FFFFFF")} Unlock</span>
+    <span class="btn">Use a different key</span>
+    <span class="btn btn-quiet" style="margin-left: auto; color: #B91C1C;">Forget this wallet</span>
+  </div>
+</section>''', step=1)
+
 rows = [
   ("a41e9c2f7b…3d08e1f2:0", ADDR, "250,000", "142"),
   ("7c02d8b1e4…9a6f0c3b:1", ADDR, "120,000", "31"),
@@ -147,6 +231,26 @@ def _tr(o,a,v,c):
     st = ' style="color: #6B6B66;"' if c=="pending" else ""
     return f'<tr><td class="mono">{o}</td><td class="mono" style="color: #6B6B66;">{a}</td><td class="num mono">{v}</td><td class="num mono"{st}>{c}</td></tr>'
 trs = "".join(_tr(*r) for r in rows)
+def _hrow(dirn, txid, amt, conf, when, action=""):
+    up = dirn == "out"
+    col = "#1A1A1A" if up else "#166534"
+    sign = "\u2212" if up else "+"
+    ic = icon("arrow", 14, "#6B6B66") if up else icon("arrow", 14, "#166534")
+    rot = ' style="display: inline-flex;"' if up else ' style="display: inline-flex; transform: rotate(180deg);"'
+    cst = ' style="color: #6B6B66;"' if conf == "pending" else ""
+    act = f'<span class="btn btn-sm">{icon("refresh", 12)} Bump fee</span>' if action else ""
+    return (f'<tr><td><span{rot}>{ic}</span></td><td class="mono">{txid}</td>'
+            f'<td class="num mono" style="color: {col}; font-weight: 500;">{sign}{amt}</td>'
+            f'<td class="num mono"{cst}>{conf}</td><td class="num" style="color: #6B6B66;">{when}</td>'
+            f'<td class="num">{act}</td></tr>')
+
+hrows = "".join([
+    _hrow("out", "e19f4a7d05…b2c8d4a0", "40,141",  "pending", "2 min ago", action="bump"),
+    _hrow("out", "3b9d1e7f2a…b3c4d5e6", "150,141", "3",       "Today 14:02"),
+    _hrow("in",  "7c02d8b1e4…9a6f0c3b", "120,000", "31",      "Aug 27"),
+    _hrow("in",  "a41e9c2f7b…3d08e1f2", "250,000", "142",     "Aug 24"),
+])
+
 dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b") + f'''
 <section class="card" style="gap: 8px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -184,9 +288,19 @@ dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
     <tbody>{trs}</tbody>
   </table>
 </section>
+<section class="card">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Transactions</span>
+    <span class="hint">4 · newest first · unconfirmed sends can be bumped</span>
+  </div>
+  <table>
+    <thead><tr><th style="width: 24px;"></th><th>Txid</th><th class="num">Amount (sat)</th><th class="num">Conf.</th><th class="num">When</th><th class="num"></th></tr></thead>
+    <tbody>{hrows}</tbody>
+  </table>
+</section>
 <div style="display: flex; justify-content: flex-end;">
   <span class="btn btn-danger">Close wallet</span>
-</div>''', step=2, minh=720)
+</div>''', step=2, minh=980)
 
 send = page(head("Send", f"From {ADDR}") + f'''
 <section class="card">
@@ -194,14 +308,18 @@ send = page(head("Send", f"From {ADDR}") + f'''
     <span class="label">Recipients</span>
     <span class="btn btn-sm">{icon("plus", 14)} Add recipient</span>
   </div>
-  <div style="display: grid; grid-template-columns: 1fr 160px 34px; gap: 8px; align-items: end;">
-    {field("Address", '<span class="input mono">tb1p2acw8vy97wqclff78d3swcejw59k94lj84666gsc43ecfv5vh5ssxjp6ll</span>')}
-    {field("Amount (sat)", '<span class="input mono" style="justify-content: flex-end;">150,000</span>')}
+  <div style="display: grid; grid-template-columns: 1fr 210px 34px; gap: 8px; align-items: end;">
+    {field("Address", '<span class="input mono">' + TR_ADDR + '</span>')}
+    {field("Amount", '<div style="display: flex; gap: 4px;"><span class="input mono" style="flex: 1; justify-content: flex-end;">150,000</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span></div>')}
     <span class="btn btn-quiet" style="width: 34px; padding: 0;">{icon("x", 16, "#6B6B66")}</span>
   </div>
-  <div style="display: grid; grid-template-columns: 1fr 160px 34px; gap: 8px; align-items: end;">
-    {field("Address", '<span class="input mono placeholder">tb1…</span>')}
-    {field("Amount (sat)", '<span class="input mono placeholder" style="justify-content: flex-end;">0</span>')}
+  <div style="display: grid; grid-template-columns: 1fr 210px 34px; gap: 8px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <span class="label">Address</span>
+      <span class="input mono" style="border-color: #B91C1C;">tb1qbroken0address</span>
+      <span style="font-size: 12px; color: #B91C1C;">Not a valid signet address.</span>
+    </div>
+    {field("Amount", '<div style="display: flex; gap: 4px;"><span class="input mono placeholder" style="flex: 1; justify-content: flex-end;">0</span><span class="btn btn-sm" style="min-height: 34px;">Max</span></div>', "Max spends the whole balance minus the fee.")}
     <span class="btn btn-quiet" style="width: 34px; padding: 0;">{icon("x", 16, "#6B6B66")}</span>
   </div>
 </section>
@@ -225,7 +343,7 @@ send = page(head("Send", f"From {ADDR}") + f'''
     <span class="btn">Edit</span>
     <span class="btn btn-primary">Confirm &amp; broadcast</span>
   </div>
-</section>''', step=2, minh=760)
+</section>''', step=2, minh=1000)
 
 result = page(head("Sent", "Signet · mempool.space") + f'''
 <section class="card" style="align-items: flex-start; gap: 16px; padding: 24px;">
@@ -275,19 +393,26 @@ iconboard = HEAD + f'''<div style="width: 720px; min-height: 480px; background: 
 </div>
 ''' + TAIL
 
-files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Icon.dc.html": iconboard}
+files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Create.dc.html": create, "Restore.dc.html": restore, "Icon.dc.html": iconboard}
 for n, c in files.items(): pathlib.Path(n).write_text(c)
 
 canvas = {
   "artboards": [
     {"file": "Setup.dc.html", "title": "1 · Setup", "x": 0, "y": 0, "w": 960, "h": 640},
     {"file": "Key.dc.html", "title": "2 · Key", "x": 1040, "y": 0, "w": 960, "h": 640},
-    {"file": "Main.dc.html", "title": "3 · Wallet", "x": 2080, "y": 0, "w": 960, "h": 780},
-    {"file": "Send.dc.html", "title": "4 · Send + Review", "x": 0, "y": 940, "w": 960, "h": 760},
-    {"file": "Sent.dc.html", "title": "5 · Sent", "x": 1040, "y": 940, "w": 960, "h": 640},
-    {"file": "Icon.dc.html", "title": "App icon", "x": 2080, "y": 940, "w": 720, "h": 480},
+    {"file": "Main.dc.html", "title": "3 · Wallet", "x": 2080, "y": 0, "w": 960, "h": 1100},
+    {"file": "Send.dc.html", "title": "4 · Send + Review", "x": 0, "y": 1200, "w": 960, "h": 1000},
+    {"file": "Sent.dc.html", "title": "5 · Sent", "x": 1040, "y": 1200, "w": 960, "h": 640},
+    {"file": "Icon.dc.html", "title": "App icon", "x": 2080, "y": 1200, "w": 720, "h": 480},
+    {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 2320, "w": 960, "h": 640},
+    {"file": "Create.dc.html", "title": "2c · New wallet (recovery phrase)", "x": 1040, "y": 2320, "w": 960, "h": 760},
+    {"file": "Restore.dc.html", "title": "2d · Restore wallet", "x": 2080, "y": 2320, "w": 960, "h": 700},
   ],
   "annotations": [
+    {"id": "hd-note", "x": 3120, "y": 2320, "w": 400, "text": "Roadmap 6 - HD wallet\n\nKey screen becomes a choice: New wallet (BIP39 phrase), Restore wallet, or Advanced: single key (what the app does today).\n\nNew wallet shows the 12 words once, then makes you fill three back in before it will continue. Restore validates each word against the BIP39 list and can take an optional passphrase.\n\nOnce HD, the dashboard's receive address is the next UNUSED one and change goes to a separate internal keychain."},
+    {"id": "bump-note", "x": 3120, "y": 1180, "w": 380, "text": "Roadmap 7 + 8\n\nHistory: an unconfirmed OUTGOING row gets a \"Bump fee\" button (BDK signals RBF on everything we build). Confirmed and incoming rows show nothing.\n\nSend: amount takes sat or BTC via the unit chips; \"Max\" fills the spendable balance minus fee. An address that fails validation turns the field red with the reason underneath, and Review stays disabled."},
+    {"id": "history-note", "x": 3120, "y": 0, "w": 380, "text": "Roadmap item 4 — Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row → explorer (later)."},
+    {"id": "unlock-note", "x": 1040, "y": 2080, "w": 420, "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."},
     {"id": "brief", "x": 0, "y": -200, "w": 520, "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."}
   ],
   "launch": {"view": "canvas"}

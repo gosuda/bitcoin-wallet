@@ -1,4 +1,13 @@
-export const ROUTES = ["setup", "key", "dashboard", "send", "result"] as const;
+export const ROUTES = [
+  "setup",
+  "key",
+  "create",
+  "restore",
+  "unlock",
+  "dashboard",
+  "send",
+  "result",
+] as const;
 export type Route = (typeof ROUTES)[number];
 
 export function currentRoute(): Route {

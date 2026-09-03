@@ -1,0 +1,26 @@
+[package]
+name = "wallet-wasm"
+version = "0.1.0"
+description = "wasm-bindgen bindings for wallet-core (browser and Tauri webview)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wallet-core = { path = "../wallet-core", default-features = false, features = ["backend-esplora"] }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+# The Rust toolchain emits bulk-memory ops; wasm-opt must be told to accept them.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]

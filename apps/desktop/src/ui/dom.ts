@@ -142,6 +142,23 @@ export function textInput(
   return input;
 }
 
+export interface Checkbox {
+  node: HTMLLabelElement;
+  input: HTMLInputElement;
+}
+
+/** Labelled checkbox with an optional muted trailing hint. Unchecked by default. */
+export function checkbox(label: string, hint?: string, name?: string): Checkbox {
+  const input = el("input", { attrs: { type: "checkbox" } });
+  if (name) input.name = name;
+  const node = el("label", { className: "checkbox" }, [
+    input,
+    el("span", { text: label }),
+    hint ? el("span", { className: "hint", text: hint }) : null,
+  ]);
+  return { node, input };
+}
+
 export function radioGroup<T extends string>(
   name: string,
   options: readonly { value: T; label: string }[],

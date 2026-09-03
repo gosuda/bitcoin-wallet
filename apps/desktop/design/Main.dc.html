@@ -36,7 +36,7 @@
     tr:last-child td { border-bottom: none; }
   </style>
 </helmet>
-<div style="width: 960px; min-height: 720px; background: #FAFAF9; display: flex; flex-direction: column;">
+<div style="width: 960px; min-height: 980px; background: #FAFAF9; display: flex; flex-direction: column;">
 <header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
   <div style="display: flex; align-items: center; gap: 12px;">
     <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
@@ -86,6 +86,16 @@
   <table>
     <thead><tr><th>Outpoint</th><th>Address</th><th class="num">Value (sat)</th><th class="num">Conf.</th></tr></thead>
     <tbody><tr><td class="mono">a41e9c2f7b…3d08e1f2:0</td><td class="mono" style="color: #6B6B66;">tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc</td><td class="num mono">250,000</td><td class="num mono">142</td></tr><tr><td class="mono">7c02d8b1e4…9a6f0c3b:1</td><td class="mono" style="color: #6B6B66;">tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc</td><td class="num mono">120,000</td><td class="num mono">31</td></tr><tr><td class="mono">e19f4a7d05…b2c8d4a0:0</td><td class="mono" style="color: #6B6B66;">tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc</td><td class="num mono">18,420</td><td class="num mono" style="color: #6B6B66;">pending</td></tr></tbody>
+  </table>
+</section>
+<section class="card">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Transactions</span>
+    <span class="hint">4 · newest first · unconfirmed sends can be bumped</span>
+  </div>
+  <table>
+    <thead><tr><th style="width: 24px;"></th><th>Txid</th><th class="num">Amount (sat)</th><th class="num">Conf.</th><th class="num">When</th><th class="num"></th></tr></thead>
+    <tbody><tr><td><span style="display: inline-flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span></td><td class="mono">e19f4a7d05…b2c8d4a0</td><td class="num mono" style="color: #1A1A1A; font-weight: 500;">−40,141</td><td class="num mono" style="color: #6B6B66;">pending</td><td class="num" style="color: #6B6B66;">2 min ago</td><td class="num"><span class="btn btn-sm"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"></path><path d="M4 4v4h4"></path><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"></path><path d="M20 20v-4h-4"></path></svg> Bump fee</span></td></tr><tr><td><span style="display: inline-flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span></td><td class="mono">3b9d1e7f2a…b3c4d5e6</td><td class="num mono" style="color: #1A1A1A; font-weight: 500;">−150,141</td><td class="num mono">3</td><td class="num" style="color: #6B6B66;">Today 14:02</td><td class="num"></td></tr><tr><td><span style="display: inline-flex; transform: rotate(180deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span></td><td class="mono">7c02d8b1e4…9a6f0c3b</td><td class="num mono" style="color: #166534; font-weight: 500;">+120,000</td><td class="num mono">31</td><td class="num" style="color: #6B6B66;">Aug 27</td><td class="num"></td></tr><tr><td><span style="display: inline-flex; transform: rotate(180deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span></td><td class="mono">a41e9c2f7b…3d08e1f2</td><td class="num mono" style="color: #166534; font-weight: 500;">+250,000</td><td class="num mono">142</td><td class="num" style="color: #6B6B66;">Aug 24</td><td class="num"></td></tr></tbody>
   </table>
 </section>
 <div style="display: flex; justify-content: flex-end;">

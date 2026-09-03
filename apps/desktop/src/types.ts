@@ -21,6 +21,30 @@ export interface WalletInfo {
   network: Network;
   address_type: AddressType;
   wallet_id: string;
+  /** True for a BIP32 account (mnemonic): it can reveal further addresses. */
+  is_hd: boolean;
+}
+
+/** Non-secret record of the wallet whose key is kept in the OS keystore. */
+export interface RememberedWallet {
+  wallet_id: string;
+  address: string;
+  network: Network;
+  address_type: AddressType;
+}
+
+/**
+ * What `load_secret` returns: secret material, held only long enough to open
+ * the wallet.
+ *
+ * The BIP39 passphrase is stored alongside the words because it is part of the
+ * same wallet's identity — the words on their own open a different wallet — and
+ * the OS keystore is already the boundary that protects them.
+ */
+export interface StoredSecret {
+  secret: string;
+  /** `null` for a single key, and for a mnemonic saved without one. */
+  passphrase: string | null;
 }
 
 export interface Balance {
@@ -38,8 +62,42 @@ export interface Utxo {
   address: string;
 }
 
+/** One wallet-relevant transaction, newest first from `list_transactions`. */
+export interface TxSummary {
+  txid: string;
+  /** Net effect in sats: positive when received, negative when sent (fee included). */
+  net_sat: number;
+  /** Total value of inputs this wallet owns. */
+  sent_sat: number;
+  /** Total value of outputs this wallet owns (change included). */
+  received_sat: number;
+  /** `null` when the wallet does not know every input. */
+  fee_sat: number | null;
+  /** `null` while unconfirmed. */
+  confirmations: number | null;
+  /** Seconds since the epoch; `null` when the transaction was never seen. */
+  timestamp: number | null;
+}
+
 export interface FeeEstimate {
   sat_per_vb_by_target: Record<string, number>;
+}
+
+/**
+ * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):
+ * the exact target, else the closest faster one, else the closest slower one.
+ */
+export function rateForTarget(estimate: FeeEstimate, target: number): number | null {
+  const entries = Object.entries(estimate.sat_per_vb_by_target)
+    .map(([k, v]) => [Number(k), v] as const)
+    .filter(([k]) => Number.isFinite(k))
+    .sort((a, b) => a[0] - b[0]);
+  const exact = entries.find(([k]) => k === target);
+  if (exact) return exact[1];
+  const faster = entries.filter(([k]) => k < target).at(-1);
+  if (faster) return faster[1];
+  const slower = entries.find(([k]) => k > target);
+  return slower ? slower[1] : null;
 }
 
 /** Returned once by `generate_key`; never persisted by the UI. */
@@ -49,6 +107,20 @@ export interface GeneratedKey {
   pub_hex: string;
   address: string;
 }
+
+/**
+ * Returned once by `generate_mnemonic`. `words` is the backup phrase: show it,
+ * let the user copy it, and drop it — it is never stored by the UI.
+ */
+export interface GeneratedMnemonic {
+  words: string;
+  /** First receive address of the account (external keychain, index 0). */
+  address: string;
+}
+
+/** Word counts `generate_mnemonic` accepts. */
+export const WORD_COUNTS = [12, 24] as const;
+export type WordCount = (typeof WORD_COUNTS)[number];
 
 export interface Recipient {
   address: string;
@@ -74,6 +146,17 @@ export interface BroadcastResult {
 export interface AppError {
   code: string;
   message: string;
+}
+
+/** Frontend failure carrying the same `{ code, message }` shape the commands return. */
+export class WalletError extends Error implements AppError {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "WalletError";
+    this.code = code;
+  }
 }
 
 export function isAppError(value: unknown): value is AppError {
