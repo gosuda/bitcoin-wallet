@@ -1,0 +1,24 @@
+[package]
+name = "regtest-tests"
+version = "0.1.0"
+description = "End-to-end tests for wallet-core against a real bitcoind + Esplora on regtest"
+publish = false
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+# Nothing to ship: this crate exists only to keep the heavyweight test
+# harness (which downloads bitcoind and electrs) out of wallet-core's
+# dev-dependencies, so `cargo test -p wallet-core` stays fast.
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+wallet-core = { workspace = true }
+bdk_testenv = "0.13.1"
+tokio = { workspace = true }
+anyhow = "1"
+async-trait = { workspace = true }

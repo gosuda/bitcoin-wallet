@@ -29,6 +29,17 @@ jobs:
       - run: cargo test -p wallet-core -p wallet-cli
       - run: cargo build -p wallet-cli --release
 
+  regtest:
+    name: end-to-end on regtest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # bdk_testenv downloads bitcoind and electrs (with the Esplora HTTP API)
+      # on first build, so no services or Docker are needed here.
+      - run: cargo test -p regtest-tests -- --test-threads=1
+
   wasm:
     name: wallet-core + wallet-wasm (wasm32)
     runs-on: ubuntu-24.04
