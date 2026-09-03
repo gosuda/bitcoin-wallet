@@ -61,10 +61,24 @@ $btcw balance -n signet                            # Esplora (mempool.space by d
 $btcw balance -n signet -u https://blockstream.info/signet/api
 $btcw send -n signet --to tb1q...:10000 --dry-run  # build + sign, print PSBT
 $btcw send -n signet --to tb1q...:10000            # broadcast; fee = 6-block estimate, floor 1 sat/vB
+$btcw history -n signet                            # transactions, newest first
+$btcw bump -n signet --txid <txid> -f 8            # re-send an unconfirmed tx at a higher fee
 ```
 
 Address types: `p2pk`, `p2pkh`, `p2wpkh`, `np2wpkh`, `p2tr`. Networks: `bitcoin`, `testnet3`, `testnet4`, `signet`, `regtest`.
+Every transaction the wallet builds signals replaceability, so a stuck payment can be re-sent with `bump`.
 The CLI keeps wallet state in memory for the run and re-syncs each time; keys are never persisted.
+
+### Tests
+
+```bash
+cargo test -p wallet-core          # unit tests, no network
+cargo test -p regtest-tests        # end-to-end against a real bitcoind + Esplora
+```
+
+`regtest-tests` downloads `bitcoind` and `electrs` on first build (via `bdk_testenv`) and
+drives the whole flow — receive, spend, fee bump, reopen from persisted state — so no
+faucet or Docker is needed.
 
 ### Desktop app
 ```bash
