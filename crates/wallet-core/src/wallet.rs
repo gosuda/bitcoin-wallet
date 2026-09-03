@@ -402,6 +402,39 @@ impl WalletHandle {
         };
         Self::persist(&mut inner).await?;
 
+        let total_out_sat = recipients.iter().map(|r| r.amount_sat).sum();
+        Self::summarize(&inner, psbt, Some(total_out_sat))
+    }
+
+    /// Rebuild an unconfirmed transaction of ours at a higher fee rate.
+    ///
+    /// Transactions built by [`Self::build_transfer`] signal replaceability, so
+    /// a stuck payment can be re-sent with a bigger fee: the result is a new
+    /// PSBT that spends the same inputs and must be signed and broadcast like
+    /// any other. The backend rejects a bump that does not raise the fee enough
+    /// to replace the original.
+    pub async fn build_fee_bump(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
+            .map_err(|e| Error::BuildTx(format!("{txid}: {e}")))?;
+        let mut inner = self.inner.lock().await;
+        let psbt = {
+            let mut builder = inner
+                .wallet
+                .build_fee_bump(txid)
+                .map_err(|e| Error::BuildTx(e.to_string()))?;
+            builder.fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+            builder
+                .finish()
+                .map_err(|e| Error::BuildTx(e.to_string()))?
+        };
+        Self::persist(&mut inner).await?;
+        Self::summarize(&inner, psbt, None)
+    }
+
+    /// Describe a built PSBT. `total_out` is the amount intended for others;
+    /// when it is not known up front (a fee bump) it is taken to be everything
+    /// paid to scripts the wallet does not own.
+    fn summarize(inner: &Inner, psbt: Psbt, total_out: Option<u64>) -> Result<BuiltTx> {
         let fee_sat = psbt.fee().map_err(|e| Error::Psbt(e.to_string()))?.to_sat();
         let tx = &psbt.unsigned_tx;
         let change_sat = tx
@@ -410,7 +443,13 @@ impl WalletHandle {
             .filter(|o| inner.wallet.is_mine(o.script_pubkey.clone()))
             .map(|o| o.value.to_sat())
             .sum();
-        let total_out_sat = recipients.iter().map(|r| r.amount_sat).sum();
+        let total_out_sat = total_out.unwrap_or_else(|| {
+            tx.output
+                .iter()
+                .filter(|o| !inner.wallet.is_mine(o.script_pubkey.clone()))
+                .map(|o| o.value.to_sat())
+                .sum()
+        });
         Ok(BuiltTx {
             psbt_base64: psbt.to_string(),
             fee_sat,

@@ -131,6 +131,96 @@ async fn receive_then_spend_against_a_real_node() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// A stuck payment can be re-sent at a higher fee, and the replacement is the
+/// one that ends up in a block.
+#[tokio::test]
+async fn fee_bump_replaces_the_original() -> anyhow::Result<()> {
+    let env = TestEnv::new()?;
+    let esplora_url = format!(
+        "http://{}",
+        env.electrsd
+            .esplora_url
+            .clone()
+            .expect("electrs was started with the esplora http api")
+    );
+    env.mine_blocks(101, None)?;
+
+    let key = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
+    let wallet = WalletHandle::open(
+        config(esplora_url),
+        &KeyMaterial::PrivHex(key.priv_hex.clone()),
+        Box::new(MemoryPersister::new()),
+    )
+    .await?;
+
+    let funding_txid = env.send(
+        &regtest_address(&wallet.address().await),
+        Amount::from_sat(FUNDING_SAT),
+    )?;
+    env.wait_until_electrum_sees_txid(funding_txid, TIMEOUT)?;
+    env.mine_blocks(1, None)?;
+    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    wallet.sync().await?;
+
+    // Send at the floor rate, leaving room to bump.
+    let destination = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
+    let original = wallet
+        .build_transfer(
+            &[Recipient {
+                address: destination.address.clone(),
+                amount_sat: SEND_SAT,
+            }],
+            1.0,
+        )
+        .await?;
+    let signed = wallet.sign(&original.psbt_base64).await?;
+    let first = wallet.broadcast(&signed).await?;
+    env.wait_until_electrum_sees_txid(wallet_core::bitcoin::Txid::from_str(&first.txid)?, TIMEOUT)?;
+
+    // Bump it while it is still unconfirmed.
+    let bumped = wallet.build_fee_bump(&first.txid, 8.0).await?;
+    assert!(
+        bumped.fee_sat > original.fee_sat,
+        "bump must raise the fee: {} -> {}",
+        original.fee_sat,
+        bumped.fee_sat
+    );
+    assert_eq!(bumped.total_out_sat, SEND_SAT, "recipient is unchanged");
+
+    let signed = wallet.sign(&bumped.psbt_base64).await?;
+    let replacement = wallet.broadcast(&signed).await?;
+    assert_ne!(replacement.txid, first.txid, "replacement is a new txid");
+
+    env.wait_until_electrum_sees_txid(
+        wallet_core::bitcoin::Txid::from_str(&replacement.txid)?,
+        TIMEOUT,
+    )?;
+    env.mine_blocks(1, None)?;
+    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    wallet.sync().await?;
+
+    let history = wallet.list_transactions().await;
+    let confirmed_spend = history
+        .iter()
+        .find(|t| t.txid == replacement.txid)
+        .expect("replacement is in history");
+    assert!(
+        confirmed_spend.confirmations.unwrap_or(0) >= 1,
+        "the replacement is the one that confirmed"
+    );
+    assert!(
+        !history.iter().any(|t| t.txid == first.txid),
+        "the replaced transaction is dropped from the canonical history"
+    );
+    assert_eq!(
+        wallet.balance().await.confirmed,
+        FUNDING_SAT - SEND_SAT - bumped.fee_sat,
+        "the higher fee is what was paid"
+    );
+
+    Ok(())
+}
+
 /// One JSON record per wallet, shared between opens — the same shape the
 /// browser build keeps in IndexedDB.
 #[derive(Clone, Default)]

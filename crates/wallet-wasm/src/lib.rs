@@ -245,6 +245,23 @@ impl Wallet {
         to_js(&built)
     }
 
+    /// Rebuild an unconfirmed transaction of ours at a higher fee rate.
+    /// Returns the same shape as `build_transfer`; sign and broadcast it the
+    /// same way. Fails if the new rate does not clear the replacement rules.
+    pub async fn build_fee_bump(
+        &self,
+        txid: &str,
+        fee_rate_sat_vb: f64,
+    ) -> Result<JsValue, JsError> {
+        to_js(
+            &self
+                .inner
+                .build_fee_bump(txid, fee_rate_sat_vb)
+                .await
+                .map_err(js_err)?,
+        )
+    }
+
     /// Sign + finalize a PSBT (base64) produced by `build_transfer`.
     pub async fn sign(&self, psbt_base64: &str) -> Result<String, JsError> {
         self.inner.sign(psbt_base64).await.map_err(js_err)

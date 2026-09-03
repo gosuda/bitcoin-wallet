@@ -47,6 +47,20 @@ enum Cmd {
     Balance(BackendArgs),
     /// Sync and show transaction history, newest first
     History(BackendArgs),
+    /// Re-send an unconfirmed transaction of yours at a higher fee rate
+    Bump {
+        #[command(flatten)]
+        backend: BackendArgs,
+        /// Transaction id to replace
+        #[arg(long)]
+        txid: String,
+        /// New fee rate in sat/vB (must beat the original)
+        #[arg(short, long)]
+        fee_rate: f64,
+        /// Build and sign only; print the txid without broadcasting
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Show fee estimates from the backend
     Fees(BackendArgs),
     /// Build, sign and broadcast a transfer
@@ -159,6 +173,34 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
             let w = open(network, address_type, &a).await?;
             w.sync().await.map_err(|e| e.to_string())?;
             Ok(serde_json::json!({ "transactions": w.list_transactions().await }))
+        }
+        Cmd::Bump {
+            backend,
+            txid,
+            fee_rate,
+            dry_run,
+        } => {
+            let w = open(network, address_type, &backend).await?;
+            w.sync().await.map_err(|e| e.to_string())?;
+            let built = w
+                .build_fee_bump(&txid, fee_rate)
+                .await
+                .map_err(|e| e.to_string())?;
+            let signed = w
+                .sign(&built.psbt_base64)
+                .await
+                .map_err(|e| e.to_string())?;
+            let tx = WalletHandle::extract_tx(&signed).map_err(|e| e.to_string())?;
+            let new_txid = if dry_run {
+                tx.compute_txid().to_string()
+            } else {
+                w.broadcast(&signed).await.map_err(|e| e.to_string())?.txid
+            };
+            Ok(serde_json::json!({
+                "replaced": txid, "txid": new_txid, "broadcast": !dry_run,
+                "fee_sat": built.fee_sat, "fee_rate_sat_vb": fee_rate, "vsize": tx.vsize(),
+                "explorer": network.explorer_tx_url(&new_txid),
+            }))
         }
         Cmd::Fees(a) => {
             let w = open(network, address_type, &a).await?;
