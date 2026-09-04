@@ -1,5 +1,5 @@
 {
-  "name": "bitcoin-wallet-desktop",
+  "name": "bitcoin-wallet-app",
   "private": true,
   "version": "0.1.0",
   "type": "module",

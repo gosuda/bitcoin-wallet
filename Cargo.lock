@@ -504,7 +504,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitcoin-wallet-desktop"
+name = "bitcoin-wallet-app"
 version = "0.1.0"
 dependencies = [
  "serde",

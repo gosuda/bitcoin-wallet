@@ -53,7 +53,7 @@ certificate exists.
 
 ## Version numbers
 
-The version comes from `apps/desktop/src-tauri/tauri.conf.json`. Bump it in the
+The version comes from `apps/native/src-tauri/tauri.conf.json`. Bump it in the
 same commit as the tag so the installer and the tag agree.
 
 ## Before tagging

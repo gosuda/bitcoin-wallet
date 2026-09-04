@@ -103,8 +103,8 @@ jobs:
         working-directory: packages/wallet-ui
         run: pnpm biome ci .
 
-      - name: Desktop app
-        working-directory: apps/desktop
+      - name: Native app
+        working-directory: apps/native
         run: |
           pnpm biome ci .
           pnpm tsc --noEmit
@@ -118,4 +118,4 @@ jobs:
           pnpm vite build
 
       - name: Build the Tauri shell
-        run: cargo clippy -p bitcoin-wallet-desktop --all-targets -- -D warnings
+        run: cargo clippy -p bitcoin-wallet-app --all-targets -- -D warnings

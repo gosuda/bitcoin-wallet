@@ -43,13 +43,13 @@ crates/wallet-core   # wallet logic: keys, sync, balance, build → sign → bro
 crates/wallet-wasm   # wasm-bindgen bindings: the same core for browser and Tauri webview
 crates/wallet-cli    # `btcw` developer CLI
 packages/wallet-ui   # the whole frontend: screens, router, wasm glue, IndexedDB — no platform APIs
-apps/desktop         # Tauri v2 shell: window, OS keychain — no wallet logic
+apps/native          # Tauri v2 shell: desktop window, iOS and Android — no wallet logic
 apps/web             # browser shell: static bundle, keys in memory for the tab
 ```
 
 **One frontend, two shells.** `packages/wallet-ui` is the app; each shell supplies a
 `Platform` (config, remembered-wallet record, key store, clipboard, open-url) and calls
-`boot()`. The desktop shell answers with Tauri IPC and the OS keychain; the browser shell
+`boot()`. The native shell answers with Tauri IPC and the OS keychain; the browser shell
 answers with `localStorage` and reports `canRememberWallet: false`, so "Remember on this
 device" is not offered, no key is written anywhere, and the wallet lives only as long as
 the tab.
@@ -117,9 +117,25 @@ build it first:
 wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
 pnpm install                                  # from the repo root
 
-cd apps/desktop && pnpm tauri dev             # desktop, on :14200
-cd apps/web     && pnpm dev                   # browser, on :14400
-cd apps/web     && pnpm build                 # static bundle in apps/web/dist
+cd apps/native && pnpm tauri dev              # desktop, on :14200
+cd apps/web    && pnpm dev                    # browser, on :14400
+cd apps/web    && pnpm build                  # static bundle in apps/web/dist
+```
+
+### iOS and Android
+
+The same shell builds for phones. Export the Android toolchain first — note `JAVA_HOME`
+must be Android Studio's bundled JBR, not a system JDK:
+
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export NDK_HOME="$ANDROID_HOME/ndk/$(ls -1 "$ANDROID_HOME/ndk" | tail -1)"
+
+cd apps/native
+pnpm tauri ios dev --target aarch64-sim       # iOS Simulator
+pnpm tauri android dev                        # Android emulator or device
+pnpm tauri ios dev --host                     # a physical iPhone on your network
 ```
 
 ## Contributing

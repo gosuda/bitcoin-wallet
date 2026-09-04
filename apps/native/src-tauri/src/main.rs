@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    bitcoin_wallet_desktop_lib::run()
+    bitcoin_wallet_app_lib::run()
 }
