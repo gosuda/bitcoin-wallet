@@ -1,0 +1,468 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0B1D68168B43160B529785E1 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4713B7E195BC00291CB786F0 /* Metal.framework */; };
+		0EFCCA4DDAD6577FCF00B216 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 8108312A393A7163CD330093 /* LaunchScreen.storyboard */; };
+		24BC29893F70AB101437D887 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B61390D46F78486F50F47EBA /* UIKit.framework */; };
+		2D934454960AFDE24D476E83 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7B5BCC1EADD846BE39949F9A /* QuartzCore.framework */; };
+		3E102E5D05E5BD52BB57D7E1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1EA343F71617BF17E513BE12 /* Assets.xcassets */; };
+		482963463F4BDFC148CA249A /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D793AAD05357CA0A2C7F6390 /* MetalKit.framework */; };
+		4E535C084C6B9CAB113D573A /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2DACFAA0FB282E04D0206027 /* WebKit.framework */; };
+		4F04D1BF1C837BC1AB7E92D6 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A12BBACD245E4D9C2D61285A /* libapp.a */; };
+		70D53858681B02202AA24060 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 41FA053C3437774C0188AB16 /* assets */; };
+		791C209109C5F00137F1E78C /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27B82A305036F80424A20195 /* CoreGraphics.framework */; };
+		82E95DF727EE2EDB0A0D2277 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 81F671F604BE5FF9F4E56B05 /* main.mm */; };
+		A76381D49639F493B412F8A8 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EDB3E670205321E50E972859 /* Security.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1EA343F71617BF17E513BE12 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		27B82A305036F80424A20195 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		29565D33C815EB18B8B44C0A /* dto.rs */ = {isa = PBXFileReference; path = dto.rs; sourceTree = "<group>"; };
+		2DACFAA0FB282E04D0206027 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		2FC8C5C496CDEB6117B91C1C /* bitcoin-wallet-app_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "bitcoin-wallet-app_iOS.entitlements"; sourceTree = "<group>"; };
+		41FA053C3437774C0188AB16 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		4329DDD9AD071EB7A5DBDD51 /* state.rs */ = {isa = PBXFileReference; path = state.rs; sourceTree = "<group>"; };
+		464E3F106FA4337FE37F28EB /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
+		4713B7E195BC00291CB786F0 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		53E731D6CBADB4507B14FE7E /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		573BF925DAA9355FEDD6D4E2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7B5BCC1EADD846BE39949F9A /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		8108312A393A7163CD330093 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		81F671F604BE5FF9F4E56B05 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		A12BBACD245E4D9C2D61285A /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		A7531DBDB31006B87D2E3BA2 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		ABE048E51F8C26582403AD96 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		B61390D46F78486F50F47EBA /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		BC4FE5F11F3FA93CDFE0A1F1 /* bitcoin-wallet-app_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "bitcoin-wallet-app_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D793AAD05357CA0A2C7F6390 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		E19F7F01A73A65E1A0B7D3C7 /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		EDB3E670205321E50E972859 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DB6A10EF52D03603ECD8591C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4F04D1BF1C837BC1AB7E92D6 /* libapp.a in Frameworks */,
+				791C209109C5F00137F1E78C /* CoreGraphics.framework in Frameworks */,
+				0B1D68168B43160B529785E1 /* Metal.framework in Frameworks */,
+				482963463F4BDFC148CA249A /* MetalKit.framework in Frameworks */,
+				2D934454960AFDE24D476E83 /* QuartzCore.framework in Frameworks */,
+				A76381D49639F493B412F8A8 /* Security.framework in Frameworks */,
+				24BC29893F70AB101437D887 /* UIKit.framework in Frameworks */,
+				4E535C084C6B9CAB113D573A /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03031A55BAB46CE4515FA79B /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				ECD7B747F67BA1719EC1BFBC /* bitcoin-wallet-app */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		1B6896816B8BF865014DC98F /* bitcoin-wallet-app_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				2FC8C5C496CDEB6117B91C1C /* bitcoin-wallet-app_iOS.entitlements */,
+				573BF925DAA9355FEDD6D4E2 /* Info.plist */,
+			);
+			path = "bitcoin-wallet-app_iOS";
+			sourceTree = "<group>";
+		};
+		5632B4F80E71E455B9FCC0F4 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				53E731D6CBADB4507B14FE7E /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		720FB0ADFECC24772203DC44 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		9BFE3B77B5B85C64CF5CD22C = {
+			isa = PBXGroup;
+			children = (
+				41FA053C3437774C0188AB16 /* assets */,
+				1EA343F71617BF17E513BE12 /* Assets.xcassets */,
+				8108312A393A7163CD330093 /* LaunchScreen.storyboard */,
+				1B6896816B8BF865014DC98F /* bitcoin-wallet-app_iOS */,
+				720FB0ADFECC24772203DC44 /* Externals */,
+				03031A55BAB46CE4515FA79B /* Sources */,
+				CBE26526E4E09AFDB06671A5 /* src */,
+				D7D813531ACD44138DD6719F /* Frameworks */,
+				CEA3AF1CE4E2836EAE77ADE1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CBE26526E4E09AFDB06671A5 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				464E3F106FA4337FE37F28EB /* commands.rs */,
+				29565D33C815EB18B8B44C0A /* dto.rs */,
+				E19F7F01A73A65E1A0B7D3C7 /* error.rs */,
+				A7531DBDB31006B87D2E3BA2 /* lib.rs */,
+				ABE048E51F8C26582403AD96 /* main.rs */,
+				4329DDD9AD071EB7A5DBDD51 /* state.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		CEA3AF1CE4E2836EAE77ADE1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BC4FE5F11F3FA93CDFE0A1F1 /* bitcoin-wallet-app_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D7D813531ACD44138DD6719F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				27B82A305036F80424A20195 /* CoreGraphics.framework */,
+				A12BBACD245E4D9C2D61285A /* libapp.a */,
+				4713B7E195BC00291CB786F0 /* Metal.framework */,
+				D793AAD05357CA0A2C7F6390 /* MetalKit.framework */,
+				7B5BCC1EADD846BE39949F9A /* QuartzCore.framework */,
+				EDB3E670205321E50E972859 /* Security.framework */,
+				B61390D46F78486F50F47EBA /* UIKit.framework */,
+				2DACFAA0FB282E04D0206027 /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		ECD7B747F67BA1719EC1BFBC /* bitcoin-wallet-app */ = {
+			isa = PBXGroup;
+			children = (
+				81F671F604BE5FF9F4E56B05 /* main.mm */,
+				5632B4F80E71E455B9FCC0F4 /* bindings */,
+			);
+			path = "bitcoin-wallet-app";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		79F3BCDED79FF059C72033D0 /* bitcoin-wallet-app_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1A11A591FF16119EE1530BC2 /* Build configuration list for PBXNativeTarget "bitcoin-wallet-app_iOS" */;
+			buildPhases = (
+				27FFE810660EB7B1611C08D9 /* Build Rust Code */,
+				3800E0A1F784BA365787250D /* Sources */,
+				BE5DA762080060B54C6EBB83 /* Resources */,
+				DB6A10EF52D03603ECD8591C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "bitcoin-wallet-app_iOS";
+			packageProductDependencies = (
+			);
+			productName = "bitcoin-wallet-app_iOS";
+			productReference = BC4FE5F11F3FA93CDFE0A1F1 /* bitcoin-wallet-app_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4A63ACB513738D521944C181 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 4EFBB52494FCB093A4139B37 /* Build configuration list for PBXProject "bitcoin-wallet-app" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 9BFE3B77B5B85C64CF5CD22C;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = CEA3AF1CE4E2836EAE77ADE1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				79F3BCDED79FF059C72033D0 /* bitcoin-wallet-app_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BE5DA762080060B54C6EBB83 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3E102E5D05E5BD52BB57D7E1 /* Assets.xcassets in Resources */,
+				0EFCCA4DDAD6577FCF00B216 /* LaunchScreen.storyboard in Resources */,
+				70D53858681B02202AA24060 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		27FFE810660EB7B1611C08D9 /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "pnpm tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3800E0A1F784BA365787250D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				82E95DF727EE2EDB0A0D2277 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		02B1B9D6C8D299BD54853CE1 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "bitcoin-wallet-app_iOS/bitcoin-wallet-app_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "bitcoin-wallet-app_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.gosuda.bitcoinwallet;
+				PRODUCT_NAME = "Bitcoin Wallet";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		4346959C56326FEF888E8F3B /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		460523EAC7F4DCDD4DE3327C /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		65979D96F14987D068F9ABDB /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "bitcoin-wallet-app_iOS/bitcoin-wallet-app_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "bitcoin-wallet-app_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = dev.gosuda.bitcoinwallet;
+				PRODUCT_NAME = "Bitcoin Wallet";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1A11A591FF16119EE1530BC2 /* Build configuration list for PBXNativeTarget "bitcoin-wallet-app_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02B1B9D6C8D299BD54853CE1 /* debug */,
+				65979D96F14987D068F9ABDB /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		4EFBB52494FCB093A4139B37 /* Build configuration list for PBXProject "bitcoin-wallet-app" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4346959C56326FEF888E8F3B /* debug */,
+				460523EAC7F4DCDD4DE3327C /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4A63ACB513738D521944C181 /* Project object */;
+}
