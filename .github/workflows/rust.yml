@@ -68,6 +68,47 @@ jobs:
       - run: cargo install wasm-pack --locked
       - run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
 
+  # Compile-only. It cannot catch a keystore that builds and then fails on the
+  # device — that is what the startup self-check in the app is for — but it does
+  # catch the whole class of "this crate does not exist on iOS" breakage, which
+  # is how the apple-native-keyring-store `protected` requirement surfaced.
+  mobile:
+    name: app shell (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: iOS
+            target: aarch64-apple-ios
+          - os: macos-latest
+            name: iOS Simulator
+            target: aarch64-apple-ios-sim
+          - os: ubuntu-24.04
+            name: Android
+            target: aarch64-linux-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      # The NDK names its compiler wrappers with the API level, so cc-rs cannot
+      # find `aarch64-linux-android-clang` on its own. `tauri android build`
+      # sets this up internally; a bare cargo invocation has to be told.
+      - name: Point cc-rs at the NDK toolchain
+        if: matrix.target == 'aarch64-linux-android'
+        run: |
+          TC="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          echo "CC_aarch64_linux_android=$TC/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
+          echo "AR_aarch64_linux_android=$TC/llvm-ar" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TC/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
+
+      - run: cargo clippy -p bitcoin-wallet-app --target ${{ matrix.target }} -- -D warnings
+
   apps:
     name: desktop + web apps
     runs-on: ubuntu-24.04
