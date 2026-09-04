@@ -872,6 +872,23 @@ tr:last-child td {
   gap: var(--space-2);
 }
 
+/* A recovery phrase is only useful if it can be read back a word at a time, so
+   the grid loses columns rather than hyphenating. Four columns on a phone leave
+   roughly 46px for the word itself once the index and padding are taken out,
+   and BIP39 runs to eight letters — which is how "dinner" came to render as
+   "dinn/er". Desktop keeps four: its window has a 720px minimum. */
+@media (max-width: 560px) {
+  .word-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .word-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .word-cell {
   display: flex;
   align-items: baseline;
