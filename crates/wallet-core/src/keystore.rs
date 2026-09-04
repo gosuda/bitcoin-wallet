@@ -142,9 +142,39 @@ impl NativeKeystore {
     /// Call it at startup. On iOS and Android the store has to be installed at
     /// runtime and can fail there while compiling cleanly, so without this the
     /// first symptom is a user pressing "Remember" and getting an error.
+    ///
+    /// On mobile it round-trips a throwaway value, because merely building a
+    /// credential proves too little there: the iOS `protected` store only
+    /// validates the service and user strings, so an entry constructs happily
+    /// on a build whose keychain will reject every read and write for want of
+    /// an entitlement. Desktop stops at construction on purpose — writing at
+    /// startup on Linux could raise a Secret Service unlock prompt before the
+    /// user has asked for anything, and there a failed store install already
+    /// surfaces as `NoDefaultStore`.
     pub fn self_check(&self) -> Result<()> {
         backend::prepare().map_err(Error::Persist)?;
-        self.entry("_wallet_core_self_check").map(|_| ())
+        let entry = self.entry("_wallet_core_self_check")?;
+
+        #[cfg(any(target_os = "ios", target_os = "android"))]
+        {
+            const PROBE: &str = "wallet-core self check";
+            entry
+                .set_password(PROBE)
+                .map_err(|e| Error::Persist(e.to_string()))?;
+            let got = entry
+                .get_password()
+                .map_err(|e| Error::Persist(e.to_string()))?;
+            // Best effort: leaving the probe behind is untidy, not unsafe.
+            let _ = entry.delete_credential();
+            if got != PROBE {
+                return Err(Error::Persist(
+                    "credential store returned a different value than it stored".into(),
+                ));
+            }
+        }
+
+        let _ = entry;
+        Ok(())
     }
 
     fn entry(&self, wallet_id: &str) -> Result<backend::Entry> {

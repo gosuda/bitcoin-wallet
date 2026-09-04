@@ -36,6 +36,18 @@ pub async fn set_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
     Ok(())
 }
 
+/// Whether the OS credential store can actually be used in this process.
+///
+/// This is not a formality. On iOS the store is the data-protection keychain,
+/// which needs the app's `application-identifier` entitlement — an unsigned
+/// build has empty entitlements and every keychain call fails with `-34018`.
+/// The frontend asks once at startup so it can decline to offer "Remember on
+/// this device" rather than accept the choice and silently lose the key.
+#[tauri::command]
+pub async fn keystore_available(state: State<'_, AppState>) -> AppResult<bool> {
+    Ok(state.keystore_ok())
+}
+
 /// Saves the unlock key for `wallet_id` in the OS credential store.
 ///
 /// `passphrase` is the optional BIP39 passphrase and is stored *with* the

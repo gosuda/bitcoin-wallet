@@ -27,14 +27,13 @@ pub fn run() {
             // rather than when someone first presses "Remember on this device".
             // Not fatal: everything except remembering a key still works.
             use tauri::Manager;
-            if let Err(e) = app.state::<state::AppState>().keystore().self_check() {
-                eprintln!("keystore unavailable: {e} — \"Remember on this device\" will fail");
-            }
+            app.state::<state::AppState>().keystore_ok();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::set_config,
+            commands::keystore_available,
             commands::remember_secret,
             commands::load_secret,
             commands::forget_secret,
