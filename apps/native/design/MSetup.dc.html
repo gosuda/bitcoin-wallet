@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #FAFAF9; color: #1A1A1A; font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+    a { color: #C2410C; } a:hover { color: #A3360A; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B6B66; }
+    .card { background: #FFFFFF; border: 1px solid #E4E3DF; border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; font-weight: 500; font-size: 14px; white-space: nowrap; }
+    .btn-primary { background: #C2410C; border-color: #C2410C; color: #FFFFFF; }
+    .btn-quiet { border-color: transparent; background: transparent; color: #6B6B66; }
+    .btn-danger { color: #B91C1C; border-color: #E4E3DF; }
+    .btn-sm { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+    .input { display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; }
+    .input.placeholder { color: #A19F97; }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; }
+    .chip.on { border-color: #1A1A1A; background: #F4F4F2; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #A19F97; background: #FFFFFF; box-sizing: border-box; }
+    .chip.on .dot { border: 4px solid #C2410C; }
+    .hint { font-size: 12px; color: #6B6B66; }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; align-items: baseline; }
+    .kv dt { color: #6B6B66; font-size: 12px; } .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid #E4E3DF; white-space: nowrap; }
+    th { color: #6B6B66; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    td.num, th.num { text-align: right; }
+    tr:last-child td { border-bottom: none; }
+
+    .m-frame { width: 390px; height: 844px; background: #FAFAF9; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; position: relative; }
+    .m-status { flex: none; height: 54px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 24px 6px; font-size: 15px; font-weight: 600; }
+    .m-sig { display: flex; gap: 6px; align-items: center; }
+    .m-head { flex: none; min-height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
+    .m-head h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+    .m-ico { width: 44px; height: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+    .m-body { flex: 1; min-height: 0; padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+    .m-card { background: #FFFFFF; border: 1px solid #E4E3DF; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .m-hero { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; }
+    .m-sub { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 15px; color: #6B6B66; }
+    .m-btn { flex: 1; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #E4E3DF; border-radius: 12px; background: #FFFFFF; color: #1A1A1A; font-size: 16px; font-weight: 500; box-sizing: border-box; }
+    .m-btn-primary { background: #C2410C; border-color: #C2410C; color: #FFFFFF; }
+    .m-btn-quiet { border-color: transparent; background: transparent; color: #6B6B66; }
+    .m-btn-danger { color: #B91C1C; }
+    .m-input { min-height: 48px; display: flex; align-items: center; padding: 0 14px; border: 1px solid #E4E3DF; border-radius: 12px; background: #FFFFFF; font-size: 16px; box-sizing: border-box; }
+    .m-input.placeholder { color: #A19F97; }
+    .m-chip { min-height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border: 1px solid #E4E3DF; border-radius: 999px; background: #FFFFFF; font-size: 15px; }
+    .m-chip.on { border-color: #1A1A1A; background: #F4F4F2; font-weight: 500; }
+    .m-chip.on .dot { border: 4px solid #C2410C; }
+    .m-tabs { flex: none; height: 83px; border-top: 1px solid #E4E3DF; background: #FFFFFF; display: flex; padding-bottom: 21px; }
+    .m-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #6B6B66; font-size: 11px; font-weight: 500; }
+    .m-tab.on { color: #C2410C; }
+    .m-txrow { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #E4E3DF; }
+    .m-txrow:last-child { border-bottom: none; }
+    .m-dirdot { width: 36px; height: 36px; flex: none; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: #F4F4F2; }
+    .m-amt { margin-left: auto; text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 500; }
+    .m-home { position: absolute; left: 50%; transform: translateX(-50%); bottom: 8px; width: 140px; height: 5px; border-radius: 3px; background: rgba(26,26,26,0.18); }
+    .m-word { display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: #F4F4F2; border-radius: 8px; }
+  </style>
+</helmet>
+<div class="m-frame"><div class="m-status"><span>9:41</span><span class="m-sig"><svg width="17" height="11" viewBox="0 0 17 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1" fill="#1A1A1A"></rect><rect x="4.7" y="5" width="3" height="6" rx="1" fill="#1A1A1A"></rect><rect x="9.4" y="2.5" width="3" height="8.5" rx="1" fill="#1A1A1A"></rect><rect x="14" y="0" width="3" height="11" rx="1" fill="#1A1A1A"></rect></svg><svg width="25" height="12" viewBox="0 0 25 12" aria-hidden="true"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="#1A1A1A" stroke-opacity="0.35"></rect><rect x="2" y="2" width="16" height="8" rx="1.5" fill="#1A1A1A"></rect><path d="M23 4.2v3.6a2 2 0 0 0 0-3.6z" fill="#1A1A1A" fill-opacity="0.35"></path></svg></span></div><div class="m-head"><span class="m-ico"></span><h1>Setup</h1><span class="m-ico"></span></div>
+<div class="m-body">
+  <p style="margin:0;font-size:15px;color:#6B6B66;">Which chain, and where to read it from. Both can change later.</p>
+  <div class="m-card">
+    <span class="label">Network</span>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;"><span class="m-chip on"><span class="dot"></span>Signet</span><span class="m-chip"><span class="dot"></span>Testnet4</span><span class="m-chip"><span class="dot"></span>Mainnet</span></div>
+  </div>
+  <div class="m-card">
+    <span class="label">Esplora server</span>
+    <span class="m-input mono" style="font-size:14px;">https://mempool.space/signet/api</span>
+  </div>
+  <div class="m-card">
+    <span class="label">Address type</span>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;"><span class="m-chip on"><span class="dot"></span>Native segwit</span><span class="m-chip"><span class="dot"></span>Taproot</span></div>
+  </div>
+  <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary">Continue</span></div>
+</div><div class="m-home"></div></div></x-dc>
+</body>
+</html>

@@ -71,6 +71,86 @@
       "y": 2320,
       "w": 960,
       "h": 700
+    },
+    {
+      "file": "MSetup.dc.html",
+      "title": "M1 \u00b7 Setup",
+      "x": 0,
+      "y": 3400,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MKey.dc.html",
+      "title": "M2 \u00b7 Start a wallet",
+      "x": 470,
+      "y": 3400,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MCreate.dc.html",
+      "title": "M3 \u00b7 Recovery phrase",
+      "x": 940,
+      "y": 3400,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MRestore.dc.html",
+      "title": "M4 \u00b7 Restore",
+      "x": 1410,
+      "y": 3400,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MUnlock.dc.html",
+      "title": "M5 \u00b7 Unlock",
+      "x": 1880,
+      "y": 3400,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MWallet.dc.html",
+      "title": "M6 \u00b7 Wallet (home)",
+      "x": 0,
+      "y": 4364,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MReceive.dc.html",
+      "title": "M7 \u00b7 Receive",
+      "x": 470,
+      "y": 4364,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MSend.dc.html",
+      "title": "M8 \u00b7 Send",
+      "x": 940,
+      "y": 4364,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MScan.dc.html",
+      "title": "M9 \u00b7 Scan",
+      "x": 1410,
+      "y": 4364,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MSettings.dc.html",
+      "title": "M10 \u00b7 Settings",
+      "x": 1880,
+      "y": 4364,
+      "w": 390,
+      "h": 844
     }
   ],
   "annotations": [
@@ -108,6 +188,20 @@
       "y": -200,
       "w": 520,
       "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."
+    },
+    {
+      "id": "mobile-brief",
+      "x": 0,
+      "y": 3140,
+      "w": 620,
+      "text": "MOBILE \u2014 iOS + Android (Tauri). 390x844 frames.\n\nSame palette and type as the desktop boards; everything else re-scaled for a thumb: 48px controls, 16px input text (anything smaller makes iOS zoom the page on focus), 12px card radius, 999px chips. Status bar, tab bar and home indicator are drawn in so the real usable height is visible.\n\nHome is a balance card over a transaction list, with a fixed bottom tab bar \u2014 Wallet / Scan / Settings. Send and Receive are the two buttons under the balance, not tabs, because they are actions rather than places.\n\nThese are ADDITIVE: no desktop screen changes. Labels stay English to match the rest of the app.\n\nThings worth arguing about before I build it:\n- Wallet / Scan / Settings as the three tabs, or drop Scan into the Send screen and make the third tab something else?\n- M6: BTC as the big number with sats underneath, or the reverse?\n- M3: 12 words in two columns fits without scrolling; a 24-word restore will scroll. OK?\n- M9 Scan is the only dark screen. Deliberate (camera), or make it light?"
+    },
+    {
+      "id": "mobile-native-note",
+      "x": 2350,
+      "y": 4364,
+      "w": 400,
+      "text": "What each mobile-only affordance costs\n\nM7 Receive QR \u2014 pure JS, no native plugin.\nM9 Scan \u2014 tauri-plugin-barcode-scanner, camera permission string in Info.plist and AndroidManifest.\nM5 Unlock \u2014 tauri-plugin-biometric; it authenticates, it does not hold the key, so the key still sits in iOS Keychain / Android Keystore and Face ID gates the read.\nM8 Send also opens from a bitcoin: deep link (tauri-plugin-deep-link), prefilled.\n\nM10 'Show recovery phrase' is behind the same biometric gate."
     }
   ],
   "launch": {

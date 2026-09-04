@@ -1,4 +1,4 @@
-import json, pathlib
+import json, pathlib, random
 
 HEAD = '''<!doctype html>
 <html>
@@ -56,6 +56,15 @@ def icon(name, size=16, color="currentColor"):
       "key": '<circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path>',
       "chevron": '<path d="M9 6l6 6-6 6"></path>',
       "arrow": '<path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path>',
+      # mobile
+      "back": '<path d="M15 6l-6 6 6 6"></path>',
+      "wallet": '<path d="M3 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2"></path><path d="M3 8v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2z"></path><circle cx="17" cy="14" r="1.2"></circle>',
+      "scan": '<path d="M4 8V5a1 1 0 0 1 1-1h3"></path><path d="M16 4h3a1 1 0 0 1 1 1v3"></path><path d="M20 16v3a1 1 0 0 1-1 1h-3"></path><path d="M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M4 12h16"></path>',
+      "gear": '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"></path>',
+      "up": '<path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path>',
+      "down": '<path d="M12 5v14"></path><path d="M18 13l-6 6-6-6"></path>',
+      "share": '<path d="M12 16V4"></path><path d="M8 8l4-4 4 4"></path><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path>',
+      "faceid": '<path d="M4 8V6a2 2 0 0 1 2-2h2"></path><path d="M16 4h2a2 2 0 0 1 2 2v2"></path><path d="M20 16v2a2 2 0 0 1-2 2h-2"></path><path d="M8 20H6a2 2 0 0 1-2-2v-2"></path><path d="M9 10v1.5"></path><path d="M15 10v1.5"></path><path d="M9.5 15.5a3.5 3.5 0 0 0 5 0"></path>',
     }
     return f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths[name]}</svg>'
 
@@ -393,7 +402,276 @@ iconboard = HEAD + f'''<div style="width: 720px; min-height: 480px; background: 
 </div>
 ''' + TAIL
 
-files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Create.dc.html": create, "Restore.dc.html": restore, "Icon.dc.html": iconboard}
+# ---------------------------------------------------------------- mobile
+#
+# 390x844 is the iPhone 14/15/16 logical size and close enough to a modern
+# Android phone. Same palette and type as the desktop boards; everything else
+# is re-scaled for a thumb: 48px controls, 16px input text (below that iOS
+# zooms the page on focus), 12px card radius, 999px chips. The status bar,
+# bottom tab bar and home indicator are drawn in so the usable height is
+# judged honestly rather than assumed.
+
+MOBILE_CSS = '''
+    .m-frame { width: 390px; height: 844px; background: #FAFAF9; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; position: relative; }
+    .m-status { flex: none; height: 54px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 24px 6px; font-size: 15px; font-weight: 600; }
+    .m-sig { display: flex; gap: 6px; align-items: center; }
+    .m-head { flex: none; min-height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
+    .m-head h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+    .m-ico { width: 44px; height: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+    .m-body { flex: 1; min-height: 0; padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+    .m-card { background: #FFFFFF; border: 1px solid #E4E3DF; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .m-hero { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; }
+    .m-sub { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 15px; color: #6B6B66; }
+    .m-btn { flex: 1; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #E4E3DF; border-radius: 12px; background: #FFFFFF; color: #1A1A1A; font-size: 16px; font-weight: 500; box-sizing: border-box; }
+    .m-btn-primary { background: #C2410C; border-color: #C2410C; color: #FFFFFF; }
+    .m-btn-quiet { border-color: transparent; background: transparent; color: #6B6B66; }
+    .m-btn-danger { color: #B91C1C; }
+    .m-input { min-height: 48px; display: flex; align-items: center; padding: 0 14px; border: 1px solid #E4E3DF; border-radius: 12px; background: #FFFFFF; font-size: 16px; box-sizing: border-box; }
+    .m-input.placeholder { color: #A19F97; }
+    .m-chip { min-height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border: 1px solid #E4E3DF; border-radius: 999px; background: #FFFFFF; font-size: 15px; }
+    .m-chip.on { border-color: #1A1A1A; background: #F4F4F2; font-weight: 500; }
+    .m-chip.on .dot { border: 4px solid #C2410C; }
+    .m-tabs { flex: none; height: 83px; border-top: 1px solid #E4E3DF; background: #FFFFFF; display: flex; padding-bottom: 21px; }
+    .m-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #6B6B66; font-size: 11px; font-weight: 500; }
+    .m-tab.on { color: #C2410C; }
+    .m-txrow { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #E4E3DF; }
+    .m-txrow:last-child { border-bottom: none; }
+    .m-dirdot { width: 36px; height: 36px; flex: none; border-radius: 999px; display: flex; align-items: center; justify-content: center; background: #F4F4F2; }
+    .m-amt { margin-left: auto; text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 500; }
+    .m-home { position: absolute; left: 50%; transform: translateX(-50%); bottom: 8px; width: 140px; height: 5px; border-radius: 3px; background: rgba(26,26,26,0.18); }
+    .m-word { display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: #F4F4F2; border-radius: 8px; }
+'''
+
+MHEAD = HEAD.replace("  </style>", MOBILE_CSS + "  </style>")
+
+def m_status():
+    bars = '<svg width="17" height="11" viewBox="0 0 17 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1" fill="#1A1A1A"></rect><rect x="4.7" y="5" width="3" height="6" rx="1" fill="#1A1A1A"></rect><rect x="9.4" y="2.5" width="3" height="8.5" rx="1" fill="#1A1A1A"></rect><rect x="14" y="0" width="3" height="11" rx="1" fill="#1A1A1A"></rect></svg>'
+    batt = '<svg width="25" height="12" viewBox="0 0 25 12" aria-hidden="true"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="#1A1A1A" stroke-opacity="0.35"></rect><rect x="2" y="2" width="16" height="8" rx="1.5" fill="#1A1A1A"></rect><path d="M23 4.2v3.6a2 2 0 0 0 0-3.6z" fill="#1A1A1A" fill-opacity="0.35"></path></svg>'
+    return f'<div class="m-status"><span>9:41</span><span class="m-sig">{bars}{batt}</span></div>'
+
+def m_head(title, left=None, right=None):
+    l = f'<span class="m-ico">{icon(left, 24)}</span>' if left else '<span class="m-ico"></span>'
+    r = f'<span class="m-ico">{icon(right, 24)}</span>' if right else '<span class="m-ico"></span>'
+    return f'<div class="m-head">{l}<h1>{title}</h1>{r}</div>'
+
+def m_tabs(active):
+    out = []
+    for name, label in (("wallet", "Wallet"), ("scan", "Scan"), ("gear", "Settings")):
+        on = " on" if label == active else ""
+        out.append(f'<span class="m-tab{on}">{icon(name, 24, "#C2410C" if label == active else "#6B6B66")}<span>{label}</span></span>')
+    return '<div class="m-tabs">' + "".join(out) + '</div><div class="m-home"></div>'
+
+def phone(body, tabs=None):
+    return MHEAD + f'<div class="m-frame">{m_status()}{body}' + (m_tabs(tabs) if tabs else '<div class="m-home"></div>') + '</div>' + TAIL
+
+def m_tx(dirn, amt, meta, when):
+    up = dirn == "out"
+    glyph = icon("up" if up else "down", 18, "#B45309" if up else "#166534")
+    color = "#1A1A1A" if up else "#166534"
+    return f'''<div class="m-txrow">
+  <span class="m-dirdot">{glyph}</span>
+  <span style="display:flex;flex-direction:column;gap:2px;min-width:0;">
+    <span style="font-size:15px;font-weight:500;">{"Sent" if up else "Received"}</span>
+    <span style="font-size:13px;color:#6B6B66;">{meta} · {when}</span>
+  </span>
+  <span class="m-amt" style="color:{color};">{amt}<br><span style="font-size:12px;color:#A19F97;font-weight:400;">sat</span></span>
+</div>'''
+
+def m_words(words, blanks=()):
+    cells = []
+    for i, w in enumerate(words, 1):
+        inner = ('<span style="flex:1;height:22px;border-bottom:1.5px solid #C2410C;"></span>' if i in blanks
+                 else f'<span style="font-size:15px;font-weight:500;">{w}</span>')
+        cells.append(f'<div class="m-word"><span class="mono" style="font-size:12px;color:#A19F97;width:16px;flex:none;">{i}</span>{inner}</div>')
+    return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' + "".join(cells) + '</div>'
+
+def fake_qr(px=210):
+    """A stand-in QR: real finder patterns, deterministic noise for the payload."""
+    rnd = random.Random(20260904)
+    n, out = 25, []
+    cell = px / n
+    def reserved(x, y):
+        return (x < 8 and y < 8) or (x > n - 9 and y < 8) or (x < 8 and y > n - 9)
+    for y in range(n):
+        for x in range(n):
+            if not reserved(x, y) and rnd.random() < 0.46:
+                out.append(f'<rect x="{x*cell:.2f}" y="{y*cell:.2f}" width="{cell:.2f}" height="{cell:.2f}" fill="#1A1A1A"></rect>')
+    for ox, oy in ((0, 0), (n - 7, 0), (0, n - 7)):
+        out.append(f'<rect x="{ox*cell:.2f}" y="{oy*cell:.2f}" width="{7*cell:.2f}" height="{7*cell:.2f}" fill="#1A1A1A"></rect>')
+        out.append(f'<rect x="{(ox+1)*cell:.2f}" y="{(oy+1)*cell:.2f}" width="{5*cell:.2f}" height="{5*cell:.2f}" fill="#FFFFFF"></rect>')
+        out.append(f'<rect x="{(ox+2)*cell:.2f}" y="{(oy+2)*cell:.2f}" width="{3*cell:.2f}" height="{3*cell:.2f}" fill="#1A1A1A"></rect>')
+    return f'<svg width="{px}" height="{px}" viewBox="0 0 {px} {px}" aria-hidden="true"><rect width="{px}" height="{px}" fill="#FFFFFF"></rect>{"".join(out)}</svg>'
+
+def m_dot():
+    return '<span class="dot"></span>'
+
+msetup = phone(f'''{m_head("Setup")}
+<div class="m-body">
+  <p style="margin:0;font-size:15px;color:#6B6B66;">Which chain, and where to read it from. Both can change later.</p>
+  <div class="m-card">
+    <span class="label">Network</span>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;"><span class="m-chip on">{m_dot()}Signet</span><span class="m-chip">{m_dot()}Testnet4</span><span class="m-chip">{m_dot()}Mainnet</span></div>
+  </div>
+  <div class="m-card">
+    <span class="label">Esplora server</span>
+    <span class="m-input mono" style="font-size:14px;">https://mempool.space/signet/api</span>
+  </div>
+  <div class="m-card">
+    <span class="label">Address type</span>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;"><span class="m-chip on">{m_dot()}Native segwit</span><span class="m-chip">{m_dot()}Taproot</span></div>
+  </div>
+  <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary">Continue</span></div>
+</div>''')
+
+mkey = phone(f'''{m_head("Start a wallet", left="back")}
+<div class="m-body">
+  <div class="m-card">
+    <span style="font-size:17px;font-weight:600;">New wallet</span>
+    <span style="font-size:14px;color:#6B6B66;line-height:1.5;">Generates a 12-word recovery phrase. Write it down — it is the only way back in.</span>
+    <span class="m-btn m-btn-primary">Create new wallet</span>
+  </div>
+  <div class="m-card">
+    <span style="font-size:17px;font-weight:600;">Restore</span>
+    <span style="font-size:14px;color:#6B6B66;line-height:1.5;">Already have a recovery phrase from this or another wallet.</span>
+    <span class="m-btn">Restore from phrase</span>
+  </div>
+  <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-quiet">Advanced: use a single key</span></div>
+</div>''')
+
+mcreate = phone(f'''{m_head("Recovery phrase", left="back")}
+<div class="m-body" style="gap:12px;">
+  <p style="margin:0;font-size:14px;color:#6B6B66;line-height:1.5;">Write these 12 words down in order and keep them offline. Anyone with them owns this wallet.</p>
+  {m_words(WORDS)}
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#FFF7ED;border:1px solid #E4E3DF;border-radius:12px;">
+    <span style="width:18px;height:18px;border:1.5px solid #A19F97;border-radius:4px;flex:none;"></span>
+    <span style="font-size:14px;">I have written them down</span>
+  </div>
+  <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary">Continue</span></div>
+</div>''')
+
+mrestore = phone(f'''{m_head("Restore wallet", left="back")}
+<div class="m-body" style="gap:12px;">
+  <div style="display:flex;gap:8px;"><span class="m-chip on">12 words</span><span class="m-chip">24 words</span></div>
+  {m_words(WORDS[:6] + ["", "", "", "", "", ""], blanks=(7, 8, 9, 10, 11, 12))}
+  <span style="font-size:13px;color:#6B6B66;">Each word is checked against the BIP39 list as you type.</span>
+  <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px;">
+    <span class="m-btn m-btn-quiet" style="flex:none;">Add a passphrase (optional)</span>
+    <span class="m-btn m-btn-primary" style="flex:none;opacity:0.45;">Restore</span>
+  </div>
+</div>''')
+
+munlock = phone(f'''<div class="m-body" style="justify-content:center;align-items:center;gap:24px;padding:0 32px 64px;">
+  <span style="width:76px;height:76px;border-radius:999px;background:#FFFFFF;border:1px solid #E4E3DF;display:flex;align-items:center;justify-content:center;">{icon("faceid", 36, "#C2410C")}</span>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center;">
+    <span style="font-size:20px;font-weight:600;">Unlock wallet</span>
+    <span class="mono" style="font-size:13px;color:#6B6B66;">{ADDR[:14]}…{ADDR[-6:]}</span>
+    <span style="font-size:13px;color:#6B6B66;">Signet · native segwit</span>
+  </div>
+  <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
+    <span class="m-btn m-btn-primary" style="flex:none;">{icon("faceid", 20, "#FFFFFF")} Unlock with Face ID</span>
+    <span class="m-btn m-btn-quiet" style="flex:none;">Use a different wallet</span>
+  </div>
+</div>''')
+
+mwallet = phone(f'''{m_head("Wallet", right="gear")}
+<div class="m-body" style="gap:14px;">
+  <div class="m-card" style="gap:6px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="pill" style="font-size:12px;"><span class="pill-dot"></span>Signet · mempool.space</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#6B6B66;">{icon("refresh", 13, "#6B6B66")} 2 min ago</span>
+    </div>
+    <span class="m-hero">0.00412000</span>
+    <span class="m-sub">412,000 sat</span>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <span class="m-btn m-btn-primary">{icon("up", 19, "#FFFFFF")} Send</span>
+    <span class="m-btn">{icon("down", 19)} Receive</span>
+  </div>
+  <div class="m-card" style="gap:0;padding:4px 16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px;">
+      <span class="label">Transactions</span><span style="font-size:13px;color:#C2410C;">See all</span>
+    </div>
+    {m_tx("in", "+120,000", "3 confirmations", "Aug 30")}
+    {m_tx("out", "−50,000", "Pending", "Aug 30")}
+    {m_tx("in", "+342,000", "12 confirmations", "Aug 28")}
+  </div>
+</div>''', tabs="Wallet")
+
+mreceive = phone(f'''{m_head("Receive", left="back")}
+<div class="m-body" style="align-items:center;gap:16px;">
+  <div class="m-card" style="align-items:center;gap:14px;width:100%;box-sizing:border-box;">
+    <div style="padding:12px;background:#FFFFFF;border-radius:12px;">{fake_qr(210)}</div>
+    <span class="mono" style="font-size:13px;text-align:center;word-break:break-all;line-height:1.6;">{ADDR}</span>
+    <span style="font-size:12px;color:#6B6B66;">Unused address · index 4</span>
+  </div>
+  <div style="display:flex;gap:10px;width:100%;">
+    <span class="m-btn">{icon("copy", 19)} Copy</span>
+    <span class="m-btn">{icon("share", 19)} Share</span>
+  </div>
+  <span class="m-btn m-btn-quiet" style="flex:none;">Request a specific amount</span>
+</div>''', tabs="Wallet")
+
+msend = phone(f'''{m_head("Send", left="back")}
+<div class="m-body" style="gap:12px;">
+  <div class="m-card">
+    <span class="label">To</span>
+    <div style="display:flex;gap:8px;">
+      <span class="m-input mono placeholder" style="flex:1;font-size:14px;min-width:0;">bc1 / tb1 address</span>
+      <span class="m-btn" style="flex:none;width:48px;padding:0;">{icon("scan", 22)}</span>
+    </div>
+  </div>
+  <div class="m-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="label">Amount</span><span style="font-size:13px;color:#C2410C;font-weight:500;">Max</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <span class="m-input mono" style="flex:1;font-size:18px;">120,000</span>
+      <span style="display:flex;gap:4px;flex:none;"><span class="m-chip on" style="min-height:48px;">sat</span><span class="m-chip" style="min-height:48px;">BTC</span></span>
+    </div>
+    <span style="font-size:13px;color:#6B6B66;">Spendable 412,000 sat</span>
+  </div>
+  <div class="m-card">
+    <span class="label">Fee</span>
+    <div style="display:flex;gap:8px;"><span class="m-chip">1 block</span><span class="m-chip on">3 blocks</span><span class="m-chip">6 blocks</span></div>
+    <span style="font-size:13px;color:#6B6B66;">2.4 sat/vB · about 340 sat</span>
+  </div>
+  <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary">Review</span></div>
+</div>''')
+
+mscan = phone(f'''<div style="flex:1;position:relative;background:#131312;display:flex;flex-direction:column;">
+  <div class="m-head" style="color:#ECEAE4;"><span class="m-ico">{icon("x", 24, "#ECEAE4")}</span><h1 style="color:#ECEAE4;">Scan</h1><span class="m-ico"></span></div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;">
+    <div style="position:relative;width:250px;height:250px;">
+      <span style="position:absolute;inset:0;border-radius:20px;background:rgba(236,234,228,0.05);"></span>
+      <span style="position:absolute;left:0;top:0;width:44px;height:44px;border-top:3px solid #C2410C;border-left:3px solid #C2410C;border-radius:20px 0 0 0;"></span>
+      <span style="position:absolute;right:0;top:0;width:44px;height:44px;border-top:3px solid #C2410C;border-right:3px solid #C2410C;border-radius:0 20px 0 0;"></span>
+      <span style="position:absolute;left:0;bottom:0;width:44px;height:44px;border-bottom:3px solid #C2410C;border-left:3px solid #C2410C;border-radius:0 0 0 20px;"></span>
+      <span style="position:absolute;right:0;bottom:0;width:44px;height:44px;border-bottom:3px solid #C2410C;border-right:3px solid #C2410C;border-radius:0 0 20px 0;"></span>
+    </div>
+    <span style="color:#ECEAE4;font-size:15px;">Point at an address or bitcoin: QR</span>
+  </div>
+  <div style="padding:0 16px 28px;display:flex;"><span class="m-btn" style="background:rgba(236,234,228,0.12);border-color:transparent;color:#ECEAE4;">Paste from clipboard</span></div>
+</div>''', tabs="Scan")
+
+msettings = phone(f'''{m_head("Settings")}
+<div class="m-body" style="gap:14px;">
+  <div class="m-card" style="gap:0;padding:0;">
+    {"".join(f'<div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:1px solid #E4E3DF;"><span style="font-size:16px;">{k}</span><span style="display:flex;align-items:center;gap:6px;font-size:15px;color:#6B6B66;">{v}{icon("chevron", 17, "#A19F97")}</span></div>' for k, v in (("Network", "Signet"), ("Esplora server", "mempool.space"), ("Address type", "Native segwit")))}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;"><span style="font-size:16px;">Unit</span><span style="display:flex;align-items:center;gap:6px;font-size:15px;color:#6B6B66;">sat{icon("chevron", 17, "#A19F97")}</span></div>
+  </div>
+  <div class="m-card" style="gap:0;padding:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:1px solid #E4E3DF;"><span style="font-size:16px;">Unlock with Face ID</span><span style="width:50px;height:30px;border-radius:999px;background:#C2410C;display:flex;align-items:center;justify-content:flex-end;padding:2px;box-sizing:border-box;"><span style="width:26px;height:26px;border-radius:999px;background:#FFFFFF;"></span></span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;"><span style="font-size:16px;">Show recovery phrase</span>{icon("chevron", 17, "#A19F97")}</div>
+  </div>
+  <div class="m-card" style="gap:0;padding:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;"><span style="font-size:16px;color:#B91C1C;">Forget this wallet</span>{icon("chevron", 17, "#A19F97")}</div>
+  </div>
+  <span style="margin-top:auto;text-align:center;font-size:12px;color:#A19F97;">Bitcoin Wallet 0.1.0</span>
+</div>''', tabs="Settings")
+
+files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Create.dc.html": create, "Restore.dc.html": restore, "Icon.dc.html": iconboard,
+         "MSetup.dc.html": msetup, "MKey.dc.html": mkey, "MCreate.dc.html": mcreate, "MRestore.dc.html": mrestore, "MUnlock.dc.html": munlock,
+         "MWallet.dc.html": mwallet, "MReceive.dc.html": mreceive, "MSend.dc.html": msend, "MScan.dc.html": mscan, "MSettings.dc.html": msettings}
 for n, c in files.items(): pathlib.Path(n).write_text(c)
 
 canvas = {
@@ -407,13 +685,28 @@ canvas = {
     {"file": "Unlock.dc.html", "title": "2b · Unlock (returning user)", "x": 0, "y": 2320, "w": 960, "h": 640},
     {"file": "Create.dc.html", "title": "2c · New wallet (recovery phrase)", "x": 1040, "y": 2320, "w": 960, "h": 760},
     {"file": "Restore.dc.html", "title": "2d · Restore wallet", "x": 2080, "y": 2320, "w": 960, "h": 700},
+    # Mobile row 1 — getting in. 390x844, spaced 470/964 so the name strips and
+    # tweak chips above each frame never collide.
+    {"file": "MSetup.dc.html", "title": "M1 · Setup", "x": 0, "y": 3400, "w": 390, "h": 844},
+    {"file": "MKey.dc.html", "title": "M2 · Start a wallet", "x": 470, "y": 3400, "w": 390, "h": 844},
+    {"file": "MCreate.dc.html", "title": "M3 · Recovery phrase", "x": 940, "y": 3400, "w": 390, "h": 844},
+    {"file": "MRestore.dc.html", "title": "M4 · Restore", "x": 1410, "y": 3400, "w": 390, "h": 844},
+    {"file": "MUnlock.dc.html", "title": "M5 · Unlock", "x": 1880, "y": 3400, "w": 390, "h": 844},
+    # Mobile row 2 — using it.
+    {"file": "MWallet.dc.html", "title": "M6 · Wallet (home)", "x": 0, "y": 4364, "w": 390, "h": 844},
+    {"file": "MReceive.dc.html", "title": "M7 · Receive", "x": 470, "y": 4364, "w": 390, "h": 844},
+    {"file": "MSend.dc.html", "title": "M8 · Send", "x": 940, "y": 4364, "w": 390, "h": 844},
+    {"file": "MScan.dc.html", "title": "M9 · Scan", "x": 1410, "y": 4364, "w": 390, "h": 844},
+    {"file": "MSettings.dc.html", "title": "M10 · Settings", "x": 1880, "y": 4364, "w": 390, "h": 844},
   ],
   "annotations": [
     {"id": "hd-note", "x": 3120, "y": 2320, "w": 400, "text": "Roadmap 6 - HD wallet\n\nKey screen becomes a choice: New wallet (BIP39 phrase), Restore wallet, or Advanced: single key (what the app does today).\n\nNew wallet shows the 12 words once, then makes you fill three back in before it will continue. Restore validates each word against the BIP39 list and can take an optional passphrase.\n\nOnce HD, the dashboard's receive address is the next UNUSED one and change goes to a separate internal keychain."},
     {"id": "bump-note", "x": 3120, "y": 1180, "w": 380, "text": "Roadmap 7 + 8\n\nHistory: an unconfirmed OUTGOING row gets a \"Bump fee\" button (BDK signals RBF on everything we build). Confirmed and incoming rows show nothing.\n\nSend: amount takes sat or BTC via the unit chips; \"Max\" fills the spendable balance minus fee. An address that fails validation turns the field red with the reason underneath, and Review stays disabled."},
     {"id": "history-note", "x": 3120, "y": 0, "w": 380, "text": "Roadmap item 4 — Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row → explorer (later)."},
     {"id": "unlock-note", "x": 1040, "y": 2080, "w": 420, "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."},
-    {"id": "brief", "x": 0, "y": -200, "w": 520, "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."}
+    {"id": "brief", "x": 0, "y": -200, "w": 520, "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."},
+    {"id": "mobile-brief", "x": 0, "y": 3140, "w": 620, "text": "MOBILE — iOS + Android (Tauri). 390x844 frames.\n\nSame palette and type as the desktop boards; everything else re-scaled for a thumb: 48px controls, 16px input text (anything smaller makes iOS zoom the page on focus), 12px card radius, 999px chips. Status bar, tab bar and home indicator are drawn in so the real usable height is visible.\n\nHome is a balance card over a transaction list, with a fixed bottom tab bar — Wallet / Scan / Settings. Send and Receive are the two buttons under the balance, not tabs, because they are actions rather than places.\n\nThese are ADDITIVE: no desktop screen changes. Labels stay English to match the rest of the app.\n\nThings worth arguing about before I build it:\n- Wallet / Scan / Settings as the three tabs, or drop Scan into the Send screen and make the third tab something else?\n- M6: BTC as the big number with sats underneath, or the reverse?\n- M3: 12 words in two columns fits without scrolling; a 24-word restore will scroll. OK?\n- M9 Scan is the only dark screen. Deliberate (camera), or make it light?"},
+    {"id": "mobile-native-note", "x": 2350, "y": 4364, "w": 400, "text": "What each mobile-only affordance costs\n\nM7 Receive QR — pure JS, no native plugin.\nM9 Scan — tauri-plugin-barcode-scanner, camera permission string in Info.plist and AndroidManifest.\nM5 Unlock — tauri-plugin-biometric; it authenticates, it does not hold the key, so the key still sits in iOS Keychain / Android Keystore and Face ID gates the read.\nM8 Send also opens from a bitcoin: deep link (tauri-plugin-deep-link), prefilled.\n\nM10 'Show recovery phrase' is behind the same biometric gate."}
   ],
   "launch": {"view": "canvas"}
 }
