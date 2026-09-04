@@ -10,9 +10,15 @@ rust-version.workspace = true
 [features]
 default = ["backend-esplora", "keystore-native"]
 backend-esplora = ["dep:bdk_esplora"]
-# OS credential store (macOS Keychain, Windows Credential Manager, Secret Service,
-# iOS Keychain). Native only; see keystore.rs for what each platform resolves to.
-keystore-native = ["dep:keyring", "dep:apple-native-keyring-store"]
+# OS credential store: macOS Keychain, Windows Credential Manager, Secret Service,
+# iOS Keychain, Android Keystore. Native only; keystore.rs says what each platform
+# resolves to and why mobile takes a different route.
+keystore-native = [
+  "dep:keyring",
+  "dep:keyring-core",
+  "dep:apple-native-keyring-store",
+  "dep:android-native-keyring-store",
+]
 
 [dependencies]
 bdk_wallet = { workspace = true }
@@ -27,14 +33,25 @@ zeroize = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bdk_esplora = { version = "0.22.2", default-features = false, features = ["async-https-rustls", "tokio"], optional = true }
+
+# Desktop only: `keyring`'s `v1` wrapper finds and installs the OS store itself.
+# It is deliberately absent on mobile, where that wrapper refuses to work at all.
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "ios"), not(target_os = "android")))'.dependencies]
 keyring = { version = "4", default-features = false, features = ["v1"], optional = true }
 
+# Mobile talks to keyring-core directly and installs its own store; see keystore.rs.
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+keyring-core = { version = "1", optional = true }
+
 [target.'cfg(target_os = "ios")'.dependencies]
-# `keyring`'s `v1` feature pulls this crate in for every Apple target but only
-# turns on its `keychain` module, which is macOS-only. On iOS the crate then
-# refuses to compile at all ("The `protected` feature is required on iOS").
-# `protected` is the modern Keychain Services path and the only one iOS has.
+# `protected` is the modern Keychain Services path and the only one iOS has;
+# without it this crate refuses to compile there at all.
 apple-native-keyring-store = { version = "1", features = ["protected"], optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# SharedPreferences encrypted with an AES/GCM key held in the Android Keystore.
+# It needs `ndk_context` initialised, which Tauri does via tao's ndk_glue.
+android-native-keyring-store = { version = "1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # The browser supplies TLS; reqwest uses `fetch` here.

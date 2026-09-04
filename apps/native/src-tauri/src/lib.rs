@@ -21,6 +21,17 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .manage(state::AppState::default())
+        .setup(|app| {
+            // The mobile credential stores are installed at runtime and can fail
+            // on a device while compiling perfectly well on CI, so ask now
+            // rather than when someone first presses "Remember on this device".
+            // Not fatal: everything except remembering a key still works.
+            use tauri::Manager;
+            if let Err(e) = app.state::<state::AppState>().keystore().self_check() {
+                eprintln!("keystore unavailable: {e} — \"Remember on this device\" will fail");
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::set_config,
