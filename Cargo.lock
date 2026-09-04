@@ -5578,6 +5578,7 @@ dependencies = [
 name = "wallet-core"
 version = "0.1.0"
 dependencies = [
+ "apple-native-keyring-store",
  "async-lock",
  "async-trait",
  "bdk_esplora",
