@@ -91,16 +91,25 @@ mod backend {
             if INSTALLED.load(Ordering::Acquire) {
                 return Ok(());
             }
-            #[cfg(target_os = "ios")]
-            let store = apple_native_keyring_store::protected::Store::new();
-            #[cfg(target_os = "android")]
-            let store = android_native_keyring_store::Store::new();
-            // The closure is load-bearing: `Arc<Store>` only unsize-coerces to
-            // `Arc<dyn CredentialStoreApi>` at a call site, not when the
-            // function is passed to `map` by reference.
-            let installed = store
-                .map(|s| keyring_core::set_default_store(s))
-                .map_err(|e| e.to_string());
+            // Android's store reaches the Keystore through `ndk_context`, which
+            // *panics* rather than erroring when no context has been installed
+            // — and unwinding out of that panic crosses the JNI boundary. Catch
+            // it here and report it as the ordinary failure it is.
+            let built = std::panic::catch_unwind(|| {
+                #[cfg(target_os = "ios")]
+                let store = apple_native_keyring_store::protected::Store::new();
+                #[cfg(target_os = "android")]
+                let store = android_native_keyring_store::Store::new();
+                // The closure is load-bearing: `Arc<Store>` only unsize-coerces
+                // to `Arc<dyn CredentialStoreApi>` at a call site, not when the
+                // function is passed to `map` by reference.
+                store
+                    .map(|s| keyring_core::set_default_store(s))
+                    .map_err(|e| e.to_string())
+            });
+            let installed = built.unwrap_or_else(|_| {
+                Err("the platform credential store panicked while starting up".to_owned())
+            });
             // Two threads racing here both install an equivalent store, and the
             // second simply replaces the first. Harmless.
             if installed.is_ok() {
