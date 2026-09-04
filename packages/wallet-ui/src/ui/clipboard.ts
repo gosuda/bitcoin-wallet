@@ -1,4 +1,4 @@
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { platform } from "../platform";
 import { button, setButtonLabel } from "./dom";
 
 /** "Copy" button with a copy icon that briefly confirms success. */
@@ -11,7 +11,7 @@ export function copyButton(
     label,
     async () => {
       try {
-        await writeText(getText());
+        await platform().writeClipboard(getText());
         setButtonLabel(btn, "Copied");
       } catch {
         setButtonLabel(btn, "Failed");

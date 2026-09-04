@@ -1,4 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { platform } from "../platform";
 import { navigate } from "../router";
 import { session } from "../session";
 import { errorMessage } from "../types";
@@ -26,7 +26,7 @@ export function renderResult(): HTMLElement {
     () =>
       withBusy(openBtn, async () => {
         try {
-          await openUrl(result.explorer_url);
+          await platform().openUrl(result.explorer_url);
         } catch (e) {
           alert.show("error", `Could not open ${result.explorer_url}: ${errorMessage(e)}`);
         }

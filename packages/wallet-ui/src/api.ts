@@ -2,15 +2,14 @@
  * The app's single entry point to the wallet.
  *
  * Everything wallet-shaped runs in the webview against the WASM core held in
- * `session.handle`, with public state in IndexedDB. Tauri is a native shell:
- * it owns the config store (`get_config` / `set_config`) and the OS keystore
- * (`remember_secret` / `load_secret` / `forget_secret`). Nothing else crosses
- * the IPC boundary, and no secret is ever persisted by this module.
+ * `session.handle`, with public state in IndexedDB. The shell — Tauri window or
+ * browser tab — is reached only through `Platform`: it owns the config record,
+ * the remembered-wallet record and the key store. Nothing else crosses that
+ * boundary, and no secret is ever persisted by this module.
  */
 
-import { invoke } from "@tauri-apps/api/core";
-import { load as loadStore } from "@tauri-apps/plugin-store";
 import { deleteWalletState, makePersister } from "./persist/indexeddb";
+import { platform } from "./platform";
 import { session } from "./session";
 import type {
   AddressType,
@@ -23,7 +22,6 @@ import type {
   Network,
   Recipient,
   RememberedWallet,
-  StoredSecret,
   TxPreview,
   TxSummary,
   Utxo,
@@ -40,9 +38,6 @@ import {
   walletIdForKey,
 } from "./wasm";
 
-const STORE_FILE = "config.json";
-const REMEMBERED_KEY = "remembered_wallet";
-
 /** PSBTs awaiting confirmation, keyed by the id handed to the Send screen. */
 const pending = new Map<string, string>();
 let psbtCounter = 0;
@@ -54,21 +49,10 @@ function requireWallet(): WalletApi {
 }
 
 async function requireConfig(): Promise<AppConfig> {
-  const config = session.config ?? (await invoke<AppConfig>("get_config"));
+  const config = session.config ?? (await platform().getConfig());
+  if (!config) throw new WalletError("no_config", "the app is not configured yet");
   session.config = config;
   return config;
-}
-
-async function remembered(): Promise<RememberedWallet | null> {
-  const store = await loadStore(STORE_FILE);
-  return (await store.get<RememberedWallet>(REMEMBERED_KEY)) ?? null;
-}
-
-async function saveRemembered(record: RememberedWallet | null): Promise<void> {
-  const store = await loadStore(STORE_FILE);
-  if (record) await store.set(REMEMBERED_KEY, record);
-  else await store.delete(REMEMBERED_KEY);
-  await store.save();
 }
 
 /** Drops the open wallet and anything derived from it. */
@@ -127,18 +111,14 @@ async function openWallet(
   const { network } = await requireConfig();
   const info = await install(secret, network, addressType, passphrase);
   if (remember) {
-    await invoke<void>("remember_secret", {
-      walletId: info.wallet_id,
-      secret,
-      passphrase: passphrase ?? null,
-    });
+    await platform().rememberSecret(info.wallet_id, secret, passphrase);
     const record: RememberedWallet = {
       wallet_id: info.wallet_id,
       address: info.address,
       network: info.network,
       address_type: info.address_type,
     };
-    await saveRemembered(record);
+    await platform().setRemembered(record);
   }
   return info;
 }
@@ -150,9 +130,9 @@ async function openWallet(
 async function unlockWallet(): Promise<WalletInfo> {
   const notRemembered = () =>
     new WalletError("not_remembered", "no wallet is saved on this device");
-  const record = await remembered();
+  const record = await platform().getRemembered();
   if (!record) throw notRemembered();
-  const stored = await invoke<StoredSecret | null>("load_secret", { walletId: record.wallet_id });
+  const stored = await platform().loadSecret(record.wallet_id);
   if (!stored?.secret) throw notRemembered();
   return install(
     stored.secret,
@@ -164,12 +144,12 @@ async function unlockWallet(): Promise<WalletInfo> {
 
 /** Removes the keystore entry, the local wallet state and the remembered record. */
 async function forgetWallet(): Promise<void> {
-  const record = await remembered();
+  const record = await platform().getRemembered();
   if (record) {
-    await invoke<void>("forget_secret", { walletId: record.wallet_id });
+    await platform().forgetSecret(record.wallet_id);
     await deleteWalletState(record.wallet_id);
   }
-  await saveRemembered(null);
+  await platform().setRemembered(null);
   releaseWallet();
 }
 
@@ -243,8 +223,8 @@ async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
 }
 
 export const api = {
-  getConfig: () => invoke<AppConfig>("get_config"),
-  setConfig: (config: AppConfig) => invoke<void>("set_config", { config }),
+  getConfig: (): Promise<AppConfig | null> => platform().getConfig(),
+  setConfig: (config: AppConfig): Promise<void> => platform().setConfig(config),
   generateKey: (network: Network, addressType: AddressType): Promise<GeneratedKey> =>
     generateKey(network, addressType),
   generateMnemonic: (
@@ -256,7 +236,7 @@ export const api = {
   openWallet: (secret: string, addressType: AddressType, remember: boolean, passphrase?: string) =>
     openWallet(secret, addressType, remember, passphrase),
   closeWallet: async (): Promise<void> => releaseWallet(),
-  getRemembered: (): Promise<RememberedWallet | null> => remembered(),
+  getRemembered: (): Promise<RememberedWallet | null> => platform().getRemembered(),
   unlockWallet: () => unlockWallet(),
   forgetWallet: () => forgetWallet(),
   sync: (): Promise<Balance> => syncWallet(),

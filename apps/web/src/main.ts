@@ -1,6 +1,6 @@
 import { boot } from "@bitcoin-wallet/ui";
 import { setPlatform } from "@bitcoin-wallet/ui/platform";
-import { tauriPlatform } from "./platform-tauri";
+import { browserPlatform } from "./platform-browser";
 
-setPlatform(tauriPlatform);
+setPlatform(browserPlatform);
 void boot();

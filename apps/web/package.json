@@ -1,5 +1,5 @@
 {
-  "name": "bitcoin-wallet-desktop",
+  "name": "bitcoin-wallet-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,19 +9,13 @@
     "preview": "vite preview",
     "check": "biome check .",
     "format": "biome check --write .",
-    "typecheck": "tsc --noEmit",
-    "tauri": "tauri"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@bitcoin-wallet/ui": "workspace:*",
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-opener": "^2.5.4",
-    "@tauri-apps/plugin-store": "^2.4.4"
+    "@bitcoin-wallet/ui": "workspace:*"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",
-    "@tauri-apps/cli": "^2.11.4",
     "typescript": "^5.9.3",
     "vite": "^7.1.0"
   }

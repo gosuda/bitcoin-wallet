@@ -4,8 +4,7 @@ import { session } from "../session";
 import { ADDRESS_TYPE_LABELS, backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { banner, button, el, kv, mono, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
-
-const KEYCHAIN_NAME = navigator.platform.startsWith("Mac") ? "macOS Keychain" : "OS keychain";
+import { KEYCHAIN_NAME } from "../ui/remember";
 
 export function renderUnlock(): HTMLElement {
   const cfg = session.config;
