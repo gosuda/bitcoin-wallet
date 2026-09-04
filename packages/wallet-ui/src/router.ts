@@ -7,6 +7,11 @@ export const ROUTES = [
   "dashboard",
   "send",
   "result",
+  // Mobile-only destinations. Harmless on desktop, which simply never links
+  // to them; the shell decides which routes it can render.
+  "receive",
+  "scan",
+  "settings",
 ] as const;
 export type Route = (typeof ROUTES)[number];
 

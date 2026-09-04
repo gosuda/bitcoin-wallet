@@ -24,3 +24,10 @@ tauri = { version = "2.11", features = [] }
 tauri-plugin-store = "2.4"
 tauri-plugin-clipboard-manager = "2.3"
 tauri-plugin-opener = "2.5"
+
+# Mobile-only: the desktop build has no camera, no biometrics and registers no
+# URI scheme, and these plugins do not build for it.
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+tauri-plugin-barcode-scanner = "2.4"
+tauri-plugin-biometric = "2.3"
+tauri-plugin-deep-link = "2.4"

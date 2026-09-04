@@ -16,10 +16,20 @@ mod state;
 /// through this attribute, which is why the logic does not live in `main.rs`.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+
+    // Camera, biometrics and the `bitcoin:` scheme exist only on a phone, and
+    // these plugins do not build for desktop at all.
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    let builder = builder
+        .plugin(tauri_plugin_barcode_scanner::init())
+        .plugin(tauri_plugin_biometric::init())
+        .plugin(tauri_plugin_deep_link::init());
+
+    builder
         .manage(state::AppState::default())
         .setup(|app| {
             // The mobile credential stores are installed at runtime and can fail

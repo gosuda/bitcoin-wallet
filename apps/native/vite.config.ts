@@ -10,7 +10,10 @@ export default defineConfig({
     host: host ?? false,
     watch: { ignored: ["**/src-tauri/**"] },
   },
-  envPrefix: ["VITE_", "TAURI_ENV_*"],
+  // Vite matches these as literal prefixes, so the "TAURI_ENV_*" spelling
+  // that reads like a glob silently matches nothing and every TAURI_ENV_
+  // value arrives as undefined.
+  envPrefix: ["VITE_", "TAURI_ENV_"],
   build: {
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
     minify: process.env.TAURI_ENV_DEBUG ? false : "esbuild",

@@ -33,9 +33,41 @@ export async function keystoreAvailable(): Promise<boolean> {
   }
 }
 
-export function tauriPlatform(canRememberWallet: boolean): Platform {
+/**
+ * Reads one QR code with the camera, or `null` when the user backs out.
+ *
+ * The plugin is imported lazily so the desktop bundle never loads it, and a
+ * cancel is reported by the plugin as an error rather than a value — hence the
+ * message check rather than a plain rethrow.
+ */
+async function scanQr(): Promise<string | null> {
+  const { scan, Format, cancel } = await import("@tauri-apps/plugin-barcode-scanner");
+  try {
+    const result = await scan({ windowed: false, formats: [Format.QRCode] });
+    return result.content;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (/cancel/i.test(message)) return null;
+    throw e;
+  } finally {
+    // Leaving the camera running would keep the preview over the next screen.
+    await cancel().catch(() => undefined);
+  }
+}
+
+async function authenticate(reason: string): Promise<void> {
+  const { authenticate: prompt, checkStatus } = await import("@tauri-apps/plugin-biometric");
+  const status = await checkStatus();
+  // No enrolled biometrics is not a failure to authenticate — it just means
+  // there is nothing to ask, and the OS key store is still the boundary.
+  if (!status.isAvailable) return;
+  await prompt(reason, { allowDeviceCredential: true });
+}
+
+export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Platform {
   return {
     canRememberWallet,
+    ...(mobile ? { scanQr, authenticate } : {}),
 
     getConfig: () => invoke<AppConfig>("get_config"),
     setConfig: (config) => invoke<void>("set_config", { config }),
