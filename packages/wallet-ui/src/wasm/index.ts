@@ -227,6 +227,11 @@ export class WalletApi {
     return this.inner.is_hd;
   }
 
+  /** Public keys only: watches and receives, cannot sign. */
+  get isWatchOnly(): boolean {
+    return this.inner.is_watch_only;
+  }
+
   address(): Promise<string> {
     return this.inner.address();
   }

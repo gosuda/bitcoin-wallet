@@ -270,6 +270,14 @@ impl Wallet {
         self.inner.is_hd()
     }
 
+    /// Whether this wallet holds only public keys: it watches and receives,
+    /// and `sign` refuses. Opened by passing an xpub or a public descriptor
+    /// as the `secret`.
+    #[wasm_bindgen(getter)]
+    pub fn is_watch_only(&self) -> bool {
+        self.inner.is_watch_only()
+    }
+
     /// The address to receive at: the next unused one for HD, the single
     /// address otherwise. Stable until it is used.
     pub async fn address(&self) -> String {

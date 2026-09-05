@@ -208,6 +208,7 @@ pub struct WalletHandle {
     address_type: AddressType,
     id: String,
     is_hd: bool,
+    watch_only: bool,
 }
 
 fn now_secs() -> u64 {
@@ -245,6 +246,7 @@ impl WalletHandle {
         let descriptors = descriptors_for(key, config.network, config.address_type)?;
         let id = wallet_id(key, config.network, config.address_type)?;
         let is_hd = matches!(descriptors, Descriptors::Hd { .. });
+        let watch_only = key.is_watch_only();
 
         let stored = persister.initialize().await?;
         let fresh = stored.is_empty();
@@ -289,6 +291,7 @@ impl WalletHandle {
             address_type: config.address_type,
             id,
             is_hd,
+            watch_only,
         })
     }
 
@@ -323,6 +326,12 @@ impl WalletHandle {
     /// rather than a single key.
     pub fn is_hd(&self) -> bool {
         self.is_hd
+    }
+
+    /// Whether this wallet holds only public keys: it watches and receives,
+    /// and [`Self::sign`] refuses.
+    pub fn is_watch_only(&self) -> bool {
+        self.watch_only
     }
 
     /// The public descriptors, plus the account xpub and fingerprint for an
@@ -758,6 +767,11 @@ impl WalletHandle {
 
     /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
     pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
+        if self.watch_only {
+            return Err(Error::Unsupported(
+                "a watch-only wallet cannot sign: it holds no private keys".into(),
+            ));
+        }
         let mut psbt = Psbt::from_str(psbt_base64).map_err(|e| Error::Psbt(e.to_string()))?;
         let inner = self.inner.lock().await;
         let finalized = inner
@@ -1456,5 +1470,43 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn watch_only_mirrors_the_account_and_cannot_sign() {
+        let (full, _) = open_hd(AddressType::P2wpkh).await;
+        let public = full.public_descriptors().await;
+        let (watch, _) = open_key(AddressType::P2wpkh, KeyMaterial::parse(&public.external)).await;
+
+        assert!(watch.is_watch_only() && !full.is_watch_only());
+        assert!(watch.is_hd(), "a ranged descriptor has a change keychain");
+        assert_eq!(watch.address().await, full.address().await);
+        assert_eq!(
+            watch.new_address().await.unwrap(),
+            full.new_address().await.unwrap()
+        );
+        assert_ne!(watch.id(), full.id());
+        assert!(watch.id().contains("-watch-"), "{}", watch.id());
+        assert_eq!(
+            watch.public_descriptors().await,
+            public,
+            "exporting it again is a no-op"
+        );
+
+        // It can build — someone else could sign — but it cannot sign.
+        fund(&watch, 100_000).await;
+        let built = watch
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2wpkh),
+                    amount_sat: 10_000,
+                }],
+                1.0,
+            )
+            .await
+            .unwrap();
+        let err = watch.sign(&built.psbt_base64).await.unwrap_err();
+        assert_eq!(err.code(), "unsupported");
+        assert!(err.to_string().contains("watch-only"), "{err}");
     }
 }

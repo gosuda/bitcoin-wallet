@@ -10,10 +10,14 @@
 //!   keychains — BIP44 for p2pkh, BIP49 for np2wpkh, BIP84 for p2wpkh and
 //!   BIP86 for p2tr. The coin type follows the network, as the templates define
 //!   it (`0'` on mainnet, `1'` everywhere else).
+//! - **watch-only** ([`KeyMaterial::WatchOnly`]): the public half of either —
+//!   an account xpub or a public descriptor. It sees balance and history and
+//!   can hand out addresses, and it cannot sign.
 
 use std::fmt;
 
 use bdk_wallet::KeychainKind;
+use bdk_wallet::bitcoin::hashes::{Hash, hash160};
 use bdk_wallet::bitcoin::key::{CompressedPublicKey, Secp256k1};
 use bdk_wallet::bitcoin::{Address, NetworkKind, PrivateKey, PublicKey};
 use bdk_wallet::descriptor::{ExtendedDescriptor, IntoWalletDescriptor};
@@ -90,6 +94,11 @@ pub enum KeyMaterial {
         words: String,
         passphrase: Option<String>,
     },
+    /// An account xpub or a public descriptor: a wallet that watches and
+    /// receives but cannot spend. Kept as the user gave it, so it round-trips
+    /// through [`Self::parse`] like the other variants; expansion into
+    /// descriptors happens at open time, when the address type is known.
+    WatchOnly(String),
 }
 
 impl fmt::Debug for KeyMaterial {
@@ -110,6 +119,9 @@ impl KeyMaterial {
                 words: normalize_mnemonic(trimmed),
                 passphrase: None,
             };
+        }
+        if looks_watch_only(trimmed) {
+            return KeyMaterial::WatchOnly(trimmed.to_owned());
         }
         let is_hex = trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit());
         if is_hex {
@@ -135,6 +147,12 @@ impl KeyMaterial {
         let Some(passphrase) = passphrase.filter(|p| !p.is_empty()) else {
             return Ok(key);
         };
+        if key.is_watch_only() {
+            return Err(Error::InvalidKey(
+                "a passphrase applies only to a BIP39 mnemonic; a watch-only wallet has no seed"
+                    .into(),
+            ));
+        }
         if !key.is_hd() {
             return Err(Error::InvalidKey(
                 "a passphrase applies only to a BIP39 mnemonic, not a single private key".into(),
@@ -152,6 +170,11 @@ impl KeyMaterial {
         matches!(self, KeyMaterial::Mnemonic { .. })
     }
 
+    /// Whether this is the public half only: it can watch and receive, not sign.
+    pub fn is_watch_only(&self) -> bool {
+        matches!(self, KeyMaterial::WatchOnly(_))
+    }
+
     /// The secret as the user supplied it — hex, WIF, or the mnemonic words —
     /// so a caller that stored [`KeyMaterial`] can hand the string back and
     /// have [`Self::parse`] read it the same way again.
@@ -162,7 +185,7 @@ impl KeyMaterial {
     /// it carries one.
     pub fn secret(&self) -> String {
         match self {
-            KeyMaterial::PrivHex(s) | KeyMaterial::Wif(s) => s.clone(),
+            KeyMaterial::PrivHex(s) | KeyMaterial::Wif(s) | KeyMaterial::WatchOnly(s) => s.clone(),
             KeyMaterial::Mnemonic { words, .. } => words.clone(),
         }
     }
@@ -174,7 +197,7 @@ impl KeyMaterial {
     pub fn passphrase(&self) -> Option<&str> {
         match self {
             KeyMaterial::Mnemonic { passphrase, .. } => passphrase.as_deref(),
-            KeyMaterial::PrivHex(_) | KeyMaterial::Wif(_) => None,
+            KeyMaterial::PrivHex(_) | KeyMaterial::Wif(_) | KeyMaterial::WatchOnly(_) => None,
         }
     }
 
@@ -208,8 +231,21 @@ impl KeyMaterial {
             KeyMaterial::Mnemonic { .. } => Err(Error::Unsupported(
                 "a BIP39 mnemonic is an HD account, not a single private key".into(),
             )),
+            KeyMaterial::WatchOnly(_) => Err(Error::Unsupported(
+                "a watch-only wallet has no private key".into(),
+            )),
         }
     }
+}
+
+/// A descriptor has a function call in it; a bare extended public key is a
+/// long base58 string whose second to fourth characters spell `pub`. Nothing
+/// a private key or a phrase looks like matches either.
+fn looks_watch_only(s: &str) -> bool {
+    if s.contains('(') {
+        return true;
+    }
+    s.len() >= 100 && s.get(1..4) == Some("pub") && s.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
 /// Result of [`generate_key`]: the only place secret material is returned to callers.
@@ -324,6 +360,9 @@ pub fn address_for_key(
     network: Network,
     address_type: AddressType,
 ) -> Result<String> {
+    if let KeyMaterial::WatchOnly(source) = key {
+        return watch_only_address_at(source, network, address_type, 0);
+    }
     if key.is_hd() {
         return hd_address_at(key, network, address_type, 0);
     }
@@ -386,6 +425,9 @@ pub(crate) fn descriptors_for(
     network: Network,
     address_type: AddressType,
 ) -> Result<Descriptors> {
+    if let KeyMaterial::WatchOnly(source) = key {
+        return watch_only_descriptors(source, address_type);
+    }
     if key.is_hd() {
         return Ok(Descriptors::Hd {
             external: hd_descriptor_string(key, network, address_type, KeychainKind::External)?,
@@ -397,6 +439,70 @@ pub(crate) fn descriptors_for(
         network,
         address_type,
     )?))
+}
+
+/// Public descriptors from what a watch-only user pasted.
+///
+/// Three shapes are accepted. A bare account xpub is wrapped in the script
+/// type chosen in Setup, receive on `/0/*` and change on `/1/*` — the BIP44
+/// family layout every wallet exports. A descriptor with `<0;1>` is split
+/// into the two keychains. A descriptor with `/0/*` gets its change twin by
+/// substitution. Anything else — a single fixed key, say — is one keychain.
+/// A checksum is dropped: it would be wrong for the derived twin, and BDK
+/// recomputes it anyway.
+fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Descriptors> {
+    let bare = source.trim().split('#').next().unwrap_or("").to_owned();
+    if !bare.contains('(') {
+        let (open, close) = match address_type {
+            AddressType::P2pkh => ("pkh(", ")"),
+            AddressType::NestedP2wpkh => ("sh(wpkh(", "))"),
+            AddressType::P2wpkh => ("wpkh(", ")"),
+            AddressType::P2tr => ("tr(", ")"),
+            AddressType::P2pk => {
+                return Err(Error::Unsupported(
+                    "p2pk has no account layout to watch; use p2pkh, np2wpkh, p2wpkh or p2tr"
+                        .into(),
+                ));
+            }
+        };
+        return Ok(Descriptors::Hd {
+            external: format!("{open}{bare}/0/*{close}"),
+            internal: format!("{open}{bare}/1/*{close}"),
+        });
+    }
+    if bare.contains("<0;1>") {
+        return Ok(Descriptors::Hd {
+            external: bare.replace("<0;1>", "0"),
+            internal: bare.replace("<0;1>", "1"),
+        });
+    }
+    if bare.contains("/0/*") {
+        return Ok(Descriptors::Hd {
+            internal: bare.replacen("/0/*", "/1/*", 1),
+            external: bare,
+        });
+    }
+    Ok(Descriptors::Single(bare))
+}
+
+/// Receive address at `index` of a watch-only source.
+fn watch_only_address_at(
+    source: &str,
+    network: Network,
+    address_type: AddressType,
+    index: u32,
+) -> Result<String> {
+    let external = match watch_only_descriptors(source, address_type)? {
+        Descriptors::Hd { external, .. } | Descriptors::Single(external) => external,
+    };
+    let (descriptor, _) = ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), &external)
+        .map_err(|e| Error::Descriptor(e.to_string()))?;
+    descriptor
+        .at_derivation_index(index)
+        .map_err(|e| Error::Descriptor(e.to_string()))?
+        .address(bdk_wallet::bitcoin::Network::from(network))
+        .map(|a| a.to_string())
+        .map_err(|e| Error::InvalidAddress(e.to_string()))
 }
 
 /// Expand a mnemonic through the BDK descriptor template for `address_type`.
@@ -485,6 +591,21 @@ fn hd_account_identifier(
 /// comes from the account xpub, so the same seed used with a different script
 /// type or network is a different wallet.
 pub fn wallet_id(key: &KeyMaterial, network: Network, address_type: AddressType) -> Result<String> {
+    if let KeyMaterial::WatchOnly(source) = key {
+        // Its own id, on purpose. A watch-only copy of an account this device
+        // also holds the seed for must not share a keystore entry with it:
+        // "remember" would otherwise replace the words with the xpub.
+        let external = match watch_only_descriptors(source, address_type)? {
+            Descriptors::Hd { external, .. } | Descriptors::Single(external) => external,
+        };
+        let hash = hash160::Hash::hash(external.as_bytes()).to_string();
+        return Ok(format!(
+            "{}-{}-watch-{}",
+            network.id(),
+            address_type.id(),
+            &hash[..16]
+        ));
+    }
     let hash = if key.is_hd() {
         hd_account_identifier(key, network, address_type)?
     } else {
@@ -929,5 +1050,136 @@ mod tests {
             "{}",
             wallet.public_descriptor(KeychainKind::External)
         );
+    }
+
+    /// The public form of ABANDON's BIP84 regtest account, as another wallet
+    /// would export it: what a watch-only user pastes.
+    fn abandon_public_descriptor() -> String {
+        let Descriptors::Hd { external, .. } =
+            descriptors_for(&mnemonic(ABANDON), Network::Regtest, AddressType::P2wpkh).unwrap()
+        else {
+            panic!("a mnemonic is an HD account");
+        };
+        let (public, _) =
+            ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), &external).unwrap();
+        public.to_string()
+    }
+
+    /// The bare account xpub inside [`abandon_public_descriptor`].
+    fn abandon_xpub() -> String {
+        let (public, _) =
+            ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), &abandon_public_descriptor())
+                .unwrap();
+        let mut xpub = None;
+        public.for_each_key(|k| {
+            if let DescriptorPublicKey::XPub(x) = k {
+                xpub = Some(x.xkey.to_string());
+            }
+            true
+        });
+        xpub.expect("an account xpub")
+    }
+
+    #[test]
+    fn watch_only_derives_the_same_addresses_as_the_seed() {
+        let seed = mnemonic(ABANDON);
+        let descriptor = abandon_public_descriptor();
+        assert!(descriptor.contains("tpub") && !descriptor.contains("tprv"));
+
+        let key = KeyMaterial::parse(&descriptor);
+        assert!(key.is_watch_only() && !key.is_hd());
+        assert_eq!(key.secret(), descriptor, "kept verbatim, so it round-trips");
+        assert_eq!(
+            address_for_key(&key, Network::Regtest, AddressType::P2wpkh).unwrap(),
+            address_for_key(&seed, Network::Regtest, AddressType::P2wpkh).unwrap()
+        );
+
+        // The bare xpub inside it, wrapped by the address type, lands on the
+        // same address: origin information does not change derivation.
+        let xpub = abandon_xpub();
+        let bare = KeyMaterial::parse(&xpub);
+        assert!(bare.is_watch_only());
+        assert_eq!(
+            address_for_key(&bare, Network::Regtest, AddressType::P2wpkh).unwrap(),
+            address_for_key(&seed, Network::Regtest, AddressType::P2wpkh).unwrap()
+        );
+        match descriptors_for(&bare, Network::Regtest, AddressType::P2wpkh).unwrap() {
+            Descriptors::Hd { external, internal } => {
+                assert_eq!(external, format!("wpkh({xpub}/0/*)"));
+                assert_eq!(internal, format!("wpkh({xpub}/1/*)"));
+            }
+            Descriptors::Single(_) => panic!("an xpub is an account"),
+        }
+    }
+
+    #[test]
+    fn watch_only_shapes_and_refusals() {
+        let descriptor = abandon_public_descriptor();
+        let checksummed = format!("{}#deadbeef", descriptor.split('#').next().unwrap());
+        match descriptors_for(
+            &KeyMaterial::parse(&checksummed),
+            Network::Regtest,
+            AddressType::P2wpkh,
+        )
+        .unwrap()
+        {
+            Descriptors::Hd { external, internal } => {
+                assert!(!external.contains('#') && external.ends_with("/0/*)"));
+                assert!(internal.ends_with("/1/*)"), "{internal}");
+            }
+            Descriptors::Single(_) => panic!("a ranged descriptor is an account"),
+        }
+        let multipath = descriptor
+            .split('#')
+            .next()
+            .unwrap()
+            .replace("/0/*", "/<0;1>/*");
+        match descriptors_for(
+            &KeyMaterial::parse(&multipath),
+            Network::Regtest,
+            AddressType::P2wpkh,
+        )
+        .unwrap()
+        {
+            Descriptors::Hd { external, internal } => {
+                assert!(external.contains("/0/*") && internal.contains("/1/*"));
+            }
+            Descriptors::Single(_) => panic!("a multipath descriptor is an account"),
+        }
+        // A single fixed key watches one address and has no change keychain.
+        let single = KeyMaterial::parse(&format!("wpkh({G_HEX})"));
+        assert!(matches!(
+            descriptors_for(&single, Network::Bitcoin, AddressType::P2wpkh).unwrap(),
+            Descriptors::Single(_)
+        ));
+        assert_eq!(
+            address_for_key(&single, Network::Bitcoin, AddressType::P2wpkh).unwrap(),
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+        );
+
+        let key = KeyMaterial::parse(&descriptor);
+        assert!(key.to_private_key(Network::Regtest).is_err());
+        assert!(KeyMaterial::parse_with_passphrase(&descriptor, Some("x")).is_err());
+        // A bare xpub needs a script type to wrap it in, and p2pk has none; a
+        // full descriptor already carries its own and ignores the choice.
+        assert!(
+            descriptors_for(
+                &KeyMaterial::parse(&abandon_xpub()),
+                Network::Regtest,
+                AddressType::P2pk
+            )
+            .is_err()
+        );
+        assert!(descriptors_for(&key, Network::Regtest, AddressType::P2pk).is_ok());
+
+        // Its own id, never the full wallet's — see `wallet_id`.
+        let watch_id = wallet_id(&key, Network::Regtest, AddressType::P2wpkh).unwrap();
+        let seed_id = wallet_id(&mnemonic(ABANDON), Network::Regtest, AddressType::P2wpkh).unwrap();
+        assert!(watch_id.starts_with("regtest-p2wpkh-watch-"), "{watch_id}");
+        assert_ne!(watch_id, seed_id);
+
+        // Neither a key nor a phrase is mistaken for one of these.
+        assert!(!KeyMaterial::parse(SK1_HEX).is_watch_only());
+        assert!(!KeyMaterial::parse(ABANDON).is_watch_only());
     }
 }

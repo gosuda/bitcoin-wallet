@@ -23,6 +23,8 @@ export interface WalletInfo {
   wallet_id: string;
   /** True for a BIP32 account (mnemonic): it can reveal further addresses. */
   is_hd: boolean;
+  /** True when opened from an xpub or public descriptor: it cannot sign. */
+  is_watch_only: boolean;
 }
 
 /** Non-secret record of the wallet whose key is kept in the OS keystore. */
