@@ -45,17 +45,20 @@ export function renderResult(): HTMLElement {
         : null,
       spacer(),
       copyButton(() => result.txid, "Copy txid"),
-      button(
-        "Open in explorer",
-        async () => {
-          try {
-            await platform().openUrl(result.explorer_url);
-          } catch (e) {
-            alert.show("warn", errorMessage(e));
-          }
-        },
-        { icon: "external" },
-      ),
+      // Regtest has no public explorer: no link rather than a dead one.
+      result.explorer_url
+        ? button(
+            "Open in explorer",
+            async () => {
+              try {
+                await platform().openUrl(result.explorer_url ?? "");
+              } catch (e) {
+                alert.show("warn", errorMessage(e));
+              }
+            },
+            { icon: "external" },
+          )
+        : null,
       button("Back to wallet", () => navigate("dashboard"), { variant: "primary", block: true }),
     ),
   );

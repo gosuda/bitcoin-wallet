@@ -83,6 +83,47 @@ export interface FeeEstimate {
   sat_per_vb_by_target: Record<string, number>;
 }
 
+/** The public half of the wallet: enough to watch it, not to spend from it. */
+export interface PublicDescriptors {
+  external: string;
+  /** Change keychain; `null` for a single key. */
+  internal: string | null;
+  /** Account xpub of an HD wallet; `null` for a single key. */
+  account_xpub: string | null;
+  fingerprint: string | null;
+}
+
+export interface TxInput {
+  txid: string;
+  vout: number;
+  /** `null` when the spent output is not one the wallet has seen. */
+  value_sat: number | null;
+  ours: boolean;
+}
+
+export interface TxOutput {
+  /** `null` for a script with no address form. */
+  address: string | null;
+  value_sat: number;
+  ours: boolean;
+}
+
+/** Everything the wallet knows about one transaction in its history. */
+export interface TxDetail {
+  txid: string;
+  net_sat: number;
+  sent_sat: number;
+  received_sat: number;
+  fee_sat: number | null;
+  fee_rate_sat_vb: number | null;
+  confirmations: number | null;
+  block_height: number | null;
+  timestamp: number | null;
+  vsize: number;
+  inputs: TxInput[];
+  outputs: TxOutput[];
+}
+
 /**
  * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):
  * the exact target, else the closest faster one, else the closest slower one.
@@ -138,7 +179,8 @@ export interface TxPreview {
 
 export interface BroadcastResult {
   txid: string;
-  explorer_url: string;
+  /** `null` where no public explorer exists (regtest); the UI hides the link. */
+  explorer_url: string | null;
   /** Set when the send succeeded but local wallet state could not be saved. */
   persist_error: string | null;
 }
