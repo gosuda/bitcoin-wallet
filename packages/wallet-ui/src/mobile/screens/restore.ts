@@ -4,7 +4,7 @@ import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
-import { wordCell, wordGrid, wordInput } from "../../ui/words";
+import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
 import { body, button, card, chips, header, lede, spacer, withBusy } from "../ui";
 
 type Mode = "phrase" | "key";
@@ -78,6 +78,10 @@ function phrase(): HTMLElement {
     (v) => build(Number(v) as WordCount),
   );
   build(12);
+  // Typed words are secret, and so is the passphrase: out of the DOM the
+  // moment the route changes. `inputs` is read late because the grid can be
+  // rebuilt for 24 words after this is armed.
+  wipeOnLeave(() => [...inputs, passphrase]);
 
   const go = button(
     "Restore",
@@ -128,6 +132,7 @@ function singleKey(): HTMLElement {
   const secret = textInput({ type: "password", mono: true, name: "secret" });
   secret.setAttribute("autocapitalize", "none");
   secret.setAttribute("autocorrect", "off");
+  wipeOnLeave(() => [secret]);
 
   const go = button(
     "Open wallet",

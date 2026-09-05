@@ -1,13 +1,10 @@
+import { addressError } from "../../address";
+import { parseAmount } from "../../amount";
 import { api } from "../../api";
+import { spendableSat } from "../../balance";
 import { navigate } from "../../router";
 import { session } from "../../session";
-import {
-  type Balance,
-  errorMessage,
-  type FeeEstimate,
-  rateForTarget,
-  type TxPreview,
-} from "../../types";
+import { errorMessage, type FeeEstimate, rateForTarget, type TxPreview } from "../../types";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
 import { body, button, card, chips, header, lede, row, spacer, withBusy } from "../ui";
 
@@ -24,10 +21,6 @@ let prefill: Prefill = {};
 
 export function prefillSend(next: Prefill): void {
   prefill = next;
-}
-
-function spendable(b: Balance): number {
-  return b.confirmed + b.trusted_pending;
 }
 
 export function renderSend(): HTMLElement {
@@ -92,11 +85,8 @@ export function renderSend(): HTMLElement {
     }
   }
 
-  function amountSat(): number {
-    const raw = Number(amount.value.trim());
-    if (!Number.isFinite(raw) || raw <= 0) return Number.NaN;
-    return unit.value() === "btc" ? Math.round(raw * 1e8) : Math.round(raw);
-  }
+  /** Whole sats, integer-exact; the error is what to tell the user instead. */
+  const amountSat = () => parseAmount(amount.value, unit.value());
 
   const max = el("button", {
     className: "m-chip",
@@ -107,7 +97,7 @@ export function renderSend(): HTMLElement {
         try {
           const balance = await api.getBalance();
           const fee = Math.ceil(TYPICAL_VSIZE * rate);
-          const most = Math.max(0, spendable(balance) - fee);
+          const most = Math.max(0, spendableSat(balance) - fee);
           amount.value = unit.value() === "btc" ? (most / 1e8).toFixed(8) : String(most);
         } catch (e) {
           alert.show("warn", errorMessage(e));
@@ -136,14 +126,17 @@ export function renderSend(): HTMLElement {
     () =>
       withBusy(review, async () => {
         alert.hide();
-        const sats = amountSat();
-        if (!address.value.trim()) return alert.show("error", "Enter an address to send to.");
-        if (Number.isNaN(sats)) return alert.show("error", "Enter an amount greater than zero.");
+        const to = address.value.trim();
+        if (!to) return alert.show("error", "Enter an address to send to.");
+        const badAddress = addressError(to, info.network);
+        if (badAddress) return alert.show("error", badAddress);
+        const parsed = amountSat();
+        if (parsed.sats === null) {
+          return alert.show("error", parsed.error ?? "Enter an amount greater than zero.");
+        }
+        const sats = parsed.sats;
         try {
-          const preview = await api.buildTransfer(
-            [{ address: address.value.trim(), amount_sat: sats }],
-            rate,
-          );
+          const preview = await api.buildTransfer([{ address: to, amount_sat: sats }], rate);
           showPreview(preview, sats);
         } catch (e) {
           alert.show("error", errorMessage(e));

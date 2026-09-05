@@ -1,4 +1,5 @@
 import { api } from "../../api";
+import { headlineSat } from "../../balance";
 import { navigate } from "../../router";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
@@ -7,10 +8,6 @@ import { icon } from "../../ui/icons";
 import { body, button, card, header, listCard, row } from "../ui";
 
 const AUTO_SYNC_MS = 60_000;
-
-function spendable(b: Balance): number {
-  return b.confirmed + b.trusted_pending;
-}
 
 function whenLabel(tx: TxSummary): string {
   if (tx.confirmations === null || tx.confirmations === 0) return "Pending";
@@ -64,9 +61,10 @@ export function renderWallet(): HTMLElement {
   const synced = el("span", { text: "Not synced yet" });
 
   const paint = (balance: Balance): void => {
-    hero.textContent = formatNumber(spendable(balance));
+    const total = headlineSat(balance);
+    hero.textContent = formatNumber(total);
     // formatBtc already carries the unit; appending another gave "BTC BTC".
-    sub.textContent = formatBtc(spendable(balance));
+    sub.textContent = formatBtc(total);
   };
 
   const txHost = listCard(el("div", { className: "m-empty", text: "No transactions yet." }));
