@@ -5,7 +5,7 @@ import { session } from "../../session";
 import { ADDRESS_TYPE_LABELS, errorMessage, NETWORK_LABELS } from "../../types";
 import { banner, el } from "../../ui/dom";
 import { icon } from "../../ui/icons";
-import { body, button, header, spacer, withBusy } from "../ui";
+import { body, button, confirmDanger, header, spacer, withBusy } from "../ui";
 
 function short(address: string): string {
   return address.length > 22 ? `${address.slice(0, 12)}…${address.slice(-6)}` : address;
@@ -40,9 +40,14 @@ export function renderUnlock(): HTMLElement {
     { variant: "primary", block: true, icon: auth ? "faceid" : "key" },
   );
 
-  const forget = button(
-    "Forget this wallet",
-    async () => {
+  // Two taps: this deletes the saved key and the local history, and the
+  // desktop screen already asked twice.
+  const forget = confirmDanger({
+    trigger: "Forget this wallet",
+    triggerVariant: "quiet",
+    text: "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it.",
+    confirm: "Delete it",
+    onConfirm: async () => {
       alert.hide();
       try {
         await api.forgetWallet();
@@ -52,8 +57,7 @@ export function renderUnlock(): HTMLElement {
         alert.show("error", errorMessage(e));
       }
     },
-    { variant: "quiet" },
-  );
+  });
 
   host.appendChild(header("Unlock"));
   host.appendChild(

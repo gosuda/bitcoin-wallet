@@ -10,7 +10,7 @@ import {
   type Network,
 } from "../../types";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
-import { body, button, card, chips, header, lede, spacer } from "../ui";
+import { body, button, card, chips, header, labelled, lede, spacer } from "../ui";
 
 /** Networks worth offering on a phone; regtest needs a node on localhost. */
 const NETWORKS: readonly Network[] = ["signet", "testnet4", "bitcoin"];
@@ -41,6 +41,8 @@ export function renderSetup(): HTMLElement {
   const addressType = chips(
     ADDRESS_TYPES.map((a) => ({ value: a, label: ADDRESS_TYPE_LABELS[a] })),
     cfg?.address_type ?? "p2wpkh",
+    undefined,
+    { label: "Address type" },
   );
 
   const cont = button(
@@ -69,7 +71,7 @@ export function renderSetup(): HTMLElement {
       alert.node,
       lede("Which chain, and where to read it from. Both can change later."),
       card(sectionLabel("Network"), network.node),
-      card(sectionLabel("Esplora server"), url),
+      card(labelled("Esplora server", url), url),
       card(sectionLabel("Address type"), addressType.node),
       spacer(),
       cont,

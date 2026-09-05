@@ -14,6 +14,7 @@ import { clear, el } from "../ui/dom";
 import { type IconName, icon } from "../ui/icons";
 import "../ui/mobile.css";
 import { renderCreate } from "./screens/create";
+import { renderExport } from "./screens/export";
 import { renderKey } from "./screens/key";
 import { renderReceive } from "./screens/receive";
 import { renderRestore } from "./screens/restore";
@@ -22,6 +23,7 @@ import { renderScan } from "./screens/scan";
 import { renderSend } from "./screens/send";
 import { renderSettings } from "./screens/settings";
 import { renderSetup } from "./screens/setup";
+import { currentTxid, renderTransaction } from "./screens/tx";
 import { renderUnlock } from "./screens/unlock";
 import { renderWallet } from "./screens/wallet";
 
@@ -37,6 +39,8 @@ const SCREENS: Record<Route, () => HTMLElement> = {
   receive: renderReceive,
   scan: renderScan,
   settings: renderSettings,
+  tx: renderTransaction,
+  export: renderExport,
 };
 
 /** Routes that are places rather than steps, and so carry the tab bar. */
@@ -53,6 +57,8 @@ const NEEDS_WALLET: ReadonlySet<Route> = new Set<Route>([
   "receive",
   "scan",
   "settings",
+  "tx",
+  "export",
 ]);
 
 /**
@@ -65,6 +71,11 @@ function guard(route: Route): Route {
   // Setup rewrites the network under a live wallet handle; Settings is where
   // that change is made, through a close.
   if (route === "setup" && session.wallet) return "settings";
+  // A watch-only wallet has nothing to sign with; the screen is not offered.
+  if (route === "send" && session.wallet?.is_watch_only) return "dashboard";
+  // The transaction screen is reached from a row, never typed; without one
+  // stashed there is nothing to show.
+  if (route === "tx" && !currentTxid()) return "dashboard";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
   if (KEY_ROUTES.has(route) && !session.config) return "setup";
   if (route === "unlock" && (!platform().canRememberWallet || !session.remembered)) return "key";

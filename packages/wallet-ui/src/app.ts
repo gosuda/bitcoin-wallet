@@ -68,7 +68,13 @@ function topbar(route: Route): HTMLElement {
 }
 
 /** Destinations only the phone shell has; desktop sends them to the wallet. */
-const MOBILE_ONLY: ReadonlySet<Route> = new Set<Route>(["receive", "scan", "settings"]);
+const MOBILE_ONLY: ReadonlySet<Route> = new Set<Route>([
+  "receive",
+  "scan",
+  "settings",
+  "tx",
+  "export",
+]);
 
 const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   setup: renderSetup,

@@ -2,12 +2,12 @@ import { api } from "../../api";
 import { navigate } from "../../router";
 import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
-import { banner, el, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
-import { body, button, card, chips, header, lede, spacer, withBusy } from "../ui";
+import { body, button, card, chips, header, labelled, lede, spacer, withBusy } from "../ui";
 
-type Mode = "phrase" | "key";
+type Mode = "phrase" | "key" | "watch";
 
 /**
  * Which door the user came through. Routes carry no parameters, so the Key
@@ -20,7 +20,9 @@ export function setRestoreMode(next: Mode): void {
 }
 
 export function renderRestore(): HTMLElement {
-  return mode === "key" ? singleKey() : phrase();
+  if (mode === "key") return singleKey();
+  if (mode === "watch") return watchOnly();
+  return phrase();
 }
 
 function openWith(
@@ -43,6 +45,7 @@ function phrase(): HTMLElement {
   const alert = banner();
   const remember = rememberCheckbox();
   const passphrase = textInput({ placeholder: "Leave empty for none", name: "passphrase" });
+  passphrase.type = "password";
 
   let inputs: HTMLInputElement[] = [];
   const gridHost = el("div");
@@ -112,7 +115,7 @@ function phrase(): HTMLElement {
       alert.node,
       card(count.node, gridHost),
       card(
-        sectionLabel("Passphrase (optional)"),
+        labelled("Passphrase", passphrase, "(optional)"),
         passphrase,
         el("p", {
           className: "m-lede",
@@ -171,7 +174,59 @@ function singleKey(): HTMLElement {
     body(
       alert.node,
       lede("A private key in hex or WIF. One key means one address and no recovery phrase."),
-      card(sectionLabel("Private key"), secret, generate),
+      card(labelled("Private key", secret), secret, generate),
+      card(remember.node),
+      spacer(),
+      go,
+    ),
+  ]);
+}
+
+/**
+ * The public half of a wallet: an account xpub, or a descriptor exported by
+ * another wallet. The core reads it the same way it reads a key, so the open
+ * path is shared; what differs is what the user is told it can do.
+ */
+function watchOnly(): HTMLElement {
+  const alert = banner();
+  const remember = rememberCheckbox();
+  const source = el("textarea", {
+    attrs: {
+      rows: "3",
+      name: "descriptor",
+      placeholder: "tpub… or wpkh([fingerprint/84h/1h/0h]tpub…/0/*)",
+      spellcheck: "false",
+      autocapitalize: "off",
+      autocomplete: "off",
+    },
+  }) as HTMLTextAreaElement;
+
+  const go = button(
+    "Follow this wallet",
+    () =>
+      withBusy(go, async () => {
+        try {
+          await openWith(
+            () => source.value.trim(),
+            () => remember.checked(),
+            () => undefined,
+            alert,
+          )();
+        } catch (e) {
+          alert.show("error", errorMessage(e));
+        }
+      }),
+    { variant: "primary", block: true, icon: "eye" },
+  );
+
+  return el("main", {}, [
+    header("Watch-only", { back: "key" }),
+    body(
+      alert.node,
+      lede(
+        "Follows a wallet without its keys: balance, history and receiving, no sending. A bare xpub is expanded with the address type chosen in Setup.",
+      ),
+      card(labelled("xpub or descriptor", source), source),
       card(remember.node),
       spacer(),
       go,

@@ -11,7 +11,7 @@ export function renderKey(): HTMLElement {
   // rather than offered and then rejected.
   const hd = session.config?.address_type !== "p2pk";
 
-  const open = (mode: "phrase" | "key") => () => {
+  const open = (mode: "phrase" | "key" | "watch") => () => {
     setRestoreMode(mode);
     navigate("restore");
   };
@@ -40,6 +40,16 @@ export function renderKey(): HTMLElement {
               text: "Already have a recovery phrase from this or another wallet.",
             }),
             button("Restore from phrase", open("phrase"), { block: true }),
+          )
+        : null,
+      hd
+        ? card(
+            el("span", { className: "m-card-title", text: "Watch-only" }),
+            el("p", {
+              className: "m-lede",
+              text: "Follow a wallet by its xpub or descriptor. It shows balance and history and can receive, but cannot send.",
+            }),
+            button("Add watch-only wallet", open("watch"), { block: true, icon: "eye" }),
           )
         : null,
       platform().canRememberWallet ? null : el("p", { className: "hint", text: NO_KEYSTORE_HINT }),

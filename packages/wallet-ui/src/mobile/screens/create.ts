@@ -6,7 +6,7 @@ import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
 import { wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
-import { body, button, card, header, spacer, withBusy } from "../ui";
+import { body, button, card, header, labelled, spacer, withBusy } from "../ui";
 
 /** How many words the user has to type back before the wallet is created. */
 const CHECKS = 3;
@@ -56,7 +56,11 @@ export function renderCreate(): HTMLElement {
       );
 
       const remember = rememberCheckbox();
-      const passphrase = textInput({ placeholder: "Leave empty for none", name: "passphrase" });
+      const passphrase = textInput({
+        type: "password",
+        placeholder: "Leave empty for none",
+        name: "passphrase",
+      });
 
       const create = button(
         "Create wallet",
@@ -102,7 +106,7 @@ export function renderCreate(): HTMLElement {
           el("p", { className: "m-lede", text: "Fill in the missing words to continue." }),
           confirm,
         ),
-        card(sectionLabel("Passphrase (optional)"), passphrase, remember.node),
+        card(labelled("Passphrase", passphrase, "(optional)"), passphrase, remember.node),
         spacer(),
         create,
       );

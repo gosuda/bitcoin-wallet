@@ -12,6 +12,8 @@ export const ROUTES = [
   "receive",
   "scan",
   "settings",
+  "tx",
+  "export",
 ] as const;
 export type Route = (typeof ROUTES)[number];
 

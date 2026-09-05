@@ -204,6 +204,20 @@ body {
   width: 100%;
 }
 
+.m-btn-square {
+  flex: none;
+  width: var(--tap);
+  padding: 0;
+}
+
+/* Desktop-styled buttons that share a row here (copy) take the phone size. */
+.m-body .btn {
+  min-height: var(--tap);
+  border-radius: var(--radius-lg);
+  font-size: 16px;
+  flex: 1;
+}
+
 .m-row {
   display: flex;
   gap: var(--space-2);
@@ -257,10 +271,80 @@ body {
   cursor: pointer;
 }
 
-.m-chip[aria-pressed="true"] {
+.m-chip[aria-pressed="true"],
+.m-chip[aria-checked="true"] {
   border-color: var(--fg);
   background: var(--subtle);
   font-weight: 500;
+}
+
+/* Four chips on one phone row. */
+.m-chips-tight {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.m-chips-tight .m-chip {
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+/* Max is a mode: lit in the accent while the amount is the whole balance. */
+.m-chip-max[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface);
+}
+
+/* Field errors ------------------------------------------------------------ */
+
+.m-err {
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.m-err:empty {
+  display: none;
+}
+
+.m-body input.input-invalid {
+  border-color: var(--danger);
+}
+
+.m-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.m-rate-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.m-rate-row input {
+  width: 120px;
+  flex: none;
+}
+
+.m-rate-unit {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.m-body textarea {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  width: 100%;
+  min-height: 96px;
+  padding: var(--space-3) 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--fg);
+  resize: vertical;
 }
 
 /* A chip group in a row sits next to the field it modifies, so it keeps its
@@ -291,6 +375,11 @@ body {
   font-variant-numeric: tabular-nums;
   font-size: 15px;
   color: var(--muted);
+}
+
+.m-pending {
+  font-size: 13px;
+  color: var(--pending);
 }
 
 .m-meta {
@@ -328,6 +417,84 @@ body {
 
 .m-txrow:last-child {
   border-bottom: none;
+}
+
+/* A history row is a button when it opens the transaction. */
+button.m-txrow {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.m-txrow:last-child {
+  border-bottom: none;
+}
+
+button.m-txrow:active {
+  background: var(--subtle);
+}
+
+.m-chev {
+  flex: none;
+  display: inline-flex;
+  margin-left: var(--space-1);
+  color: var(--faint);
+}
+
+/* Transaction ------------------------------------------------------------- */
+
+.m-tx-hero {
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.m-tx-hero .m-dirdot {
+  width: 44px;
+  height: 44px;
+}
+
+.m-tx-amount {
+  font-size: 30px;
+}
+
+.m-tx-unit {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.m-pill-pending .pill-dot {
+  background: var(--pending);
+}
+
+.m-mono-block {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.m-bump {
+  border-color: var(--accent);
+  gap: 10px;
+}
+
+.m-bump .section-label {
+  color: var(--accent-deep);
+}
+
+.m-bump-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .m-dirdot {
@@ -393,8 +560,16 @@ body {
 
 .m-address {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.6;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.m-uri {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
   text-align: center;
   overflow-wrap: anywhere;
 }
@@ -446,6 +621,53 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A row that holds controls rather than one value (Rescan). */
+.m-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-size: 16px;
+}
+
+.m-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.m-block-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-block-row .m-chips {
+  flex-wrap: nowrap;
+}
+
+.m-block-row .m-btn {
+  flex: none;
+  margin-left: auto;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+/* The two-tap confirm, and its neutral sibling for "this closes the wallet". */
+.m-confirm {
+  border-color: var(--danger);
+  gap: 10px;
+}
+
+.m-confirm-neutral {
+  border-color: var(--fg);
+}
+
+.m-centre-text {
+  text-align: center;
 }
 
 /* Tab bar ----------------------------------------------------------------- */

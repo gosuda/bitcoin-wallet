@@ -1,11 +1,12 @@
 import { api } from "../../api";
-import { headlineSat } from "../../balance";
+import { headlineSat, pendingSat } from "../../balance";
 import { navigate } from "../../router";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
 import { icon } from "../../ui/icons";
 import { body, button, card, header, listCard, row } from "../ui";
+import { showTransaction } from "./tx";
 
 const AUTO_SYNC_MS = 60_000;
 
@@ -24,6 +25,7 @@ function dateLabel(tx: TxSummary): string {
   });
 }
 
+/** One history row: a button, because it opens the transaction. */
 function txRow(tx: TxSummary): HTMLElement {
   const incoming = tx.net_sat >= 0;
   const glyph = icon(incoming ? "down" : "up", 18);
@@ -37,14 +39,23 @@ function txRow(tx: TxSummary): HTMLElement {
   });
   if (incoming) amount.classList.add("m-tx-in");
 
-  return el("div", { className: "m-txrow" }, [
-    dot,
-    el("span", { className: "m-txmain" }, [
-      el("span", { className: "m-txtitle", text: incoming ? "Received" : "Sent" }),
-      el("span", { className: "m-txmeta", text: meta }),
-    ]),
-    amount,
-  ]);
+  return el(
+    "button",
+    {
+      className: "m-txrow",
+      attrs: { type: "button" },
+      on: { click: () => showTransaction(tx.txid) },
+    },
+    [
+      dot,
+      el("span", { className: "m-txmain" }, [
+        el("span", { className: "m-txtitle", text: incoming ? "Received" : "Sent" }),
+        el("span", { className: "m-txmeta", text: meta }),
+      ]),
+      amount,
+      el("span", { className: "m-chev" }, [icon("chevron", 16)]),
+    ],
+  );
 }
 
 export function renderWallet(): HTMLElement {
@@ -58,6 +69,7 @@ export function renderWallet(): HTMLElement {
 
   const hero = el("span", { className: "m-hero", text: "—" });
   const sub = el("span", { className: "m-sub", text: "" });
+  const pending = el("span", { className: "m-pending" });
   const synced = el("span", { text: "Not synced yet" });
 
   const paint = (balance: Balance): void => {
@@ -65,6 +77,9 @@ export function renderWallet(): HTMLElement {
     hero.textContent = formatNumber(total);
     // formatBtc already carries the unit; appending another gave "BTC BTC".
     sub.textContent = formatBtc(total);
+    const waiting = pendingSat(balance);
+    pending.textContent = waiting > 0 ? `${formatNumber(waiting)} sat pending` : "";
+    pending.hidden = waiting === 0;
   };
 
   const txHost = listCard(el("div", { className: "m-empty", text: "No transactions yet." }));
@@ -111,16 +126,15 @@ export function renderWallet(): HTMLElement {
   };
   sync.addEventListener("click", () => void runSync());
 
+  const kind = info.is_watch_only ? " · Watch-only" : info.is_hd ? " · HD" : "";
   const balanceCard = card(
     el("div", { className: "m-meta" }, [
-      el("span", {
-        className: "pill",
-        text: `${NETWORK_LABELS[info.network]}${info.is_hd ? " · HD" : ""}`,
-      }),
+      el("span", { className: "pill", text: `${NETWORK_LABELS[info.network]}${kind}` }),
       sync,
     ]),
     hero,
     sub,
+    pending,
     el("span", { className: "m-txmeta" }, [synced]),
   );
 
@@ -133,8 +147,11 @@ export function renderWallet(): HTMLElement {
     body(
       alert.node,
       balanceCard,
+      // A watch-only wallet has nothing to sign with, so there is no Send.
       row(
-        button("Send", () => navigate("send"), { variant: "primary", icon: "up" }),
+        info.is_watch_only
+          ? null
+          : button("Send", () => navigate("send"), { variant: "primary", icon: "up" }),
         button("Receive", () => navigate("receive"), { icon: "down" }),
       ),
       txHost,
