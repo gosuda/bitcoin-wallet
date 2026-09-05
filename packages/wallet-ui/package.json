@@ -6,7 +6,10 @@
   "exports": {
     ".": "./src/app.ts",
     "./platform": "./src/platform/index.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./bip21": "./src/bip21.ts",
+    "./mobile-send": "./src/mobile/screens/send.ts",
+    "./mobile-shell": "./src/mobile/shell.ts"
   },
   "scripts": {
     "check": "biome check .",
@@ -14,9 +17,11 @@
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
-    "@fontsource/ibm-plex-sans": "^5.3.0"
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.12"
+    "@biomejs/biome": "^2.5.12",
+    "@types/qrcode": "^1.5.6"
   }
 }

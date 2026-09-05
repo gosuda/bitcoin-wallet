@@ -322,6 +322,7 @@ input[type="text"],
 input[type="password"],
 input[type="number"],
 input[type="url"],
+textarea,
 select {
   font: inherit;
   color: var(--fg);
@@ -333,8 +334,15 @@ select {
   width: 100%;
 }
 
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: var(--faint);
+}
+
+textarea {
+  min-height: 60px;
+  resize: vertical;
+  line-height: 1.45;
 }
 
 input[disabled],
@@ -579,6 +587,47 @@ input.input-invalid {
   gap: var(--space-2);
 }
 
+/* Receive: the QR beside the address, an optional amount under it. */
+.receive-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.qr-box {
+  flex: none;
+  padding: var(--space-2);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  line-height: 0;
+}
+
+.receive-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.request-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.request-row .amount-input {
+  width: 140px;
+  flex: none;
+  text-align: right;
+}
+
+.request-row .hint {
+  margin-left: var(--space-2);
+}
+
 /* Table */
 
 .table-wrap {
@@ -644,22 +693,60 @@ tr:last-child td {
   font-weight: 500;
 }
 
-/* Trailing action cell: as narrow as its button. */
+/* Trailing chevron cell: as narrow as its glyph. */
 .tx-actions {
   width: 1%;
 }
 
-.bump-row td {
-  border-bottom: 1px solid var(--border);
+/* A history row opens in place. */
+.tx-open {
+  cursor: pointer;
+}
+
+.tx-chevron {
+  display: inline-flex;
+  color: var(--faint);
+  transition: transform 120ms ease;
+}
+
+.tx-chevron-open {
+  transform: rotate(90deg);
+}
+
+tr.tx-detail td {
+  padding: 0 var(--space-2) var(--space-3) var(--space-8);
+  white-space: normal;
+}
+
+.tx-open:hover td {
   background: var(--subtle);
 }
 
-.bump-confirm {
+.tx-detail-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--subtle);
+  border-radius: var(--radius);
+}
+
+.tx-detail-box .kv dd {
+  overflow-wrap: anywhere;
+}
+
+.tx-detail-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.bump-inline {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .bump-label {
@@ -667,9 +754,23 @@ tr:last-child td {
   color: var(--muted);
 }
 
-.bump-confirm .bump-rate {
-  width: 96px;
+.bump-inline .bump-rate {
+  width: 64px;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
   text-align: right;
+}
+
+/* Public keys */
+.pubkeys .kv dd {
+  overflow-wrap: anywhere;
+}
+
+/* Max is a mode: lit while the amount is the whole balance. */
+.btn.max-on {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Send */
@@ -870,6 +971,23 @@ tr:last-child td {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-2);
+}
+
+/* A recovery phrase is only useful if it can be read back a word at a time, so
+   the grid loses columns rather than hyphenating. Four columns on a phone leave
+   roughly 46px for the word itself once the index and padding are taken out,
+   and BIP39 runs to eight letters — which is how "dinner" came to render as
+   "dinn/er". Desktop keeps four: its window has a 720px minimum. */
+@media (max-width: 560px) {
+  .word-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .word-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .word-cell {

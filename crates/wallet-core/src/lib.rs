@@ -34,7 +34,8 @@ pub use keystore::{Keystore, MemoryKeystore};
 pub use network::Network;
 pub use persist::{MemoryPersister, Persister};
 pub use wallet::{
-    Balance, Broadcast, BuiltTx, Recipient, TxSummary, Utxo, WalletConfig, WalletHandle,
+    Balance, Broadcast, BuiltTx, PublicDescriptors, Recipient, TxDetail, TxInput, TxOutput,
+    TxSummary, Utxo, WalletConfig, WalletHandle,
 };
 
 /// `Send` on native targets, nothing on WASM (browser futures are not `Send`).

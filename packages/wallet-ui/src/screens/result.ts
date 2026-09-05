@@ -21,20 +21,25 @@ export function renderResult(): HTMLElement {
     );
   }
 
-  const openBtn = button(
-    "Open in explorer",
-    () =>
-      withBusy(openBtn, async () => {
-        try {
-          await platform().openUrl(result.explorer_url);
-        } catch (e) {
-          alert.show("error", `Could not open ${result.explorer_url}: ${errorMessage(e)}`);
-        }
-      }),
-    "primary",
-    "md",
-    { name: "external" },
-  );
+  // Regtest has no public explorer: no link rather than a dead one.
+  const explorer = result.explorer_url;
+  let openBtn: HTMLButtonElement | null = null;
+  openBtn = explorer
+    ? button(
+        "Open in explorer",
+        () =>
+          withBusy(openBtn as HTMLButtonElement, async () => {
+            try {
+              await platform().openUrl(explorer);
+            } catch (e) {
+              alert.show("error", `Could not open ${explorer}: ${errorMessage(e)}`);
+            }
+          }),
+        "primary",
+        "md",
+        { name: "external" },
+      )
+    : null;
 
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [el("h1", { text: "Sent" })]),
@@ -53,7 +58,7 @@ export function renderResult(): HTMLElement {
           readout(result.txid, "readout-sm"),
           copyButton(() => result.txid),
         ]),
-        el("span", { className: "hint mono break", text: result.explorer_url }),
+        explorer ? el("span", { className: "hint mono break", text: explorer }) : null,
       ]),
       el("div", { className: "actions" }, [
         openBtn,

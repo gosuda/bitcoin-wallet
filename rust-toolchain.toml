@@ -1,3 +1,15 @@
 [toolchain]
 channel = "stable"
 components = ["rustfmt", "clippy"]
+# wasm32 is the wallet core itself; the rest are the mobile shells. Listing them
+# here means a fresh clone and CI both get them without a separate rustup step.
+targets = [
+  "wasm32-unknown-unknown",
+  "aarch64-apple-ios",
+  "aarch64-apple-ios-sim",
+  "x86_64-apple-ios",
+  "aarch64-linux-android",
+  "armv7-linux-androideabi",
+  "i686-linux-android",
+  "x86_64-linux-android",
+]

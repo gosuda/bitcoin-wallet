@@ -67,7 +67,16 @@ function topbar(route: Route): HTMLElement {
   ]);
 }
 
-const SCREENS: Record<Route, () => HTMLElement> = {
+/** Destinations only the phone shell has; desktop sends them to the wallet. */
+const MOBILE_ONLY: ReadonlySet<Route> = new Set<Route>([
+  "receive",
+  "scan",
+  "settings",
+  "tx",
+  "export",
+]);
+
+const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   setup: renderSetup,
   key: renderKey,
   create: renderCreate,
@@ -80,7 +89,12 @@ const SCREENS: Record<Route, () => HTMLElement> = {
 
 /** Route guards: wallet screens need an open wallet, key screen needs config. */
 function guard(route: Route): Route {
+  if (MOBILE_ONLY.has(route)) return session.wallet ? "dashboard" : "setup";
+  // Setup rewrites the network under a live wallet handle; close it first.
+  if (route === "setup" && session.wallet) return "dashboard";
   if ((route === "dashboard" || route === "send") && !session.wallet) return "setup";
+  // A watch-only wallet has nothing to sign with; the screen is not offered.
+  if (route === "send" && session.wallet?.is_watch_only) return "dashboard";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
   if (KEY_ROUTES.has(route) && !session.config) return "setup";
   // Unlock exists only where a key can outlive the session; in a browser there
@@ -100,14 +114,27 @@ function render(): void {
   if (!root) throw new Error("missing #app root");
   clear(root);
   root.appendChild(topbar(route));
-  root.appendChild(SCREENS[route]());
+  root.appendChild((SCREENS[route] ?? renderSetup)());
+}
+
+export interface BootOptions {
+  /**
+   * An alternative chrome to mount once config is loaded.
+   *
+   * The entry point passes the phone shell here rather than naming it, so a
+   * desktop build never imports it and the bundler drops it entirely — a
+   * dynamic import inside this module would still emit the chunk. The phone
+   * shell is a different shape rather than a narrower one, which is why this
+   * is chosen by platform at the entry point and not by viewport.
+   */
+  mount?: () => void;
 }
 
 /**
  * Starts the shared app. The entry point installs a `Platform` first; from here
  * on nothing knows whether it is running in a Tauri window or a browser tab.
  */
-export async function boot(): Promise<void> {
+export async function boot(options: BootOptions = {}): Promise<void> {
   try {
     session.config = await api.getConfig();
   } catch {
@@ -119,6 +146,10 @@ export async function boot(): Promise<void> {
     } catch {
       session.remembered = null;
     }
+  }
+  if (options.mount) {
+    options.mount();
+    return;
   }
   window.addEventListener("hashchange", render);
   if (session.remembered && currentRoute() === "setup") navigate("unlock");

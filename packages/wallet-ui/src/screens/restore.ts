@@ -4,7 +4,7 @@ import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount } from "../types";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
-import { wordCell, wordGrid, wordInput } from "../ui/words";
+import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../ui/words";
 
 /** Quiet period after a keystroke before the phrase is checked again. */
 const VALIDATE_DELAY_MS = 250;
@@ -217,14 +217,9 @@ export function renderRestore(): HTMLElement {
 
   // Typed words are secret, and so is the passphrase: drop both from the DOM
   // the moment the route changes.
-  window.addEventListener(
-    "hashchange",
-    () => {
-      window.clearTimeout(timer);
-      for (const box of boxes) box.value = "";
-      passphrase.value = "";
-    },
-    { once: true },
+  wipeOnLeave(
+    () => [...boxes, passphrase],
+    () => window.clearTimeout(timer),
   );
 
   return el("main", { className: "screen" }, [

@@ -20,7 +20,11 @@ import type {
   GeneratedKey,
   GeneratedMnemonic,
   Network,
+  PublicDescriptors,
   Recipient,
+  TxDetail,
+  TxInput,
+  TxOutput,
   TxSummary,
   Utxo,
 } from "../types";
@@ -107,22 +111,76 @@ function toFeeEstimate(raw: unknown): FeeEstimate {
   return { sat_per_vb_by_target: byTarget };
 }
 
-/** A history row; `None` fields cross as `undefined`, and the UI contract is `null`. */
+/** Field access over either shape serde-wasm-bindgen may hand back. */
+function reader(raw: unknown): (key: string) => unknown {
+  return (key) => (raw instanceof Map ? raw.get(key) : (raw as Record<string, unknown>)[key]);
+}
+
+/** `None` crosses as `undefined`; the UI contract is `null`. */
+function optionalNumber(value: unknown): number | null {
+  return value === undefined || value === null ? null : Number(value);
+}
+
+function optionalString(value: unknown): string | null {
+  return value === undefined || value === null ? null : String(value);
+}
+
+/** A history row. */
 function toTxSummary(raw: unknown): TxSummary {
-  const read = (key: string): unknown =>
-    raw instanceof Map ? raw.get(key) : (raw as Record<string, unknown>)[key];
-  const optional = (key: string): number | null => {
-    const value = read(key);
-    return value === undefined || value === null ? null : Number(value);
-  };
+  const read = reader(raw);
   return {
     txid: String(read("txid")),
     net_sat: Number(read("net_sat")),
     sent_sat: Number(read("sent_sat")),
     received_sat: Number(read("received_sat")),
-    fee_sat: optional("fee_sat"),
-    confirmations: optional("confirmations"),
-    timestamp: optional("timestamp"),
+    fee_sat: optionalNumber(read("fee_sat")),
+    confirmations: optionalNumber(read("confirmations")),
+    timestamp: optionalNumber(read("timestamp")),
+  };
+}
+
+function toTxDetail(raw: unknown): TxDetail {
+  const read = reader(raw);
+  const inputs = (read("inputs") as unknown[]).map((i): TxInput => {
+    const r = reader(i);
+    return {
+      txid: String(r("txid")),
+      vout: Number(r("vout")),
+      value_sat: optionalNumber(r("value_sat")),
+      ours: Boolean(r("ours")),
+    };
+  });
+  const outputs = (read("outputs") as unknown[]).map((o): TxOutput => {
+    const r = reader(o);
+    return {
+      address: optionalString(r("address")),
+      value_sat: Number(r("value_sat")),
+      ours: Boolean(r("ours")),
+    };
+  });
+  return {
+    txid: String(read("txid")),
+    net_sat: Number(read("net_sat")),
+    sent_sat: Number(read("sent_sat")),
+    received_sat: Number(read("received_sat")),
+    fee_sat: optionalNumber(read("fee_sat")),
+    fee_rate_sat_vb: optionalNumber(read("fee_rate_sat_vb")),
+    confirmations: optionalNumber(read("confirmations")),
+    block_height: optionalNumber(read("block_height")),
+    timestamp: optionalNumber(read("timestamp")),
+    vsize: Number(read("vsize")),
+    inputs,
+    outputs,
+  };
+}
+
+function toPublicDescriptors(raw: unknown): PublicDescriptors {
+  const read = reader(raw);
+  return {
+    external: String(read("external")),
+    internal: optionalString(read("internal")),
+    account_xpub: optionalString(read("account_xpub")),
+    fingerprint: optionalString(read("fingerprint")),
   };
 }
 
@@ -169,6 +227,11 @@ export class WalletApi {
     return this.inner.is_hd;
   }
 
+  /** Public keys only: watches and receives, cannot sign. */
+  get isWatchOnly(): boolean {
+    return this.inner.is_watch_only;
+  }
+
   address(): Promise<string> {
     return this.inner.address();
   }
@@ -180,6 +243,25 @@ export class WalletApi {
 
   sync(): Promise<void> {
     return this.inner.sync();
+  }
+
+  /**
+   * Walk the keychains from the start again, `stopGap` unused addresses past
+   * the last used one. For a restored wallet that shows too little.
+   */
+  rescan(stopGap: number): Promise<void> {
+    return this.inner.rescan(stopGap);
+  }
+
+  /** The public half of the wallet, for a watch-only copy elsewhere. */
+  async public_descriptors(): Promise<PublicDescriptors> {
+    return toPublicDescriptors(await this.inner.public_descriptors());
+  }
+
+  /** Full detail of one of our transactions, or `null` for an unknown txid. */
+  async transaction(txid: string): Promise<TxDetail | null> {
+    const raw: unknown = await this.inner.transaction(txid);
+    return raw === null || raw === undefined ? null : toTxDetail(raw);
   }
 
   async balance(): Promise<Balance> {
@@ -205,6 +287,14 @@ export class WalletApi {
 
   async build_transfer(recipients: Recipient[], feeRateSatVb: number): Promise<BuiltTx> {
     return (await this.inner.build_transfer(recipients, feeRateSatVb)) as BuiltTx;
+  }
+
+  /**
+   * Everything the wallet has, to one address, minus the fee. `total_out_sat`
+   * is exactly what arrives: there is no change output to absorb a rounding.
+   */
+  async build_drain(address: string, feeRateSatVb: number): Promise<BuiltTx> {
+    return (await this.inner.build_drain(address, feeRateSatVb)) as BuiltTx;
   }
 
   /**
@@ -300,8 +390,15 @@ export async function defaultEsploraUrl(network: Network): Promise<string> {
   return default_esplora_url(network);
 }
 
-/** Block-explorer URL for a txid on a network. */
-export async function explorerTxUrl(network: Network, txid: string): Promise<string> {
+/**
+ * Block-explorer page for a txid, on the explorer fronting `backendUrl` when it
+ * has one; `null` on regtest, where there is nothing public to open.
+ */
+export async function explorerTxUrl(
+  network: Network,
+  backendUrl: string,
+  txid: string,
+): Promise<string | null> {
   await load();
-  return explorer_tx_url(network, txid);
+  return explorer_tx_url(network, backendUrl, txid) ?? null;
 }
