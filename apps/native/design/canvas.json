@@ -14,7 +14,7 @@
       "x": 1040,
       "y": 0,
       "w": 960,
-      "h": 640
+      "h": 840
     },
     {
       "file": "Main.dc.html",
@@ -22,7 +22,7 @@
       "x": 2080,
       "y": 0,
       "w": 960,
-      "h": 1100
+      "h": 1520
     },
     {
       "file": "Send.dc.html",
@@ -44,7 +44,7 @@
       "file": "Icon.dc.html",
       "title": "App icon",
       "x": 2080,
-      "y": 1200,
+      "y": 1660,
       "w": 720,
       "h": 480
     },
@@ -151,9 +151,75 @@
       "y": 4364,
       "w": 390,
       "h": 844
+    },
+    {
+      "file": "MTx.dc.html",
+      "title": "M11 \u00b7 Transaction",
+      "x": 0,
+      "y": 5328,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MExport.dc.html",
+      "title": "M12 \u00b7 Public keys",
+      "x": 470,
+      "y": 5328,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MSendMax.dc.html",
+      "title": "M8b \u00b7 Send (Max)",
+      "x": 940,
+      "y": 5328,
+      "w": 390,
+      "h": 844
     }
   ],
   "annotations": [
+    {
+      "id": "round3-brief",
+      "x": 0,
+      "y": 5100,
+      "w": 700,
+      "text": "ROUND 3 \u2014 finishing the wallet. One batch, please review it all at once.\n\nNEW: M11 Transaction (tap any history row; fee bump lives here now, so a stuck send is fixable from a phone) \u00b7 M12 Public keys (xpub + descriptors, for a watch-only copy elsewhere) \u00b7 M8b Send in Max state (Max now asks the core to drain, so the amount shown is exactly what leaves).\n\nUPDATED: M2 Key gains Watch-only \u00b7 M5 Unlock gets the two-step Forget the phone was missing \u00b7 M6 Wallet rows are tappable and show pending sats \u00b7 M7 Receive can request an amount (QR becomes a bitcoin: link) \u00b7 M8 Send shows inline errors and a Custom fee rate \u00b7 M10 Settings rows open Setup (after a 'this closes the wallet' confirm, same block as Forget), plus Rescan and Export.\n\nDesktop: 3 Wallet gets a receive QR + amount, click-to-expand tx detail with the bump inside, a Public keys card and Rescan; 4 Send shows Max state; 2 Key gains Watch-only.\n\nNothing else moved. Same tokens throughout."
+    },
+    {
+      "id": "round3-tx-note",
+      "x": 1410,
+      "y": 5328,
+      "w": 380,
+      "text": "M11 \u2014 what the row knows\n\nEverything comes from the wallet's own view of the tx: fee and rate (null when an input is not ours, then the row just omits them), which outputs are ours (Change), confirmations from the local tip.\n\nBump card appears only for an unconfirmed OUTGOING tx. Rate is prefilled from the 1-block estimate; the node rejects a bump below the replacement minimum and we show its wording."
+    },
+    {
+      "id": "round3-export-note",
+      "x": 1410,
+      "y": 5640,
+      "w": 380,
+      "text": "M12 \u2014 public, not secret\n\nThe xpub and descriptors let another wallet follow this one (balance, history, receiving) without being able to spend. They do reveal the whole address history, hence the lede.\n\nSingle-key wallets show one descriptor and no xpub."
+    },
+    {
+      "id": "round3-max-note",
+      "x": 1410,
+      "y": 5900,
+      "w": 380,
+      "text": "M8b \u2014 Max is a mode, not a number\n\nTapping Max needs the address first (the exact size depends on it), then asks the core to build a drain: the amount field fills with what actually leaves and Review's Change is 0. Editing the amount drops out of Max. Same on desktop 4."
+    },
+    {
+      "id": "round3-mobile-updates",
+      "x": 2350,
+      "y": 4760,
+      "w": 400,
+      "text": "Round 3 changes to existing phone boards\n\nM5 Unlock \u2014 the red card is what appears after tapping Forget this wallet (the button sits where the card is). Delete it / Keep it, like Settings already does.\n\nM6 Wallet \u2014 hero is total incl. pending (matches desktop now; the two disagreed). Rows open M11.\n\nM7 Receive \u2014 Copy + New address (Share was never built). Amount is optional.\n\nM8 Send \u2014 errors inline under the field, wording shared with desktop. Custom fee chip reveals a sat/vB field.\n\nM10 Settings \u2014 Network / Esplora / Address type rows open a confirm ('Changing this closes the wallet') then Setup. Unit and Show-phrase rows removed: neither exists."
+    },
+    {
+      "id": "round3-desktop-note",
+      "x": 3120,
+      "y": 320,
+      "w": 380,
+      "text": "Round 3 on desktop 3 \u00b7 Wallet\n\nReceive card: QR beside the address, optional amount \u2192 bitcoin: link.\n\nTransactions: click a row to expand it in place (first row shown open). Bump fee moved into the expansion.\n\nPublic keys card + Rescan (gap 20 / 100 / 500) at the bottom. Rescan exists because a restored wallet that used more than 20 addresses in a row shows too little until it looks further."
+    },
     {
       "id": "hd-note",
       "x": 3120,

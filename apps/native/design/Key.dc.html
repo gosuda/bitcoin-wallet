@@ -36,7 +36,7 @@
     tr:last-child td { border-bottom: none; }
   </style>
 </helmet>
-<div style="width: 960px; min-height: 640px; background: #FAFAF9; display: flex; flex-direction: column;">
+<div style="width: 960px; min-height: 840px; background: #FAFAF9; display: flex; flex-direction: column;">
 <header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
   <div style="display: flex; align-items: center; gap: 12px;">
     <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
@@ -75,6 +75,16 @@
     <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy hex</span>
     <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy WIF</span>
     <span class="btn btn-sm">Use this key</span>
+  </div>
+</section>
+<section class="card" style="gap: 12px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Watch-only</span>
+    <span class="hint">Follows a wallet without its keys: balance, history and receiving, no sending.</span>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">xpub or descriptor</span><span class="input mono placeholder">wpkh([fingerprint/84h/1h/0h]tpub…/0/*) — or just the tpub</span><span class="hint">A bare xpub is expanded with the address type chosen in Setup.</span></div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg> Follow this wallet</span>
   </div>
 </section>
 </main>
