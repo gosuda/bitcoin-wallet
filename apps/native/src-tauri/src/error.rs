@@ -23,19 +23,9 @@ impl AppError {
 
 impl From<wallet_core::Error> for AppError {
     fn from(e: wallet_core::Error) -> Self {
-        use wallet_core::Error as E;
-        let code = match &e {
-            E::InvalidKey(_) => "invalid_key",
-            E::InvalidAddress(_) => "invalid_address",
-            E::Descriptor(_) => "descriptor",
-            E::Persist(_) => "persist",
-            E::Backend(_) => "backend",
-            E::BuildTx(_) => "build_tx",
-            E::Sign(_) => "sign",
-            E::Psbt(_) => "psbt",
-            E::Unsupported(_) => "unsupported",
-        };
-        Self::new(code, e.to_string())
+        // The core owns the code table, so the browser build and this shell
+        // report the same names for the same failures.
+        Self::new(e.code(), e.to_string())
     }
 }
 

@@ -59,6 +59,8 @@ bdk_esplora = { version = "0.22.2", default-features = false, features = ["async
 getrandom = { version = "0.2", features = ["js"] }
 gloo-timers = { version = "0.3", features = ["futures"] }
 send_wrapper = { version = "0.6", features = ["futures"] }
+# Only for the deadline race in backend/esplora.rs; already in the graph.
+futures-util = "0.3"
 
 [dev-dependencies]
 tokio = { workspace = true }

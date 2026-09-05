@@ -10,6 +10,10 @@ use std::str::FromStr;
 use async_lock::Mutex;
 use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, Transaction};
 use bdk_wallet::chain::{ChainPosition, Merge};
+use bdk_wallet::coin_selection::InsufficientFunds;
+use bdk_wallet::error::CreateTxError;
+use bdk_wallet::keys::DescriptorPublicKey;
+use bdk_wallet::miniscript::ForEachKey;
 use bdk_wallet::{AddressInfo, KeychainKind, SignOptions, Wallet};
 use serde::{Deserialize, Serialize};
 use web_time::{SystemTime, UNIX_EPOCH};
@@ -24,6 +28,10 @@ use crate::{Error, Result};
 pub const DEFAULT_FEE_TARGET: u16 = 6;
 /// Floor applied to any fee rate (Go parity: 1 sat/vB).
 pub const MIN_FEE_RATE_SAT_VB: f64 = 1.0;
+/// Unused scripts a full scan walks past before deciding a keychain is done.
+pub const DEFAULT_STOP_GAP: u32 = 20;
+/// Ceiling for a caller-chosen gap: past this a scan is minutes of round trips.
+pub const MAX_STOP_GAP: u32 = 1000;
 
 /// Everything needed to open a wallet. Where state is stored is the
 /// platform's choice — see [`Persister`].
@@ -118,6 +126,69 @@ pub struct Broadcast {
     /// the next successful sync/persist reconciles it. Callers must not treat
     /// this as a failed send.
     pub persist_error: Option<String>,
+}
+
+/// The public half of a wallet: enough to watch it, not to spend from it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicDescriptors {
+    pub external: String,
+    /// Change keychain; `None` for a single key, which has only one.
+    pub internal: Option<String>,
+    /// Account-level extended public key of an HD wallet, `None` for a single key.
+    pub account_xpub: Option<String>,
+    /// Master key fingerprint the descriptors carry as origin, when they do.
+    pub fingerprint: Option<String>,
+}
+
+/// One input of a wallet transaction as far as the wallet can see it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TxInput {
+    pub txid: String,
+    pub vout: u32,
+    /// `None` when the spent output is not one the wallet has seen.
+    pub value_sat: Option<u64>,
+    pub ours: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TxOutput {
+    /// `None` for a script with no address form.
+    pub address: Option<String>,
+    pub value_sat: u64,
+    pub ours: bool,
+}
+
+/// Everything the wallet knows about one transaction in its history.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TxDetail {
+    pub txid: String,
+    pub net_sat: i64,
+    pub sent_sat: u64,
+    pub received_sat: u64,
+    /// `None` when an input is not ours, so the fee cannot be known.
+    pub fee_sat: Option<u64>,
+    pub fee_rate_sat_vb: Option<f64>,
+    /// `None` while unconfirmed.
+    pub confirmations: Option<u32>,
+    pub block_height: Option<u32>,
+    pub timestamp: Option<u64>,
+    pub vsize: u64,
+    pub inputs: Vec<TxInput>,
+    pub outputs: Vec<TxOutput>,
+}
+
+/// Map a builder failure onto the error domain, keeping the one case a UI
+/// can act on — not enough money — structured instead of stringified.
+fn build_error(e: CreateTxError) -> Error {
+    match e {
+        CreateTxError::CoinSelection(InsufficientFunds { needed, available }) => {
+            Error::InsufficientFunds {
+                needed_sat: needed.to_sat(),
+                available_sat: available.to_sat(),
+            }
+        }
+        other => Error::BuildTx(other.to_string()),
+    }
 }
 
 struct Inner {
@@ -254,6 +325,38 @@ impl WalletHandle {
         self.is_hd
     }
 
+    /// The public descriptors, plus the account xpub and fingerprint for an
+    /// HD wallet — what another wallet asks for to follow this one.
+    pub async fn public_descriptors(&self) -> PublicDescriptors {
+        let inner = self.inner.lock().await;
+        let external = inner.wallet.public_descriptor(KeychainKind::External);
+        let mut account_xpub = None;
+        let mut fingerprint = None;
+        external.for_each_key(|k| {
+            if account_xpub.is_none()
+                && let DescriptorPublicKey::XPub(x) = k
+            {
+                account_xpub = Some(x.xkey.to_string());
+                fingerprint = Some(match &x.origin {
+                    Some((master, _)) => master.to_string(),
+                    None => x.xkey.fingerprint().to_string(),
+                });
+            }
+            true
+        });
+        PublicDescriptors {
+            external: external.to_string(),
+            internal: self.is_hd.then(|| {
+                inner
+                    .wallet
+                    .public_descriptor(KeychainKind::Internal)
+                    .to_string()
+            }),
+            account_xpub,
+            fingerprint,
+        }
+    }
+
     /// The address to receive at.
     ///
     /// Single-key: the wallet's one and only address. HD: the next external
@@ -334,9 +437,40 @@ impl WalletHandle {
             }
         };
         let update: bdk_wallet::Update = match req {
-            Req::Full(r) => self.backend.full_scan(r).await?.into(),
+            Req::Full(r) => self
+                .backend
+                .full_scan(r, DEFAULT_STOP_GAP as usize)
+                .await?
+                .into(),
             Req::Partial(r) => self.backend.sync(r).await?.into(),
         };
+        self.apply(update).await
+    }
+
+    /// Walk every keychain from the start again, looking `stop_gap` unused
+    /// scripts past the last used one.
+    ///
+    /// [`Self::sync`] full-scans only a wallet with no history yet; after that
+    /// it re-checks revealed scripts and nothing more. A wallet restored from
+    /// a phrase that had spread its funds further than the default gap would
+    /// therefore show too little, and keep showing it — this is the way out.
+    /// Nothing is discarded: the result merges into what is already known.
+    pub async fn rescan(&self, stop_gap: u32) -> Result<()> {
+        if stop_gap == 0 || stop_gap > MAX_STOP_GAP {
+            return Err(Error::Unsupported(format!(
+                "stop gap must be between 1 and {MAX_STOP_GAP}"
+            )));
+        }
+        let req = {
+            let inner = self.inner.lock().await;
+            inner.wallet.start_full_scan_at(now_secs()).build()
+        };
+        let update: bdk_wallet::Update =
+            self.backend.full_scan(req, stop_gap as usize).await?.into();
+        self.apply(update).await
+    }
+
+    async fn apply(&self, update: bdk_wallet::Update) -> Result<()> {
         let mut inner = self.inner.lock().await;
         inner
             .wallet
@@ -434,6 +568,70 @@ impl WalletHandle {
         rows.into_iter().map(|(_, _, _, s)| s).collect()
     }
 
+    /// Everything the wallet knows about one of its transactions, or `None`
+    /// when the txid is not in its history.
+    pub async fn transaction(&self, txid: &str) -> Result<Option<TxDetail>> {
+        let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
+            .map_err(|e| Error::BuildTx(format!("{txid}: {e}")))?;
+        let inner = self.inner.lock().await;
+        let Some(d) = inner.wallet.tx_details(txid) else {
+            return Ok(None);
+        };
+        let tip = inner.wallet.latest_checkpoint().height();
+        let net = bdk_wallet::bitcoin::Network::from(self.network);
+        let graph = inner.wallet.tx_graph();
+        let (confirmations, block_height, timestamp) = match d.chain_position {
+            ChainPosition::Confirmed { anchor, .. } => (
+                Some(tip.saturating_sub(anchor.block_id.height).saturating_add(1)),
+                Some(anchor.block_id.height),
+                Some(anchor.confirmation_time),
+            ),
+            ChainPosition::Unconfirmed {
+                last_seen,
+                first_seen,
+            } => (None, None, last_seen.or(first_seen)),
+        };
+        let inputs =
+            d.tx.input
+                .iter()
+                .map(|i| {
+                    let prev = graph.get_txout(i.previous_output);
+                    TxInput {
+                        txid: i.previous_output.txid.to_string(),
+                        vout: i.previous_output.vout,
+                        value_sat: prev.map(|o| o.value.to_sat()),
+                        ours: prev.is_some_and(|o| inner.wallet.is_mine(o.script_pubkey.clone())),
+                    }
+                })
+                .collect();
+        let outputs =
+            d.tx.output
+                .iter()
+                .map(|o| TxOutput {
+                    address: Address::from_script(&o.script_pubkey, net)
+                        .ok()
+                        .map(|a| a.to_string()),
+                    value_sat: o.value.to_sat(),
+                    ours: inner.wallet.is_mine(o.script_pubkey.clone()),
+                })
+                .collect();
+        Ok(Some(TxDetail {
+            txid: txid.to_string(),
+            net_sat: d.balance_delta.to_sat(),
+            sent_sat: d.sent.to_sat(),
+            received_sat: d.received.to_sat(),
+            fee_sat: d.fee.map(|f| f.to_sat()),
+            // sat/kwu is BDK's unit; 4 weight units to the virtual byte.
+            fee_rate_sat_vb: d.fee_rate.map(|r| r.to_sat_per_kwu() as f64 * 4.0 / 1000.0),
+            confirmations,
+            block_height,
+            timestamp,
+            vsize: d.tx.vsize() as u64,
+            inputs,
+            outputs,
+        }))
+    }
+
     pub async fn estimate_fee(&self) -> Result<FeeEstimate> {
         self.backend.fee_estimates().await
     }
@@ -452,13 +650,9 @@ impl WalletHandle {
         if recipients.is_empty() {
             return Err(Error::BuildTx("no recipients".into()));
         }
-        let net = bdk_wallet::bitcoin::Network::from(self.network);
         let mut outputs = Vec::with_capacity(recipients.len());
         for r in recipients {
-            let addr = Address::from_str(&r.address)
-                .map_err(|e| Error::InvalidAddress(format!("{}: {e}", r.address)))?
-                .require_network(net)
-                .map_err(|e| Error::InvalidAddress(format!("{}: {e}", r.address)))?;
+            let addr = self.recipient_address(&r.address)?;
             if r.amount_sat == 0 {
                 return Err(Error::BuildTx(format!("zero amount for {}", r.address)));
             }
@@ -471,14 +665,43 @@ impl WalletHandle {
             builder
                 .set_recipients(outputs)
                 .fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
-            builder
-                .finish()
-                .map_err(|e| Error::BuildTx(e.to_string()))?
+            builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
 
         let total_out_sat = recipients.iter().map(|r| r.amount_sat).sum();
         Self::summarize(&inner, psbt, Some(total_out_sat))
+    }
+
+    /// Build a transfer that empties the wallet into one address.
+    ///
+    /// This is what "Max" means: coin selection takes every spendable output,
+    /// the fee comes off the top and there is no change, so the amount read
+    /// back from [`BuiltTx::total_out_sat`] is exactly what arrives. Guessing
+    /// that number from an assumed size and subtracting is off by a few sats
+    /// either way — it then fails to build, or leaves dust behind.
+    pub async fn build_drain(&self, address: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let addr = self.recipient_address(address)?;
+        let mut inner = self.inner.lock().await;
+        let psbt = {
+            let mut builder = inner.wallet.build_tx();
+            builder
+                .drain_wallet()
+                .drain_to(addr.script_pubkey())
+                .fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+            builder.finish().map_err(build_error)?
+        };
+        Self::persist(&mut inner).await?;
+        Self::summarize(&inner, psbt, None)
+    }
+
+    /// Parse an address and insist it belongs to this wallet's network.
+    fn recipient_address(&self, address: &str) -> Result<Address> {
+        let net = bdk_wallet::bitcoin::Network::from(self.network);
+        Address::from_str(address)
+            .map_err(|e| Error::InvalidAddress(format!("{address}: {e}")))?
+            .require_network(net)
+            .map_err(|e| Error::InvalidAddress(format!("{address}: {e}")))
     }
 
     /// Rebuild an unconfirmed transaction of ours at a higher fee rate.
@@ -498,9 +721,7 @@ impl WalletHandle {
                 .build_fee_bump(txid)
                 .map_err(|e| Error::BuildTx(e.to_string()))?;
             builder.fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
-            builder
-                .finish()
-                .map_err(|e| Error::BuildTx(e.to_string()))?
+            builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
         Self::summarize(&inner, psbt, None)
@@ -627,8 +848,9 @@ mod tests {
         async fn full_scan(
             &self,
             r: bdk_wallet::chain::spk_client::FullScanRequest<KeychainKind>,
+            stop_gap: usize,
         ) -> Result<bdk_wallet::chain::spk_client::FullScanResponse<KeychainKind>> {
-            self.0.full_scan(r).await
+            self.0.full_scan(r, stop_gap).await
         }
         async fn sync(
             &self,
@@ -881,6 +1103,7 @@ mod tests {
             async fn full_scan(
                 &self,
                 _: bdk_wallet::chain::spk_client::FullScanRequest<KeychainKind>,
+                _stop_gap: usize,
             ) -> Result<bdk_wallet::chain::spk_client::FullScanResponse<KeychainKind>> {
                 unreachable!()
             }
@@ -962,7 +1185,7 @@ mod tests {
                     1.0
                 )
                 .await,
-            Err(Error::BuildTx(_))
+            Err(Error::InsufficientFunds { .. })
         ));
     }
 
@@ -1107,5 +1330,131 @@ mod tests {
         .unwrap();
         assert_eq!(b.balance().await.total(), 1234);
         assert_eq!(b.address().await, address);
+    }
+
+    #[tokio::test]
+    async fn rescan_forwards_the_gap_and_rejects_nonsense() {
+        let (handle, mock) = open(AddressType::P2wpkh).await;
+        handle.sync().await.unwrap();
+        assert_eq!(
+            *mock.last_stop_gap.lock().unwrap(),
+            Some(DEFAULT_STOP_GAP as usize)
+        );
+        handle.rescan(100).await.unwrap();
+        assert_eq!(*mock.last_stop_gap.lock().unwrap(), Some(100));
+        assert!(matches!(handle.rescan(0).await, Err(Error::Unsupported(_))));
+        assert!(matches!(
+            handle.rescan(MAX_STOP_GAP + 1).await,
+            Err(Error::Unsupported(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn insufficient_funds_carries_amounts() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 10_000).await;
+        let err = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2wpkh),
+                    amount_sat: 1_000_000,
+                }],
+                1.0,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "insufficient_funds");
+        match err {
+            Error::InsufficientFunds {
+                needed_sat,
+                available_sat,
+            } => {
+                assert!(
+                    needed_sat > available_sat,
+                    "{needed_sat} vs {available_sat}"
+                );
+                assert_eq!(available_sat, 10_000);
+            }
+            other => panic!("expected InsufficientFunds, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn drain_builds_with_no_change_output() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle
+            .build_drain(&dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap();
+        assert_eq!(built.change_sat, 0);
+        assert_eq!(built.input_count, 1);
+        assert_eq!(built.total_out_sat + built.fee_sat, 100_000);
+        // A real spend, not a preview trick: it signs.
+        handle.sign(&built.psbt_base64).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn public_descriptors_expose_the_account_xpub_only_for_hd() {
+        let (hd, _) = open_hd(AddressType::P2wpkh).await;
+        let d = hd.public_descriptors().await;
+        assert!(
+            d.external.starts_with("wpkh([73c5da0a/84"),
+            "{}",
+            d.external
+        );
+        assert!(
+            d.external.contains("tpub") && d.external.contains("/0/*)"),
+            "{}",
+            d.external
+        );
+        assert!(!d.external.contains("tprv"));
+        let internal = d.internal.as_deref().expect("hd has a change keychain");
+        assert!(internal.contains("/1/*)"), "{internal}");
+        let xpub = d.account_xpub.as_deref().expect("hd has an account xpub");
+        assert!(xpub.starts_with("tpub"), "{xpub}");
+        assert_eq!(d.fingerprint.as_deref(), Some("73c5da0a"));
+
+        let (single, _) = open(AddressType::P2wpkh).await;
+        let s = single.public_descriptors().await;
+        assert!(s.external.starts_with("wpkh(02"), "{}", s.external);
+        assert!(s.internal.is_none() && s.account_xpub.is_none() && s.fingerprint.is_none());
+    }
+
+    #[tokio::test]
+    async fn transaction_detail_marks_our_outputs() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let txid = handle.list_transactions().await[0].txid.clone();
+        let d = handle.transaction(&txid).await.unwrap().expect("known tx");
+        assert_eq!(d.txid, txid);
+        assert_eq!(
+            (d.received_sat, d.net_sat, d.confirmations),
+            (100_000, 100_000, None)
+        );
+        assert_eq!(d.outputs.len(), 1);
+        assert!(d.outputs[0].ours);
+        assert_eq!(d.outputs[0].value_sat, 100_000);
+        assert!(
+            d.outputs[0]
+                .address
+                .as_deref()
+                .is_some_and(|a| a.starts_with("bcrt1")),
+            "{:?}",
+            d.outputs[0].address
+        );
+        // The funding input spends an output the wallet never saw.
+        assert_eq!(d.inputs.len(), 1);
+        assert_eq!(d.inputs[0].value_sat, None);
+        assert!(!d.inputs[0].ours);
+        assert_eq!(d.fee_sat, None);
+        assert!(d.vsize > 0);
+        assert!(
+            handle
+                .transaction(&"22".repeat(32))
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

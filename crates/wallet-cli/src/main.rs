@@ -122,16 +122,20 @@ fn read_key(arg: Option<String>) -> Result<KeyMaterial, String> {
     Ok(KeyMaterial::parse(&raw))
 }
 
+/// The Esplora endpoint in use: the one given, else the network's default.
+fn backend_url(network: Network, a: &BackendArgs) -> String {
+    a.url
+        .clone()
+        .unwrap_or_else(|| network.default_esplora_url().to_string())
+}
+
 async fn open(
     network: Network,
     address_type: AddressType,
     a: &BackendArgs,
 ) -> Result<WalletHandle, String> {
     let backend = BackendConfig::Esplora {
-        url: a
-            .url
-            .clone()
-            .unwrap_or_else(|| network.default_esplora_url().to_string()),
+        url: backend_url(network, a),
     };
     let cfg = WalletConfig {
         network,
@@ -232,7 +236,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
             Ok(serde_json::json!({
                 "replaced": txid, "txid": new_txid, "broadcast": !dry_run,
                 "fee_sat": built.fee_sat, "fee_rate_sat_vb": fee_rate, "vsize": tx.vsize(),
-                "explorer": network.explorer_tx_url(&new_txid),
+                "explorer": network.explorer_tx_url(&backend_url(network, &backend), &new_txid),
             }))
         }
         Cmd::Fees(a) => {
@@ -286,7 +290,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
             Ok(serde_json::json!({
                 "txid": txid, "broadcast": !dry_run, "persist_error": persist_error, "fee_sat": built.fee_sat, "fee_rate_sat_vb": rate,
                 "vsize": tx.vsize(), "change_sat": built.change_sat, "inputs": built.input_count,
-                "explorer": network.explorer_tx_url(&txid), "psbt": if dry_run { Some(signed) } else { None },
+                "explorer": network.explorer_tx_url(&backend_url(network, &backend), &txid), "psbt": if dry_run { Some(signed) } else { None },
             }))
         }
     }

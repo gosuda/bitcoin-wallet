@@ -19,20 +19,37 @@ use wallet_core::{AddressType, KeyMaterial, Network, Recipient, WalletConfig, Wa
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-fn js_err(e: impl std::fmt::Display) -> JsError {
-    JsError::new(&e.to_string())
+/// A JS `Error` carrying a stable `code` beside its message.
+///
+/// The UI branches on the code and shows the message. `isAppError()` on the
+/// TS side accepts any object with both, so a wallet-core error reaching the
+/// browser reads the same as one arriving over Tauri IPC. The plain error
+/// type wasm-bindgen offers would have kept only the prose.
+fn js_error(code: &str, message: &str) -> JsValue {
+    let err = js_sys::Error::new(message);
+    let _ = Reflect::set(&err, &JsValue::from_str("code"), &JsValue::from_str(code));
+    err.into()
 }
 
-fn to_js<T: serde::Serialize>(v: &T) -> Result<JsValue, JsError> {
-    serde_wasm_bindgen::to_value(v).map_err(js_err)
+fn core_err(e: wallet_core::Error) -> JsValue {
+    js_error(e.code(), &e.to_string())
 }
 
-fn parse_network(s: &str) -> Result<Network, JsError> {
-    Network::parse(s).ok_or_else(|| JsError::new(&format!("unknown network '{s}'")))
+fn other_err(e: impl std::fmt::Display) -> JsValue {
+    js_error("internal", &e.to_string())
 }
 
-fn parse_address_type(s: &str) -> Result<AddressType, JsError> {
-    AddressType::parse(s).ok_or_else(|| JsError::new(&format!("unknown address type '{s}'")))
+fn to_js<T: serde::Serialize>(v: &T) -> Result<JsValue, JsValue> {
+    serde_wasm_bindgen::to_value(v).map_err(other_err)
+}
+
+fn parse_network(s: &str) -> Result<Network, JsValue> {
+    Network::parse(s).ok_or_else(|| js_error("unsupported", &format!("unknown network '{s}'")))
+}
+
+fn parse_address_type(s: &str) -> Result<AddressType, JsValue> {
+    AddressType::parse(s)
+        .ok_or_else(|| js_error("unsupported", &format!("unknown address type '{s}'")))
 }
 
 /// Persister backed by a JS object (IndexedDB in practice). Keeps the
@@ -98,9 +115,9 @@ pub fn start() {
 
 /// Generate a fresh key: `{ priv_hex, wif, pub_hex, address }`. The only call that returns a secret.
 #[wasm_bindgen]
-pub fn generate_key(network: &str, address_type: &str) -> Result<JsValue, JsError> {
+pub fn generate_key(network: &str, address_type: &str) -> Result<JsValue, JsValue> {
     let k = wallet_core::generate_key(parse_network(network)?, parse_address_type(address_type)?)
-        .map_err(js_err)?;
+        .map_err(core_err)?;
     to_js(&k)
 }
 
@@ -113,21 +130,21 @@ pub fn generate_mnemonic(
     network: &str,
     address_type: &str,
     word_count: u8,
-) -> Result<JsValue, JsError> {
+) -> Result<JsValue, JsValue> {
     let m = wallet_core::generate_mnemonic(
         parse_network(network)?,
         parse_address_type(address_type)?,
         word_count,
     )
-    .map_err(js_err)?;
+    .map_err(core_err)?;
     to_js(&m)
 }
 
 /// Check a BIP39 phrase (English wordlist plus checksum). Throws with a
 /// readable reason when it is wrong; use it for restore-screen feedback.
 #[wasm_bindgen]
-pub fn validate_mnemonic(words: &str) -> Result<(), JsError> {
-    wallet_core::validate_mnemonic(words).map_err(js_err)
+pub fn validate_mnemonic(words: &str) -> Result<(), JsValue> {
+    wallet_core::validate_mnemonic(words).map_err(core_err)
 }
 
 /// Key material for a secret plus an optional BIP39 passphrase.
@@ -135,8 +152,8 @@ pub fn validate_mnemonic(words: &str) -> Result<(), JsError> {
 /// The passphrase is part of the wallet's identity, so every entry point whose
 /// answer depends on the seed takes it. It only applies to a mnemonic: handing
 /// one in with a hex or WIF secret is an error rather than a silent no-op.
-fn parse_key(secret: &str, passphrase: Option<String>) -> Result<KeyMaterial, JsError> {
-    KeyMaterial::parse_with_passphrase(secret, passphrase.as_deref()).map_err(js_err)
+fn parse_key(secret: &str, passphrase: Option<String>) -> Result<KeyMaterial, JsValue> {
+    KeyMaterial::parse_with_passphrase(secret, passphrase.as_deref()).map_err(core_err)
 }
 
 /// Address for a secret: hex/WIF gives that key's address, a mnemonic gives
@@ -148,14 +165,14 @@ pub fn address_for_key(
     network: &str,
     address_type: &str,
     passphrase: Option<String>,
-) -> Result<String, JsError> {
+) -> Result<String, JsValue> {
     let key = parse_key(secret, passphrase)?;
     wallet_core::address_for_key(
         &key,
         parse_network(network)?,
         parse_address_type(address_type)?,
     )
-    .map_err(js_err)
+    .map_err(core_err)
 }
 
 /// Non-secret wallet identifier for a secret (used as the persistence/keychain key).
@@ -170,26 +187,31 @@ pub fn wallet_id_for_key(
     network: &str,
     address_type: &str,
     passphrase: Option<String>,
-) -> Result<String, JsError> {
+) -> Result<String, JsValue> {
     let key = parse_key(secret, passphrase)?;
     wallet_core::keys::wallet_id(
         &key,
         parse_network(network)?,
         parse_address_type(address_type)?,
     )
-    .map_err(js_err)
+    .map_err(core_err)
 }
 
 /// Default public Esplora URL for a network.
 #[wasm_bindgen]
-pub fn default_esplora_url(network: &str) -> Result<String, JsError> {
+pub fn default_esplora_url(network: &str) -> Result<String, JsValue> {
     Ok(parse_network(network)?.default_esplora_url().to_string())
 }
 
-/// Block-explorer URL for a txid on a network.
+/// Block-explorer URL for a txid, on the explorer fronting `backend_url` when
+/// there is one; `null` on regtest, where no public explorer exists.
 #[wasm_bindgen]
-pub fn explorer_tx_url(network: &str, txid: &str) -> Result<String, JsError> {
-    Ok(parse_network(network)?.explorer_tx_url(txid))
+pub fn explorer_tx_url(
+    network: &str,
+    backend_url: &str,
+    txid: &str,
+) -> Result<Option<String>, JsValue> {
+    Ok(parse_network(network)?.explorer_tx_url(backend_url, txid))
 }
 
 /// An open wallet. All methods are async and safe to call from JS.
@@ -214,13 +236,13 @@ impl Wallet {
         secret: &str,
         persister: JsValue,
         passphrase: Option<String>,
-    ) -> Result<Wallet, JsError> {
-        let config: WalletConfig = serde_wasm_bindgen::from_value(config).map_err(js_err)?;
+    ) -> Result<Wallet, JsValue> {
+        let config: WalletConfig = serde_wasm_bindgen::from_value(config).map_err(other_err)?;
         let key = parse_key(secret, passphrase)?;
-        let persister = JsPersister::new(persister).map_err(js_err)?;
+        let persister = JsPersister::new(persister).map_err(core_err)?;
         let handle = WalletHandle::open(config, &key, Box::new(persister))
             .await
-            .map_err(js_err)?;
+            .map_err(core_err)?;
         Ok(Wallet {
             inner: Rc::new(handle),
         })
@@ -256,33 +278,57 @@ impl Wallet {
 
     /// Reveal a fresh receive address (HD only; a single-key wallet returns the
     /// same address as `address()`).
-    pub async fn new_address(&self) -> Result<String, JsError> {
-        self.inner.new_address().await.map_err(js_err)
+    pub async fn new_address(&self) -> Result<String, JsValue> {
+        self.inner.new_address().await.map_err(core_err)
     }
 
-    pub async fn sync(&self) -> Result<(), JsError> {
-        self.inner.sync().await.map_err(js_err)
+    pub async fn sync(&self) -> Result<(), JsValue> {
+        self.inner.sync().await.map_err(core_err)
+    }
+
+    /// Walk the keychains from the start again, `stop_gap` unused scripts past
+    /// the last used one. For a restored wallet that shows too little.
+    pub async fn rescan(&self, stop_gap: u32) -> Result<(), JsValue> {
+        self.inner.rescan(stop_gap).await.map_err(core_err)
+    }
+
+    /// `{ external, internal, account_xpub, fingerprint }` — the public half,
+    /// enough to watch this wallet elsewhere.
+    pub async fn public_descriptors(&self) -> Result<JsValue, JsValue> {
+        to_js(&self.inner.public_descriptors().await)
+    }
+
+    /// Full detail of one transaction in the history, or `null` when the txid
+    /// is not ours: `{ txid, net_sat, sent_sat, received_sat, fee_sat,
+    /// fee_rate_sat_vb, confirmations, block_height, timestamp, vsize,
+    /// inputs: [{ txid, vout, value_sat, ours }], outputs: [{ address,
+    /// value_sat, ours }] }`.
+    pub async fn transaction(&self, txid: &str) -> Result<JsValue, JsValue> {
+        match self.inner.transaction(txid).await.map_err(core_err)? {
+            Some(detail) => to_js(&detail),
+            None => Ok(JsValue::NULL),
+        }
     }
 
     /// `{ confirmed, trusted_pending, untrusted_pending, immature }` in sats.
-    pub async fn balance(&self) -> Result<JsValue, JsError> {
+    pub async fn balance(&self) -> Result<JsValue, JsValue> {
         to_js(&self.inner.balance().await)
     }
 
     /// `[{ txid, vout, value, confirmations, address }]`, largest first.
-    pub async fn list_utxos(&self) -> Result<JsValue, JsError> {
+    pub async fn list_utxos(&self) -> Result<JsValue, JsValue> {
         to_js(&self.inner.list_utxos().await)
     }
 
     /// `[{ txid, net_sat, sent_sat, received_sat, fee_sat, confirmations, timestamp }]`,
     /// newest first. `net_sat` is negative for outgoing transactions.
-    pub async fn list_transactions(&self) -> Result<JsValue, JsError> {
+    pub async fn list_transactions(&self) -> Result<JsValue, JsValue> {
         to_js(&self.inner.list_transactions().await)
     }
 
     /// `{ sat_per_vb_by_target: { "1": 12.3, ... } }`.
-    pub async fn estimate_fee(&self) -> Result<JsValue, JsError> {
-        let fee = self.inner.estimate_fee().await.map_err(js_err)?;
+    pub async fn estimate_fee(&self) -> Result<JsValue, JsValue> {
+        let fee = self.inner.estimate_fee().await.map_err(core_err)?;
         // BTreeMap<u16, f64> keys become strings in JS objects.
         let obj: std::collections::BTreeMap<String, f64> = fee
             .sat_per_vb_by_target
@@ -292,8 +338,8 @@ impl Wallet {
         to_js(&serde_json::json!({ "sat_per_vb_by_target": obj }))
     }
 
-    pub async fn chain_height(&self) -> Result<u32, JsError> {
-        self.inner.chain_height().await.map_err(js_err)
+    pub async fn chain_height(&self) -> Result<u32, JsValue> {
+        self.inner.chain_height().await.map_err(core_err)
     }
 
     /// `recipients`: `[{ address, amount_sat }]`. Returns
@@ -302,15 +348,31 @@ impl Wallet {
         &self,
         recipients: JsValue,
         fee_rate_sat_vb: f64,
-    ) -> Result<JsValue, JsError> {
+    ) -> Result<JsValue, JsValue> {
         let recipients: Vec<Recipient> =
-            serde_wasm_bindgen::from_value(recipients).map_err(js_err)?;
+            serde_wasm_bindgen::from_value(recipients).map_err(other_err)?;
         let built = self
             .inner
             .build_transfer(&recipients, fee_rate_sat_vb)
             .await
-            .map_err(js_err)?;
+            .map_err(core_err)?;
         to_js(&built)
+    }
+
+    /// Empty the wallet into `address`. Same shape as `build_transfer`;
+    /// `total_out_sat` is exactly what arrives, since there is no change.
+    pub async fn build_drain(
+        &self,
+        address: &str,
+        fee_rate_sat_vb: f64,
+    ) -> Result<JsValue, JsValue> {
+        to_js(
+            &self
+                .inner
+                .build_drain(address, fee_rate_sat_vb)
+                .await
+                .map_err(core_err)?,
+        )
     }
 
     /// Rebuild an unconfirmed transaction of ours at a higher fee rate.
@@ -320,30 +382,30 @@ impl Wallet {
         &self,
         txid: &str,
         fee_rate_sat_vb: f64,
-    ) -> Result<JsValue, JsError> {
+    ) -> Result<JsValue, JsValue> {
         to_js(
             &self
                 .inner
                 .build_fee_bump(txid, fee_rate_sat_vb)
                 .await
-                .map_err(js_err)?,
+                .map_err(core_err)?,
         )
     }
 
     /// Sign + finalize a PSBT (base64) produced by `build_transfer`.
-    pub async fn sign(&self, psbt_base64: &str) -> Result<String, JsError> {
-        self.inner.sign(psbt_base64).await.map_err(js_err)
+    pub async fn sign(&self, psbt_base64: &str) -> Result<String, JsValue> {
+        self.inner.sign(psbt_base64).await.map_err(core_err)
     }
 
     /// Broadcast a signed PSBT. Returns `{ txid, persist_error }` — a set
     /// `persist_error` means the send succeeded but local state was not saved.
-    pub async fn broadcast(&self, signed_psbt_base64: &str) -> Result<JsValue, JsError> {
+    pub async fn broadcast(&self, signed_psbt_base64: &str) -> Result<JsValue, JsValue> {
         to_js(
             &self
                 .inner
                 .broadcast(signed_psbt_base64)
                 .await
-                .map_err(js_err)?,
+                .map_err(core_err)?,
         )
     }
 }

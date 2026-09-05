@@ -5719,6 +5719,7 @@ dependencies = [
  "async-trait",
  "bdk_esplora",
  "bdk_wallet",
+ "futures-util",
  "getrandom 0.2.17",
  "gloo-timers",
  "hex",
