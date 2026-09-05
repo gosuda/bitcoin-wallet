@@ -104,6 +104,10 @@ export function renderSettings(): HTMLElement {
     : info.is_hd
       ? "Recovery phrase (HD)"
       : "Single key";
+  // The keystore holds one wallet. "Remembered" and "Forget" are about *this*
+  // one, or they are about nothing: another wallet's key must not be deleted
+  // from here.
+  const remembered = session.remembered?.wallet_id === info.wallet_id;
 
   host.appendChild(header("Settings"));
   host.appendChild(
@@ -123,7 +127,7 @@ export function renderSettings(): HTMLElement {
         item("Wallet", kind),
         item(
           "Remembered on this device",
-          platform().canRememberWallet ? (session.remembered ? "Yes" : "No") : "Not available here",
+          platform().canRememberWallet ? (remembered ? "Yes" : "No") : "Not available here",
         ),
       ),
       listCard(
@@ -135,21 +139,23 @@ export function renderSettings(): HTMLElement {
         }),
       ),
       spacer(),
-      confirmDanger({
-        trigger: "Forget this wallet",
-        text: "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it.",
-        confirm: "Delete it",
-        onConfirm: async () => {
-          try {
-            await api.forgetWallet();
-            session.remembered = null;
-            session.lastResult = null;
-            navigate("setup");
-          } catch (e) {
-            alert.show("error", errorMessage(e));
-          }
-        },
-      }),
+      remembered
+        ? confirmDanger({
+            trigger: "Forget this wallet",
+            text: "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it.",
+            confirm: "Delete it",
+            onConfirm: async () => {
+              try {
+                await api.forgetWallet();
+                session.remembered = null;
+                session.lastResult = null;
+                navigate("setup");
+              } catch (e) {
+                alert.show("error", errorMessage(e));
+              }
+            },
+          })
+        : null,
       el("p", { className: "m-txmeta m-centre-text", text: info.wallet_id }),
     ),
   );

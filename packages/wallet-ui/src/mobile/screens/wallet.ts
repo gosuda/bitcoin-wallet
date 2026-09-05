@@ -70,7 +70,10 @@ export function renderWallet(): HTMLElement {
   const hero = el("span", { className: "m-hero", text: "—" });
   const sub = el("span", { className: "m-sub", text: "" });
   const pending = el("span", { className: "m-pending" });
-  const synced = el("span", { text: "Not synced yet" });
+  // The screen is rebuilt on every visit; the last sync is a session fact.
+  const syncedText = () =>
+    session.lastSyncedAt ? `Synced ${session.lastSyncedAt.toLocaleTimeString()}` : "Not synced yet";
+  const synced = el("span", { text: syncedText() });
 
   const paint = (balance: Balance): void => {
     const total = headlineSat(balance);
@@ -115,7 +118,7 @@ export function renderWallet(): HTMLElement {
       paint(await api.sync());
       paintTxs(await api.listTransactions());
       session.lastSyncedAt = new Date();
-      synced.textContent = `Synced ${session.lastSyncedAt.toLocaleTimeString()}`;
+      synced.textContent = syncedText();
       alert.hide();
     } catch (e) {
       synced.textContent = "Sync failed";
