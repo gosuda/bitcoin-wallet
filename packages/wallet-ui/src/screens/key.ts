@@ -147,6 +147,63 @@ export function renderKey(): HTMLElement {
     advancedOpen = advanced.open;
   });
 
+  // The public half of a wallet: an account xpub, or a descriptor another
+  // wallet exported. The core reads it the way it reads a key; what differs
+  // is what the user is told it can do.
+  const watchSource = el("textarea", {
+    className: "mono",
+    attrs: {
+      rows: "2",
+      name: "descriptor",
+      placeholder: "wpkh([fingerprint/84h/1h/0h]tpub…/0/*) — or just the tpub",
+      spellcheck: "false",
+      autocapitalize: "off",
+      autocomplete: "off",
+    },
+  }) as HTMLTextAreaElement;
+  const watchRemember = rememberCheckbox();
+  const followBtn = button(
+    "Follow this wallet",
+    () =>
+      withBusy(followBtn, async () => {
+        alert.hide();
+        const value = watchSource.value.trim();
+        if (!value) {
+          alert.show("error", "Paste an xpub or a public descriptor.");
+          return;
+        }
+        try {
+          const info = await api.openWallet(value, cfg.address_type, watchRemember.checked());
+          watchSource.value = "";
+          session.wallet = info;
+          session.remembered = await api.getRemembered();
+          session.lastSyncedAt = null;
+          navigate("dashboard");
+        } catch (e) {
+          alert.show("error", errorMessage(e));
+        }
+      }),
+    "default",
+    "md",
+    { name: "eye" },
+  );
+  const watchOnly = el("section", { className: "card" }, [
+    el("div", { className: "card-head" }, [
+      sectionLabel("Watch-only"),
+      el("span", {
+        className: "hint",
+        text: "Follows a wallet without its keys: balance, history and receiving, no sending.",
+      }),
+    ]),
+    field(
+      "xpub or descriptor",
+      watchSource,
+      "A bare xpub is expanded with the address type chosen in Setup.",
+    ),
+    watchRemember.node,
+    el("div", { className: "actions" }, [followBtn]),
+  ]);
+
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [
       el("h1", { text: "Key" }),
@@ -172,5 +229,6 @@ export function renderKey(): HTMLElement {
       platform().canRememberWallet ? null : el("p", { className: "hint", text: NO_KEYSTORE_HINT }),
     ]),
     advanced,
+    watchOnly,
   ]);
 }

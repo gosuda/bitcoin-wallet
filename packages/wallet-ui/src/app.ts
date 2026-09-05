@@ -93,6 +93,8 @@ function guard(route: Route): Route {
   // Setup rewrites the network under a live wallet handle; close it first.
   if (route === "setup" && session.wallet) return "dashboard";
   if ((route === "dashboard" || route === "send") && !session.wallet) return "setup";
+  // A watch-only wallet has nothing to sign with; the screen is not offered.
+  if (route === "send" && session.wallet?.is_watch_only) return "dashboard";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
   if (KEY_ROUTES.has(route) && !session.config) return "setup";
   // Unlock exists only where a key can outlive the session; in a browser there
