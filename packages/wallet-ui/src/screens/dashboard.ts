@@ -1,4 +1,6 @@
 import { api } from "../api";
+import { headlineSat, pendingSat } from "../balance";
+import { isBumpable, suggestBumpRate } from "../feebump";
 import { navigate } from "../router";
 import { session } from "../session";
 import {
@@ -6,7 +8,6 @@ import {
   type Balance,
   errorMessage,
   NETWORK_LABELS,
-  rateForTarget,
   type TxSummary,
   type Utxo,
 } from "../types";
@@ -89,11 +90,6 @@ function formatWhen(timestamp: number | null): string {
   });
 }
 
-/** Only our own unconfirmed sends can be replaced; everything else is settled. */
-function isBumpable(tx: TxSummary): boolean {
-  return tx.confirmations === null && tx.net_sat < 0;
-}
-
 type BumpRequest = (tx: TxSummary, row: HTMLTableRowElement, trigger: HTMLButtonElement) => void;
 
 function txTable(txs: TxSummary[], onBump: BumpRequest): HTMLElement {
@@ -167,14 +163,13 @@ export function renderDashboard(): HTMLElement {
   const syncedLabel = el("span", { className: "hint", text: "Not synced yet" });
 
   const renderBalance = (b: Balance) => {
-    const pending = b.trusted_pending + b.untrusted_pending;
-    const total = b.confirmed + pending + b.immature;
+    const total = headlineSat(b);
     heroTotal.textContent = formatNumber(total);
     heroBtc.textContent = formatBtc(total);
     clear(stats);
     stats.append(
       stat("Confirmed", formatSats(b.confirmed)),
-      stat("Pending", formatSats(pending), "muted"),
+      stat("Pending", formatSats(pendingSat(b)), "muted"),
       b.immature > 0 ? stat("Immature", formatSats(b.immature), "muted") : el("span"),
     );
   };
@@ -247,11 +242,9 @@ export function renderDashboard(): HTMLElement {
     closeBump();
     void withBusy(trigger, async () => {
       alert.hide();
-      let suggested = 1;
+      let suggested = suggestBumpRate(null);
       try {
-        // Replacing means outbidding the original: the 1-block rate is the ask.
-        const rate = rateForTarget(await api.estimateFee(), 1);
-        suggested = Math.max(1, Math.ceil((rate ?? 1) * 10) / 10);
+        suggested = suggestBumpRate(await api.estimateFee());
       } catch (e) {
         alert.show("warn", `Fee estimate unavailable: ${errorMessage(e)} — starting at 1 sat/vB.`);
       }

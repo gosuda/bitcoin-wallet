@@ -48,3 +48,38 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
 
   return out;
 }
+
+/** BTC with up to eight decimals and no trailing zeros, as BIP21 spells it. */
+function formatBtcAmount(sats: number): string {
+  const whole = Math.floor(sats / 1e8);
+  const frac = String(sats - whole * 1e8)
+    .padStart(8, "0")
+    .replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : String(whole);
+}
+
+/** The inverse of `parsePaymentUri`: what a Receive screen encodes. */
+export function buildPaymentUri(request: PaymentRequest): string {
+  const params = new URLSearchParams();
+  if (request.amountSat !== undefined && request.amountSat > 0) {
+    params.set("amount", formatBtcAmount(request.amountSat));
+  }
+  if (request.label) params.set("label", request.label);
+  const query = params.toString();
+  return `bitcoin:${request.address}${query ? `?${query}` : ""}`;
+}
+
+/**
+ * What goes in a QR.
+ *
+ * A bare bech32 address is upper-cased: BIP173 prefers it in QR codes and it
+ * is case-insensitive, so nothing is lost. Measured on a 42-character address
+ * the code is no smaller — version 3 either way — so this is convention, not a
+ * win. A URI is left alone: its parameters are not case-insensitive, and an
+ * upper-cased label would arrive changed. Base58 is case-*sensitive*; upper-
+ * casing one would produce a QR that scans cleanly and pays nobody, which is
+ * the load-bearing branch here.
+ */
+export function qrPayload(text: string): string {
+  return /^(bc1|tb1|bcrt1)[a-z0-9]+$/i.test(text) ? text.toUpperCase() : text;
+}
