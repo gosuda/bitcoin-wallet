@@ -671,6 +671,15 @@ button.m-txrow:active {
   text-align: center;
 }
 
+/* A card whose QR sits centred while its buttons still span the width. */
+.m-centre-items {
+  align-items: center;
+}
+
+.m-centre-items > .m-row {
+  align-self: stretch;
+}
+
 /* Tab bar ----------------------------------------------------------------- */
 
 .m-tabs {

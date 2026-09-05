@@ -6,7 +6,7 @@ import { session } from "../../session";
 import { errorMessage, type PublicDescriptors } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel } from "../../ui/dom";
-import { body, card, header, lede } from "../ui";
+import { body, card, header, lede, row } from "../ui";
 
 export function renderExport(): HTMLElement {
   const info = session.wallet;
@@ -32,9 +32,9 @@ export function renderExport(): HTMLElement {
         ),
         el("div", { className: "m-qr" }, [canvas]),
         el("span", { className: "m-mono-block", text: xpub }),
-        copyButton(() => xpub, "Copy xpub"),
+        row(copyButton(() => xpub, "Copy xpub")),
       );
-      keys.style.setProperty("align-items", "center");
+      keys.classList.add("m-centre-items");
       sections.push(keys);
       try {
         await QRCode.toCanvas(canvas, xpub, {
