@@ -62,15 +62,23 @@ const NEEDS_WALLET: ReadonlySet<Route> = new Set<Route>([
  */
 function guard(route: Route): Route {
   if (NEEDS_WALLET.has(route) && !session.wallet) return "setup";
+  // Setup rewrites the network under a live wallet handle; Settings is where
+  // that change is made, through a close.
+  if (route === "setup" && session.wallet) return "settings";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
   if (KEY_ROUTES.has(route) && !session.config) return "setup";
   if (route === "unlock" && (!platform().canRememberWallet || !session.remembered)) return "key";
   return route;
 }
 
+/** The tabs this build can honour: Scan needs a camera to point at anything. */
+function tabs(): readonly (typeof TABS)[number][] {
+  return TABS.filter((tab) => tab.route !== "scan" || platform().scanQr !== undefined);
+}
+
 function tabBar(active: Route): HTMLElement {
   const bar = el("nav", { className: "m-tabs", attrs: { "aria-label": "Sections" } });
-  for (const tab of TABS) {
+  for (const tab of tabs()) {
     const btn = el("button", {
       className: "m-tab",
       attrs: {
@@ -97,7 +105,7 @@ function render(): void {
   if (!root) throw new Error("missing #app root");
   clear(root);
   root.appendChild(SCREENS[route]());
-  if (TABS.some((t) => t.route === route)) root.appendChild(tabBar(route));
+  if (tabs().some((t) => t.route === route)) root.appendChild(tabBar(route));
 }
 
 export function mount(): void {

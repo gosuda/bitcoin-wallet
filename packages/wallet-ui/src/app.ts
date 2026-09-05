@@ -84,6 +84,8 @@ const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
 /** Route guards: wallet screens need an open wallet, key screen needs config. */
 function guard(route: Route): Route {
   if (MOBILE_ONLY.has(route)) return session.wallet ? "dashboard" : "setup";
+  // Setup rewrites the network under a live wallet handle; close it first.
+  if (route === "setup" && session.wallet) return "dashboard";
   if ((route === "dashboard" || route === "send") && !session.wallet) return "setup";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
   if (KEY_ROUTES.has(route) && !session.config) return "setup";
