@@ -82,6 +82,9 @@ enum Cmd {
     },
     /// Show fee estimates from the backend
     Fees(BackendArgs),
+    /// Show the public descriptors (and the account xpub for an HD wallet):
+    /// enough to watch this wallet elsewhere, never enough to spend from it
+    Export(BackendArgs),
     /// Build, sign and broadcast a transfer
     Send {
         #[command(flatten)]
@@ -237,6 +240,15 @@ async fn run(cli: Cli) -> Result<serde_json::Value, String> {
                 "replaced": txid, "txid": new_txid, "broadcast": !dry_run,
                 "fee_sat": built.fee_sat, "fee_rate_sat_vb": fee_rate, "vsize": tx.vsize(),
                 "explorer": network.explorer_tx_url(&backend_url(network, &backend), &new_txid),
+            }))
+        }
+        Cmd::Export(a) => {
+            let w = open(network, address_type, &a).await?;
+            let d = w.public_descriptors().await;
+            Ok(serde_json::json!({
+                "wallet_id": w.id(), "watch_only": w.is_watch_only(),
+                "external": d.external, "internal": d.internal,
+                "account_xpub": d.account_xpub, "fingerprint": d.fingerprint,
             }))
         }
         Cmd::Fees(a) => {
