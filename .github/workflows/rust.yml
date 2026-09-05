@@ -9,6 +9,12 @@ on:
     paths:
       ["Cargo.*", "crates/**", "apps/**", "packages/**", "pnpm-*", ".github/workflows/rust.yml"]
 
+# Every job here only reads the repository and runs builds and tests, so the
+# token needs nothing else. Without this each job inherits the repository
+# default, which can include write scopes.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 

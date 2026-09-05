@@ -1417,21 +1417,17 @@ mod tests {
             "{}",
             d.external
         );
-        assert!(
-            d.external.contains("tpub") && d.external.contains("/0/*)"),
-            "{}",
-            d.external
-        );
+        assert!(d.external.contains("tpub") && d.external.contains("/0/*)"));
         assert!(!d.external.contains("tprv"));
         let internal = d.internal.as_deref().expect("hd has a change keychain");
-        assert!(internal.contains("/1/*)"), "{internal}");
+        assert!(internal.contains("/1/*)"));
         let xpub = d.account_xpub.as_deref().expect("hd has an account xpub");
-        assert!(xpub.starts_with("tpub"), "{xpub}");
+        assert!(xpub.starts_with("tpub"));
         assert_eq!(d.fingerprint.as_deref(), Some("73c5da0a"));
 
         let (single, _) = open(AddressType::P2wpkh).await;
         let s = single.public_descriptors().await;
-        assert!(s.external.starts_with("wpkh(02"), "{}", s.external);
+        assert!(s.external.starts_with("wpkh(02"));
         assert!(s.internal.is_none() && s.account_xpub.is_none() && s.fingerprint.is_none());
     }
 

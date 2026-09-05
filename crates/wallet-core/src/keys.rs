@@ -1055,14 +1055,17 @@ mod tests {
     /// The public form of ABANDON's BIP84 regtest account, as another wallet
     /// would export it: what a watch-only user pastes.
     fn abandon_public_descriptor() -> String {
-        let Descriptors::Hd { external, .. } =
-            descriptors_for(&mnemonic(ABANDON), Network::Regtest, AddressType::P2wpkh).unwrap()
-        else {
-            panic!("a mnemonic is an HD account");
-        };
-        let (public, _) =
-            ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), &external).unwrap();
-        public.to_string()
+        // Straight to the public form: `descriptors_for` would hand back the
+        // descriptor with the secret key substituted in, and deriving a public
+        // string from that is exactly the shape a leak takes.
+        let (descriptor, _) = hd_wallet_descriptor(
+            &mnemonic(ABANDON),
+            Network::Regtest,
+            AddressType::P2wpkh,
+            KeychainKind::External,
+        )
+        .unwrap();
+        descriptor.to_string()
     }
 
     /// The bare account xpub inside [`abandon_public_descriptor`].
@@ -1125,7 +1128,7 @@ mod tests {
         {
             Descriptors::Hd { external, internal } => {
                 assert!(!external.contains('#') && external.ends_with("/0/*)"));
-                assert!(internal.ends_with("/1/*)"), "{internal}");
+                assert!(internal.ends_with("/1/*)"));
             }
             Descriptors::Single(_) => panic!("a ranged descriptor is an account"),
         }
@@ -1175,7 +1178,7 @@ mod tests {
         // Its own id, never the full wallet's — see `wallet_id`.
         let watch_id = wallet_id(&key, Network::Regtest, AddressType::P2wpkh).unwrap();
         let seed_id = wallet_id(&mnemonic(ABANDON), Network::Regtest, AddressType::P2wpkh).unwrap();
-        assert!(watch_id.starts_with("regtest-p2wpkh-watch-"), "{watch_id}");
+        assert!(watch_id.starts_with("regtest-p2wpkh-watch-"));
         assert_ne!(watch_id, seed_id);
 
         // Neither a key nor a phrase is mistaken for one of these.
