@@ -5,7 +5,7 @@ use std::future::Future;
 use bdk_esplora::EsploraAsyncExt;
 #[cfg(target_arch = "wasm32")]
 use bdk_esplora::esplora_client::Sleeper;
-use bdk_esplora::esplora_client::{AsyncClient, Builder};
+use bdk_esplora::esplora_client::{AsyncClient, Builder, Error as EsploraError};
 use bdk_wallet::KeychainKind;
 use bdk_wallet::bitcoin::{Transaction, Txid};
 use bdk_wallet::chain::spk_client::{FullScanRequest, FullScanResponse, SyncRequest, SyncResponse};
@@ -23,14 +23,22 @@ const SCAN_DEADLINE_SECS: u64 = 180;
 
 /// Bound a backend call in time.
 ///
-/// Native builds get this from reqwest per request, so the future runs as it
-/// is. On wasm32 `esplora-client` silently drops the timeout it is given —
-/// reqwest cannot abort a `fetch` there — which left the browser and both
-/// webviews with no deadline at all: a hung endpoint hung the wallet. The race
-/// below is the only one those builds have.
+/// Both targets need this, for different reasons. Natively reqwest enforces a
+/// timeout *per request*, which does not bound a scan: a scan is many requests,
+/// and a server answering each one slowly can run past any budget while no
+/// single request ever times out. On wasm32 `esplora-client` silently drops the
+/// timeout it is given — reqwest cannot abort a `fetch` there — so those builds
+/// have no per-request bound at all and a hung endpoint hung the wallet.
+///
+/// Wrapping the whole call means [`SCAN_DEADLINE_SECS`] is a real budget on
+/// every target rather than a comment, and a caller sees the same
+/// [`Error::Timeout`] wherever it runs.
 #[cfg(not(target_arch = "wasm32"))]
-async fn deadline<T>(_secs: u64, call: impl Future<Output = Result<T>>) -> Result<T> {
-    call.await
+async fn deadline<T>(secs: u64, call: impl Future<Output = Result<T>>) -> Result<T> {
+    match tokio::time::timeout(std::time::Duration::from_secs(secs), call).await {
+        Ok(result) => result,
+        Err(_elapsed) => Err(Error::Timeout(secs)),
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -85,7 +93,18 @@ impl EsploraBackend {
     }
 }
 
-fn map_err(e: impl std::fmt::Display) -> Error {
+/// Map a backend error, keeping "it did not answer in time" distinguishable.
+///
+/// reqwest reports its own per-request timeout natively. Folding that into a
+/// generic `Backend` error gave the same situation two different codes
+/// depending on the target, since wasm has only the deadline above and always
+/// produced `Timeout`.
+fn map_err(e: EsploraError) -> Error {
+    if let EsploraError::Reqwest(ref inner) = e
+        && inner.is_timeout()
+    {
+        return Error::Timeout(CALL_DEADLINE_SECS);
+    }
     Error::Backend(e.to_string())
 }
 
@@ -101,7 +120,7 @@ impl ChainBackend for EsploraBackend {
             self.client
                 .full_scan(request, stop_gap, PARALLEL_REQUESTS)
                 .await
-                .map_err(map_err)
+                .map_err(|e| map_err(*e))
         })
         .await
     }
@@ -111,7 +130,7 @@ impl ChainBackend for EsploraBackend {
             self.client
                 .sync(request, PARALLEL_REQUESTS)
                 .await
-                .map_err(map_err)
+                .map_err(|e| map_err(*e))
         })
         .await
     }
@@ -139,5 +158,27 @@ impl ChainBackend for EsploraBackend {
             self.client.get_height().await.map_err(map_err)
         })
         .await
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    /// The native branch used to be a no-op that returned the future untouched,
+    /// so `SCAN_DEADLINE_SECS` bounded nothing off the browser.
+    #[tokio::test]
+    async fn the_native_deadline_actually_fires() {
+        let never = std::future::pending::<Result<()>>();
+        let started = std::time::Instant::now();
+        let error = deadline(1, never).await.unwrap_err();
+        assert!(matches!(error, Error::Timeout(1)), "{error:?}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn a_call_inside_the_budget_is_untouched() {
+        let ok = async { Ok(7_u8) };
+        assert_eq!(deadline(30, ok).await.unwrap(), 7);
     }
 }

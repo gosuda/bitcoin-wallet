@@ -33,6 +33,9 @@ zeroize = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bdk_esplora = { version = "0.22.2", default-features = false, features = ["async-https-rustls", "tokio"], optional = true }
+# Only for the scan deadline in backend/esplora.rs. bdk_esplora already pulls
+# tokio in on this target; this asks for its timer as well.
+tokio = { version = "1", default-features = false, features = ["time"] }
 
 # Desktop only: `keyring`'s `v1` wrapper finds and installs the OS store itself.
 # It is deliberately absent on mobile, where that wrapper refuses to work at all.
