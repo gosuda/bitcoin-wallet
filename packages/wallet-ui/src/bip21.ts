@@ -33,20 +33,44 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   const address = decodeURIComponent(addressPart).trim();
   if (address === "") return null;
 
-  const out: PaymentRequest = { address };
   const params = new URLSearchParams(queryPart);
+
+  // BIP21: a `req-` parameter we do not implement invalidates the whole URI.
+  // Honouring only the keys we know would strip a condition the payer made
+  // mandatory and show the payment as an ordinary transfer.
+  for (const key of params.keys()) {
+    if (key.toLowerCase().startsWith("req-")) return null;
+  }
+
+  const out: PaymentRequest = { address };
 
   const amount = params.get("amount");
   if (amount !== null) {
-    const btc = Number(amount);
-    // BIP21 amounts are in BTC; satoshis are the only unit the wallet takes.
-    if (Number.isFinite(btc) && btc > 0) out.amountSat = Math.round(btc * 1e8);
+    // Parsed, not coerced. `Number` would read "1e-3" as 0.001 BTC and round
+    // "0.000000009" up to a satoshi the payer never asked for; BIP21 amounts
+    // are plain decimal BTC with at most eight places.
+    const sats = btcToSats(amount);
+    if (sats !== null) out.amountSat = sats;
   }
 
   const label = params.get("label") ?? params.get("message");
   if (label !== null && label !== "") out.label = label;
 
   return out;
+}
+
+/**
+ * A BIP21 `amount` as whole satoshis, or null when it is not one.
+ *
+ * Integer arithmetic throughout, for the reason `parseAmount` gives: multiplying
+ * a parsed float by 1e8 is off by a satoshi for ordinary values.
+ */
+function btcToSats(raw: string): number | null {
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw)) return null;
+  const [whole = "", frac = ""] = raw.split(".");
+  if (frac.length > 8) return null;
+  const sats = Number(whole || "0") * 1e8 + Number(frac.padEnd(8, "0") || "0");
+  return Number.isSafeInteger(sats) && sats > 0 ? sats : null;
 }
 
 /** BTC with up to eight decimals and no trailing zeros, as BIP21 spells it. */

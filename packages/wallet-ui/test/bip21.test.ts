@@ -43,9 +43,28 @@ describe("parsePaymentUri", () => {
     expect(parsePaymentUri(`Bitcoin:${ADDR}`)?.address).toBe(ADDR);
   });
 
-  it("ignores parameters it does not implement", () => {
-    const parsed = parsePaymentUri(`bitcoin:${ADDR}?amount=0.001&lightning=lnbc1&req-x=1`);
+  it("ignores optional parameters it does not implement", () => {
+    const parsed = parsePaymentUri(`bitcoin:${ADDR}?amount=0.001&lightning=lnbc1`);
     expect(parsed).toEqual({ address: ADDR, amountSat: 100_000 });
+  });
+
+  // BIP21 makes a `req-` prefix mean "reject the URI if you do not implement
+  // this". Prefilling the address and amount anyway would present a payment
+  // with a mandatory condition silently dropped.
+  it("rejects the whole URI for an unimplemented req- parameter", () => {
+    expect(parsePaymentUri(`bitcoin:${ADDR}?req-foo=1`)).toBeNull();
+    expect(parsePaymentUri(`bitcoin:${ADDR}?amount=0.001&req-shamir=x`)).toBeNull();
+    expect(parsePaymentUri(`bitcoin:${ADDR}?REQ-Foo=1`)).toBeNull();
+  });
+
+  // The same class of input parseAmount refuses: a stray "e" must not become
+  // an amount, and precision finer than a satoshi is not ours to round.
+  it("parses the amount instead of coercing it", () => {
+    expect(parsePaymentUri(`bitcoin:${ADDR}?amount=1e-3`)?.amountSat).toBeUndefined();
+    expect(parsePaymentUri(`bitcoin:${ADDR}?amount=0x10`)?.amountSat).toBeUndefined();
+    expect(parsePaymentUri(`bitcoin:${ADDR}?amount=0.000000009`)?.amountSat).toBeUndefined();
+    expect(parsePaymentUri(`bitcoin:${ADDR}?amount= 1 `)?.amountSat).toBeUndefined();
+    expect(parsePaymentUri(`bitcoin:${ADDR}?amount=1.5`)?.amountSat).toBe(150_000_000);
   });
 
   it("takes label, falling back to message", () => {
