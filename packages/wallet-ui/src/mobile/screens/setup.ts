@@ -49,10 +49,17 @@ export function renderSetup(): HTMLElement {
     "Continue",
     async () => {
       alert.hide();
+      const trimmed = url.value.trim();
+      if (!trimmed) {
+        // Desktop refuses this here too. Saving it instead would only surface
+        // as a backend error when a wallet is opened, several screens later.
+        alert.show("error", "Esplora URL is required.");
+        return;
+      }
       try {
         const config = {
           network: network.value(),
-          backend: { kind: "esplora" as const, url: url.value.trim() },
+          backend: { kind: "esplora" as const, url: trimmed },
           address_type: addressType.value(),
         };
         await api.setConfig(config);
