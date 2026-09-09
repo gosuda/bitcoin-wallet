@@ -79,6 +79,13 @@ export function renderSend(): HTMLElement {
   // that appears is exactly what will leave. Editing the amount, the rate or
   // the address leaves the mode; the stale preview is discarded.
   let drain: TxPreview | null = null;
+  /**
+   * See the desktop Send screen: `drain` is null while a build is in flight,
+   * so it cannot be the thing that invalidates one. This can, and must —
+   * the confirm sheet does not repeat the recipient, so a stale drain would
+   * be broadcast with nothing on screen contradicting it.
+   */
+  let drainSeq = 0;
   const maxNote = el("span", { className: "hint" });
   const max = el("button", {
     className: "m-chip m-chip-max",
@@ -87,6 +94,7 @@ export function renderSend(): HTMLElement {
   }) as HTMLButtonElement;
 
   const leaveDrain = (): void => {
+    drainSeq += 1;
     if (!drain) return;
     void api.discardTx(drain.psbt_id);
     drain = null;
@@ -105,7 +113,12 @@ export function renderSend(): HTMLElement {
     if (bad) return alert.show("error", bad);
     try {
       leaveDrain();
+      const seq = drainSeq;
       const preview = await api.buildDrain(to, rate);
+      if (seq !== drainSeq) {
+        void api.discardTx(preview.psbt_id);
+        return;
+      }
       drain = preview;
       amount.value = formatAmount(preview.total_out_sat, currentUnit);
       touched.amount = true;

@@ -72,6 +72,15 @@ export function renderSend(): HTMLElement {
    * the amount, the address or the rate leaves the mode and discards this.
    */
   let drain: TxPreview | null = null;
+  /**
+   * Bumped by anything that changes what Max would build. A build resolves
+   * against the generation it started in; a later one means the address, the
+   * rate or the recipient list moved while it was in flight, and its PSBT pays
+   * what was on screen then — not what is there now. Without this the only
+   * guard is `drain`, which is still null mid-build, so every edit no-ops and
+   * the stale transaction installs unconditionally.
+   */
+  let drainSeq = 0;
   let rowSeq = 0;
 
   const feeRate = textInput({ value: "1", type: "number", mono: true });
@@ -174,6 +183,8 @@ export function renderSend(): HTMLElement {
   };
 
   const leaveDrain = () => {
+    // Before the early return: an in-flight build must be invalidated too.
+    drainSeq += 1;
     if (!drain) return;
     void api.discardTx(drain.psbt_id);
     drain = null;
@@ -196,7 +207,14 @@ export function renderSend(): HTMLElement {
       }
       try {
         leaveDrain();
+        const seq = drainSeq;
         const preview = await api.buildDrain(address, currentRate());
+        if (seq !== drainSeq) {
+          // The form moved under us. Keeping this would let Review broadcast
+          // to the previous address at the previous rate.
+          void api.discardTx(preview.psbt_id);
+          return;
+        }
         drain = preview;
         row.amount.value = formatAmount(preview.total_out_sat, row.unit);
         row.touched.amount = true;
