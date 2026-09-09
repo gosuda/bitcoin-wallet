@@ -1,6 +1,7 @@
 import { api } from "../../api";
 import { headlineSat, pendingSat } from "../../balance";
 import { navigate } from "../../router";
+import { screenToken, stillCurrent } from "../../screen";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
@@ -114,13 +115,21 @@ export function renderWallet(): HTMLElement {
   const runSync = async (): Promise<void> => {
     if (sync.disabled) return;
     sync.disabled = true;
+    // A sync outlives the screen that asked for it. Closing this wallet and
+    // opening another mid-sync used to repaint the new wallet's balance with
+    // the previous one's numbers.
+    const token = screenToken();
     try {
-      paint(await api.sync());
-      paintTxs(await api.listTransactions());
+      const balance = await api.sync();
+      const txs = await api.listTransactions();
+      if (!stillCurrent(token)) return;
+      paint(balance);
+      paintTxs(txs);
       session.lastSyncedAt = new Date();
       synced.textContent = syncedText();
       alert.hide();
     } catch (e) {
+      if (!stillCurrent(token)) return;
       synced.textContent = "Sync failed";
       alert.show("warn", errorMessage(e));
     } finally {

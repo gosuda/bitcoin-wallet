@@ -8,7 +8,7 @@ import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, textInput } from "../../ui/dom";
-import { body, button, card, chips, header, labelled, lede, row } from "../ui";
+import { body, button, card, chips, header, labelled, lede, row, withBusy } from "../ui";
 
 export function renderReceive(): HTMLElement {
   const info = session.wallet;
@@ -77,17 +77,20 @@ export function renderReceive(): HTMLElement {
   };
   amount.addEventListener("input", () => void paint());
 
-  const fresh = button(
+  const fresh: HTMLButtonElement = button(
     "New address",
-    async () => {
-      alert.hide();
-      try {
-        address = await api.newAddress();
-        await paint();
-      } catch (e) {
-        alert.show("error", errorMessage(e));
-      }
-    },
+    () =>
+      // Two taps used to reveal two addresses and show the second, quietly
+      // burning the first. `withBusy` exists for exactly this.
+      withBusy(fresh, async () => {
+        alert.hide();
+        try {
+          address = await api.newAddress();
+          await paint();
+        } catch (e) {
+          alert.show("error", errorMessage(e));
+        }
+      }),
     { icon: "plus" },
   );
 

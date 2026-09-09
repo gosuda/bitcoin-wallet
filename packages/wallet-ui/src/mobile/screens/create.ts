@@ -1,5 +1,6 @@
 import { api } from "../../api";
 import { navigate } from "../../router";
+import { screenToken, stillCurrent } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -36,8 +37,12 @@ export function renderCreate(): HTMLElement {
   host.appendChild(content);
 
   void (async () => {
+    // Generation is async and the user can leave before it lands; painting a
+    // recovery phrase into a screen that is gone leaves it in a detached DOM.
+    const token = screenToken();
     try {
       const generated = await api.generateMnemonic(cfg.network, cfg.address_type, 12);
+      if (!stillCurrent(token)) return;
       const words = generated.words.split(" ");
       const blanks = pickPositions(words.length, CHECKS);
       const answers = new Map<number, HTMLInputElement>();

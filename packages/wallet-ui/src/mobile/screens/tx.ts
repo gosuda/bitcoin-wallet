@@ -171,15 +171,28 @@ export function renderTransaction(): HTMLElement {
       const label = bump.querySelector("span");
       if (label) label.textContent = `Bump to ${rate.value} sat/vB`;
     };
-    rate.addEventListener("input", relabel);
+    let rateTouched = false;
+    rate.addEventListener("input", () => {
+      rateTouched = true;
+      relabel();
+    });
     void (async () => {
       let suggested = suggestBumpRate(null, originalRate);
+      let text: string;
       try {
         suggested = suggestBumpRate(await api.estimateFee(), originalRate);
-        note.textContent = `1-block estimate ${suggested} sat/vB`;
+        text = `1-block estimate ${suggested} sat/vB`;
       } catch {
-        note.textContent = "Estimate unavailable — starting at 1 sat/vB";
+        // Name the rate actually prefilled: with the original's rate known,
+        // the floor is above 1 sat/vB and saying otherwise misreports the field.
+        text = `Estimate unavailable — starting at ${suggested} sat/vB`;
       }
+      // The note is information either way, but the field belongs to whoever
+      // typed in it: an estimate arriving after that is stale advice, not a
+      // correction, and replacing the number would bump at a rate the user
+      // never chose.
+      note.textContent = text;
+      if (rateTouched) return;
       rate.value = String(suggested);
       relabel();
     })();

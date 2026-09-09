@@ -1,6 +1,7 @@
 import { parsePaymentUri } from "../../bip21";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
+import { screenToken, stillCurrent } from "../../screen";
 import { errorMessage } from "../../types";
 import { banner, el } from "../../ui/dom";
 import { body, button, header, lede } from "../ui";
@@ -36,18 +37,37 @@ export function renderScan(): HTMLElement {
   };
 
   const scan = platform().scanQr;
+
+  /**
+   * One scan at a time, and only while this screen is still the one showing.
+   *
+   * The screen opens the camera itself, so pressing the button while that is
+   * still pending used to start a second concurrent scan against the same
+   * camera. And a scan that resolves after the user has moved on would prefill
+   * Send and navigate there, pulling them out of whatever they opened next.
+   */
+  let scanning = false;
+  const runScan = async (): Promise<void> => {
+    if (!scan || scanning) return;
+    scanning = true;
+    const token = screenToken();
+    try {
+      const text = await scan();
+      if (!stillCurrent(token)) return;
+      // Null is a cancel, not a failure: say nothing and stay put.
+      if (text !== null) accept(text);
+    } catch (e) {
+      if (stillCurrent(token)) alert.show("error", errorMessage(e));
+    } finally {
+      scanning = false;
+    }
+  };
+
   const start = button(
     "Scan a QR code",
     async () => {
       alert.hide();
-      if (!scan) return;
-      try {
-        const text = await scan();
-        // Null is a cancel, not a failure: say nothing and stay put.
-        if (text !== null) accept(text);
-      } catch (e) {
-        alert.show("error", errorMessage(e));
-      }
+      await runScan();
     },
     { variant: "primary", block: true },
   );
@@ -82,16 +102,7 @@ export function renderScan(): HTMLElement {
   // Opening the camera straight away is what a scan tab is for; the plugin
   // asks for permission the first time, so a refusal surfaces as an error
   // rather than a dead screen.
-  if (scan) {
-    void (async () => {
-      try {
-        const text = await scan();
-        if (text !== null) accept(text);
-      } catch (e) {
-        alert.show("error", errorMessage(e));
-      }
-    })();
-  }
+  void runScan();
 
   return host;
 }

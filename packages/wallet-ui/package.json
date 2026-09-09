@@ -10,7 +10,8 @@
     "./bip21": "./src/bip21.ts",
     "./mobile-send": "./src/mobile/screens/send.ts",
     "./mobile-shell": "./src/mobile/shell.ts",
-    "./session": "./src/session.ts"
+    "./session": "./src/session.ts",
+    "./screen": "./src/screen.ts"
   },
   "scripts": {
     "check": "biome check .",

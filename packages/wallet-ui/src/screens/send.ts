@@ -86,7 +86,15 @@ export function renderSend(): HTMLElement {
   const feeRate = textInput({ value: "1", type: "number", mono: true });
   feeRate.min = "1";
   feeRate.step = "0.1";
+  /**
+   * Set once the user types a rate. The first estimate can land afterwards,
+   * and applying it then replaces a rate they chose deliberately. Picking a
+   * target block count clears it again — that is delegating back to the
+   * estimate, so overwriting is the point.
+   */
+  let rateTouched = false;
   feeRate.addEventListener("input", () => {
+    rateTouched = true;
     leaveDrain();
     feeHint.textContent = `Custom rate · ${FLOOR_NOTE}`;
   });
@@ -108,6 +116,7 @@ export function renderSend(): HTMLElement {
     targetBlocks,
     (v) => {
       targetBlocks = v;
+      rateTouched = false;
       leaveDrain();
       applyEstimate();
     },
@@ -129,6 +138,7 @@ export function renderSend(): HTMLElement {
   const loadEstimate = async () => {
     try {
       estimate = await api.estimateFee();
+      if (rateTouched) return;
       applyEstimate();
     } catch (e) {
       feeHint.textContent = `Estimate unavailable: ${errorMessage(e)}`;
