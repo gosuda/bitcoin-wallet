@@ -148,7 +148,9 @@ jobs:
 
       - name: Check the shared UI package
         working-directory: packages/wallet-ui
-        run: pnpm biome ci .
+        run: |
+          pnpm biome ci .
+          pnpm test
 
       - name: Native app
         working-directory: apps/native
