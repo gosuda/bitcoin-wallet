@@ -156,6 +156,7 @@ export function renderSend(): HTMLElement {
     (choice) => {
       customRow.hidden = choice !== "custom";
       if (choice === "custom") rateInput.value = String(rate);
+      clearPreview();
       leaveDrain();
       void refreshRate();
     },
@@ -163,22 +164,33 @@ export function renderSend(): HTMLElement {
   );
 
   async function refreshRate(): Promise<void> {
-    if (fee.value() === "custom") {
+    const choice = fee.value();
+    const before = rate;
+    if (choice === "custom") {
       const typed = Number(rateInput.value);
       rate = Number.isFinite(typed) && typed >= 1 ? typed : 1;
       rateNote.textContent = `${rate.toFixed(1)} sat/vB · your rate`;
-      return;
+    } else {
+      try {
+        estimate ??= await api.estimateFee();
+        // The target can change — including to Custom — while the estimate is
+        // in flight. `Number("custom")` is NaN, so applying it afterwards
+        // silently built at 1 sat/vB while the field showed the typed rate.
+        if (fee.value() !== choice) return;
+        rate = rateForTarget(estimate, Number(choice)) ?? 1;
+        rateNote.textContent = `${rate.toFixed(2)} sat/vB`;
+      } catch (e) {
+        if (fee.value() !== choice) return;
+        rateNote.textContent = `Using 1 sat/vB — ${errorMessage(e)}`;
+        rate = 1;
+      }
     }
-    try {
-      estimate ??= await api.estimateFee();
-      rate = rateForTarget(estimate, Number(fee.value())) ?? 1;
-      rateNote.textContent = `${rate.toFixed(2)} sat/vB`;
-    } catch (e) {
-      rateNote.textContent = `Using 1 sat/vB — ${errorMessage(e)}`;
-      rate = 1;
-    }
+    // A Max preview is built at one rate. Changing it afterwards would leave
+    // Review showing the new rate and broadcasting the old one.
+    if (rate !== before) leaveDrain();
   }
   rateInput.addEventListener("input", () => {
+    clearPreview();
     leaveDrain();
     void refreshRate();
   });
@@ -208,6 +220,7 @@ export function renderSend(): HTMLElement {
   };
 
   address.addEventListener("input", () => {
+    clearPreview();
     leaveDrain();
     if (touched.address) refresh();
     else review.disabled = true;
@@ -217,6 +230,7 @@ export function renderSend(): HTMLElement {
     refresh();
   });
   amount.addEventListener("input", () => {
+    clearPreview();
     leaveDrain();
     if (touched.amount) refresh();
     else review.disabled = true;
@@ -228,6 +242,23 @@ export function renderSend(): HTMLElement {
 
   // --- review -----------------------------------------------------------------
   const reviewHost = el("div");
+
+  /**
+   * The preview the visible Review sheet was built from.
+   *
+   * Its Confirm closes over one PSBT, so leaving the sheet up after an edit
+   * means Confirm sends what the form used to say: the old amount in ordinary
+   * mode, and in Max mode a PSBT the edit already discarded, which comes back
+   * as an expired preview. Any edit therefore takes the sheet down with it.
+   */
+  let pendingPreview: TxPreview | null = null;
+
+  /** Call before `leaveDrain`, so a preview that *is* the drain is discarded once. */
+  const clearPreview = (): void => {
+    if (pendingPreview && pendingPreview !== drain) void api.discardTx(pendingPreview.psbt_id);
+    pendingPreview = null;
+    reviewHost.replaceChildren();
+  };
 
   const review = button(
     "Review",
@@ -253,12 +284,16 @@ export function renderSend(): HTMLElement {
   );
 
   function showPreview(preview: TxPreview, sats: number): void {
+    pendingPreview = preview;
     const confirm = button(
       "Confirm and send",
       () =>
         withBusy(confirm, async () => {
           try {
+            // Consumed by the broadcast either way, so neither may be
+            // discarded again on the way out.
             drain = null;
+            pendingPreview = null;
             session.lastResult = await api.signAndBroadcast(preview.psbt_id);
             navigate("result");
           } catch (e) {
@@ -277,14 +312,7 @@ export function renderSend(): HTMLElement {
         ["Total", `${formatNumber(sats + preview.fee_sat)} sat`],
       ]),
       confirm,
-      button(
-        "Cancel",
-        () => {
-          if (preview !== drain) void api.discardTx(preview.psbt_id);
-          reviewHost.replaceChildren();
-        },
-        { variant: "quiet" },
-      ),
+      button("Cancel", clearPreview, { variant: "quiet" }),
     );
     sheet.classList.add("m-confirm-neutral");
     reviewHost.replaceChildren(sheet);
@@ -296,6 +324,16 @@ export function renderSend(): HTMLElement {
     ariaLabel: "Scan a QR code",
     square: true,
   });
+
+  // Screens are rebuilt on every navigation, so anything still pending when
+  // this one goes away is unreachable — abandoned sends would grow the core's
+  // pending map without bound.
+  const discardOnLeave = (): void => {
+    clearPreview();
+    leaveDrain();
+    window.removeEventListener("hashchange", discardOnLeave);
+  };
+  window.addEventListener("hashchange", discardOnLeave);
 
   host.appendChild(header("Send", { back: "dashboard" }));
   host.appendChild(

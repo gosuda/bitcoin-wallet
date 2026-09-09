@@ -131,6 +131,10 @@ export function renderSend(): HTMLElement {
       return;
     }
     const rounded = Math.max(1, Math.ceil(rate * 10) / 10);
+    // A Max preview was built at the rate showing when it started. Moving the
+    // rate under it would leave Review displaying this one and broadcasting
+    // that one.
+    if (feeRate.value !== String(rounded)) leaveDrain();
     feeRate.value = String(rounded);
     feeHint.textContent = `${host} estimate for ${targetBlocks} block${targetBlocks === "1" ? "" : "s"} · ${FLOOR_NOTE}`;
   };
@@ -192,17 +196,22 @@ export function renderSend(): HTMLElement {
     refreshRow(row);
   };
 
-  const leaveDrain = () => {
-    // Before the early return: an in-flight build must be invalidated too.
-    drainSeq += 1;
-    if (!drain) return;
-    void api.discardTx(drain.psbt_id);
+  /** Take the form out of Max mode. Does not touch the PSBT. */
+  const clearDrainChrome = () => {
     drain = null;
     for (const r of rows) {
       r.max.classList.remove("max-on");
       r.maxHint.textContent = MAX_HINT;
     }
     syncRowChrome();
+  };
+
+  const leaveDrain = () => {
+    // Before the early return: an in-flight build must be invalidated too.
+    drainSeq += 1;
+    if (!drain) return;
+    void api.discardTx(drain.psbt_id);
+    clearDrainChrome();
   };
 
   const fillMax = (row: RecipientRow) =>
@@ -416,6 +425,10 @@ export function renderSend(): HTMLElement {
             navigate("result");
           } catch (e) {
             preview = null;
+            // The PSBT is spent either way: signing consumed it before it
+            // failed. Leaving `drain` pointing at it made the next Review
+            // reuse a psbt_id the core no longer has and fail as unknown_psbt.
+            clearDrainChrome();
             previewBox.className = "card review-card hidden";
             setFormLocked(false);
             alert.show("error", errorMessage(e));

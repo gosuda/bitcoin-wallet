@@ -356,8 +356,13 @@ export function renderDashboard(): HTMLElement {
         }
         if (open?.detail === detail) cell.replaceChildren(detailBox(d, explorer, suggested));
       } catch (e) {
-        alert.show("error", errorMessage(e));
-        closeDetail();
+        // Only this row's own failure may close this row. A slow request for a
+        // transaction the user has already navigated past would otherwise shut
+        // the detail they opened afterwards and show them the wrong error.
+        if (open?.detail === detail) {
+          alert.show("error", errorMessage(e));
+          closeDetail();
+        }
       }
     })();
   };
