@@ -349,9 +349,9 @@ export function renderDashboard(): HTMLElement {
         let suggested: number | null = null;
         if (d.confirmations === null && d.net_sat < 0 && !wallet.is_watch_only) {
           try {
-            suggested = suggestBumpRate(await api.estimateFee());
+            suggested = suggestBumpRate(await api.estimateFee(), d.fee_rate_sat_vb);
           } catch {
-            suggested = suggestBumpRate(null);
+            suggested = suggestBumpRate(null, d.fee_rate_sat_vb);
           }
         }
         if (open?.detail === detail) cell.replaceChildren(detailBox(d, explorer, suggested));

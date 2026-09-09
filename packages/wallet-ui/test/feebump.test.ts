@@ -37,8 +37,29 @@ describe("suggestBumpRate", () => {
     expect(suggestBumpRate({ sat_per_vb_by_target: {} })).toBe(1);
   });
 
-  it("asks the 1-block rate, since replacing means outbidding", () => {
+  it("asks the 1-block rate when the original's is unknown", () => {
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 12.3, "6": 2 } })).toBe(12.3);
+  });
+
+  // Outbidding is two comparisons. When fees have fallen since the original
+  // send, the market rate is below the rate being replaced, and offering it
+  // makes the node refuse the replacement — the bump fails on first press.
+  it("clears the original's rate when the market has fallen below it", () => {
+    const estimate = { sat_per_vb_by_target: { "1": 12.3 } };
+    expect(suggestBumpRate(estimate, 20)).toBe(21);
+    expect(suggestBumpRate(null, 20)).toBe(21);
+  });
+
+  it("asks the market rate when it already beats the original", () => {
+    const estimate = { sat_per_vb_by_target: { "1": 30 } };
+    expect(suggestBumpRate(estimate, 20)).toBe(30);
+  });
+
+  it("ignores an unusable original rate", () => {
+    const estimate = { sat_per_vb_by_target: { "1": 12.3 } };
+    for (const bad of [null, undefined, 0, -5, Number.NaN]) {
+      expect(suggestBumpRate(estimate, bad), String(bad)).toBe(12.3);
+    }
   });
 
   it("never goes below the relay minimum", () => {

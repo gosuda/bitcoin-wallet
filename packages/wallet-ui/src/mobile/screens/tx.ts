@@ -136,11 +136,11 @@ export function renderTransaction(): HTMLElement {
       facts,
       flow,
       ident,
-      ...(bumpable ? [bumpCard(d.txid)] : []),
+      ...(bumpable ? [bumpCard(d.txid, d.fee_rate_sat_vb)] : []),
     );
   };
 
-  const bumpCard = (id: string): HTMLElement => {
+  const bumpCard = (id: string, originalRate: number | null): HTMLElement => {
     const rate = textInput({ value: "1", type: "number", mono: true, name: "bump_rate" });
     rate.min = "1";
     rate.step = "0.1";
@@ -173,9 +173,9 @@ export function renderTransaction(): HTMLElement {
     };
     rate.addEventListener("input", relabel);
     void (async () => {
-      let suggested = suggestBumpRate(null);
+      let suggested = suggestBumpRate(null, originalRate);
       try {
-        suggested = suggestBumpRate(await api.estimateFee());
+        suggested = suggestBumpRate(await api.estimateFee(), originalRate);
         note.textContent = `1-block estimate ${suggested} sat/vB`;
       } catch {
         note.textContent = "Estimate unavailable — starting at 1 sat/vB";
