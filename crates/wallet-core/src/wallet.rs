@@ -208,6 +208,13 @@ pub struct WalletHandle {
     address_type: AddressType,
     id: String,
     is_hd: bool,
+    /// Whether the external descriptor derives a range of addresses.
+    ///
+    /// Not the same question as `is_hd`, which says whether there is a separate
+    /// *change* keychain. An imported `wpkh(xpub/*)` has one keychain and no
+    /// change branch, yet still derives successive addresses — deciding address
+    /// rotation from `is_hd` pinned such a wallet to index zero forever.
+    ranged: bool,
     watch_only: bool,
 }
 
@@ -276,6 +283,10 @@ impl WalletHandle {
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
         };
 
+        let ranged = wallet
+            .public_descriptor(KeychainKind::External)
+            .has_wildcard();
+
         let mut inner = Inner {
             wallet,
             persister,
@@ -291,6 +302,7 @@ impl WalletHandle {
             address_type: config.address_type,
             id,
             is_hd,
+            ranged,
             watch_only,
         })
     }
@@ -380,13 +392,13 @@ impl WalletHandle {
     /// the caller needs to know that the reveal was stored.
     pub async fn address(&self) -> String {
         let mut inner = self.inner.lock().await;
-        let info = if self.is_hd {
+        let info = if self.ranged {
             inner.wallet.next_unused_address(KeychainKind::External)
         } else {
             inner.wallet.peek_address(KeychainKind::External, 0)
         };
         let address = self.encode(&info);
-        if self.is_hd {
+        if self.ranged {
             let _ = Self::persist(&mut inner).await;
         }
         address
@@ -402,7 +414,7 @@ impl WalletHandle {
     /// [`Self::address`].
     pub async fn new_address(&self) -> Result<String> {
         let mut inner = self.inner.lock().await;
-        let info = if self.is_hd {
+        let info = if self.ranged {
             inner.wallet.reveal_next_address(KeychainKind::External)
         } else {
             inner.wallet.peek_address(KeychainKind::External, 0)
@@ -897,6 +909,43 @@ mod tests {
         .await
         .unwrap();
         (handle, mock)
+    }
+
+    /// An imported `wpkh(xpub/*)` has a wildcard but no `/0/*` change branch,
+    /// so it opens as a single keychain and `is_hd` is false. Rotation used to
+    /// follow `is_hd`, which pinned such a wallet to index zero: every "new
+    /// address" handed back the one already given out.
+    #[tokio::test]
+    async fn a_ranged_single_keychain_still_rotates_addresses() {
+        // Take the xpub from a real HD wallet through the public API rather
+        // than hard-coding key material.
+        let (seed, _) = open_hd(AddressType::P2wpkh).await;
+        let xpub = seed
+            .public_descriptors()
+            .await
+            .account_xpub
+            .expect("an HD wallet has an account xpub");
+        let ranged = format!("wpkh({xpub}/*)");
+        let (handle, _) = open_key(AddressType::P2wpkh, KeyMaterial::parse(&ranged)).await;
+        assert!(!handle.is_hd(), "one keychain, no separate change branch");
+
+        let first = handle.address().await;
+        let second = handle.new_address().await.unwrap();
+        let third = handle.new_address().await.unwrap();
+        assert_ne!(
+            first, second,
+            "asking for a new address must give a new one"
+        );
+        assert_ne!(second, third);
+    }
+
+    /// The other half of the same rule: a genuine single key has no wildcard,
+    /// so it has exactly one address and must keep returning it.
+    #[tokio::test]
+    async fn a_bare_key_keeps_its_one_address() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        let first = handle.address().await;
+        assert_eq!(handle.new_address().await.unwrap(), first);
     }
 
     async fn open(address_type: AddressType) -> (WalletHandle, Arc<MockBackend>) {

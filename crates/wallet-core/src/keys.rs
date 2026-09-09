@@ -478,7 +478,11 @@ fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Des
     }
     if bare.contains("/0/*") {
         return Ok(Descriptors::Hd {
-            internal: bare.replacen("/0/*", "/1/*", 1),
+            // Every key, not just the first: a multisig descriptor carries one
+            // `/0/*` per cosigner, and moving only one of them would build an
+            // internal keychain mixing a change key with the remaining receive
+            // keys — scripts that match no branch of the imported wallet.
+            internal: bare.replace("/0/*", "/1/*"),
             external: bare,
         });
     }
@@ -1113,6 +1117,27 @@ mod tests {
             }
             Descriptors::Single(_) => panic!("an xpub is an account"),
         }
+    }
+
+    /// A multisig descriptor carries one `/0/*` per cosigner. Moving only the
+    /// first built an internal keychain that mixed one change key with the
+    /// other cosigners' receive keys, so the wallet watched and generated
+    /// change at scripts the real wallet never uses.
+    #[test]
+    fn every_cosigner_moves_to_the_change_branch() {
+        let xpub = abandon_xpub();
+        let multi = format!("wsh(multi(2,{xpub}/0/*,{xpub}/0/*,{xpub}/0/*))");
+        let Descriptors::Hd { external, internal } =
+            watch_only_descriptors(&multi, AddressType::P2wpkh).unwrap()
+        else {
+            panic!("a ranged descriptor is an account");
+        };
+        assert_eq!(external.matches("/0/*").count(), 3);
+        assert_eq!(internal.matches("/1/*").count(), 3);
+        assert!(
+            !internal.contains("/0/*"),
+            "no cosigner may be left on the receive branch"
+        );
     }
 
     #[test]
