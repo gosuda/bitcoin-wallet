@@ -11,8 +11,48 @@ import type { Platform } from "@bitcoin-wallet/ui/platform";
 import type { AppConfig, RememberedWallet, StoredSecret } from "@bitcoin-wallet/ui/types";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
+
+/**
+ * Sends chain requests through Rust instead of the webview.
+ *
+ * The wallet core runs as WASM in this webview and reqwest's browser backend
+ * calls the global `fetch`, so every Esplora request is cross-origin and obeys
+ * CORS. mempool.space and blockstream.info send `Access-Control-Allow-Origin`;
+ * most self-hosted instances do not, and the browser then discards the reply
+ * before the wallet sees it — the endpoint looks broken when it is fine. A
+ * native app has no reason to be bound by a browser rule, so requests that
+ * leave this origin are handed to the HTTP plugin, which performs them in Rust.
+ *
+ * Only cross-origin http(s) is diverted. App assets, the dev server and
+ * anything relative stay on the webview's own `fetch`.
+ *
+ * The browser build has no such escape and still needs the header from the
+ * server, which is why the wallet cannot simply assume every endpoint works.
+ */
+export function installNativeFetch(): void {
+  const webFetch = globalThis.fetch.bind(globalThis);
+
+  const leavesThisOrigin = (url: string): boolean => {
+    try {
+      const target = new URL(url, globalThis.location.href);
+      return (
+        (target.protocol === "https:" || target.protocol === "http:") &&
+        target.origin !== globalThis.location.origin
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url =
+      input instanceof Request ? input.url : input instanceof URL ? input.href : String(input);
+    return leavesThisOrigin(url) ? nativeFetch(input, init) : webFetch(input, init);
+  };
+}
 
 const STORE_FILE = "config.json";
 const REMEMBERED_KEY = "remembered_wallet";

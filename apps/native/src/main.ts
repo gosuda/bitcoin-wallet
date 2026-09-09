@@ -1,6 +1,11 @@
 import { boot } from "@bitcoin-wallet/ui";
 import { setPlatform } from "@bitcoin-wallet/ui/platform";
-import { keystoreAvailable, tauriPlatform } from "./platform-tauri";
+import { installNativeFetch, keystoreAvailable, tauriPlatform } from "./platform-tauri";
+
+// Before anything can issue a request — the core starts fetching as soon as a
+// wallet opens, and a request that goes out through the webview cannot be
+// retried through Rust.
+installNativeFetch();
 
 /**
  * Tauri sets this for the `beforeDev`/`beforeBuild` command, and the Vite

@@ -19,7 +19,10 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        // Lets the webview send chain requests through Rust instead of `fetch`.
+        // See `installNativeFetch` on the JS side for why that matters.
+        .plugin(tauri_plugin_http::init());
 
     // Camera, biometrics and the `bitcoin:` scheme exist only on a phone, and
     // these plugins do not build for desktop at all.

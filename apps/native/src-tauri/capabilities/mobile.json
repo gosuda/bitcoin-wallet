@@ -1,9 +1,14 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
-  "description": "iOS and Android webview: IPC, config store, clipboard, explorer links, camera scanning, biometric unlock and bitcoin: links.",
-  "windows": ["main"],
-  "platforms": ["iOS", "android"],
+  "description": "iOS and Android webview: IPC, config store, clipboard, explorer links, camera scanning, biometric unlock and bitcoin: links, chain requests.",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "iOS",
+    "android"
+  ],
   "permissions": [
     "core:default",
     "store:default",
@@ -17,7 +22,31 @@
     "deep-link:default",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://mempool.space/*" }, { "url": "https://blockstream.info/*" }]
+      "allow": [
+        {
+          "url": "https://mempool.space/*"
+        },
+        {
+          "url": "https://blockstream.info/*"
+        }
+      ]
+    },
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "https://*/*"
+        },
+        {
+          "url": "http://localhost:*/*"
+        },
+        {
+          "url": "http://127.0.0.1:*/*"
+        }
+      ]
     }
   ]
 }
