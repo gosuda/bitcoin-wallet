@@ -35,10 +35,10 @@
           "url": "https://*/*"
         },
         {
-          "url": "http://localhost:*/*"
+          "url": "http://*"
         },
         {
-          "url": "http://127.0.0.1:*/*"
+          "url": "http://*/*"
         }
       ]
     }
