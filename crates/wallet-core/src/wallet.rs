@@ -938,7 +938,7 @@ mod tests {
 
     use super::*;
     use crate::backend::mock::MockBackend;
-    use crate::persist::MemoryPersister;
+    use crate::persist::{MemoryPersister, changeset_to_json};
 
     const SK_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000001";
     const MNEMONIC: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -1767,6 +1767,63 @@ mod tests {
             matches!(e, Error::Unsupported(ref m) if m.contains("no address")),
             "{e}"
         );
+    }
+
+    /// What is persisted is chain state, not a key. BDK's changeset holds
+    /// `DescriptorPublicKey`s and the secrets are re-attached from the
+    /// descriptor handed to `load`, so the store a browser or a desktop keeps
+    /// in IndexedDB carries nothing that could spend. SECURITY.md says so;
+    /// this is what makes that true rather than hoped.
+    #[tokio::test]
+    async fn persisted_state_carries_no_spending_material() {
+        /// Everything the wallet ever asked to have written.
+        #[derive(Clone, Default)]
+        struct Recorder(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
+
+        #[async_trait::async_trait]
+        impl crate::persist::Persister for Recorder {
+            async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
+                Ok(self.0.lock().unwrap().clone())
+            }
+
+            async fn persist(&mut self, delta: &bdk_wallet::ChangeSet) -> Result<()> {
+                self.0.lock().unwrap().merge(delta.clone());
+                Ok(())
+            }
+        }
+
+        for material in [
+            KeyMaterial::PrivHex(SK_HEX.into()),
+            KeyMaterial::Mnemonic {
+                words: MNEMONIC.to_owned(),
+                passphrase: Some("correct horse".into()),
+            },
+        ] {
+            let store = Recorder::default();
+            let handle = WalletHandle::open_with(
+                cfg(AddressType::P2wpkh),
+                &material,
+                Box::new(MockBackend::default()),
+                Box::new(store.clone()),
+            )
+            .await
+            .unwrap();
+            fund(&handle, 50_000).await;
+            handle.address().await;
+
+            let json = changeset_to_json(&store.0.lock().unwrap().clone()).unwrap();
+            // Not a vacuous pass: the public half is in there.
+            assert!(
+                json.contains("wpkh(") && json.contains(r#""network":"regtest""#),
+                "nothing was recorded to inspect: {json}"
+            );
+            for secret in ["tprv", "xprv", "correct horse", "abandon", SK_HEX] {
+                assert!(
+                    !json.contains(secret),
+                    "persisted state contains {secret}: {json}"
+                );
+            }
+        }
     }
 
     #[tokio::test]
