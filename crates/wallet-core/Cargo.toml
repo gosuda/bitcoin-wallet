@@ -55,7 +55,9 @@ apple-native-keyring-store = { version = "1", features = ["protected"], optional
 
 [target.'cfg(target_os = "android")'.dependencies]
 # SharedPreferences encrypted with an AES/GCM key held in the Android Keystore.
-# It needs `ndk_context` initialised, which Tauri does via tao's ndk_glue.
+# It needs `ndk_context` initialised. tao stopped doing that in 0.35, so the
+# checked-in MainActivity calls `Keyring.initializeNdkContext` itself before
+# Tauri starts — do not remove that, the keystore fails at runtime without it.
 android-native-keyring-store = { version = "1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

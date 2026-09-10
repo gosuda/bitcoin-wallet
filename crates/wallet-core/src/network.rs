@@ -75,13 +75,18 @@ impl Network {
             Network::Signet => "/signet",
             Network::Regtest => return None,
         };
-        let host = backend_url
+        let authority = backend_url
             .split("://")
             .nth(1)
             .unwrap_or(backend_url)
             .split('/')
             .next()
             .unwrap_or("");
+        // Drop any userinfo and port: blockstream.info:443 is the same explorer
+        // as blockstream.info, and comparing the raw authority sent a user with
+        // an explicit port to mempool.space instead of their own backend.
+        let host = authority.rsplit('@').next().unwrap_or(authority);
+        let host = host.split(':').next().unwrap_or(host);
         // blockstream.info does not serve testnet4.
         let base = if host == "blockstream.info" && self != Network::Testnet4 {
             "https://blockstream.info"
@@ -153,6 +158,18 @@ mod tests {
                 .as_deref(),
             Some("https://blockstream.info/signet/tx/ab")
         );
+        // An explicit port names the same explorer. Comparing the whole
+        // authority sent these users to a different one than they configured.
+        for url in [
+            "https://blockstream.info:443/signet/api",
+            "https://user@blockstream.info:443/signet/api",
+        ] {
+            assert_eq!(
+                signet.explorer_tx_url(url, "ab").as_deref(),
+                Some("https://blockstream.info/signet/tx/ab"),
+                "{url}"
+            );
+        }
         // An endpoint without a web explorer falls back rather than guessing.
         assert_eq!(
             signet

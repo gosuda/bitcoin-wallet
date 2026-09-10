@@ -450,8 +450,33 @@ pub(crate) fn descriptors_for(
 /// substitution. Anything else — a single fixed key, say — is one keychain.
 /// A checksum is dropped: it would be wrong for the derived twin, and BDK
 /// recomputes it anyway.
+/// Extended private keys, across the version-byte variants wallets emit.
+const XPRV_PREFIXES: [&str; 6] = ["xprv", "tprv", "yprv", "zprv", "uprv", "vprv"];
+
+/// Whether a descriptor carries spending material.
+///
+/// Parsing is the authoritative test — BDK hands back whatever secrets it
+/// found in a keymap, which catches a WIF as readily as an xprv. Forms this
+/// module handles by string surgery rather than parsing (the `<0;1>` multipath
+/// spelling) will not parse here, so the prefix scan covers those.
+fn carries_private_keys(descriptor: &str) -> bool {
+    if XPRV_PREFIXES.iter().any(|p| descriptor.contains(p)) {
+        return true;
+    }
+    ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), descriptor)
+        .is_ok_and(|(_, keymap)| !keymap.is_empty())
+}
+
 fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Descriptors> {
     let bare = source.trim().split('#').next().unwrap_or("").to_owned();
+    if bare.contains('(') && carries_private_keys(&bare) {
+        // Opened as watch-only this would look like a working wallet and refuse
+        // every spend, with nothing on screen explaining why.
+        return Err(Error::Unsupported(
+            "this descriptor carries private keys; import the recovery phrase or key itself to spend from it"
+                .into(),
+        ));
+    }
     if !bare.contains('(') {
         let (open, close) = match address_type {
             AddressType::P2pkh => ("pkh(", ")"),
@@ -1138,6 +1163,35 @@ mod tests {
             !internal.contains("/0/*"),
             "no cosigner may be left on the receive branch"
         );
+    }
+
+    /// Opening one of these as watch-only produced a wallet that looked
+    /// complete and refused every spend, with nothing explaining why.
+    #[test]
+    fn a_descriptor_with_private_keys_is_refused() {
+        let xprv = "tprv8ZgxMBicQKsPeDgjzdC36fs6bMjGApWDNLR9erAXMs5skhMv36j9MV5ecvfavji5khqjWaWSFhN3YcCUUdiKH6isR4Pwy3U5y5egddBr16m";
+        for source in [
+            format!("wpkh({xprv}/84h/1h/0h/0/*)"),
+            format!("wpkh({xprv}/<0;1>/*)"),
+            format!("sh(wpkh({xprv}/0/*))"),
+        ] {
+            // `Descriptors` has no `Debug` on purpose, so no unwrap_err here.
+            let Err(e) = watch_only_descriptors(&source, AddressType::P2wpkh) else {
+                panic!("{source} must not open as a watch-only wallet");
+            };
+            assert!(
+                matches!(e, Error::Unsupported(ref m) if m.contains("private keys")),
+                "{source} -> {e:?}"
+            );
+        }
+    }
+
+    /// The public twin of the same shape must still open.
+    #[test]
+    fn a_public_descriptor_is_still_watch_only() {
+        let descriptor = abandon_public_descriptor();
+        assert!(watch_only_descriptors(&descriptor, AddressType::P2wpkh).is_ok());
+        assert!(watch_only_descriptors(&abandon_xpub(), AddressType::P2wpkh).is_ok());
     }
 
     #[test]
