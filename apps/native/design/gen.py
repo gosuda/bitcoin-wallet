@@ -619,14 +619,27 @@ mkey = phone(f"""{m_head("Start a wallet", left="back")}
 # The screen does not take a promise that the words were written down: it asks
 # for three of them back, and Continue stays disabled until they match. A board
 # showing only a checkbox described a gate the wallet does not have.
+#
+# Two 12-word grids do not fit one screen, and on the device they do not: the
+# screen scrolls. Two boards at the real height show that honestly, the way M8
+# and M8b already split Send — a taller frame would have drawn a phone nobody
+# holds, which is the whole reason the frame is fixed and clipped.
 CREATE_BLANKS = (3, 4, 9)
 mcreate = phone(f'''{m_head("Recovery phrase", left="back")}
 <div class="m-body" style="gap:12px;">
   <p style="margin:0;font-size:14px;color:#6B6B66;line-height:1.5;">Write these 12 words down in order and keep them offline. Anyone with them owns this wallet.</p>
   {m_words(WORDS)}
+  <div style="display:flex;"><span class="m-btn m-btn-quiet">Copy</span></div>
+  <span style="font-size:13px;color:#6B6B66;">Scroll down to confirm three of them.</span>
+</div>''')
+
+mcreate_confirm = phone(f'''{m_head("Recovery phrase", left="back")}
+<div class="m-body" style="gap:12px;">
   <span class="label" style="align-self:flex-start;">Confirm your backup</span>
   <p style="margin:0;font-size:13px;color:#6B6B66;">Fill in words {", ".join(str(b) for b in CREATE_BLANKS[:-1])} and {CREATE_BLANKS[-1]} to continue.</p>
   {m_words(WORDS, blanks=CREATE_BLANKS)}
+  <span class="label" style="align-self:flex-start;">Passphrase (optional)</span>
+  <div class="m-input placeholder">Leave empty for none</div>
   <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary" style="opacity:0.45;">Continue</span></div>
 </div>''')
 
@@ -842,7 +855,7 @@ mexport = phone(f"""{m_head("Public keys", left="back")}
 </div>""")
 
 files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Create.dc.html": create, "Restore.dc.html": restore, "Icon.dc.html": iconboard,
-         "MSetup.dc.html": msetup, "MKey.dc.html": mkey, "MCreate.dc.html": mcreate, "MRestore.dc.html": mrestore, "MUnlock.dc.html": munlock,
+         "MSetup.dc.html": msetup, "MKey.dc.html": mkey, "MCreate.dc.html": mcreate, "MCreateConfirm.dc.html": mcreate_confirm, "MRestore.dc.html": mrestore, "MUnlock.dc.html": munlock,
          "MWallet.dc.html": mwallet, "MReceive.dc.html": mreceive, "MSend.dc.html": msend, "MScan.dc.html": mscan, "MSettings.dc.html": msettings,
          "MTx.dc.html": mtx, "MExport.dc.html": mexport, "MSendMax.dc.html": msendmax}
 # Resolved from the script, so running it from the repository root does not
@@ -866,7 +879,7 @@ canvas = {
     # tweak chips above each frame never collide.
     {"file": "MSetup.dc.html", "title": "M1 · Setup", "x": 0, "y": 3400, "w": 390, "h": 844},
     {"file": "MKey.dc.html", "title": "M2 · Start a wallet", "x": 470, "y": 3400, "w": 390, "h": 844},
-    {"file": "MCreate.dc.html", "title": "M3 · Recovery phrase", "x": 940, "y": 3400, "w": 390, "h": 1100},
+    {"file": "MCreate.dc.html", "title": "M3 · Recovery phrase", "x": 940, "y": 3400, "w": 390, "h": 844},
     {"file": "MRestore.dc.html", "title": "M4 · Restore", "x": 1410, "y": 3400, "w": 390, "h": 844},
     {"file": "MUnlock.dc.html", "title": "M5 · Unlock", "x": 1880, "y": 3400, "w": 390, "h": 844},
     # Mobile row 2 — using it.
@@ -879,6 +892,7 @@ canvas = {
     {"file": "MTx.dc.html", "title": "M11 · Transaction", "x": 0, "y": 5328, "w": 390, "h": 844},
     {"file": "MExport.dc.html", "title": "M12 · Public keys", "x": 470, "y": 5328, "w": 390, "h": 844},
     {"file": "MSendMax.dc.html", "title": "M8b · Send (Max)", "x": 940, "y": 5328, "w": 390, "h": 844},
+    {"file": "MCreateConfirm.dc.html", "title": "M3b · Confirm your backup", "x": 1410, "y": 5328, "w": 390, "h": 844},
   ],
   "annotations": [
     {"id": "round3-brief", "x": 0, "y": 5100, "w": 700, "text": "ROUND 3 — finishing the wallet. One batch, please review it all at once.\n\nNEW: M11 Transaction (tap any history row; fee bump lives here now, so a stuck send is fixable from a phone) · M12 Public keys (xpub + descriptors, for a watch-only copy elsewhere) · M8b Send in Max state (Max now asks the core to drain, so the amount shown is exactly what leaves).\n\nUPDATED: M2 Key gains Watch-only · M5 Unlock gets the two-step Forget the phone was missing · M6 Wallet rows are tappable and show pending sats · M7 Receive can request an amount (QR becomes a bitcoin: link) · M8 Send shows inline errors and a Custom fee rate · M10 Settings rows open Setup (after a 'this closes the wallet' confirm, same block as Forget), plus Rescan and Export.\n\nDesktop: 3 Wallet gets a receive QR + amount, click-to-expand tx detail with the bump inside, a Public keys card and Rescan; 4 Send shows Max state; 2 Key gains Watch-only.\n\nNothing else moved. Same tokens throughout."},

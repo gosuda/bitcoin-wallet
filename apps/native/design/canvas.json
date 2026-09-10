@@ -94,7 +94,7 @@
       "x": 940,
       "y": 3400,
       "w": 390,
-      "h": 1100
+      "h": 844
     },
     {
       "file": "MRestore.dc.html",
@@ -172,6 +172,14 @@
       "file": "MSendMax.dc.html",
       "title": "M8b \u00b7 Send (Max)",
       "x": 940,
+      "y": 5328,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "MCreateConfirm.dc.html",
+      "title": "M3b \u00b7 Confirm your backup",
+      "x": 1410,
       "y": 5328,
       "w": 390,
       "h": 844
