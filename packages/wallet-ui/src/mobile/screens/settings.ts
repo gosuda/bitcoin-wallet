@@ -102,6 +102,18 @@ export function renderSettings(): HTMLElement {
     : info.is_hd
       ? "Recovery phrase (HD)"
       : "Single key";
+
+  /**
+   * What it takes to get this wallet back, which is not the same sentence for
+   * every wallet. Only a mnemonic has a recovery phrase; telling the owner of
+   * a single-key or watch-only wallet that one restores it is false, and this
+   * is the screen where they decide whether the local copy is still needed.
+   */
+  const forgetWarning = info.is_watch_only
+    ? "The saved descriptor and this device's copy of the wallet history will be deleted. You will need that xpub or descriptor to follow it again."
+    : info.is_hd
+      ? "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it."
+      : "The saved key and this device's copy of the wallet history will be deleted. You will need that private key to open it again.";
   // The keystore holds one wallet. "Remembered" and "Forget" are about *this*
   // one, or they are about nothing: another wallet's key must not be deleted
   // from here.
@@ -141,7 +153,7 @@ export function renderSettings(): HTMLElement {
       remembered && platform().canRememberWallet
         ? confirmDanger({
             trigger: "Forget this wallet",
-            text: "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it.",
+            text: forgetWarning,
             confirm: "Delete it",
             onConfirm: async () => {
               try {

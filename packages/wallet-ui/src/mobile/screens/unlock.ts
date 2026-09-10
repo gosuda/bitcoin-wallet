@@ -45,7 +45,10 @@ export function renderUnlock(): HTMLElement {
   const forget = confirmDanger({
     trigger: "Forget this wallet",
     triggerVariant: "quiet",
-    text: "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it.",
+    // No wallet is open here and the remembered record does not say which kind
+    // this is, so it names every way back rather than promising a recovery
+    // phrase a single-key or watch-only wallet never had.
+    text: "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase, a private key, or a descriptor.",
     confirm: "Delete it",
     onConfirm: async () => {
       alert.hide();

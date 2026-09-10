@@ -111,8 +111,13 @@ def field(label, inner, hint=None):
 
 ADDR = "tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc"
 TR_ADDR = "tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32"
-TXID = "e19f4a7d05c3b8a2f6d1e0c9b7a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b2c8d4a0"
-XPUB = "tpubDDkV5G9Hn3mYvXG7QxgqqRuAVkLpzPHPbCowHTEBb2ap9VwBKjHcSMMdzGqJDDyUhkgyxSpRnYPKgQ4wPfjoT9ZEwD4uYzRQVe6RqPmDCXm"
+# 64 hex characters, because a txid is 32 bytes. Boards read as reference,
+# so a value that cannot exist teaches the wrong shape.
+TXID = "e19f4a7d05c3b8a2f6d1e0c9b7a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b2c8"
+# Account key of the published BIP39 zero-entropy vector, as the wallet's own
+# tests derive it. The previous fixture failed Base58Check and could not be
+# imported by anyone reading the board.
+XPUB = "tpubDC8msFGeGuwnKG9Upg7DM2b4DaRqg3CUZa5g8v2SRQ6K4NSkxUgd7HsL2XVWbVm39yBA4LAxysQAm397zwQSQoQgewGiYZqrA9DsP4zbQ1M"
 
 def fake_qr(px=210):
     """A stand-in QR: real finder patterns, deterministic noise for the payload."""
@@ -264,7 +269,7 @@ unlock = page(head("Unlock", "Signet · mempool.space") + f'''
 rows = [
   ("a41e9c2f7b…3d08e1f2:0", ADDR, "250,000", "142"),
   ("7c02d8b1e4…9a6f0c3b:1", ADDR, "120,000", "31"),
-  ("e19f4a7d05…b2c8d4a0:0", ADDR, "18,420", "pending"),
+  ("e19f4a7d05…d0c9b2c8:1", ADDR, "199,859", "pending"),
 ]
 def _tr(o,a,v,c):
     st = ' style="color: #6B6B66;"' if c=="pending" else ""
@@ -327,7 +332,7 @@ dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
   </div>
   <div style="display: flex; gap: 32px;">
     <div style="display: flex; flex-direction: column; gap: 2px;"><span class="hint">Confirmed</span><span class="mono" style="font-size: 14px;">370,000</span></div>
-    <div style="display: flex; flex-direction: column; gap: 2px;"><span class="hint">Pending</span><span class="mono" style="font-size: 14px; color: #6B6B66;">18,420</span></div>
+    <div style="display: flex; flex-direction: column; gap: 2px;"><span class="hint">Pending</span><span class="mono" style="font-size: 14px; color: #6B6B66;">199,859</span></div>
   </div>
 </section>
 <section class="card">
@@ -611,15 +616,18 @@ mkey = phone(f"""{m_head("Start a wallet", left="back")}
   <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-quiet">Advanced: use a single key</span></div>
 </div>""")
 
+# The screen does not take a promise that the words were written down: it asks
+# for three of them back, and Continue stays disabled until they match. A board
+# showing only a checkbox described a gate the wallet does not have.
+CREATE_BLANKS = (3, 4, 9)
 mcreate = phone(f'''{m_head("Recovery phrase", left="back")}
 <div class="m-body" style="gap:12px;">
   <p style="margin:0;font-size:14px;color:#6B6B66;line-height:1.5;">Write these 12 words down in order and keep them offline. Anyone with them owns this wallet.</p>
   {m_words(WORDS)}
-  <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#FFF7ED;border:1px solid #E4E3DF;border-radius:12px;">
-    <span style="width:18px;height:18px;border:1.5px solid #A19F97;border-radius:4px;flex:none;"></span>
-    <span style="font-size:14px;">I have written them down</span>
-  </div>
-  <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary">Continue</span></div>
+  <span class="label" style="align-self:flex-start;">Confirm your backup</span>
+  <p style="margin:0;font-size:13px;color:#6B6B66;">Fill in words {", ".join(str(b) for b in CREATE_BLANKS[:-1])} and {CREATE_BLANKS[-1]} to continue.</p>
+  {m_words(WORDS, blanks=CREATE_BLANKS)}
+  <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary" style="opacity:0.45;">Continue</span></div>
 </div>''')
 
 mrestore = phone(f'''{m_head("Restore wallet", left="back")}
@@ -645,7 +653,7 @@ munlock = phone(f"""<div class="m-body" style="justify-content:center;align-item
     <span class="m-btn m-btn-quiet" style="flex:none;">Use a different wallet</span>
   </div>
   <div class="m-card" style="width:100%;box-sizing:border-box;border-color:#B91C1C;gap:10px;">
-    <span style="font-size:15px;line-height:1.5;color:#6B6B66;">The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it.</span>
+    <span style="font-size:15px;line-height:1.5;color:#6B6B66;">The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase, a private key, or a descriptor.</span>
     <span class="m-btn m-btn-danger" style="flex:none;">Delete it</span>
     <span class="m-btn m-btn-quiet" style="flex:none;">Keep it</span>
   </div>
@@ -660,7 +668,7 @@ mwallet = phone(f"""{m_head("Wallet", right="gear")}
     </div>
     <span class="m-hero">412,000</span>
     <span class="m-sub">0.00412000 BTC</span>
-    <span style="font-size:13px;color:#B45309;">18,420 sat pending</span>
+    <span style="font-size:13px;color:#B45309;">199,859 sat pending</span>
   </div>
   <div style="display:flex;gap:10px;">
     <span class="m-btn m-btn-primary">{icon("up", 19, "#FFFFFF")} Send</span>
@@ -837,7 +845,11 @@ files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send
          "MSetup.dc.html": msetup, "MKey.dc.html": mkey, "MCreate.dc.html": mcreate, "MRestore.dc.html": mrestore, "MUnlock.dc.html": munlock,
          "MWallet.dc.html": mwallet, "MReceive.dc.html": mreceive, "MSend.dc.html": msend, "MScan.dc.html": mscan, "MSettings.dc.html": msettings,
          "MTx.dc.html": mtx, "MExport.dc.html": mexport, "MSendMax.dc.html": msendmax}
-for n, c in files.items(): pathlib.Path(n).write_text(c)
+# Resolved from the script, so running it from the repository root does not
+# scatter boards into the caller's directory and leave the canvas pointing
+# at stale ones.
+HERE = pathlib.Path(__file__).resolve().parent
+for n, c in files.items(): (HERE / n).write_text(c)
 
 canvas = {
   "artboards": [
@@ -854,7 +866,7 @@ canvas = {
     # tweak chips above each frame never collide.
     {"file": "MSetup.dc.html", "title": "M1 · Setup", "x": 0, "y": 3400, "w": 390, "h": 844},
     {"file": "MKey.dc.html", "title": "M2 · Start a wallet", "x": 470, "y": 3400, "w": 390, "h": 844},
-    {"file": "MCreate.dc.html", "title": "M3 · Recovery phrase", "x": 940, "y": 3400, "w": 390, "h": 844},
+    {"file": "MCreate.dc.html", "title": "M3 · Recovery phrase", "x": 940, "y": 3400, "w": 390, "h": 1100},
     {"file": "MRestore.dc.html", "title": "M4 · Restore", "x": 1410, "y": 3400, "w": 390, "h": 844},
     {"file": "MUnlock.dc.html", "title": "M5 · Unlock", "x": 1880, "y": 3400, "w": 390, "h": 844},
     # Mobile row 2 — using it.
@@ -885,7 +897,7 @@ canvas = {
   ],
   "launch": {"view": "canvas"}
 }
-pathlib.Path("canvas.json").write_text(json.dumps(canvas, indent=2))
+(HERE / "canvas.json").write_text(json.dumps(canvas, indent=2))
 svg = mark(1024, 232).replace('<svg width="1024" height="1024"', '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"')
-pathlib.Path("app-icon.svg").write_text(svg)
+(HERE / "app-icon.svg").write_text(svg)
 print("written", list(files))
