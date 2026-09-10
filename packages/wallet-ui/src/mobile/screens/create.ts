@@ -125,6 +125,9 @@ export function renderCreate(): HTMLElement {
         { once: true },
       );
     } catch (e) {
+      // Same reason as the success path: a rejection after the user has left
+      // would put an error into a screen nobody is looking at.
+      if (!onScreen()) return;
       content.replaceChildren(alert.node);
       alert.show("error", errorMessage(e));
     }

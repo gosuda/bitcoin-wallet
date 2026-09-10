@@ -47,8 +47,9 @@ export function renderUnlock(): HTMLElement {
     triggerVariant: "quiet",
     // No wallet is open here and the remembered record does not say which kind
     // this is, so it names every way back rather than promising a recovery
-    // phrase a single-key or watch-only wallet never had.
-    text: "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase, a private key, or a descriptor.",
+    // phrase a single-key or watch-only wallet never had. A passphrase and a
+    // bare xpub are two of those ways, and the app offers both.
+    text: "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.",
     confirm: "Delete it",
     onConfirm: async () => {
       alert.hide();

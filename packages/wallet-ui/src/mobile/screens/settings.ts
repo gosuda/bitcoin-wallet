@@ -108,11 +108,16 @@ export function renderSettings(): HTMLElement {
    * every wallet. Only a mnemonic has a recovery phrase; telling the owner of
    * a single-key or watch-only wallet that one restores it is false, and this
    * is the screen where they decide whether the local copy is still needed.
+   *
+   * A BIP39 passphrase is part of the seed, so the same words without it open
+   * a different wallet. Nothing here records whether one was set — the wallet
+   * id is derived from the finished seed — so the phrase is named with the
+   * condition attached rather than promising the words are enough.
    */
   const forgetWarning = info.is_watch_only
     ? "The saved descriptor and this device's copy of the wallet history will be deleted. You will need that xpub or descriptor to follow it again."
     : info.is_hd
-      ? "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it."
+      ? "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase restores it — together with the passphrase, if you set one."
       : "The saved key and this device's copy of the wallet history will be deleted. You will need that private key to open it again.";
   // The keystore holds one wallet. "Remembered" and "Forget" are about *this*
   // one, or they are about nothing: another wallet's key must not be deleted

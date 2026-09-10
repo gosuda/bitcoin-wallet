@@ -87,8 +87,10 @@ impl Network {
         // an explicit port to mempool.space instead of their own backend.
         let host = authority.rsplit('@').next().unwrap_or(authority);
         let host = host.split(':').next().unwrap_or(host);
-        // blockstream.info does not serve testnet4.
-        let base = if host == "blockstream.info" && self != Network::Testnet4 {
+        // blockstream.info does not serve testnet4. Hostnames are
+        // case-insensitive, and a backend typed with any capitals matched
+        // nothing and sent its own transactions to mempool.space.
+        let base = if host.eq_ignore_ascii_case("blockstream.info") && self != Network::Testnet4 {
             "https://blockstream.info"
         } else {
             "https://mempool.space"
@@ -160,9 +162,12 @@ mod tests {
         );
         // An explicit port names the same explorer. Comparing the whole
         // authority sent these users to a different one than they configured.
+        // …and so does any capitalisation: hostnames are case-insensitive.
         for url in [
             "https://blockstream.info:443/signet/api",
             "https://user@blockstream.info:443/signet/api",
+            "https://BLOCKSTREAM.INFO/signet/api",
+            "https://Blockstream.Info:443/signet/api",
         ] {
             assert_eq!(
                 signet.explorer_tx_url(url, "ab").as_deref(),
