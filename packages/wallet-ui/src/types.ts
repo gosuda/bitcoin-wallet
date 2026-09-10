@@ -21,8 +21,16 @@ export interface WalletInfo {
   network: Network;
   address_type: AddressType;
   wallet_id: string;
-  /** True for a BIP32 account (mnemonic): it can reveal further addresses. */
+  /** True for a BIP32 account (mnemonic): it has a separate change keychain. */
   is_hd: boolean;
+  /**
+   * True when the wallet derives a range of addresses.
+   *
+   * Every HD wallet is ranged, but not every ranged wallet is HD: an imported
+   * `wpkh(xpub/*)` rotates receive addresses with no change keychain. Receive
+   * surfaces want this, not `is_hd`.
+   */
+  is_ranged: boolean;
   /** True when opened from an xpub or public descriptor: it cannot sign. */
   is_watch_only: boolean;
 }

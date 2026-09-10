@@ -227,6 +227,11 @@ export class WalletApi {
     return this.inner.is_hd;
   }
 
+  /** Derives a range of addresses. Ranged without being HD is possible. */
+  get isRanged(): boolean {
+    return this.inner.is_ranged;
+  }
+
   /** Public keys only: watches and receives, cannot sign. */
   get isWatchOnly(): boolean {
     return this.inner.is_watch_only;

@@ -270,6 +270,14 @@ impl Wallet {
         self.inner.is_hd()
     }
 
+    /// Whether the wallet derives a range of addresses. Not the same question
+    /// as `is_hd`: an imported ranged descriptor rotates without a change
+    /// keychain.
+    #[wasm_bindgen(getter)]
+    pub fn is_ranged(&self) -> bool {
+        self.inner.is_ranged()
+    }
+
     /// Whether this wallet holds only public keys: it watches and receives,
     /// and `sign` refuses. Opened by passing an xpub or a public descriptor
     /// as the `secret`.

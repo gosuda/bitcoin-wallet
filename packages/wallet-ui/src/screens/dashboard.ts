@@ -504,7 +504,7 @@ export function renderDashboard(): HTMLElement {
   });
 
   const addressActions = el("div", { className: "actions" }, [copyButton(() => sharePayload())]);
-  if (wallet.is_hd) {
+  if (wallet.is_ranged) {
     const newAddressBtn = button(
       "New address",
       () =>

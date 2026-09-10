@@ -101,7 +101,7 @@ export function renderReceive(): HTMLElement {
       card(qr, text, caption),
       row(
         copyButton(() => payload()),
-        info.is_hd ? fresh : null,
+        info.is_ranged ? fresh : null,
       ),
       card(
         labelled("Request an amount", amount, "(optional)"),
@@ -112,7 +112,7 @@ export function renderReceive(): HTMLElement {
           text: "The QR becomes a bitcoin: link with the amount filled in.",
         }),
       ),
-      info.is_hd ? null : lede("A single-key wallet has one address; every payment reuses it."),
+      info.is_ranged ? null : lede("A single-key wallet has one address; every payment reuses it."),
     ),
   );
 

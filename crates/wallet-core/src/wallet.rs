@@ -340,6 +340,16 @@ impl WalletHandle {
         self.is_hd
     }
 
+    /// Whether the wallet derives a range of addresses rather than owning one.
+    ///
+    /// Distinct from [`Self::is_hd`], which is about a separate *change*
+    /// keychain. An imported `wpkh(xpub/*)` is ranged without being HD, and a
+    /// receive screen that asks the wrong question either hides a working "new
+    /// address" button or promises rotation a single key cannot do.
+    pub fn is_ranged(&self) -> bool {
+        self.ranged
+    }
+
     /// Whether this wallet holds only public keys: it watches and receives,
     /// and [`Self::sign`] refuses.
     pub fn is_watch_only(&self) -> bool {
@@ -929,6 +939,8 @@ mod tests {
         let (handle, _) = open_key(AddressType::P2wpkh, KeyMaterial::parse(&ranged)).await;
         assert!(!handle.is_hd(), "one keychain, no separate change branch");
 
+        assert!(handle.is_ranged(), "a wildcard descriptor rotates");
+
         let first = handle.address().await;
         let second = handle.new_address().await.unwrap();
         let third = handle.new_address().await.unwrap();
@@ -944,6 +956,7 @@ mod tests {
     #[tokio::test]
     async fn a_bare_key_keeps_its_one_address() {
         let (handle, _) = open(AddressType::P2wpkh).await;
+        assert!(!handle.is_ranged(), "one key, one address");
         let first = handle.address().await;
         assert_eq!(handle.new_address().await.unwrap(), first);
     }

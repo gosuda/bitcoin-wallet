@@ -93,6 +93,7 @@ async function install(
     address_type: addressType,
     wallet_id: wallet.id,
     is_hd: wallet.isHd,
+    is_ranged: wallet.isRanged,
     is_watch_only: wallet.isWatchOnly,
   };
   session.wallet = info;
