@@ -9,7 +9,7 @@ rust-version.workspace = true
 
 [features]
 default = ["backend-esplora", "keystore-native"]
-backend-esplora = ["dep:bdk_esplora"]
+backend-esplora = ["dep:bdk_esplora", "dep:tokio"]
 # OS credential store: macOS Keychain, Windows Credential Manager, Secret Service,
 # iOS Keychain, Android Keystore. Native only; keystore.rs says what each platform
 # resolves to and why mobile takes a different route.
@@ -33,9 +33,11 @@ zeroize = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bdk_esplora = { version = "0.22.2", default-features = false, features = ["async-https-rustls", "tokio"], optional = true }
-# Only for the scan deadline in backend/esplora.rs. bdk_esplora already pulls
-# tokio in on this target; this asks for its timer as well.
-tokio = { version = "1", default-features = false, features = ["time"] }
+# Only for the scan deadline in backend/esplora.rs, so it rides on that
+# feature rather than every native build: the Tauri shell takes this crate for
+# the keystore alone and has no reason to link a timer. bdk_esplora already
+# pulls tokio in wherever the backend is on; this asks for its timer as well.
+tokio = { version = "1", default-features = false, features = ["time"], optional = true }
 
 # Desktop only: `keyring`'s `v1` wrapper finds and installs the OS store itself.
 # It is deliberately absent on mobile, where that wrapper refuses to work at all.
