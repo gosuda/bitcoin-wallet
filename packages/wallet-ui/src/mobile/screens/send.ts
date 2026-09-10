@@ -205,6 +205,11 @@ export function renderSend(): HTMLElement {
     else input.setAttribute("aria-invalid", "true");
   };
 
+  /**
+   * `touched` decides only whether a field may show its message. Review
+   * follows the values: a form filled in correctly is ready whether or not
+   * focus has left the last field.
+   */
   const refresh = (): void => {
     setError(
       addressErr,
@@ -224,8 +229,7 @@ export function renderSend(): HTMLElement {
   address.addEventListener("input", () => {
     clearPreview();
     leaveDrain();
-    if (touched.address) refresh();
-    else review.disabled = true;
+    refresh();
   });
   address.addEventListener("blur", () => {
     touched.address = true;
@@ -234,8 +238,7 @@ export function renderSend(): HTMLElement {
   amount.addEventListener("input", () => {
     clearPreview();
     leaveDrain();
-    if (touched.amount) refresh();
-    else review.disabled = true;
+    refresh();
   });
   amount.addEventListener("blur", () => {
     touched.amount = true;
