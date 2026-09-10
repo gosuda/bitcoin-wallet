@@ -90,13 +90,16 @@ export function renderKey(): HTMLElement {
           alert.show("error", "Enter a private key (hex or WIF) or generate one.");
           return;
         }
+        // Read once: the checkbox stays live across the await, and asking it
+        // again afterwards can disagree with what was actually stored.
+        const willRemember = remember.checked();
         try {
-          const info = await api.openWallet(value, cfg.address_type, remember.checked());
+          const info = await api.openWallet(value, cfg.address_type, willRemember);
           secret.value = "";
           generated.replaceChildren();
           generated.className = "hidden";
           session.wallet = info;
-          if (remember.checked()) session.remembered = info;
+          if (willRemember) session.remembered = info;
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));
@@ -171,14 +174,15 @@ export function renderKey(): HTMLElement {
           alert.show("error", "Paste an xpub or a public descriptor.");
           return;
         }
+        const willRemember = watchRemember.checked();
         try {
-          const info = await api.openWallet(value, cfg.address_type, watchRemember.checked());
+          const info = await api.openWallet(value, cfg.address_type, willRemember);
           watchSource.value = "";
           session.wallet = info;
           // The wallet is already open here. Reading the record back could
           // fail and put an error over a wallet that opened fine, so take what
           // we know — the same shape the private-key path above uses.
-          if (watchRemember.checked()) session.remembered = info;
+          if (willRemember) session.remembered = info;
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));

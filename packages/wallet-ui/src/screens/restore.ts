@@ -184,17 +184,18 @@ export function renderRestore(): HTMLElement {
       return;
     }
     const secret = words().join(" ");
+    const willRemember = remember.checked();
     try {
       const info = await api.openWallet(
         secret,
         cfg.address_type,
-        remember.checked(),
+        willRemember,
         passphrase.value || undefined,
       );
       for (const box of boxes) box.value = "";
       passphrase.value = "";
       session.wallet = info;
-      if (remember.checked()) session.remembered = info;
+      if (willRemember) session.remembered = info;
       navigate("dashboard");
     } catch (e) {
       alert.show("error", errorMessage(e));

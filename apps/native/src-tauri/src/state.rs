@@ -51,9 +51,11 @@ impl AppState {
         })
         .await
         .unwrap_or(false);
-        // Two callers racing the first probe would each run it. The check is
-        // idempotent and the stored answer is whichever landed first, so this
-        // costs at most one extra keychain round trip in a rare interleaving.
+        // Two callers racing the first probe each run one — the startup prime
+        // and the frontend's first `keystore_available` are exactly that pair.
+        // Each probe now uses a credential of its own, so they cannot answer
+        // for each other and both reach the same verdict; the stored answer is
+        // whichever landed first, at the cost of one extra keychain round trip.
         *self.keystore_ok.get_or_init(|| probed)
     }
 }

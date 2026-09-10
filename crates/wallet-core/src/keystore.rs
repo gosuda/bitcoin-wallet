@@ -22,9 +22,24 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::keys::KeyMaterial;
 use crate::{Error, Result};
+
+/// Distinguishes one [`NativeKeystore::self_check`] probe from another.
+static PROBE_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// A credential name no other probe will use. The process id keeps two
+/// instances of the app apart; the counter keeps two probes in one process
+/// apart.
+fn probe_entry_name() -> String {
+    format!(
+        "_wallet_core_self_check_{}_{}",
+        std::process::id(),
+        PROBE_SEQ.fetch_add(1, Ordering::Relaxed)
+    )
+}
 
 /// Storage for unlock material, keyed by a wallet identifier.
 pub trait Keystore: Send + Sync {
@@ -153,7 +168,11 @@ impl NativeKeystore {
     /// surfaces as `NoDefaultStore`.
     pub fn self_check(&self) -> Result<()> {
         backend::prepare().map_err(Error::Persist)?;
-        let entry = self.entry("_wallet_core_self_check")?;
+        // A name of its own per call. The probe writes, reads back and deletes,
+        // so two checks running at once on one name race: the first deletes the
+        // credential the second is about to read, and a working credential
+        // store is reported broken.
+        let entry = self.entry(&probe_entry_name())?;
 
         #[cfg(any(target_os = "ios", target_os = "android"))]
         {
@@ -216,6 +235,17 @@ impl Keystore for NativeKeystore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The probe writes a value, reads it back and deletes it. Two of them on
+    /// one credential name race, and the loser reads what the winner already
+    /// deleted — a working credential store reported broken, which the app
+    /// caches for the launch and stops offering "Remember on this device".
+    /// The startup prime and the frontend's first check are that pair.
+    #[test]
+    #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+    fn probes_do_not_share_a_credential() {
+        assert_ne!(probe_entry_name(), probe_entry_name());
+    }
 
     #[test]
     fn store_load_remove() {
