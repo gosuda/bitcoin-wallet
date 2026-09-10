@@ -22,17 +22,20 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::keys::KeyMaterial;
 use crate::{Error, Result};
 
 /// Distinguishes one [`NativeKeystore::self_check`] probe from another.
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 static PROBE_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// A credential name no other probe will use. The process id keeps two
 /// instances of the app apart; the counter keeps two probes in one process
 /// apart.
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 fn probe_entry_name() -> String {
     format!(
         "_wallet_core_self_check_{}_{}",
