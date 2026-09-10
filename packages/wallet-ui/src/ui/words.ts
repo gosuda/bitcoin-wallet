@@ -34,3 +34,19 @@ export function wordInput(position: number, blank = false): HTMLInputElement {
 export function wordGrid(cells: readonly HTMLElement[]): HTMLElement {
   return el("div", { className: "word-grid" }, [...cells]);
 }
+
+/**
+ * Clears `inputs` the moment the route changes. Typed words and passphrases
+ * are secret and must not outlive their screen in the DOM; `inputs` is a
+ * function because a grid can be rebuilt (12 → 24 words) after this is armed.
+ */
+export function wipeOnLeave(inputs: () => Iterable<HTMLInputElement>, also?: () => void): void {
+  window.addEventListener(
+    "hashchange",
+    () => {
+      for (const input of inputs()) input.value = "";
+      also?.();
+    },
+    { once: true },
+  );
+}

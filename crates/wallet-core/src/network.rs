@@ -59,16 +59,43 @@ impl Network {
         }
     }
 
-    /// Block-explorer URL for a transaction id.
-    pub fn explorer_tx_url(self, txid: &str) -> String {
-        let base = match self {
-            Network::Bitcoin => "https://mempool.space",
-            Network::Testnet3 => "https://mempool.space/testnet",
-            Network::Testnet4 => "https://mempool.space/testnet4",
-            Network::Signet => "https://mempool.space/signet",
-            Network::Regtest => "http://127.0.0.1:3002",
+    /// Block-explorer page for a transaction, on the explorer that fronts the
+    /// configured backend when there is one.
+    ///
+    /// The two public Esplora hosts also run web explorers, so a user pointed
+    /// at blockstream.info is sent there rather than to mempool.space. Any other
+    /// backend — electrs on a LAN, bitcoin-rs — has no web UI we know of, and
+    /// mempool.space is the fallback. Regtest has no public explorer at all:
+    /// `None`, and callers hide the link rather than open a dead one.
+    pub fn explorer_tx_url(self, backend_url: &str, txid: &str) -> Option<String> {
+        let path = match self {
+            Network::Bitcoin => "",
+            Network::Testnet3 => "/testnet",
+            Network::Testnet4 => "/testnet4",
+            Network::Signet => "/signet",
+            Network::Regtest => return None,
         };
-        format!("{base}/tx/{txid}")
+        let authority = backend_url
+            .split("://")
+            .nth(1)
+            .unwrap_or(backend_url)
+            .split('/')
+            .next()
+            .unwrap_or("");
+        // Drop any userinfo and port: blockstream.info:443 is the same explorer
+        // as blockstream.info, and comparing the raw authority sent a user with
+        // an explicit port to mempool.space instead of their own backend.
+        let host = authority.rsplit('@').next().unwrap_or(authority);
+        let host = host.split(':').next().unwrap_or(host);
+        // blockstream.info does not serve testnet4. Hostnames are
+        // case-insensitive, and a backend typed with any capitals matched
+        // nothing and sent its own transactions to mempool.space.
+        let base = if host.eq_ignore_ascii_case("blockstream.info") && self != Network::Testnet4 {
+            "https://blockstream.info"
+        } else {
+            "https://mempool.space"
+        };
+        Some(format!("{base}{path}/tx/{txid}"))
     }
 }
 
@@ -116,5 +143,55 @@ mod tests {
         assert_eq!(Network::parse("btc"), Some(Network::Bitcoin));
         assert_eq!(Network::parse("btc-testnet4"), Some(Network::Testnet4));
         assert_eq!(Network::parse("nope"), None);
+    }
+
+    #[test]
+    fn explorer_url_follows_the_backend() {
+        let signet = Network::Signet;
+        assert_eq!(
+            signet
+                .explorer_tx_url("https://mempool.space/signet/api", "ab")
+                .as_deref(),
+            Some("https://mempool.space/signet/tx/ab")
+        );
+        assert_eq!(
+            signet
+                .explorer_tx_url("https://blockstream.info/signet/api", "ab")
+                .as_deref(),
+            Some("https://blockstream.info/signet/tx/ab")
+        );
+        // An explicit port names the same explorer. Comparing the whole
+        // authority sent these users to a different one than they configured.
+        // …and so does any capitalisation: hostnames are case-insensitive.
+        for url in [
+            "https://blockstream.info:443/signet/api",
+            "https://user@blockstream.info:443/signet/api",
+            "https://BLOCKSTREAM.INFO/signet/api",
+            "https://Blockstream.Info:443/signet/api",
+        ] {
+            assert_eq!(
+                signet.explorer_tx_url(url, "ab").as_deref(),
+                Some("https://blockstream.info/signet/tx/ab"),
+                "{url}"
+            );
+        }
+        // An endpoint without a web explorer falls back rather than guessing.
+        assert_eq!(
+            signet
+                .explorer_tx_url("http://electrs.lan:3002", "ab")
+                .as_deref(),
+            Some("https://mempool.space/signet/tx/ab")
+        );
+        // blockstream.info has no testnet4.
+        assert_eq!(
+            Network::Testnet4
+                .explorer_tx_url("https://blockstream.info/testnet/api", "ab")
+                .as_deref(),
+            Some("https://mempool.space/testnet4/tx/ab")
+        );
+        assert_eq!(
+            Network::Regtest.explorer_tx_url("http://127.0.0.1:3002", "ab"),
+            None
+        );
     }
 }

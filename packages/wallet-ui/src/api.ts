@@ -20,8 +20,10 @@ import type {
   GeneratedKey,
   GeneratedMnemonic,
   Network,
+  PublicDescriptors,
   Recipient,
   RememberedWallet,
+  TxDetail,
   TxPreview,
   TxSummary,
   Utxo,
@@ -55,11 +57,20 @@ async function requireConfig(): Promise<AppConfig> {
   return config;
 }
 
-/** Drops the open wallet and anything derived from it. */
+/**
+ * Drops the open wallet and everything derived from it.
+ *
+ * The sync time and the last broadcast belong to a particular wallet, so they
+ * are dropped here rather than by each caller. Eight call sites cleared them by
+ * hand and the one behind "Forget this wallet" did not, which is how a fresh
+ * wallet came up wearing the previous one's sync time.
+ */
 function releaseWallet(): void {
   const wallet = session.handle;
   session.handle = null;
   session.wallet = null;
+  session.lastSyncedAt = null;
+  session.lastResult = null;
   pending.clear();
   wallet?.free();
 }
@@ -91,6 +102,8 @@ async function install(
     address_type: addressType,
     wallet_id: wallet.id,
     is_hd: wallet.isHd,
+    is_ranged: wallet.isRanged,
+    is_watch_only: wallet.isWatchOnly,
   };
   session.wallet = info;
   return info;
@@ -195,6 +208,12 @@ async function buildTransfer(recipients: Recipient[], feeRateSatVb: number): Pro
   return retainPsbt(await requireWallet().build_transfer(recipients, feeRateSatVb));
 }
 
+/** Everything to one address. The preview's `total_out_sat` is what arrives. */
+async function buildDrain(address: string, feeRateSatVb: number): Promise<TxPreview> {
+  requireRate(feeRateSatVb);
+  return retainPsbt(await requireWallet().build_drain(address, feeRateSatVb));
+}
+
 /**
  * Replacement for an unconfirmed transaction of ours at a higher rate. The
  * preview is interchangeable with `buildTransfer`'s: confirm it the same way.
@@ -217,7 +236,7 @@ async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
   const out = await wallet.broadcast(signed);
   return {
     txid: out.txid,
-    explorer_url: await explorerTxUrl(wallet.network, out.txid),
+    explorer_url: await explorerTxUrl(wallet.network, session.config?.backend.url ?? "", out.txid),
     persist_error: out.persist_error,
   };
 }
@@ -240,13 +259,27 @@ export const api = {
   unlockWallet: () => unlockWallet(),
   forgetWallet: () => forgetWallet(),
   sync: (): Promise<Balance> => syncWallet(),
+  /** Look `stopGap` unused addresses past the last used one, then re-read the balance. */
+  rescan: async (stopGap: number): Promise<Balance> => {
+    const wallet = requireWallet();
+    await wallet.rescan(stopGap);
+    return wallet.balance();
+  },
   newAddress: (): Promise<string> => newAddress(),
+  publicDescriptors: (): Promise<PublicDescriptors> => requireWallet().public_descriptors(),
+  transaction: (txid: string): Promise<TxDetail | null> => requireWallet().transaction(txid),
+  /** Block-explorer page for a txid, or `null` where none exists. */
+  explorerUrl: async (txid: string): Promise<string | null> => {
+    const wallet = requireWallet();
+    return explorerTxUrl(wallet.network, session.config?.backend.url ?? "", txid);
+  },
   getBalance: async (): Promise<Balance> => requireWallet().balance(),
   listUtxos: async (): Promise<Utxo[]> => requireWallet().list_utxos(),
   listTransactions: async (): Promise<TxSummary[]> => requireWallet().list_transactions(),
   estimateFee: async (): Promise<FeeEstimate> => requireWallet().estimate_fee(),
   buildTransfer: (recipients: Recipient[], feeRateSatVb: number) =>
     buildTransfer(recipients, feeRateSatVb),
+  buildDrain: (address: string, feeRateSatVb: number) => buildDrain(address, feeRateSatVb),
   buildFeeBump: (txid: string, feeRateSatVb: number) => buildFeeBump(txid, feeRateSatVb),
   signAndBroadcast: (psbtId: string) => signAndBroadcast(psbtId),
   discardTx: async (psbtId: string): Promise<void> => {

@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #FAFAF9; color: #1A1A1A; font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+    a { color: #C2410C; } a:hover { color: #A3360A; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B6B66; }
+    .card { background: #FFFFFF; border: 1px solid #E4E3DF; border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; font-weight: 500; font-size: 14px; white-space: nowrap; }
+    .btn-primary { background: #C2410C; border-color: #C2410C; color: #FFFFFF; }
+    .btn-quiet { border-color: transparent; background: transparent; color: #6B6B66; }
+    .btn-danger { color: #B91C1C; border-color: #E4E3DF; }
+    .btn-sm { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+    .input { display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; }
+    .input.placeholder { color: #A19F97; }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; }
+    .chip.on { border-color: #1A1A1A; background: #F4F4F2; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #A19F97; background: #FFFFFF; box-sizing: border-box; }
+    .chip.on .dot { border: 4px solid #C2410C; }
+    .hint { font-size: 12px; color: #6B6B66; }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; align-items: baseline; }
+    .kv dt { color: #6B6B66; font-size: 12px; } .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid #E4E3DF; white-space: nowrap; }
+    th { color: #6B6B66; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    td.num, th.num { text-align: right; }
+    tr:last-child td { border-bottom: none; }
+  </style>
+</helmet>
+<div style="width: 960px; min-height: 840px; background: #FAFAF9; display: flex; flex-direction: column;">
+<header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
+    <span style="font-weight: 600; font-size: 14px;">Bitcoin Wallet</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 500; color: #6B6B66;">Setup</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 600; color: #1A1A1A;">Key</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 500; color: #A19F97;">Wallet</span></div>
+  <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B6B66;">
+    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid #E4E3DF; border-radius: 999px; background: #F4F4F2;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #166534;"></span>Signet · mempool.space</span>
+  </div>
+</header>
+<main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Key</h1>
+  <p style="margin: 0; font-size: 12px; color: #6B6B66;">Signet · mempool.space</p>
+</div>
+<section class="card" style="gap: 16px;">
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Private key</span><span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></span><span class="hint">Hex (64 chars) or WIF. Used for this session only — never written to disk.</span></div>
+  <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path></svg> Open wallet</span>
+    <span class="btn">Generate new key</span>
+    <span class="btn btn-quiet">Back</span>
+  </div>
+</section>
+<section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label" style="color: #9A3412;">New key — shown once</span>
+    <span style="font-size: 12px; color: #9A3412;">Copy it now; it is not stored anywhere.</span>
+  </div>
+  <dl class="kv" style="margin: 0;">
+    <dt>Address</dt><dd class="mono">tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc</dd>
+    <dt>Private key (hex)</dt><dd class="mono">5f1c…a9e3 <span class="hint">(hidden)</span></dd>
+    <dt>WIF</dt><dd class="mono">cV3m…Qk7t <span class="hint">(hidden)</span></dd>
+  </dl>
+  <div style="display: flex; gap: 8px;">
+    <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy hex</span>
+    <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy WIF</span>
+    <span class="btn btn-sm">Use this key</span>
+  </div>
+</section>
+<section class="card" style="gap: 12px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Watch-only</span>
+    <span class="hint">Follows a wallet without its keys: balance, history and receiving, no sending.</span>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">xpub or descriptor</span><span class="input mono placeholder">wpkh([fingerprint/84h/1h/0h]tpub…/0/*) — or just the tpub</span><span class="hint">A bare xpub is expanded with the address type chosen in Setup.</span></div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg> Follow this wallet</span>
+  </div>
+</section>
+</main>
+</div>
+</x-dc>
+</body>
+</html>

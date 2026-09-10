@@ -37,6 +37,23 @@ export interface Platform {
 
   writeClipboard(text: string): Promise<void>;
   openUrl(url: string): Promise<void>;
+
+  /**
+   * Reads a QR code with the camera, or resolves `null` if the user cancels.
+   *
+   * Optional because only a phone has one. Screens must check for it rather
+   * than assume: the browser and desktop shells leave it undefined, and the
+   * Scan tab is hidden where it is missing.
+   */
+  scanQr?(): Promise<string | null>;
+
+  /**
+   * Asks the OS to confirm the user is present, rejecting if it cannot.
+   *
+   * Optional for the same reason. It authenticates and nothing more — the key
+   * still lives in the OS key store; this only gates reading it.
+   */
+  authenticate?(reason: string): Promise<void>;
 }
 
 let current: Platform | null = null;

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bitcoin-rs 블루프린트 — 비평과 결론</title>
+<style>
+:root{
+  --ground:#f6f7f9; --surface:#ffffff; --surface-2:#eef0f4;
+  --ink:#14171c; --ink-2:#4d5665; --ink-3:#78828f;
+  --rule:#dee2e9; --rule-strong:#c3cad5;
+  --accent:#2d5b8e; --accent-soft:#e5edf6;
+  --crit:#9e2b25; --warn:#8a6218; --ok:#2e6f5e;
+  --sans:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#101317; --surface:#171b21; --surface-2:#1e232b;
+    --ink:#e6e9ee; --ink-2:#a3adbb; --ink-3:#7b8593;
+    --rule:#272d36; --rule-strong:#39424f;
+    --accent:#7aa7d4; --accent-soft:#1a2632;
+    --crit:#e08b83; --warn:#d9b263; --ok:#79c0aa;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101317; --surface:#171b21; --surface-2:#1e232b;
+  --ink:#e6e9ee; --ink-2:#a3adbb; --ink-3:#7b8593;
+  --rule:#272d36; --rule-strong:#39424f;
+  --accent:#7aa7d4; --accent-soft:#1a2632;
+  --crit:#e08b83; --warn:#d9b263; --ok:#79c0aa;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.68;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:860px;margin:0 auto;padding:0 24px 88px}
+
+header{border-bottom:2px solid var(--ink);padding:52px 0 20px;margin-bottom:36px}
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 12px;font-weight:600;
+}
+h1{
+  font-size:clamp(1.9rem,4.6vw,2.7rem);line-height:1.12;letter-spacing:-.02em;
+  font-weight:700;margin:0 0 14px;text-wrap:balance;
+}
+.sub{color:var(--ink-2);font-size:1.03rem;margin:0 0 20px;max-width:60ch}
+.meta{
+  display:flex;flex-wrap:wrap;gap:5px 26px;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-3);
+}
+.meta b{color:var(--ink-2);font-weight:600}
+
+h2{
+  font-size:1.42rem;font-weight:700;letter-spacing:-.01em;margin:0 0 18px;
+  padding-top:22px;border-top:1px solid var(--rule-strong);
+}
+h2 .n{font-family:var(--mono);font-size:.6em;font-weight:500;color:var(--accent);margin-right:.7em}
+section{margin:0 0 48px}
+p{max-width:66ch}
+code{
+  font-family:var(--mono);font-size:.85em;background:var(--surface-2);
+  padding:.1em .34em;border-radius:2px;word-break:break-word;
+}
+
+/* critique items */
+.c{
+  background:var(--surface);border:1px solid var(--rule);
+  border-left:3px solid var(--rule-strong);padding:18px 20px;margin-bottom:13px;
+}
+.c.high{border-left-color:var(--crit)}
+.c.mid{border-left-color:var(--warn)}
+.chead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:9px}
+.cnum{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--ink-3)}
+.c.high .cnum{color:var(--crit)}
+.c.mid .cnum{color:var(--warn)}
+.c h3{font-size:1.06rem;font-weight:700;margin:0;line-height:1.35;letter-spacing:-.005em;flex:1 1 22ch}
+.c p{margin:0 0 8px;font-size:.96rem;line-height:1.62;color:var(--ink-2);max-width:64ch}
+.c p:last-child{margin-bottom:0}
+.c strong{color:var(--ink);font-weight:600}
+.rec{
+  background:var(--accent-soft);border-left:2px solid var(--accent);
+  padding:9px 13px;margin-top:11px;font-size:.94rem;color:var(--ink-2);max-width:64ch;
+}
+.rec b{color:var(--ink);font-weight:600}
+q{quotes:"“" "”";font-style:italic}
+
+/* conclusion */
+.verdict{
+  background:var(--surface);border:1px solid var(--rule-strong);
+  border-top:3px solid var(--accent);padding:24px 26px;
+}
+.verdict p{font-size:1.03rem;line-height:1.66;margin:0 0 14px;max-width:64ch}
+.verdict p:last-child{margin-bottom:0}
+.verdict strong{font-weight:700}
+.line{
+  display:grid;grid-template-columns:auto 1fr;gap:0 14px;align-items:baseline;
+  padding:9px 0;border-bottom:1px solid var(--rule);font-size:.95rem;
+}
+.line:last-of-type{border-bottom:0}
+.line .lk{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.05em;white-space:nowrap}
+.line .lv{color:var(--ink-2)}
+.line .lv b{color:var(--ink);font-weight:600}
+
+/* extra opinions */
+.op{border-top:1px solid var(--rule);padding:16px 0}
+.op:first-of-type{border-top:0;padding-top:4px}
+.op h3{font-size:1.02rem;font-weight:700;margin:0 0 7px;letter-spacing:-.005em}
+.op p{margin:0;font-size:.96rem;color:var(--ink-2);line-height:1.62;max-width:64ch}
+
+footer{
+  border-top:2px solid var(--ink);margin-top:10px;padding-top:18px;
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);line-height:1.75;max-width:66ch;
+}
+@media print{
+  body{background:#fff;color:#000;font-size:11pt}
+  .c,.verdict{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">bitcoin-rs · Full-node overhaul blueprint</p>
+  <h1>비평과 결론</h1>
+  <p class="sub">
+    2026-09-06 개정본(D2/SVG 8뷰)에 대한 평가에서 비평과 결론만 추린 것.
+  </p>
+  <div class="meta">
+    <span><b>대상</b> bitcoin-rs.tiiny.site</span>
+    <span><b>규모</b> 30.8k 단어 · WP 41 · 요구사항 64 · 게이트 12</span>
+    <span><b>코드 대조</b> HEAD fe2c1329</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="n">01</span>비평</h2>
+
+  <div class="c high">
+    <div class="chead"><span class="cnum">01 · 합의</span><h3><code>assume-valid</code>가 문서 전체에 한 번도 나오지 않는다</h3></div>
+    <p>
+      <code>assume</code> 검색 결과 관련 언급이 0건이다. 그런데 현재 코드에서 이건
+      <strong>런타임 설정 가능한 합의 스킵</strong>이다. 설정 높이가 내장 앵커와 정확히 같을 때만
+      해시 핀이 걸리고, 그 밖의 0 아닌 값은 게이트를 <code>trusted</code>로 고정해 그 높이 이하
+      전체 스크립트 검증을 <strong>해시 커밋 없이</strong> 건너뛴다. CLI·환경변수·TOML 세 경로에서
+      설정 가능하고 clamp가 없다. Bitcoin Core의 <code>-assumevalid</code>는 블록 해시를 받는다.
+    </p>
+    <p>
+      INV-01(<q>Optional services cannot change block validity</q>)의 취지와 부딪히지만 문자적으로는
+      비껴간다 — assume-valid는 optional service가 아니라 core 설정이기 때문이다. §17.1의
+      <q>Only expose knobs with a defensible operational purpose</q>도 이 항목을 호명하지 않는다.
+    </p>
+    <p class="rec"><b>권고</b> “합의 관련 스킵은 내용에 커밋된 정체성을 요구한다”를 INV로 추가하고, 앵커 외 값을 거부하거나 블록 해시를 함께 받도록 T15/T17 범위에 넣을 것. 지금은 어느 게이트에도 걸리지 않는다.</p>
+  </div>
+
+  <div class="c high">
+    <div class="chead"><span class="cnum">02 · 순서</span><h3>인그레스 경화가 W7에 몰려 프로그램 중반이 무방비다</h3></div>
+    <p>
+      즉시성 높은 노출 — 인바운드 연결 상한 부재, 무제한 헤더 채널, 모든 <code>inv</code>가 그대로
+      <code>getdata</code>가 되는 구조, 배선되지 않은 ban 점수 — 는 전부 W7/G7이다. 그런데
+      W4·W5·W6은 노드를 실제로 돌려야 하는 단계다. 그 구간 내내 네 가지가 열려 있다.
+    </p>
+    <p>
+      문서는 <q>W7 protocol work can proceed after W2</q>라고 허용하지만 <strong>허용과 우선은
+      다르다</strong>. 그리고 이 넷은 T24의 스케줄러 이전을 기다릴 이유가 없다 — 전부 국소적이고
+      값싸다. §9.1도 <q>Preserve existing lease invariants while relocating scheduler mechanics</q>로
+      경계와 이전을 분리하고 있다.
+    </p>
+    <p class="rec"><b>권고</b> W2와 W3 사이에 “인그레스 경화” 슬라이스를 끼울 것 — 연결 상한, 헤더 채널 경계, 피어당 inv/getdata 상한, ban 점수 배선. 소유자 이전 없이 가능하고, 그 뒤 모든 단계의 실측 환경을 안전하게 만든다.</p>
+  </div>
+
+  <div class="c high">
+    <div class="chead"><span class="cnum">03 · 계약</span><h3><code>submitblock</code>을 fsync 뒤로 옮기면서 그 지연을 측정 셀로 잡지 않았다</h3></div>
+    <p>
+      §7.3은 공개 계약을 바꾼다 — <q>The proposed live-node submitblock success waits for its durable
+      chain commit… This is an explicit strengthening/change from the present durable-lag model and
+      must be reviewed in the contract and measured.</q> 변경을 스스로 표시한 것까지는 정확하다.
+    </p>
+    <p>
+      문제는 §14.2 코퍼스 행렬과 §14.3 수치 규칙 어디에도 <strong>submitblock 내구 커밋 지연</strong>이
+      이름 붙은 제품 셀로 없다는 것이다. G9의 miner 테스트는 기능 테스트다. 채굴자에게 이 지연은
+      벤치마크 한 줄이 아니라 블록 경쟁에서 지는 사건이고, 스토리지 하드웨어에 직접 종속된다.
+    </p>
+    <p class="rec"><b>권고</b> hot-path ledger에 <code>submitblock → durable commit → 성공 응답</code> 셀을 추가하고 p99 상한을 G9 종료 조건에 넣을 것. §7.3이 언급한 대안(적용 tip과 내구 tip을 둘 다 노출)을 “기본값 아님”으로 끝내지 말고 상한 미달 시의 명시적 폴백으로 남길 것.</p>
+  </div>
+
+  <div class="c mid">
+    <div class="chead"><span class="cnum">04 · API</span><h3>“scan rows를 묶어라”는 답이지만, 묶인 채로 답할 수 없는 주소가 남는다</h3></div>
+    <p>
+      §11.5의 마지막 문장은 정확하다 — <q>A public explorer read must not consume the CPU/memory
+      quota needed to validate new blocks.</q> 다만 두 가지가 비어 있다.
+    </p>
+    <p>
+      첫째, 현재 구현의 위험은 CPU/메모리 <em>할당량</em>이 아니라 <strong>체인 전이 뮤텍스</strong>
+      점유다. ScriptLive 질의가 그 락을 질의 전 구간 잡아 블록 connect/disconnect를 막는다.
+      자원 예산 문장은 상호배제를 덮지 않는다.
+    </p>
+    <p>
+      둘째, 경계가 있어도 <strong>답할 수 없으면 제품 결함</strong>이다. 현재 스캔 예산 구조에서는
+      확정 funding 출력이 일정 수를 넘는 주소 — 거래소·faucet — 가 영구히 unavailable이 된다.
+      INV-11(<q>Unavailable is not empty</q>)은 정직성을 보장하지만 가용성을 보장하진 않고, R021은
+      주소 히스토리 제공을 요구한다. 둘이 충돌한다.
+    </p>
+    <p class="rec"><b>권고</b> §11.5에 “공개 읽기는 체인 전이 권위를 잡지 않는다”를 명시적 경계로 추가하고, T30/T32 종료 조건에 “고활동 주소 실측 fixture에서 페이지네이션으로 완주 가능” 시나리오를 넣을 것.</p>
+  </div>
+
+  <div class="c mid">
+    <div class="chead"><span class="cnum">05 · 다이어그램</span><h3>다이어그램 01이 본문 §3보다 뒤처져 있다</h3></div>
+    <p>
+      <strong>(a)</strong> §3의 분해표는 <code>chain</code>을 독립 소유자로 선언한다 — 헤더 트리,
+      chainwork, 활성화 컨텍스트, 공통 조상, 분기 선택. 그런데 다이어그램 01에 <code>chain</code>
+      노드가 없다. <code>chainstate</code>에 흡수돼 보인다. 헤더 tip과 applied tip의 구분이 본문에서는
+      해결됐는데 그림에서는 여전히 안 보인다.
+    </p>
+    <p>
+      <strong>(b)</strong> §8.1은 <q>The gateway obtains facts through narrow chain/coin-view
+      providers</q>라 하고 §8.2는 <q>Resolve each input once from the admitted pool overlay or chain
+      coins</q>라 한다. 그런데 의존성 뷰의 mempool 출력 엣지는 <code>mp → pure</code> 하나뿐이다.
+      provider 주입으로 정적 의존을 끊은 것이 의도라면 그 사실 자체가 그려져야 한다. 지금은
+      “mempool이 코인을 안 본다”로 읽힌다.
+    </p>
+    <p>
+      <strong>(c)</strong> 점선이 아직 두 가지를 뜻한다 — <code>root</code>발 구성 배선과 오라클 비교.
+      캡션이 설명하지만 설명은 구분이 아니다. <code>root → *</code> 여섯 엣지는 정보를 담지 않고,
+      <code>oracle → pure</code>는 의존이 아니라 비교라 의존성 뷰에서 화살표가 네 번째 의미를 갖는다.
+    </p>
+    <p class="rec"><b>권고</b> <code>chain</code> 노드 추가, mempool의 코인 뷰 의존(또는 provider 주입)을 가시화, 점선 의미를 하나로, 오라클은 차등 뷰로 이동.</p>
+  </div>
+
+  <div class="c mid">
+    <div class="chead"><span class="cnum">06 · 자기 검증</span><h3>배포된 8개 SVG가 실제 D2로 컴파일된 적이 없다</h3></div>
+    <p>
+      검증 절이 스스로 밝힌다 — <q>SVG compilation uses the included local D2-subset renderer…
+      This is not an official D2 compiler validation. Compiler installation was blocked by unavailable
+      network downloads.</q> 이전 개정에서도 같은 형태였다 — <q>This is a file/structure check,
+      not a full Mermaid parser test.</q>
+    </p>
+    <p>
+      정직하게 밝힌 건 이 문서답다. 다만 문서 전체가 “검증되지 않은 것을 검증됐다고 부르지 말 것”을
+      규율로 삼는데, <strong>독자가 가장 먼저 보는 산출물인 다이어그램만 그 규율의 밖에 있다.</strong>
+      자체 렌더러가 D2 부분집합을 다르게 해석하면 소스와 그림이 다른데 아무도 모르는 상태가 된다.
+    </p>
+    <p class="rec"><b>권고</b> 네트워크가 열리는 시점에 8개 D2 소스를 공식 컴파일러로 통과시키고, 현재 SVG와의 구조적 동등성을 확인해 검증 절에 한 줄로 기록할 것. 게이트가 아니라 문서 자신의 규율을 문서에 적용하는 문제다.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">02</span>결론</h2>
+  <div class="verdict">
+    <p>
+      이 문서의 값어치는 아키텍처 선택이 아니라 <strong>증거를 다루는 방식</strong>에 있다.
+      Observed / Proposed / Gate를 어휘 수준에서 분리하고 끝까지 지킨다. 추적표 64행이 전부
+      <code>planned_not_executed</code>이고, 검증 절은 수행하지 <em>않은</em> 것을 열거한다.
+      <q>A passing document check cannot turn a planned node acceptance gate into a passed gate.</q>
+    </p>
+    <p>
+      한 항목에서는 <strong>이 문서가 내 이전 판단을 정정한다.</strong> 나는 RBF를 “여섯 규칙 구현 +
+      벡터 테스트”로 기각했는데, 이 문서는 그게 <em>낡은 명세를 정확히 구현한 것</em>일 뿐임을 지적한다.
+      Core 31은 클러스터 한도와 feerate diagram을 쓰고 historical rules 1·2를 제거했으니
+      “BIP125 rules 1–6”은 현대 패리티 명세가 될 수 없다. 그리고 내가 못 본 것을 찾았다 — 정책 문서는
+      Core 31.1을, <code>core-compat.toml</code>은 31.99.0을 가리키고 <code>differential_harness =
+      false</code>다. <strong>기준점이 둘이면 그 뒤 모든 패리티 주장이 무의미하다.</strong>
+    </p>
+    <p>
+      앞선 다이어그램 리뷰의 지적은 대부분 반영됐다. 커널 라벨과 역압 엣지는 해소됐고, 한 장이 세
+      역할을 하던 문제는 8뷰 분리로 풀렸으며, INV-01~12는 내가 제안한 소유권 표보다 강하다.
+      p2p 결함들도 T24~T27로 예약돼 있다.
+    </p>
+    <p>
+      남은 여섯 중 다섯이 <strong>“추가”가 아니라 “이미 있는 규율을 한 곳 더 적용하라”</strong>는
+      형태라는 점이 이 문서의 상태를 말해준다. 골격은 서 있고, 남은 것은 골격이 아직 닿지 않은
+      구석들이다. 예외는 01번 하나다 — <code>assume-valid</code>는 규율의 사각이 아니라 누락이고,
+      합의 관련이라 우선순위가 다르다.
+    </p>
+  </div>
+
+  <div style="margin-top:22px">
+    <div class="line"><span class="lk">우선 1</span><span class="lv"><b>assume-valid를 게이트에 올릴 것</b> — 유일하게 합의에 닿는 누락</span></div>
+    <div class="line"><span class="lk">우선 2</span><span class="lv"><b>인그레스 경화를 W2 직후로</b> — 값싸고, 뒤 단계 전부의 실측 안전성을 좌우</span></div>
+    <div class="line"><span class="lk">우선 3</span><span class="lv"><b>submitblock 지연을 제품 셀로</b> — 계약을 바꿨으면 그 비용을 측정 대상에</span></div>
+    <div class="line"><span class="lk">이후</span><span class="lv">API 락 경계 · 다이어그램 01 정합 · D2 공식 컴파일</span></div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">03</span>그 밖의 의견</h2>
+  <p style="margin:0 0 18px;color:var(--ink-2)">비평에는 넣지 않았지만 짚어둘 만한 것들.</p>
+
+  <div class="op">
+    <h3>계획서에 자원 모델이 없다</h3>
+    <p>
+      <q>Do not attach invented calendar estimates. Staff by the work-package DAG</q>은 규율로서 옳다.
+      다만 임계 사슬만 있고 <strong>병렬 수용력</strong>이 없어서, “N명이면 얼마나 걸리나”에 답할 수
+      없다. 41개 WP 중 동시에 진행 가능한 최대 폭과 각 WP의 대략적 크기 등급만 붙여도 계획서로서의
+      실용성이 크게 올라간다. 날짜를 만들라는 게 아니라, 날짜를 만들 수 있는 재료를 남기라는 뜻이다.
+    </p>
+  </div>
+
+  <div class="op">
+    <h3>게이트가 전부 이진이다</h3>
+    <p>
+      12개 게이트가 통과/미통과로만 정의돼 있는데, 실제로는 부분 통과가 나온다 — G4 크래시 매트릭스
+      9개 중 8개 통과 같은 상황이다. 그때 차단인지 조건부 진행인지, 조건부라면 무엇을 부채로 기록하고
+      어느 게이트에서 정산하는지가 없다. <strong>부분 통과 취급 규칙</strong>을 게이트 정의에 한 줄씩
+      붙이면 실행 중 가장 흔한 분쟁이 사라진다.
+    </p>
+  </div>
+
+  <div class="op">
+    <h3>위험표에 거버넌스 위험이 없다</h3>
+    <p>
+      §18의 13개 위험이 전부 기술 위험이다. 그런데 41 WP × 12 게이트 waterfall에서 가장 흔한 실패는
+      기술이 아니라 <strong>게이트가 정치적으로 완화되는 것</strong>이다. 문서는 <q>A discovered design
+      flaw returns to the relevant earlier gate</q>라고 적었지만, 그 판단을 누가 하는지와 게이트 완화
+      권한이 누구에게 있는지가 없다. 위험표에 한 행 — “증거 미달인데 게이트를 통과시킨다 / 처방: 완화는
+      기록된 예외로만, 승인자와 정산 게이트를 명시” — 을 넣을 것을 권한다.
+    </p>
+  </div>
+
+  <div class="op">
+    <h3>단일 페이지 전달은 읽기엔 좋고 합의엔 나쁘다</h3>
+    <p>
+      690 KB 단일 HTML에 검색 인덱스까지 내장한 건 <em>읽는</em> 경험으로는 훌륭하다. 다만 41개 WP짜리
+      프로그램의 합의 도구로는 줄 단위 코멘트를 달 방법이 없다. 문서가 “Original Markdown” 링크를
+      유지하고 있으니 이미 그렇게 하고 있을 수 있는데, 그렇다면 <strong>리포지토리 안 마크다운이 원본이고
+      이 사이트는 렌더 산출물</strong>이라는 점을 문서 자체에 명시하는 게 좋다. 리뷰어가 어디에
+      코멘트를 달아야 하는지가 지금은 불분명하다.
+    </p>
+  </div>
+</section>
+
+<footer>
+  범위: 공개 문서 본문 30.8k 단어, 다이어그램 8종의 D2 소스, 요구사항 추적표 64행, 워크패키지 41건,
+  검증 절 전문. 코드 대조는 앞선 감사(HEAD fe2c1329)의 근거를 재사용했으며 이 평가를 위해 새로 실행한
+  코드 검증은 없다. 문서가 스스로 밝힌 대로, 여기 적힌 어떤 것도 노드 수용 게이트의 통과를 의미하지 않는다.
+</footer>
+
+</div>
+</body>
+</html>

@@ -90,14 +90,16 @@ export function renderKey(): HTMLElement {
           alert.show("error", "Enter a private key (hex or WIF) or generate one.");
           return;
         }
+        // Read once: the checkbox stays live across the await, and asking it
+        // again afterwards can disagree with what was actually stored.
+        const willRemember = remember.checked();
         try {
-          const info = await api.openWallet(value, cfg.address_type, remember.checked());
+          const info = await api.openWallet(value, cfg.address_type, willRemember);
           secret.value = "";
           generated.replaceChildren();
           generated.className = "hidden";
           session.wallet = info;
-          if (remember.checked()) session.remembered = info;
-          session.lastSyncedAt = null;
+          if (willRemember) session.remembered = info;
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));
@@ -147,6 +149,66 @@ export function renderKey(): HTMLElement {
     advancedOpen = advanced.open;
   });
 
+  // The public half of a wallet: an account xpub, or a descriptor another
+  // wallet exported. The core reads it the way it reads a key; what differs
+  // is what the user is told it can do.
+  const watchSource = el("textarea", {
+    className: "mono",
+    attrs: {
+      rows: "2",
+      name: "descriptor",
+      placeholder: "wpkh([fingerprint/84h/1h/0h]tpub…/0/*) — or just the tpub",
+      spellcheck: "false",
+      autocapitalize: "off",
+      autocomplete: "off",
+    },
+  }) as HTMLTextAreaElement;
+  const watchRemember = rememberCheckbox();
+  const followBtn = button(
+    "Follow this wallet",
+    () =>
+      withBusy(followBtn, async () => {
+        alert.hide();
+        const value = watchSource.value.trim();
+        if (!value) {
+          alert.show("error", "Paste an xpub or a public descriptor.");
+          return;
+        }
+        const willRemember = watchRemember.checked();
+        try {
+          const info = await api.openWallet(value, cfg.address_type, willRemember);
+          watchSource.value = "";
+          session.wallet = info;
+          // The wallet is already open here. Reading the record back could
+          // fail and put an error over a wallet that opened fine, so take what
+          // we know — the same shape the private-key path above uses.
+          if (willRemember) session.remembered = info;
+          navigate("dashboard");
+        } catch (e) {
+          alert.show("error", errorMessage(e));
+        }
+      }),
+    "default",
+    "md",
+    { name: "eye" },
+  );
+  const watchOnly = el("section", { className: "card" }, [
+    el("div", { className: "card-head" }, [
+      sectionLabel("Watch-only"),
+      el("span", {
+        className: "hint",
+        text: "Follows a wallet without its keys: balance, history and receiving, no sending.",
+      }),
+    ]),
+    field(
+      "xpub or descriptor",
+      watchSource,
+      "A bare xpub is expanded with the address type chosen in Setup.",
+    ),
+    watchRemember.node,
+    el("div", { className: "actions" }, [followBtn]),
+  ]);
+
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [
       el("h1", { text: "Key" }),
@@ -172,5 +234,6 @@ export function renderKey(): HTMLElement {
       platform().canRememberWallet ? null : el("p", { className: "hint", text: NO_KEYSTORE_HINT }),
     ]),
     advanced,
+    watchOnly,
   ]);
 }

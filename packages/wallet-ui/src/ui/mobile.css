@@ -1,0 +1,792 @@
+/**
+ * Phone layer, loaded only by the mobile shell.
+ *
+ * It shares every colour and font with the desktop stylesheet and changes only
+ * what a thumb needs: 48px controls, 16px input text (anything smaller makes
+ * iOS zoom the page on focus), 12px card radius, and real safe-area insets so
+ * content clears the notch and the home indicator.
+ *
+ * Nothing here is scoped by media query — the shell that loads it is chosen by
+ * platform, not by viewport, so a narrow desktop window never picks it up.
+ */
+
+:root {
+  --tap: 48px;
+  --radius-lg: 12px;
+  --text-hero: 34px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar: 56px;
+}
+
+/* The shell owns scrolling, so the page itself never bounces. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/**
+ * Each screen is a <main> holding a header and a scrolling body, so it has to
+ * be a flex column itself and be allowed to shrink. Without this the body's
+ * `flex: 1` has no flex parent, no scroll region forms, and everything below
+ * the fold is silently clipped by the `overflow: hidden` above — which is
+ * exactly as bad as it sounds on a screen whose primary button is at the
+ * bottom.
+ */
+#app > main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header ------------------------------------------------------------------ */
+
+.m-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: calc(var(--safe-top) + 4px) var(--space-2) 4px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.m-head h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Keeps the title optically centred: both flanks reserve the same width. */
+.m-head-slot {
+  width: var(--tap);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.m-icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.m-icon-btn:active {
+  background: var(--subtle);
+}
+
+/* Body -------------------------------------------------------------------- */
+
+.m-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: var(--space-3) var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Without a tab bar the body still has to clear the home indicator. */
+.m-body:last-child {
+  padding-bottom: calc(var(--space-6) + var(--safe-bottom));
+}
+
+.m-lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.m-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.m-card-flush {
+  padding: 0;
+  gap: 0;
+}
+
+.m-card-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.m-spacer {
+  flex: 1;
+  min-height: var(--space-2);
+}
+
+/* Controls ---------------------------------------------------------------- */
+
+.m-btn {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.m-btn:active {
+  background: var(--subtle);
+}
+
+.m-btn[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.m-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.m-btn-primary:active {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+
+.m-btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.m-btn-danger {
+  color: var(--danger);
+}
+
+.m-btn-block {
+  width: 100%;
+}
+
+.m-btn-square {
+  flex: none;
+  width: var(--tap);
+  padding: 0;
+}
+
+/* Desktop-styled buttons that share a row here (copy) take the phone size. */
+.m-body .btn {
+  min-height: var(--tap);
+  border-radius: var(--radius-lg);
+  font-size: 16px;
+  flex: 1;
+}
+
+.m-row {
+  display: flex;
+  gap: var(--space-2);
+  /* Without this, a chip beside a 48px input stretches to the input's height
+     and reads as a tall blob rather than a control. */
+  align-items: center;
+}
+
+.m-row > .m-btn {
+  flex: 1;
+}
+
+/* 16px is the floor: below it iOS zooms the page when the field takes focus. */
+.m-body input[type="text"],
+.m-body input[type="password"],
+.m-body input[type="number"],
+.m-body select {
+  min-height: var(--tap);
+  font-size: 16px;
+  border-radius: var(--radius-lg);
+  padding: 0 var(--space-3);
+}
+
+/* A word box is not a form field: it sits inside its own numbered cell, so the
+   48px rule above would make the blanks tower over the words beside them. Keep
+   the 16px text — that is what stops iOS zooming — and drop the rest. */
+.m-body .word-cell .word-input {
+  min-height: 22px;
+  padding: 0;
+  border-radius: 0;
+}
+
+.m-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.m-chip {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.m-chip[aria-pressed="true"],
+.m-chip[aria-checked="true"] {
+  border-color: var(--fg);
+  background: var(--subtle);
+  font-weight: 500;
+}
+
+/* Four chips on one phone row. */
+.m-chips-tight {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.m-chips-tight .m-chip {
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+/* Max is a mode: lit in the accent while the amount is the whole balance. */
+.m-chip-max[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface);
+}
+
+/* Field errors ------------------------------------------------------------ */
+
+.m-err {
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.m-err:empty {
+  display: none;
+}
+
+.m-body input.input-invalid {
+  border-color: var(--danger);
+}
+
+.m-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.m-rate-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.m-rate-row input {
+  width: 120px;
+  flex: none;
+}
+
+.m-rate-unit {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.m-body textarea {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  width: 100%;
+  min-height: 96px;
+  padding: var(--space-3) 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--fg);
+  resize: vertical;
+}
+
+/* A chip group in a row sits next to the field it modifies, so it keeps its
+   own width and stays on one line instead of wrapping into a column. */
+.m-row > .m-chips {
+  flex: none;
+  flex-wrap: nowrap;
+}
+
+.m-row > input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Balance ----------------------------------------------------------------- */
+
+.m-hero {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-hero);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.m-sub {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.m-pending {
+  font-size: 13px;
+  color: var(--pending);
+}
+
+.m-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.m-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Transactions ------------------------------------------------------------ */
+
+.m-txrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 11px var(--space-4);
+  border-bottom: 1px solid var(--border);
+  min-height: var(--tap);
+  box-sizing: border-box;
+}
+
+.m-txrow:last-child {
+  border-bottom: none;
+}
+
+/* A history row is a button when it opens the transaction. */
+button.m-txrow {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.m-txrow:last-child {
+  border-bottom: none;
+}
+
+button.m-txrow:active {
+  background: var(--subtle);
+}
+
+.m-chev {
+  flex: none;
+  display: inline-flex;
+  margin-left: var(--space-1);
+  color: var(--faint);
+}
+
+/* Transaction ------------------------------------------------------------- */
+
+.m-tx-hero {
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.m-tx-amount {
+  font-size: 30px;
+}
+
+.m-tx-unit {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.m-pill-pending .pill-dot {
+  background: var(--pending);
+}
+
+.m-mono-block {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.m-bump {
+  border-color: var(--accent);
+  gap: 10px;
+}
+
+.m-bump .section-label {
+  color: var(--accent-deep);
+}
+
+.m-bump-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.m-dirdot {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--subtle);
+}
+
+/* The Transaction screen's larger badge; after the base rule on purpose. */
+.m-tx-hero .m-dirdot {
+  width: 44px;
+  height: 44px;
+}
+
+.m-tx-in {
+  color: var(--ok);
+}
+
+.m-tx-out {
+  color: var(--fg);
+}
+
+.m-txmain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.m-txtitle {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.m-txmeta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.m-amt {
+  margin-left: auto;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.m-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4) var(--space-2);
+}
+
+.m-empty {
+  padding: var(--space-4);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* Address ----------------------------------------------------------------- */
+
+.m-address {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.m-uri {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.m-qr {
+  align-self: center;
+  padding: var(--space-3);
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  line-height: 0;
+}
+
+/* Rows in a flush card ---------------------------------------------------- */
+
+.m-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.m-item:last-child {
+  border-bottom: none;
+}
+
+.m-item:active {
+  background: var(--subtle);
+}
+
+.m-item-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--muted);
+  font-size: 15px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A row that holds controls rather than one value (Rescan). */
+.m-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-size: 16px;
+}
+
+.m-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.m-block-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-block-row .m-chips {
+  flex-wrap: nowrap;
+}
+
+.m-block-row .m-btn {
+  flex: none;
+  margin-left: auto;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+/* The two-tap confirm, and its neutral sibling for "this closes the wallet". */
+.m-confirm {
+  border-color: var(--danger);
+  gap: 10px;
+}
+
+.m-confirm-neutral {
+  border-color: var(--fg);
+}
+
+.m-centre-text {
+  text-align: center;
+}
+
+/* A card whose QR sits centred while its buttons still span the width. */
+.m-centre-items {
+  align-items: center;
+}
+
+.m-centre-items > .m-row {
+  align-self: stretch;
+}
+
+/* Tab bar ----------------------------------------------------------------- */
+
+.m-tabs {
+  flex: none;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  /* Android's gesture bar overlays an edge-to-edge webview but does not always
+     report a safe-area inset, which put the tab labels underneath it. The floor
+     keeps them clear whether or not the inset arrives. */
+  padding-bottom: max(var(--safe-bottom), 14px);
+}
+
+.m-tab {
+  flex: 1;
+  min-height: var(--tabbar);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.m-tab[aria-current="page"] {
+  color: var(--accent);
+}
+
+/* Scan -------------------------------------------------------------------- */
+
+.m-scan {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.m-reticle {
+  position: relative;
+  width: 250px;
+  height: 250px;
+  max-width: 70vw;
+  max-height: 70vw;
+}
+
+.m-reticle span {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--accent);
+}
+
+.m-reticle span:nth-child(1) {
+  inset: 0 auto auto 0;
+  border-width: 3px 0 0 3px;
+  border-radius: 20px 0 0 0;
+}
+
+.m-reticle span:nth-child(2) {
+  inset: 0 0 auto auto;
+  border-width: 3px 3px 0 0;
+  border-radius: 0 20px 0 0;
+}
+
+.m-reticle span:nth-child(3) {
+  inset: auto auto 0 0;
+  border-width: 0 0 3px 3px;
+  border-radius: 0 0 0 20px;
+}
+
+.m-reticle span:nth-child(4) {
+  inset: auto 0 0 auto;
+  border-width: 0 3px 3px 0;
+  border-radius: 0 0 20px 0;
+}
+
+/* Unlock ------------------------------------------------------------------ */
+
+.m-centre {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  text-align: center;
+}
+
+.m-badge {
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}

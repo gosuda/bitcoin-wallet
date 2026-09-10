@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
   "files": {
-    "includes": ["src/**", "*.json", "!node_modules", "!src/wasm/pkg"]
+    "includes": ["src/**", "test/**", "*.json", "*.ts", "!node_modules", "!src/wasm/pkg"]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "linter": {

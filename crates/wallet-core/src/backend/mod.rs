@@ -12,6 +12,8 @@ use crate::{MaybeSend, MaybeSync, Result};
 
 #[cfg(feature = "backend-esplora")]
 pub mod esplora;
+/// Test double. Behind `cfg(test)` so it never ships in the wasm binary.
+#[cfg(test)]
 pub mod mock;
 
 /// How to reach a chain-data provider.
@@ -47,10 +49,12 @@ impl FeeEstimate {
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 pub trait ChainBackend: MaybeSend + MaybeSync {
-    /// Discover all history for the keychains in `request`.
+    /// Discover all history for the keychains in `request`, giving up on a
+    /// keychain after `stop_gap` consecutive scripts with no history.
     async fn full_scan(
         &self,
         request: FullScanRequest<KeychainKind>,
+        stop_gap: usize,
     ) -> Result<FullScanResponse<KeychainKind>>;
     /// Refresh already-revealed scripts / txids / outpoints.
     async fn sync(&self, request: SyncRequest<(KeychainKind, u32)>) -> Result<SyncResponse>;

@@ -4,6 +4,18 @@ export type Network = (typeof NETWORKS)[number];
 export const ADDRESS_TYPES = ["p2pkh", "p2wpkh", "nested_p2wpkh", "p2tr", "p2pk"] as const;
 export type AddressType = (typeof ADDRESS_TYPES)[number];
 
+/**
+ * The types a wallet can be opened on.
+ *
+ * `p2pk` stays in the union because the core still derives and prints such a
+ * key, and a config stored before this may name it — but it cannot back a
+ * wallet: its descriptor is a bare script with no signing context, and the
+ * core refuses to open one rather than let a send reach that.
+ */
+export const OPENABLE_ADDRESS_TYPES = ADDRESS_TYPES.filter(
+  (t): t is Exclude<AddressType, "p2pk"> => t !== "p2pk",
+);
+
 /** Mirrors `wallet_core::BackendConfig` (serde-tagged on `kind`). */
 export interface BackendConfig {
   kind: "esplora";
@@ -21,8 +33,18 @@ export interface WalletInfo {
   network: Network;
   address_type: AddressType;
   wallet_id: string;
-  /** True for a BIP32 account (mnemonic): it can reveal further addresses. */
+  /** True for a BIP32 account (mnemonic): it has a separate change keychain. */
   is_hd: boolean;
+  /**
+   * True when the wallet derives a range of addresses.
+   *
+   * Every HD wallet is ranged, but not every ranged wallet is HD: an imported
+   * `wpkh(xpub/*)` rotates receive addresses with no change keychain. Receive
+   * surfaces want this, not `is_hd`.
+   */
+  is_ranged: boolean;
+  /** True when opened from an xpub or public descriptor: it cannot sign. */
+  is_watch_only: boolean;
 }
 
 /** Non-secret record of the wallet whose key is kept in the OS keystore. */
@@ -83,6 +105,47 @@ export interface FeeEstimate {
   sat_per_vb_by_target: Record<string, number>;
 }
 
+/** The public half of the wallet: enough to watch it, not to spend from it. */
+export interface PublicDescriptors {
+  external: string;
+  /** Change keychain; `null` for a single key. */
+  internal: string | null;
+  /** Account xpub of an HD wallet; `null` for a single key. */
+  account_xpub: string | null;
+  fingerprint: string | null;
+}
+
+export interface TxInput {
+  txid: string;
+  vout: number;
+  /** `null` when the spent output is not one the wallet has seen. */
+  value_sat: number | null;
+  ours: boolean;
+}
+
+export interface TxOutput {
+  /** `null` for a script with no address form. */
+  address: string | null;
+  value_sat: number;
+  ours: boolean;
+}
+
+/** Everything the wallet knows about one transaction in its history. */
+export interface TxDetail {
+  txid: string;
+  net_sat: number;
+  sent_sat: number;
+  received_sat: number;
+  fee_sat: number | null;
+  fee_rate_sat_vb: number | null;
+  confirmations: number | null;
+  block_height: number | null;
+  timestamp: number | null;
+  vsize: number;
+  inputs: TxInput[];
+  outputs: TxOutput[];
+}
+
 /**
  * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):
  * the exact target, else the closest faster one, else the closest slower one.
@@ -138,7 +201,8 @@ export interface TxPreview {
 
 export interface BroadcastResult {
   txid: string;
-  explorer_url: string;
+  /** `null` where no public explorer exists (regtest); the UI hides the link. */
+  explorer_url: string | null;
   /** Set when the send succeeded but local wallet state could not be saved. */
   persist_error: string | null;
 }

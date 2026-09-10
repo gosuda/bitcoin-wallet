@@ -115,18 +115,18 @@ export function renderCreate(): HTMLElement {
       alert.show("error", "The words you typed do not match the phrase.");
       return;
     }
+    const willRemember = remember.checked();
     try {
       const info = await api.openWallet(
         secret,
         cfg.address_type,
-        remember.checked(),
+        willRemember,
         passphrase.value || undefined,
       );
       phrase = null;
       passphrase.value = "";
       session.wallet = info;
-      if (remember.checked()) session.remembered = info;
-      session.lastSyncedAt = null;
+      if (willRemember) session.remembered = info;
       navigate("dashboard");
     } catch (e) {
       alert.show("error", errorMessage(e));

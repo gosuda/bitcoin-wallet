@@ -16,6 +16,8 @@ pub struct MockBackend {
     pub fee: FeeEstimate,
     pub height: u32,
     pub broadcasts: Mutex<Vec<Transaction>>,
+    /// What the wallet last asked a full scan to look past.
+    pub last_stop_gap: Mutex<Option<usize>>,
 }
 
 impl MockBackend {
@@ -35,7 +37,9 @@ impl ChainBackend for MockBackend {
     async fn full_scan(
         &self,
         _request: FullScanRequest<KeychainKind>,
+        stop_gap: usize,
     ) -> Result<FullScanResponse<KeychainKind>> {
+        *self.last_stop_gap.lock().unwrap() = Some(stop_gap);
         Ok(self
             .full_scan_response
             .lock()

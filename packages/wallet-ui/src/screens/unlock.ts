@@ -28,7 +28,6 @@ export function renderUnlock(): HTMLElement {
         try {
           const info = await api.unlockWallet();
           session.wallet = info;
-          session.lastSyncedAt = null;
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));
@@ -56,8 +55,6 @@ export function renderUnlock(): HTMLElement {
             await api.forgetWallet();
             session.remembered = null;
             session.wallet = null;
-            session.lastSyncedAt = null;
-            session.lastResult = null;
             navigate("key");
           } catch (e) {
             alert.show("error", errorMessage(e));

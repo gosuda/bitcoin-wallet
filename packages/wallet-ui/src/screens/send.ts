@@ -1,3 +1,5 @@
+import { addressLooksValid } from "../address";
+import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
 import { session } from "../session";
@@ -6,7 +8,6 @@ import {
   errorMessage,
   type FeeEstimate,
   NETWORK_LABELS,
-  type Network,
   type Recipient,
   rateForTarget,
   type TxPreview,
@@ -27,18 +28,6 @@ import {
 
 const FEE_TARGETS = [1, 3, 6] as const;
 
-const SATS_PER_BTC = 100_000_000;
-
-/**
- * vB assumed by "Max" before any build has told us the real size: one P2WPKH
- * input paying one recipient plus change. Documented approximation — the first
- * successful preview replaces it with the measured vsize.
- */
-const MAX_FALLBACK_VSIZE = 141;
-
-/** Amount unit of one recipient row. Sats are the internal representation. */
-type Unit = "sat" | "btc";
-
 interface RecipientRow {
   node: HTMLElement;
   address: HTMLInputElement;
@@ -49,100 +38,17 @@ interface RecipientRow {
   remove: HTMLButtonElement;
   max: HTMLButtonElement;
   maxBox: HTMLElement;
+  maxHint: HTMLElement;
   addressError: HTMLElement;
   amountError: HTMLElement;
   /** A field only shows its error once the user has left it. */
   touched: { address: boolean; amount: boolean };
 }
 
-/** A parsed amount, or the reason it is not one. Empty text is neither. */
-interface AmountParse {
-  sats: number | null;
-  error: string | null;
-}
-
-const NOT_A_NUMBER = "Enter an amount, digits only.";
-const NOT_POSITIVE = "Amount must be more than 0 sat.";
-
-/** Text in `unit` as whole sats. Integer math throughout: no float rounding. */
-function parseAmount(raw: string, unit: Unit): AmountParse {
-  const text = raw.trim();
-  if (!text) return { sats: null, error: null };
-  if (unit === "sat") {
-    if (!/^\d+$/.test(text)) return { sats: null, error: "Enter a whole number of sats." };
-    const sats = Number(text);
-    if (!Number.isSafeInteger(sats)) return { sats: null, error: "Amount is too large." };
-    return sats > 0 ? { sats, error: null } : { sats: null, error: NOT_POSITIVE };
-  }
-  const match = /^(\d*)(?:\.(\d*))?$/.exec(text);
-  if (!match) return { sats: null, error: NOT_A_NUMBER };
-  const whole = match[1] ?? "";
-  const frac = match[2] ?? "";
-  if (!whole && !frac) return { sats: null, error: NOT_A_NUMBER };
-  if (frac.length > 8) {
-    return { sats: null, error: "BTC has 8 decimals at most — 1 sat is 0.00000001." };
-  }
-  const sats = Number(whole || "0") * SATS_PER_BTC + Number(frac.padEnd(8, "0"));
-  if (!Number.isSafeInteger(sats)) return { sats: null, error: "Amount is too large." };
-  return sats > 0 ? { sats, error: null } : { sats: null, error: NOT_POSITIVE };
-}
-
-/** Whole sats as field text: plain digits, or BTC with up to 8 decimals. */
-function formatAmount(sats: number, unit: Unit): string {
-  if (unit === "sat") return String(sats);
-  const whole = Math.floor(sats / SATS_PER_BTC);
-  const frac = String(sats - whole * SATS_PER_BTC)
-    .padStart(8, "0")
-    .replace(/0+$/, "");
-  return frac ? `${whole}.${frac}` : String(whole);
-}
-
-/** Segwit prefix of a network, separator included. */
-const BECH32_HRP: Record<Network, string> = {
-  bitcoin: "bc1",
-  testnet3: "tb1",
-  testnet4: "tb1",
-  signet: "tb1",
-  regtest: "bcrt1",
-};
-
-/** Base58 version bytes render as these leading characters. */
-const BASE58_PREFIXES: Record<Network, readonly string[]> = {
-  bitcoin: ["1", "3"],
-  testnet3: ["m", "n", "2"],
-  testnet4: ["m", "n", "2"],
-  signet: ["m", "n", "2"],
-  regtest: ["m", "n", "2"],
-};
-
-const BECH32_DATA = /^[qpzry9x8gf2tvdw0s3jn54khce6mua7l]+$/;
-const BASE58_BODY = /^[1-9A-HJ-NP-Za-km-z]+$/;
-
-/**
- * Cheap network check — the core has no address validator to call, so this is
- * a deliberately conservative prefix/charset test: it rejects only values that
- * cannot belong to `network`. The real parse happens when the tx is built.
- */
-function addressLooksValid(raw: string, network: Network): boolean {
-  const text = raw.trim();
-  if (!text) return false;
-  const lower = text.toLowerCase();
-  const hrp = BECH32_HRP[network];
-  if (lower.startsWith(hrp)) {
-    // bech32 is single-case by definition; a mixed-case string is never one.
-    if (text !== lower && text !== text.toUpperCase()) return false;
-    const data = lower.slice(hrp.length);
-    return data.length >= 6 && text.length <= 90 && BECH32_DATA.test(data);
-  }
-  if (BASE58_PREFIXES[network].includes(text.slice(0, 1))) {
-    return text.length >= 26 && text.length <= 35 && BASE58_BODY.test(text);
-  }
-  return false;
-}
-
 type FeeTarget = `${(typeof FEE_TARGETS)[number]}`;
 
 const FLOOR_NOTE = "floor 1 sat/vB";
+const MAX_HINT = "Max sends everything: the whole balance minus the fee, to this one recipient.";
 
 export function renderSend(): HTMLElement {
   const wallet = session.wallet;
@@ -160,14 +66,36 @@ export function renderSend(): HTMLElement {
   let estimate: FeeEstimate | null = null;
   let preview: TxPreview | null = null;
   let formLocked = false;
-  /** vsize of the last successful build; the honest input to "Max". */
-  let lastVsize: number | null = null;
+  /**
+   * Max is a mode. Tapping it asks the core to build a drain to the row's
+   * address, so the amount that appears is exactly what will leave. Editing
+   * the amount, the address or the rate leaves the mode and discards this.
+   */
+  let drain: TxPreview | null = null;
+  /**
+   * Bumped by anything that changes what Max would build. A build resolves
+   * against the generation it started in; a later one means the address, the
+   * rate or the recipient list moved while it was in flight, and its PSBT pays
+   * what was on screen then — not what is there now. Without this the only
+   * guard is `drain`, which is still null mid-build, so every edit no-ops and
+   * the stale transaction installs unconditionally.
+   */
+  let drainSeq = 0;
   let rowSeq = 0;
 
   const feeRate = textInput({ value: "1", type: "number", mono: true });
   feeRate.min = "1";
   feeRate.step = "0.1";
+  /**
+   * Set once the user types a rate. The first estimate can land afterwards,
+   * and applying it then replaces a rate they chose deliberately. Picking a
+   * target block count clears it again — that is delegating back to the
+   * estimate, so overwriting is the point.
+   */
+  let rateTouched = false;
   feeRate.addEventListener("input", () => {
+    rateTouched = true;
+    leaveDrain();
     feeHint.textContent = `Custom rate · ${FLOOR_NOTE}`;
   });
   const feeHint = el("span", { className: "hint fee-source", text: "Fetching estimate…" });
@@ -188,6 +116,8 @@ export function renderSend(): HTMLElement {
     targetBlocks,
     (v) => {
       targetBlocks = v;
+      rateTouched = false;
+      leaveDrain();
       applyEstimate();
     },
   );
@@ -201,6 +131,10 @@ export function renderSend(): HTMLElement {
       return;
     }
     const rounded = Math.max(1, Math.ceil(rate * 10) / 10);
+    // A Max preview was built at the rate showing when it started. Moving the
+    // rate under it would leave Review displaying this one and broadcasting
+    // that one.
+    if (feeRate.value !== String(rounded)) leaveDrain();
     feeRate.value = String(rounded);
     feeHint.textContent = `${host} estimate for ${targetBlocks} block${targetBlocks === "1" ? "" : "s"} · ${FLOOR_NOTE}`;
   };
@@ -208,6 +142,7 @@ export function renderSend(): HTMLElement {
   const loadEstimate = async () => {
     try {
       estimate = await api.estimateFee();
+      if (rateTouched) return;
       applyEstimate();
     } catch (e) {
       feeHint.textContent = `Estimate unavailable: ${errorMessage(e)}`;
@@ -261,31 +196,72 @@ export function renderSend(): HTMLElement {
     refreshRow(row);
   };
 
+  /** Take the form out of Max mode. Does not touch the PSBT. */
+  const clearDrainChrome = () => {
+    drain = null;
+    for (const r of rows) {
+      r.max.classList.remove("max-on");
+      r.maxHint.textContent = MAX_HINT;
+    }
+    syncRowChrome();
+  };
+
+  /**
+   * Abandon a Max build still in flight, leaving a settled one alone.
+   *
+   * Review supersedes a build in progress — it is about to produce its own
+   * preview — but in Max mode it *uses* the settled drain, so this must not
+   * discard that.
+   */
+  const cancelPendingDrain = () => {
+    if (!drain) drainSeq += 1;
+  };
+
+  const leaveDrain = () => {
+    // Before the early return: an in-flight build must be invalidated too.
+    drainSeq += 1;
+    if (!drain) return;
+    void api.discardTx(drain.psbt_id);
+    clearDrainChrome();
+  };
+
   const fillMax = (row: RecipientRow) =>
     withBusy(row.max, async () => {
       alert.hide();
+      const address = row.address.value.trim();
+      row.touched.address = true;
+      renderRowErrors(row);
+      if (!address || !addressLooksValid(address, wallet.network)) {
+        alert.show("error", "Enter the address first — the exact amount depends on it.");
+        return;
+      }
       try {
-        const balance = await api.getBalance();
-        const spendable = balance.confirmed + balance.trusted_pending;
-        const rate = currentRate();
-        const fee = Math.ceil((lastVsize ?? MAX_FALLBACK_VSIZE) * rate);
-        const amount = spendable - fee;
-        if (amount <= 0) {
-          alert.show(
-            "error",
-            `Spendable balance (${formatSats(spendable)}) does not cover the ${formatSats(fee)} fee at ${rate} sat/vB.`,
-          );
+        leaveDrain();
+        const seq = drainSeq;
+        const preview = await api.buildDrain(address, currentRate());
+        if (seq !== drainSeq) {
+          // The form moved under us. Keeping this would let Review broadcast
+          // to the previous address at the previous rate.
+          void api.discardTx(preview.psbt_id);
           return;
         }
-        row.amount.value = formatAmount(amount, row.unit);
+        drain = preview;
+        row.amount.value = formatAmount(preview.total_out_sat, row.unit);
         row.touched.amount = true;
+        row.max.classList.add("max-on");
+        row.maxHint.textContent = `Everything: ${formatSats(preview.total_out_sat + preview.fee_sat)} minus the ${formatSats(preview.fee_sat)} fee. Editing the amount leaves Max; Max needs a single recipient.`;
         refreshRow(row);
+        syncRowChrome();
       } catch (e) {
         alert.show("error", errorMessage(e));
       }
     });
 
   const removeRow = (row: RecipientRow) => {
+    // Changing who gets paid invalidates a build in flight, the same way
+    // editing a field does — otherwise its preview still names this recipient
+    // and confirming it pays them.
+    leaveDrain();
     const i = rows.indexOf(row);
     if (i >= 0) rows.splice(i, 1);
     row.node.remove();
@@ -300,6 +276,7 @@ export function renderSend(): HTMLElement {
       r.remove.disabled = single || formLocked;
       r.maxBox.classList.toggle("hidden", !single);
     }
+    addBtn.disabled = formLocked || drain !== null;
   };
 
   const addRow = () => {
@@ -315,10 +292,8 @@ export function renderSend(): HTMLElement {
     const amountError = el("span", { className: "field-error hidden" });
     const removeBtn = iconButton("x", "Remove recipient", () => removeRow(row));
     const maxBtn = button("Max", () => fillMax(row), "default", "sm");
-    const maxBox = el("div", { className: "amount-max" }, [
-      maxBtn,
-      el("span", { className: "hint", text: "Max spends the whole balance minus the fee." }),
-    ]);
+    const maxHint = el("span", { className: "hint", text: MAX_HINT });
+    const maxBox = el("div", { className: "amount-max" }, [maxBtn, maxHint]);
 
     const row: RecipientRow = {
       node: el("div", { className: "recipient-row" }),
@@ -329,6 +304,7 @@ export function renderSend(): HTMLElement {
       remove: removeBtn,
       max: maxBtn,
       maxBox,
+      maxHint,
       addressError,
       amountError,
       touched: { address: false, amount: false },
@@ -347,6 +323,7 @@ export function renderSend(): HTMLElement {
     };
 
     address.addEventListener("input", () => {
+      leaveDrain();
       if (row.touched.address) renderRowErrors(row);
       updateReview();
     });
@@ -355,6 +332,7 @@ export function renderSend(): HTMLElement {
       refreshRow(row);
     });
     amount.addEventListener("input", () => {
+      leaveDrain();
       if (row.touched.amount) renderRowErrors(row);
       updateReview();
     });
@@ -394,7 +372,16 @@ export function renderSend(): HTMLElement {
     updateReview();
   };
 
-  const addBtn = button("Add recipient", addRow, "default", "sm", { name: "plus" });
+  const addBtn = button(
+    "Add recipient",
+    () => {
+      leaveDrain();
+      addRow();
+    },
+    "default",
+    "sm",
+    { name: "plus" },
+  );
   const rowsHead = el("div", { className: "card-head" }, [sectionLabel("Recipients"), addBtn]);
   rowsBox.append(rowsHead);
 
@@ -448,10 +435,15 @@ export function renderSend(): HTMLElement {
           try {
             const result = await api.signAndBroadcast(p.psbt_id);
             preview = null;
+            drain = null;
             session.lastResult = result;
             navigate("result");
           } catch (e) {
             preview = null;
+            // The PSBT is spent either way: signing consumed it before it
+            // failed. Leaving `drain` pointing at it made the next Review
+            // reuse a psbt_id the core no longer has and fail as unknown_psbt.
+            clearDrainChrome();
             previewBox.className = "card review-card hidden";
             setFormLocked(false);
             alert.show("error", errorMessage(e));
@@ -462,7 +454,8 @@ export function renderSend(): HTMLElement {
     const backBtn = button("Edit", () =>
       withBusy(backBtn, async () => {
         try {
-          await api.discardTx(p.psbt_id);
+          // The Max preview stays alive with the mode; anything else is done with.
+          if (p !== drain) await api.discardTx(p.psbt_id);
         } catch {
           // Pending map is best-effort; nothing to surface.
         }
@@ -513,8 +506,17 @@ export function renderSend(): HTMLElement {
           return;
         }
         try {
-          const p = await api.buildTransfer(recipients, rate);
-          lastVsize = p.vsize;
+          // Review supersedes a Max build still running: without this both
+          // survive, and confirming one drops the reference to the other
+          // without discarding it.
+          cancelPendingDrain();
+          const seq = drainSeq;
+          // In Max mode the preview already exists and is exactly the amount shown.
+          const p = drain ?? (await api.buildTransfer(recipients, rate));
+          if (seq !== drainSeq) {
+            if (p !== drain) await api.discardTx(p.psbt_id);
+            return;
+          }
           setFormLocked(true);
           showPreview(p);
         } catch (e) {
