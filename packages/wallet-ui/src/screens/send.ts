@@ -206,6 +206,17 @@ export function renderSend(): HTMLElement {
     syncRowChrome();
   };
 
+  /**
+   * Abandon a Max build still in flight, leaving a settled one alone.
+   *
+   * Review supersedes a build in progress — it is about to produce its own
+   * preview — but in Max mode it *uses* the settled drain, so this must not
+   * discard that.
+   */
+  const cancelPendingDrain = () => {
+    if (!drain) drainSeq += 1;
+  };
+
   const leaveDrain = () => {
     // Before the early return: an in-flight build must be invalidated too.
     drainSeq += 1;
@@ -491,8 +502,17 @@ export function renderSend(): HTMLElement {
           return;
         }
         try {
+          // Review supersedes a Max build still running: without this both
+          // survive, and confirming one drops the reference to the other
+          // without discarding it.
+          cancelPendingDrain();
+          const seq = drainSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
           const p = drain ?? (await api.buildTransfer(recipients, rate));
+          if (seq !== drainSeq) {
+            if (p !== drain) await api.discardTx(p.psbt_id);
+            return;
+          }
           setFormLocked(true);
           showPreview(p);
         } catch (e) {

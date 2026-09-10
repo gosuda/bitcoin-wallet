@@ -2,6 +2,7 @@ import { addressError, addressLooksValid } from "../../address";
 import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
 import { navigate } from "../../router";
+import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type FeeEstimate, rateForTarget, type TxPreview } from "../../types";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
@@ -22,6 +23,7 @@ export function prefillSend(next: Prefill): void {
 type FeeChoice = "1" | "3" | "6" | "custom";
 
 export function renderSend(): HTMLElement {
+  const onScreen = screenGuard();
   const info = session.wallet;
   const host = el("main");
   if (!info) {
@@ -253,8 +255,18 @@ export function renderSend(): HTMLElement {
    */
   let pendingPreview: TxPreview | null = null;
 
+  /**
+   * Bumped whenever the form moves on from a preview.
+   *
+   * `pendingPreview` cannot do this job alone: it is still null while a build
+   * is in flight, so an edit during one clears nothing and the result installs
+   * regardless — the same shape as the Max race, on the ordinary path.
+   */
+  let formSeq = 0;
+
   /** Call before `leaveDrain`, so a preview that *is* the drain is discarded once. */
   const clearPreview = (): void => {
+    formSeq += 1;
     if (pendingPreview && pendingPreview !== drain) void api.discardTx(pendingPreview.psbt_id);
     pendingPreview = null;
     reviewHost.replaceChildren();
@@ -272,12 +284,20 @@ export function renderSend(): HTMLElement {
         const parsed = parseAmount(amount.value, currentUnit);
         if (addressError(to, info.network) || parsed.sats === null) return;
         try {
+          const seq = formSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
           const preview =
             drain ?? (await api.buildTransfer([{ address: to, amount_sat: parsed.sats }], rate));
+          if (seq !== formSeq || !onScreen()) {
+            // The form changed or the screen went away while this was building.
+            // Showing it would offer the previous recipient and amount; keeping
+            // it would strand the PSBT with nothing left to reclaim it.
+            if (preview !== drain) void api.discardTx(preview.psbt_id);
+            return;
+          }
           showPreview(preview, preview.total_out_sat);
         } catch (e) {
-          alert.show("error", errorMessage(e));
+          if (onScreen()) alert.show("error", errorMessage(e));
         }
       }),
     { variant: "primary", block: true },
@@ -297,6 +317,10 @@ export function renderSend(): HTMLElement {
             session.lastResult = await api.signAndBroadcast(preview.psbt_id);
             navigate("result");
           } catch (e) {
+            // Signing consumed the PSBT before it failed, so the mounted
+            // Confirm would retry an id the core no longer has. Take the sheet
+            // down and make them review the current form again.
+            clearPreview();
             alert.show("error", errorMessage(e));
           }
         }),

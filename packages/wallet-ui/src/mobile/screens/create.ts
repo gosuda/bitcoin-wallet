@@ -1,6 +1,6 @@
 import { api } from "../../api";
 import { navigate } from "../../router";
-import { screenToken, stillCurrent } from "../../screen";
+import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -24,6 +24,7 @@ function pickPositions(total: number, count: number): number[] {
 }
 
 export function renderCreate(): HTMLElement {
+  const onScreen = screenGuard();
   const alert = banner();
   const host = el("main");
   const cfg = session.config;
@@ -39,10 +40,9 @@ export function renderCreate(): HTMLElement {
   void (async () => {
     // Generation is async and the user can leave before it lands; painting a
     // recovery phrase into a screen that is gone leaves it in a detached DOM.
-    const token = screenToken();
     try {
       const generated = await api.generateMnemonic(cfg.network, cfg.address_type, 12);
-      if (!stillCurrent(token)) return;
+      if (!onScreen()) return;
       const words = generated.words.split(" ");
       const blanks = pickPositions(words.length, CHECKS);
       const answers = new Map<number, HTMLInputElement>();

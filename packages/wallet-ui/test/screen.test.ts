@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it } from "vitest";
-import { screenToken, stillCurrent } from "../src/screen";
+import { screenGuard } from "../src/screen";
 import { session } from "../src/session";
 import type { WalletInfo } from "../src/types";
 
@@ -13,48 +13,73 @@ const wallet = (wallet_id: string): WalletInfo => ({
   is_watch_only: false,
 });
 
+/**
+ * jsdom queues its own `hashchange`, so navigation is driven explicitly here.
+ * The shell builds screens from that event, which is what the guard keys on.
+ */
+const navigateTo = (hash: string): void => {
+  window.location.hash = hash;
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+};
+
 beforeEach(() => {
   window.location.hash = "#/dashboard";
   session.wallet = wallet("signet-p2wpkh-aaaa");
 });
 
-describe("screen token", () => {
-  it("stays current while nothing moves", () => {
-    expect(stillCurrent(screenToken())).toBe(true);
+describe("screenGuard", () => {
+  it("holds while nothing moves", () => {
+    expect(screenGuard()()).toBe(true);
   });
 
-  it("goes stale when the route changes", () => {
-    const token = screenToken();
-    window.location.hash = "#/settings";
-    expect(stillCurrent(token)).toBe(false);
+  it("lapses when the route changes", () => {
+    const onScreen = screenGuard();
+    navigateTo("#/settings");
+    expect(onScreen()).toBe(false);
   });
 
-  // The case a route check alone would miss: same screen, different wallet.
-  // This is how a sync started for one wallet repainted another's balance.
-  it("goes stale when the wallet changes under the same route", () => {
-    const token = screenToken();
+  // The defect this guard was rewritten for. Route and wallet alone are equal
+  // across the two visits, so a promise from the abandoned render read as
+  // current and drove the freshly built one.
+  it("does not revive when the user returns to the same screen", () => {
+    const firstVisit = screenGuard();
+    navigateTo("#/settings");
+    navigateTo("#/dashboard");
+    expect(firstVisit()).toBe(false);
+  });
+
+  it("gives each render its own answer", () => {
+    const firstVisit = screenGuard();
+    navigateTo("#/settings");
+    navigateTo("#/dashboard");
+    const secondVisit = screenGuard();
+    expect(firstVisit()).toBe(false);
+    expect(secondVisit()).toBe(true);
+  });
+
+  // A guard created during navigation must survive the event that created it,
+  // or every screen would be born already retired.
+  it("survives the navigation that built its screen", () => {
+    let onScreen: (() => boolean) | null = null;
+    const build = (): void => {
+      onScreen = screenGuard();
+      window.removeEventListener("hashchange", build);
+    };
+    window.addEventListener("hashchange", build);
+    navigateTo("#/settings");
+    expect(onScreen).not.toBeNull();
+    expect((onScreen as unknown as () => boolean)()).toBe(true);
+  });
+
+  it("lapses when the wallet changes under the same route", () => {
+    const onScreen = screenGuard();
     session.wallet = wallet("signet-p2wpkh-bbbb");
-    expect(stillCurrent(token)).toBe(false);
+    expect(onScreen()).toBe(false);
   });
 
-  it("goes stale when the wallet is closed", () => {
-    const token = screenToken();
+  it("lapses when the wallet is closed", () => {
+    const onScreen = screenGuard();
     session.wallet = null;
-    expect(stillCurrent(token)).toBe(false);
-  });
-
-  it("is current again when the user returns to the same screen and wallet", () => {
-    const token = screenToken();
-    window.location.hash = "#/settings";
-    window.location.hash = "#/dashboard";
-    expect(stillCurrent(token)).toBe(true);
-  });
-
-  // An unknown hash resolves to setup, so a token taken there is not silently
-  // equal to one taken on a real screen.
-  it("does not treat an unknown route as the screen it came from", () => {
-    const token = screenToken();
-    window.location.hash = "#/nope";
-    expect(stillCurrent(token)).toBe(false);
+    expect(onScreen()).toBe(false);
   });
 });

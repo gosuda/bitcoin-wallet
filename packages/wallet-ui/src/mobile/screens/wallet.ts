@@ -1,7 +1,7 @@
 import { api } from "../../api";
 import { headlineSat, pendingSat } from "../../balance";
 import { navigate } from "../../router";
-import { screenToken, stillCurrent } from "../../screen";
+import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
@@ -60,6 +60,7 @@ function txRow(tx: TxSummary): HTMLElement {
 }
 
 export function renderWallet(): HTMLElement {
+  const onScreen = screenGuard();
   const info = session.wallet;
   const alert = banner();
   const host = el("main");
@@ -118,18 +119,17 @@ export function renderWallet(): HTMLElement {
     // A sync outlives the screen that asked for it. Closing this wallet and
     // opening another mid-sync used to repaint the new wallet's balance with
     // the previous one's numbers.
-    const token = screenToken();
     try {
       const balance = await api.sync();
       const txs = await api.listTransactions();
-      if (!stillCurrent(token)) return;
+      if (!onScreen()) return;
       paint(balance);
       paintTxs(txs);
       session.lastSyncedAt = new Date();
       synced.textContent = syncedText();
       alert.hide();
     } catch (e) {
-      if (!stillCurrent(token)) return;
+      if (!onScreen()) return;
       synced.textContent = "Sync failed";
       alert.show("warn", errorMessage(e));
     } finally {

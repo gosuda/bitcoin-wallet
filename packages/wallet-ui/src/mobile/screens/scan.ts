@@ -1,7 +1,7 @@
 import { parsePaymentUri } from "../../bip21";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { screenToken, stillCurrent } from "../../screen";
+import { screenGuard } from "../../screen";
 import { errorMessage } from "../../types";
 import { banner, el } from "../../ui/dom";
 import { body, button, header, lede } from "../ui";
@@ -13,6 +13,7 @@ import { prefillSend } from "./send";
  * end: a payment we understood, or something we did not.
  */
 export function renderScan(): HTMLElement {
+  const onScreen = screenGuard();
   const alert = banner();
   const host = el("main");
 
@@ -50,14 +51,13 @@ export function renderScan(): HTMLElement {
   const runScan = async (): Promise<void> => {
     if (!scan || scanning) return;
     scanning = true;
-    const token = screenToken();
     try {
       const text = await scan();
-      if (!stillCurrent(token)) return;
+      if (!onScreen()) return;
       // Null is a cancel, not a failure: say nothing and stay put.
       if (text !== null) accept(text);
     } catch (e) {
-      if (stillCurrent(token)) alert.show("error", errorMessage(e));
+      if (onScreen()) alert.show("error", errorMessage(e));
     } finally {
       scanning = false;
     }
