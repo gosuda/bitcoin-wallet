@@ -25,6 +25,7 @@ use bdk_wallet::keys::bip39::{Language, Mnemonic, WordCount};
 use bdk_wallet::keys::{
     DescriptorPublicKey, GeneratableKey, GeneratedKey as BdkGeneratedKey, KeyMap,
 };
+use bdk_wallet::miniscript::descriptor::DescriptorType;
 use bdk_wallet::miniscript::{ForEachKey, Segwitv0};
 use bdk_wallet::template::{Bip44, Bip49, Bip84, Bip86};
 use serde::{Deserialize, Serialize};
@@ -495,6 +496,7 @@ fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Des
             internal: format!("{open}{bare}/1/*{close}"),
         });
     }
+    require_addressable(&bare)?;
     if bare.contains("<0;1>") {
         return Ok(Descriptors::Hd {
             external: bare.replace("<0;1>", "0"),
@@ -515,6 +517,26 @@ fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Des
 }
 
 /// Receive address at `index` of a watch-only source.
+/// Refuse a descriptor whose outputs have no address.
+///
+/// `pk(...)`, bare `multi(...)` and raw miniscript are perfectly valid
+/// descriptors and BDK will track them, but every screen here shows an address
+/// and BDK *panics* rather than erroring when a script has none — inside the
+/// webview that ends the app. A bare xpub with P2PK is already turned away
+/// with its own message; this is the same refusal for a descriptor typed out
+/// in full.
+fn require_addressable(descriptor: &str) -> Result<()> {
+    let (parsed, _) = ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), descriptor)
+        .map_err(|e| Error::Descriptor(e.to_string()))?;
+    if parsed.desc_type() == DescriptorType::Bare {
+        return Err(Error::Unsupported(
+            "this descriptor pays to bare scripts, which have no address; watch a pkh, sh(wpkh), wpkh or tr descriptor instead"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 fn watch_only_address_at(
     source: &str,
     network: Network,

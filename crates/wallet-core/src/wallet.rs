@@ -14,7 +14,7 @@ use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::error::CreateTxError;
 use bdk_wallet::keys::DescriptorPublicKey;
 use bdk_wallet::miniscript::ForEachKey;
-use bdk_wallet::{AddressInfo, KeychainKind, SignOptions, Wallet};
+use bdk_wallet::{KeychainKind, SignOptions, Wallet};
 use serde::{Deserialize, Serialize};
 use web_time::{SystemTime, UNIX_EPOCH};
 
@@ -236,6 +236,15 @@ pub struct WalletHandle {
     /// rotation from `is_hd` pinned such a wallet to index zero forever.
     ranged: bool,
     watch_only: bool,
+    /// The public key a P2PK wallet shows in place of an address, resolved
+    /// once at open. `None` for every type that has an address.
+    ///
+    /// P2PK has no address encoding, and BDK *panics* rather than erroring
+    /// when asked to build an `Address` from such a script — inside the webview
+    /// that ends the app. A `pk(...)` descriptor cannot be ranged (there is no
+    /// BIP32 account layout for it), so the one key is settled here and the
+    /// address calls never reach BDK's address form at all.
+    bare_key: Option<String>,
 }
 
 fn now_secs() -> u64 {
@@ -303,9 +312,22 @@ impl WalletHandle {
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
         };
 
-        let ranged = wallet
-            .public_descriptor(KeychainKind::External)
-            .has_wildcard();
+        let external = wallet.public_descriptor(KeychainKind::External);
+        let ranged = external.has_wildcard();
+        let bare_key = match config.address_type {
+            AddressType::P2pk => Some(
+                external
+                    .at_derivation_index(0)
+                    .map_err(|e| Error::Descriptor(e.to_string()))
+                    .map(|d| d.script_pubkey())
+                    .and_then(|spk| {
+                        crate::keys::pubkey_from_p2pk_script(&spk).ok_or_else(|| {
+                            Error::Descriptor("p2pk descriptor carries no public key".into())
+                        })
+                    })?,
+            ),
+            _ => None,
+        };
 
         let mut inner = Inner {
             wallet,
@@ -324,6 +346,7 @@ impl WalletHandle {
             is_hd,
             ranged,
             watch_only,
+            bare_key,
         })
     }
 
@@ -421,13 +444,16 @@ impl WalletHandle {
     /// index is re-derived deterministically). Use [`Self::new_address`] when
     /// the caller needs to know that the reveal was stored.
     pub async fn address(&self) -> String {
+        if let Some(key) = &self.bare_key {
+            return key.clone();
+        }
         let mut inner = self.inner.lock().await;
         let info = if self.ranged {
             inner.wallet.next_unused_address(KeychainKind::External)
         } else {
             inner.wallet.peek_address(KeychainKind::External, 0)
         };
-        let address = self.encode(&info);
+        let address = info.address.to_string();
         if self.ranged {
             let _ = Self::persist(&mut inner).await;
         }
@@ -443,26 +469,18 @@ impl WalletHandle {
     /// Single-key: there is only one address, so this returns the same value as
     /// [`Self::address`].
     pub async fn new_address(&self) -> Result<String> {
+        if let Some(key) = &self.bare_key {
+            return Ok(key.clone());
+        }
         let mut inner = self.inner.lock().await;
         let info = if self.ranged {
             inner.wallet.reveal_next_address(KeychainKind::External)
         } else {
             inner.wallet.peek_address(KeychainKind::External, 0)
         };
-        let address = self.encode(&info);
+        let address = info.address.to_string();
         Self::persist(&mut inner).await?;
         Ok(address)
-    }
-
-    /// P2PK has no address encoding, so the bare public key is reported instead.
-    fn encode(&self, info: &AddressInfo) -> String {
-        match self.address_type {
-            AddressType::P2pk => {
-                crate::keys::pubkey_from_p2pk_script(&info.address.script_pubkey())
-                    .unwrap_or_else(|| info.address.to_string())
-            }
-            _ => info.address.to_string(),
-        }
     }
 
     /// Pull chain state from the backend and persist it.
@@ -1700,6 +1718,43 @@ mod tests {
                 built.vsize
             );
         }
+    }
+
+    /// P2PK has no address form, and BDK panics rather than erroring when it
+    /// is asked to build one — in the webview that ends the app rather than
+    /// showing a message. Every screen asks for an address, so opening a P2PK
+    /// wallet at all used to be fatal; the bare public key is what this crate
+    /// shows for it, the same as `address_for_key`.
+    #[tokio::test]
+    async fn a_p2pk_wallet_shows_its_public_key_instead_of_crashing() {
+        let (handle, _) = open(AddressType::P2pk).await;
+        let shown = handle.address().await;
+        assert_eq!(shown.len(), 66, "a compressed public key: {shown}");
+        assert_eq!(
+            handle.new_address().await.unwrap(),
+            shown,
+            "one key, forever"
+        );
+    }
+
+    /// Watching a descriptor that pays to bare scripts hits the same panic
+    /// from the other side, so it is turned away where it is entered — the
+    /// wording a bare xpub with P2PK already gets.
+    #[tokio::test]
+    async fn watching_a_bare_descriptor_is_refused_not_fatal() {
+        let key = crate::keys::generate_key(Network::Regtest, AddressType::P2pk).unwrap();
+        let source = format!("pk({})", key.address);
+        let Err(e) = crate::keys::address_for_key(
+            &KeyMaterial::parse(&source),
+            Network::Regtest,
+            AddressType::P2wpkh,
+        ) else {
+            panic!("a bare descriptor has no address to show");
+        };
+        assert!(
+            matches!(e, Error::Unsupported(ref m) if m.contains("no address")),
+            "{e}"
+        );
     }
 
     #[tokio::test]
