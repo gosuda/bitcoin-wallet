@@ -258,6 +258,10 @@ export function renderSend(): HTMLElement {
     });
 
   const removeRow = (row: RecipientRow) => {
+    // Changing who gets paid invalidates a build in flight, the same way
+    // editing a field does — otherwise its preview still names this recipient
+    // and confirming it pays them.
+    leaveDrain();
     const i = rows.indexOf(row);
     if (i >= 0) rows.splice(i, 1);
     row.node.remove();

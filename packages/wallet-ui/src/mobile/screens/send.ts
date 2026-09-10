@@ -114,6 +114,11 @@ export function renderSend(): HTMLElement {
     refresh();
     if (bad) return alert.show("error", bad);
     try {
+      // Max moves the form on from whatever it was about to send, exactly as
+      // an edit does. Every edit says so through `clearPreview`; this was the
+      // one control that did not, so a visible sheet stayed confirmable while
+      // the amount beside it changed to the drained one.
+      clearPreview();
       leaveDrain();
       const seq = drainSeq;
       const preview = await api.buildDrain(to, rate);
