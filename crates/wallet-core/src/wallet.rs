@@ -197,6 +197,20 @@ enum Paid<'a> {
     Rebuilt,
 }
 
+/// How a script is shown to someone reading a transaction.
+///
+/// P2PK has no address, and this crate names such an output by its public key
+/// — what `address_for_key` returns and what an open P2PK wallet reports as
+/// its own address — rather than by raw script hex, so one output does not
+/// have two spellings depending on which screen is looking at it.
+fn script_display(script: &ScriptBuf, net: bdk_wallet::bitcoin::Network) -> Option<String> {
+    crate::keys::pubkey_from_p2pk_script(script).or_else(|| {
+        Address::from_script(script, net)
+            .ok()
+            .map(|a| a.to_string())
+    })
+}
+
 /// Map a builder failure onto the error domain, keeping the one case a UI
 /// can act on — not enough money — structured instead of stringified.
 fn build_error(e: CreateTxError) -> Error {
@@ -236,15 +250,6 @@ pub struct WalletHandle {
     /// rotation from `is_hd` pinned such a wallet to index zero forever.
     ranged: bool,
     watch_only: bool,
-    /// The public key a P2PK wallet shows in place of an address, resolved
-    /// once at open. `None` for every type that has an address.
-    ///
-    /// P2PK has no address encoding, and BDK *panics* rather than erroring
-    /// when asked to build an `Address` from such a script — inside the webview
-    /// that ends the app. A `pk(...)` descriptor cannot be ranged (there is no
-    /// BIP32 account layout for it), so the one key is settled here and the
-    /// address calls never reach BDK's address form at all.
-    bare_key: Option<String>,
 }
 
 fn now_secs() -> u64 {
@@ -278,6 +283,19 @@ impl WalletHandle {
         backend: Box<dyn ChainBackend>,
         mut persister: Box<dyn Persister>,
     ) -> Result<Self> {
+        // P2PK is a script the wallet can derive and print — `address_for_key`
+        // reports its public key, and the CLI generates one — but not a wallet
+        // it can run. The descriptor is a bare script, and BDK reaches
+        // `unimplemented!("Unknown ScriptContext type")` while working out how
+        // to sign it, so the first send would end the process rather than fail.
+        // HD and watch-only already turn P2PK away for their own reasons; this
+        // is the third door.
+        if config.address_type == AddressType::P2pk {
+            return Err(Error::Unsupported(
+                "a p2pk wallet cannot spend: the bare script has no signing context; use p2pkh, np2wpkh, p2wpkh or p2tr"
+                    .into(),
+            ));
+        }
         let net = bdk_wallet::bitcoin::Network::from(config.network);
         let descriptors = descriptors_for(key, config.network, config.address_type)?;
         let id = wallet_id(key, config.network, config.address_type)?;
@@ -312,22 +330,9 @@ impl WalletHandle {
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
         };
 
-        let external = wallet.public_descriptor(KeychainKind::External);
-        let ranged = external.has_wildcard();
-        let bare_key = match config.address_type {
-            AddressType::P2pk => Some(
-                external
-                    .at_derivation_index(0)
-                    .map_err(|e| Error::Descriptor(e.to_string()))
-                    .map(|d| d.script_pubkey())
-                    .and_then(|spk| {
-                        crate::keys::pubkey_from_p2pk_script(&spk).ok_or_else(|| {
-                            Error::Descriptor("p2pk descriptor carries no public key".into())
-                        })
-                    })?,
-            ),
-            _ => None,
-        };
+        let ranged = wallet
+            .public_descriptor(KeychainKind::External)
+            .has_wildcard();
 
         let mut inner = Inner {
             wallet,
@@ -346,7 +351,6 @@ impl WalletHandle {
             is_hd,
             ranged,
             watch_only,
-            bare_key,
         })
     }
 
@@ -444,9 +448,6 @@ impl WalletHandle {
     /// index is re-derived deterministically). Use [`Self::new_address`] when
     /// the caller needs to know that the reveal was stored.
     pub async fn address(&self) -> String {
-        if let Some(key) = &self.bare_key {
-            return key.clone();
-        }
         let mut inner = self.inner.lock().await;
         let info = if self.ranged {
             inner.wallet.next_unused_address(KeychainKind::External)
@@ -469,9 +470,6 @@ impl WalletHandle {
     /// Single-key: there is only one address, so this returns the same value as
     /// [`Self::address`].
     pub async fn new_address(&self) -> Result<String> {
-        if let Some(key) = &self.bare_key {
-            return Ok(key.clone());
-        }
         let mut inner = self.inner.lock().await;
         let info = if self.ranged {
             inner.wallet.reveal_next_address(KeychainKind::External)
@@ -575,9 +573,8 @@ impl WalletHandle {
                     }
                     ChainPosition::Unconfirmed { .. } => None,
                 },
-                address: Address::from_script(&o.txout.script_pubkey, net)
-                    .map(|a| a.to_string())
-                    .unwrap_or_else(|_| o.txout.script_pubkey.to_hex_string()),
+                address: script_display(&o.txout.script_pubkey, net)
+                    .unwrap_or_else(|| o.txout.script_pubkey.to_hex_string()),
             })
             .collect();
         utxos.sort_by(|a, b| b.value.cmp(&a.value).then_with(|| a.txid.cmp(&b.txid)));
@@ -677,9 +674,7 @@ impl WalletHandle {
             d.tx.output
                 .iter()
                 .map(|o| TxOutput {
-                    address: Address::from_script(&o.script_pubkey, net)
-                        .ok()
-                        .map(|a| a.to_string()),
+                    address: script_display(&o.script_pubkey, net),
                     value_sat: o.value.to_sat(),
                     ours: inner.wallet.is_mine(o.script_pubkey.clone()),
                 })
@@ -1076,13 +1071,19 @@ mod tests {
         }
     }
 
+    /// The wallet's first receiving script. Not `peek_address`: that builds an
+    /// `Address`, which P2PK has none of and BDK panics over.
+    fn receiving_script(wallet: &Wallet) -> ScriptBuf {
+        wallet
+            .public_descriptor(KeychainKind::External)
+            .at_derivation_index(0)
+            .expect("index 0 derives")
+            .script_pubkey()
+    }
+
     async fn fund(handle: &WalletHandle, sats: u64) {
         let mut inner = handle.inner.lock().await;
-        let spk = inner
-            .wallet
-            .peek_address(KeychainKind::External, 0)
-            .address
-            .script_pubkey();
+        let spk = receiving_script(&inner.wallet);
         inner
             .wallet
             .apply_unconfirmed_txs([(funding_tx(spk, sats), 1)]);
@@ -1094,11 +1095,7 @@ mod tests {
     /// second one replaces the first.
     async fn fund_with_outputs(handle: &WalletHandle, count: usize, sats: u64) {
         let mut inner = handle.inner.lock().await;
-        let spk = inner
-            .wallet
-            .peek_address(KeychainKind::External, 0)
-            .address
-            .script_pubkey();
+        let spk = receiving_script(&inner.wallet);
         let mut tx = funding_tx(spk.clone(), sats);
         for _ in 1..count {
             tx.output.push(TxOut {
@@ -1720,20 +1717,35 @@ mod tests {
         }
     }
 
-    /// P2PK has no address form, and BDK panics rather than erroring when it
-    /// is asked to build one — in the webview that ends the app rather than
-    /// showing a message. Every screen asks for an address, so opening a P2PK
-    /// wallet at all used to be fatal; the bare public key is what this crate
-    /// shows for it, the same as `address_for_key`.
+    /// P2PK is a key this crate can derive and print, not a wallet it can run:
+    /// BDK reaches `unimplemented!` working out how to sign a bare script, so
+    /// a send would end the process. Opening one is refused, and the two
+    /// screens before it — HD and watch-only — already refuse it too.
     #[tokio::test]
-    async fn a_p2pk_wallet_shows_its_public_key_instead_of_crashing() {
-        let (handle, _) = open(AddressType::P2pk).await;
-        let shown = handle.address().await;
-        assert_eq!(shown.len(), 66, "a compressed public key: {shown}");
-        assert_eq!(
-            handle.new_address().await.unwrap(),
-            shown,
-            "one key, forever"
+    async fn a_p2pk_wallet_is_refused_rather_than_left_to_panic() {
+        let key = crate::keys::generate_key(Network::Regtest, AddressType::P2pk).unwrap();
+        // The key itself is fine, and still reports its public key.
+        assert_eq!(key.address.len(), 66, "{}", key.address);
+
+        let opened = WalletHandle::open_with(
+            WalletConfig {
+                network: Network::Regtest,
+                address_type: AddressType::P2pk,
+                backend: BackendConfig::Esplora {
+                    url: "http://127.0.0.1:1".into(),
+                },
+            },
+            &KeyMaterial::PrivHex(key.priv_hex.clone()),
+            Box::new(MockBackend::default()),
+            Box::new(crate::persist::MemoryPersister::new()),
+        )
+        .await;
+        let Err(e) = opened else {
+            panic!("a p2pk wallet cannot sign, so it must not open");
+        };
+        assert!(
+            matches!(e, Error::Unsupported(ref m) if m.contains("cannot spend")),
+            "{e}"
         );
     }
 

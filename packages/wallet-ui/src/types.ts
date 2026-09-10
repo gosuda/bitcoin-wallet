@@ -4,6 +4,18 @@ export type Network = (typeof NETWORKS)[number];
 export const ADDRESS_TYPES = ["p2pkh", "p2wpkh", "nested_p2wpkh", "p2tr", "p2pk"] as const;
 export type AddressType = (typeof ADDRESS_TYPES)[number];
 
+/**
+ * The types a wallet can be opened on.
+ *
+ * `p2pk` stays in the union because the core still derives and prints such a
+ * key, and a config stored before this may name it — but it cannot back a
+ * wallet: its descriptor is a bare script with no signing context, and the
+ * core refuses to open one rather than let a send reach that.
+ */
+export const OPENABLE_ADDRESS_TYPES = ADDRESS_TYPES.filter(
+  (t): t is Exclude<AddressType, "p2pk"> => t !== "p2pk",
+);
+
 /** Mirrors `wallet_core::BackendConfig` (serde-tagged on `kind`). */
 export interface BackendConfig {
   kind: "esplora";

@@ -3,7 +3,6 @@ import { navigate } from "../router";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
-  ADDRESS_TYPES,
   type AddressType,
   type AppConfig,
   type BackendConfig,
@@ -12,6 +11,7 @@ import {
   NETWORK_LABELS,
   NETWORKS,
   type Network,
+  OPENABLE_ADDRESS_TYPES,
 } from "../types";
 import { banner, button, el, field, radioGroup, textInput, withBusy } from "../ui/dom";
 
@@ -48,7 +48,7 @@ export function renderSetup(): HTMLElement {
 
   const typeGroup = radioGroup(
     "address_type",
-    ADDRESS_TYPES.map((t) => ({ value: t, label: ADDRESS_TYPE_LABELS[t] })),
+    OPENABLE_ADDRESS_TYPES.map((t) => ({ value: t, label: ADDRESS_TYPE_LABELS[t] })),
     addressType,
     (v) => {
       addressType = v;
