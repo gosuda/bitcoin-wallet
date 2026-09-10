@@ -8,7 +8,7 @@
 use std::str::FromStr;
 
 use async_lock::Mutex;
-use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, ScriptBuf, Transaction};
+use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, ScriptBuf, Transaction, Weight};
 use bdk_wallet::chain::{ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::error::CreateTxError;
@@ -109,7 +109,8 @@ pub struct Recipient {
 pub struct BuiltTx {
     pub psbt_base64: String,
     pub fee_sat: u64,
-    /// Virtual size of the unsigned template; the signed size is slightly larger.
+    /// Virtual size the transaction will have once signed, so that `fee_sat`
+    /// divided by it is the rate the transaction actually pays.
     pub vsize: u64,
     pub total_out_sat: u64,
     pub change_sat: u64,
@@ -788,11 +789,34 @@ impl WalletHandle {
         Ok(BuiltTx {
             psbt_base64: psbt.to_string(),
             fee_sat,
-            vsize: tx.vsize() as u64,
+            vsize: Self::signed_vsize(inner, tx)?,
             total_out_sat,
             change_sat,
             input_count: tx.input.len() as u32,
         })
+    }
+
+    /// The size the transaction will have once signed.
+    ///
+    /// `psbt.unsigned_tx` carries no witnesses yet, so its own `vsize` is a
+    /// fifth short for a single-input segwit spend — shown beside the fee it
+    /// would claim a rate the transaction does not pay. Every input a wallet
+    /// spends is satisfied by its own descriptor, and the descriptor's maximum
+    /// satisfaction is what BDK charged the fee for, so that is the size to
+    /// add. Signatures grind smaller than the maximum, so this is an upper
+    /// bound: at most a vbyte or two above what the network finally sees.
+    fn signed_vsize(inner: &Inner, tx: &Transaction) -> Result<u64> {
+        let descriptor = inner.wallet.public_descriptor(KeychainKind::External);
+        let satisfaction = descriptor
+            .max_weight_to_satisfy()
+            .map_err(|e| Error::Descriptor(e.to_string()))?;
+        // Marker and flag, paid once by a transaction that carries any witness.
+        let segwit = if descriptor.desc_type().segwit_version().is_some() && !tx.input.is_empty() {
+            Weight::from_wu(2)
+        } else {
+            Weight::ZERO
+        };
+        Ok((tx.weight() + satisfaction * tx.input.len() as u64 + segwit).to_vbytes_ceil())
     }
 
     /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
@@ -1071,6 +1095,51 @@ mod tests {
                 out.txid
             );
             assert_eq!(handle.balance().await.total(), built.change_sat);
+        }
+    }
+
+    /// A review prints the fee next to the size that fee buys, so the size has
+    /// to be the signed one: it was the unsigned template's, a fifth short for
+    /// a segwit spend, and the rate a reader divides out of the two was wrong
+    /// by that fifth.
+    #[tokio::test]
+    async fn a_built_transaction_reports_the_size_its_fee_pays_for() {
+        for t in [
+            AddressType::P2pkh,
+            AddressType::P2wpkh,
+            AddressType::NestedP2wpkh,
+            AddressType::P2tr,
+        ] {
+            let (handle, mock) = open(t).await;
+            fund(&handle, 100_000).await;
+            let rate = 3.0;
+            let built = handle
+                .build_transfer(
+                    &[Recipient {
+                        address: dest(AddressType::P2wpkh),
+                        amount_sat: 40_000,
+                    }],
+                    rate,
+                )
+                .await
+                .unwrap_or_else(|e| panic!("{t:?}: {e}"));
+
+            let reads_as = built.fee_sat as f64 / built.vsize as f64;
+            assert!(
+                (reads_as - rate).abs() < 0.05,
+                "{t:?}: {} sat over {} vB reads as {reads_as:.2} sat/vB, {rate} was asked for",
+                built.fee_sat,
+                built.vsize
+            );
+
+            let signed = handle.sign(&built.psbt_base64).await.unwrap();
+            handle.broadcast(&signed).await.unwrap();
+            let broadcast = mock.broadcasts.lock().unwrap()[0].vsize() as u64;
+            assert!(
+                built.vsize >= broadcast && built.vsize - broadcast <= 2,
+                "{t:?}: reviewed {} vB, broadcast {broadcast} vB",
+                built.vsize
+            );
         }
     }
 
