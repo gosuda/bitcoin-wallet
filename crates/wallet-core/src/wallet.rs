@@ -1815,13 +1815,21 @@ mod tests {
             // Not a vacuous pass: the public half is in there.
             assert!(
                 json.contains("wpkh(") && json.contains(r#""network":"regtest""#),
-                "nothing was recorded to inspect: {json}"
+                "nothing was recorded to inspect ({} bytes)",
+                json.len()
             );
-            for secret in ["tprv", "xprv", "correct horse", "abandon", SK_HEX] {
-                assert!(
-                    !json.contains(secret),
-                    "persisted state contains {secret}: {json}"
-                );
+            // Each needle is named, never printed. A failure here means the
+            // stored state holds spending material, and a panic message that
+            // quotes it — or the document it found it in — would put that
+            // material in the build log, which is the thing being guarded.
+            for (name, needle) in [
+                ("an extended private key", "tprv"),
+                ("an extended private key", "xprv"),
+                ("the passphrase", "correct horse"),
+                ("a word of the mnemonic", "abandon"),
+                ("the private key", SK_HEX),
+            ] {
+                assert!(!json.contains(needle), "persisted state contains {name}");
             }
         }
     }
