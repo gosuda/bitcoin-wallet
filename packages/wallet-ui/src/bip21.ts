@@ -30,7 +30,15 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   // whole payload in `pathname` and the query handling differs between engines.
   const rest = text.slice("bitcoin:".length);
   const [addressPart = "", queryPart = ""] = rest.split("?", 2);
-  const address = decodeURIComponent(addressPart).trim();
+  // `decodeURIComponent` throws on a malformed escape — "bitcoin:%" is enough.
+  // This function promises null instead, and a throw here also aborted the
+  // deep-link handler's map before it could reach a later valid URL.
+  let address: string;
+  try {
+    address = decodeURIComponent(addressPart).trim();
+  } catch {
+    return null;
+  }
   if (address === "") return null;
 
   const params = new URLSearchParams(queryPart);
@@ -39,7 +47,11 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   // Honouring only the keys we know would strip a condition the payer made
   // mandatory and show the payment as an ordinary transfer.
   for (const key of params.keys()) {
-    if (key.toLowerCase().startsWith("req-")) return null;
+    // Case-sensitive on purpose: BIP21 spells the required prefix "req-", and
+    // query keys are not case-folded. "REQ-Foo" is therefore an unknown
+    // *optional* parameter, which the spec says to ignore — rejecting it
+    // turned a usable payment link into a dead one.
+    if (key.startsWith("req-")) return null;
   }
 
   const out: PaymentRequest = { address };

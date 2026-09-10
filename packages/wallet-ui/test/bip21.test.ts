@@ -54,7 +54,32 @@ describe("parsePaymentUri", () => {
   it("rejects the whole URI for an unimplemented req- parameter", () => {
     expect(parsePaymentUri(`bitcoin:${ADDR}?req-foo=1`)).toBeNull();
     expect(parsePaymentUri(`bitcoin:${ADDR}?amount=0.001&req-shamir=x`)).toBeNull();
-    expect(parsePaymentUri(`bitcoin:${ADDR}?REQ-Foo=1`)).toBeNull();
+    // Not `REQ-Foo`: see the case-sensitivity test below.
+  });
+
+  // BIP21 writes the prefix as "req-" and query keys are not case-folded, so
+  // an uppercase spelling is an unknown optional parameter, not a required
+  // one. This test asserted the opposite when the req- rule was added.
+  it("treats an uppercase REQ- as an ordinary unknown parameter", () => {
+    expect(parsePaymentUri(`bitcoin:${ADDR}?REQ-Foo=1`)).toEqual({ address: ADDR });
+    expect(parsePaymentUri(`bitcoin:${ADDR}?Req-Foo=1&amount=0.001`)).toEqual({
+      address: ADDR,
+      amountSat: 100_000,
+    });
+  });
+
+  // The module promises null for anything unparseable, and a throw here also
+  // stopped the deep-link handler before it could try a later URL.
+  it("returns null for a malformed escape instead of throwing", () => {
+    for (const bad of ["bitcoin:%", "bitcoin:%zz", `bitcoin:${ADDR}%`]) {
+      expect(() => parsePaymentUri(bad), bad).not.toThrow();
+      expect(parsePaymentUri(bad), bad).toBeNull();
+    }
+  });
+
+  it("survives a malformed escape in a parameter value", () => {
+    expect(() => parsePaymentUri(`bitcoin:${ADDR}?label=%`)).not.toThrow();
+    expect(parsePaymentUri(`bitcoin:${ADDR}?label=%`)?.address).toBe(ADDR);
   });
 
   // The same class of input parseAmount refuses: a stray "e" must not become
