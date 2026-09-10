@@ -195,7 +195,6 @@ export function renderRestore(): HTMLElement {
       passphrase.value = "";
       session.wallet = info;
       if (remember.checked()) session.remembered = info;
-      session.lastSyncedAt = null;
       navigate("dashboard");
     } catch (e) {
       alert.show("error", errorMessage(e));

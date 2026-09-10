@@ -442,8 +442,6 @@ export function renderDashboard(): HTMLElement {
           await api.closeWallet();
         } finally {
           session.wallet = null;
-          session.lastSyncedAt = null;
-          session.lastResult = null;
           navigate(session.remembered ? "unlock" : "key");
         }
       }),

@@ -57,11 +57,20 @@ async function requireConfig(): Promise<AppConfig> {
   return config;
 }
 
-/** Drops the open wallet and anything derived from it. */
+/**
+ * Drops the open wallet and everything derived from it.
+ *
+ * The sync time and the last broadcast belong to a particular wallet, so they
+ * are dropped here rather than by each caller. Eight call sites cleared them by
+ * hand and the one behind "Forget this wallet" did not, which is how a fresh
+ * wallet came up wearing the previous one's sync time.
+ */
 function releaseWallet(): void {
   const wallet = session.handle;
   session.handle = null;
   session.wallet = null;
+  session.lastSyncedAt = null;
+  session.lastResult = null;
   pending.clear();
   wallet?.free();
 }

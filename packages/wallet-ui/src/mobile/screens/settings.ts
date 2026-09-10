@@ -42,8 +42,6 @@ export function renderSettings(): HTMLElement {
       () =>
         withBusy(go, async () => {
           await api.closeWallet();
-          session.lastSyncedAt = null;
-          session.lastResult = null;
           navigate("setup");
         }),
       { variant: "primary", block: true },
@@ -133,13 +131,14 @@ export function renderSettings(): HTMLElement {
       listCard(
         item("Close wallet", null, async () => {
           await api.closeWallet();
-          session.lastSyncedAt = null;
-          session.lastResult = null;
           navigate("setup");
         }),
       ),
       spacer(),
-      remembered
+      // Without a working keystore there is no saved key to delete and
+      // `forgetWallet` cannot finish, so offering it only produces an error.
+      // A stale record can still say "remembered" on such a build.
+      remembered && platform().canRememberWallet
         ? confirmDanger({
             trigger: "Forget this wallet",
             text: "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase still restores it.",
@@ -148,7 +147,6 @@ export function renderSettings(): HTMLElement {
               try {
                 await api.forgetWallet();
                 session.remembered = null;
-                session.lastResult = null;
                 navigate("setup");
               } catch (e) {
                 alert.show("error", errorMessage(e));

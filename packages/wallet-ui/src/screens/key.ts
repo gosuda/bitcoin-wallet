@@ -97,7 +97,6 @@ export function renderKey(): HTMLElement {
           generated.className = "hidden";
           session.wallet = info;
           if (remember.checked()) session.remembered = info;
-          session.lastSyncedAt = null;
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));
@@ -176,8 +175,10 @@ export function renderKey(): HTMLElement {
           const info = await api.openWallet(value, cfg.address_type, watchRemember.checked());
           watchSource.value = "";
           session.wallet = info;
-          session.remembered = await api.getRemembered();
-          session.lastSyncedAt = null;
+          // The wallet is already open here. Reading the record back could
+          // fail and put an error over a wallet that opened fine, so take what
+          // we know — the same shape the private-key path above uses.
+          if (watchRemember.checked()) session.remembered = info;
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));
