@@ -2,6 +2,7 @@ import { api } from "../../api";
 import { suggestBumpRate } from "../../feebump";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
+import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type TxDetail, type TxOutput } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -46,6 +47,7 @@ function outputLabel(d: TxDetail, o: TxOutput): string {
 }
 
 export function renderTransaction(): HTMLElement {
+  const onScreen = screenGuard();
   const info = session.wallet;
   const txid = current;
   const host = el("main");
@@ -59,7 +61,7 @@ export function renderTransaction(): HTMLElement {
   host.appendChild(header("Transaction", { back: "dashboard" }));
   host.appendChild(content);
 
-  const paint = (d: TxDetail): void => {
+  const paint = (d: TxDetail, explorerUrl: string | null): void => {
     const incoming = d.net_sat >= 0;
     const dot = el("span", { className: "m-dirdot" }, [icon(incoming ? "down" : "up", 22)]);
     dot.classList.add(incoming ? "m-tx-in" : "m-tx-out");
@@ -105,20 +107,23 @@ export function renderTransaction(): HTMLElement {
       ),
     );
 
-    const explorer = button(
-      "Explorer",
-      async () => {
-        alert.hide();
-        try {
-          const url = await api.explorerUrl(d.txid);
-          if (!url) return alert.show("warn", "No public explorer exists for this network.");
-          await platform().openUrl(url);
-        } catch (e) {
-          alert.show("warn", errorMessage(e));
-        }
-      },
-      { icon: "external" },
-    );
+    // Resolved before the button is offered, the way Result and the desktop
+    // dashboard do it: on regtest there is no explorer, and a button that only
+    // ever explains itself is worse than no button.
+    const explorer = explorerUrl
+      ? button(
+          "Explorer",
+          async () => {
+            alert.hide();
+            try {
+              await platform().openUrl(explorerUrl);
+            } catch (e) {
+              alert.show("warn", errorMessage(e));
+            }
+          },
+          { icon: "external" },
+        )
+      : null;
     const ident = card(
       sectionLabel("Transaction id"),
       el("span", { className: "m-mono-block", text: d.txid }),
@@ -216,7 +221,11 @@ export function renderTransaction(): HTMLElement {
         alert.show("warn", "This transaction is not in the wallet's history.");
         return;
       }
-      paint(detail);
+      // Asked for once, here, so the button below is only built when there is
+      // somewhere for it to go.
+      const explorerUrl = await api.explorerUrl(detail.txid).catch(() => null);
+      if (!onScreen()) return;
+      paint(detail, explorerUrl);
     } catch (e) {
       content.replaceChildren(alert.node);
       alert.show("error", errorMessage(e));

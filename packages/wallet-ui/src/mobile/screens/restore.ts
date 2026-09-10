@@ -50,8 +50,18 @@ function phrase(): HTMLElement {
   let inputs: HTMLInputElement[] = [];
   const gridHost = el("div");
 
-  const build = (count: WordCount) => {
-    inputs = Array.from({ length: count }, (_, i) => {
+  /** Write `words` into the grid from `from`, reading whichever grid is current. */
+  const fill = (words: readonly string[], from: number): void => {
+    for (const [j, w] of words.entries()) {
+      const target = inputs[from + j];
+      if (target) target.value = w;
+    }
+  };
+
+  // Named `size`, not `count`: the word-count chips below are `count`, and a
+  // paste handler built in here needs to reach them.
+  const build = (size: WordCount) => {
+    inputs = Array.from({ length: size }, (_, i) => {
       const input = wordInput(i + 1);
       input.setAttribute("autocapitalize", "none");
       input.setAttribute("autocorrect", "off");
@@ -62,10 +72,25 @@ function phrase(): HTMLElement {
         const words = text.trim().split(/\s+/).filter(Boolean);
         if (words.length < 2) return;
         ev.preventDefault();
-        for (const [j, w] of words.entries()) {
-          const target = inputs[i + j];
-          if (target) target.value = w;
+        // A whole phrase says how long it is. Pasting 24 words into the 12-word
+        // grid used to drop the last twelve silently, leaving a phrase that
+        // cannot restore anything and no clue why.
+        if (words.length === 12 || words.length === 24) {
+          const size: WordCount = words.length === 24 ? 24 : 12;
+          // Rebuilds the grid through the chips, so the control and the grid
+          // agree about what the user is now restoring.
+          if (size !== inputs.length) count.select(`${size}`);
+          fill(words, 0);
+          return;
         }
+        if (i + words.length > inputs.length) {
+          alert.show(
+            "warn",
+            `That is ${words.length} words and only ${inputs.length - i} fit from here. A recovery phrase is 12 or 24 words.`,
+          );
+          return;
+        }
+        fill(words, i);
       });
       return input;
     });

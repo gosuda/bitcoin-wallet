@@ -13,7 +13,6 @@
     "core:default",
     "store:default",
     "clipboard-manager:allow-write-text",
-    "clipboard-manager:allow-read-text",
     "barcode-scanner:allow-scan",
     "barcode-scanner:allow-cancel",
     "barcode-scanner:allow-request-permissions",

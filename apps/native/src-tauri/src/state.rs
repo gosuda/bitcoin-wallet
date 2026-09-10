@@ -30,11 +30,17 @@ impl AppState {
 
     /// Whether the credential store works here, probed once per launch.
     ///
-    /// Cached because the probe writes and reads a throwaway entry on mobile,
-    /// and both the startup check and the `keystore_available` command want the
-    /// answer — there is no reason to touch the keychain twice for it.
-    pub fn keystore_ok(&self) -> bool {
-        *self.keystore_ok.get_or_init(|| match self.keystore.self_check() {
+    /// The probe writes and reads a throwaway entry, which on mobile is real
+    /// keychain I/O — slow enough that it does not belong on the thread trying
+    /// to put a window on screen, nor on an async worker. It runs on the
+    /// blocking pool, and the answer is cached because both the startup prime
+    /// and the `keystore_available` command want it.
+    pub async fn keystore_ok(&self) -> bool {
+        if let Some(known) = self.keystore_ok.get() {
+            return *known;
+        }
+        let keystore = self.keystore();
+        let probed = tauri::async_runtime::spawn_blocking(move || match keystore.self_check() {
             Ok(()) => true,
             Err(e) => {
                 eprintln!(
@@ -43,5 +49,11 @@ impl AppState {
                 false
             }
         })
+        .await
+        .unwrap_or(false);
+        // Two callers racing the first probe would each run it. The check is
+        // idempotent and the stored answer is whichever landed first, so this
+        // costs at most one extra keychain round trip in a rare interleaving.
+        *self.keystore_ok.get_or_init(|| probed)
     }
 }

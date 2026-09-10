@@ -45,7 +45,7 @@ pub async fn set_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
 /// this device" rather than accept the choice and silently lose the key.
 #[tauri::command]
 pub async fn keystore_available(state: State<'_, AppState>) -> AppResult<bool> {
-    Ok(state.keystore_ok())
+    Ok(state.keystore_ok().await)
 }
 
 /// Saves the unlock key for `wallet_id` in the OS credential store.

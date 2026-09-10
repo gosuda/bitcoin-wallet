@@ -89,15 +89,39 @@ export function renderWallet(): HTMLElement {
 
   const txHost = listCard(el("div", { className: "m-empty", text: "No transactions yet." }));
 
+  /** Rows on screen. Capped until asked, so a long history does not build
+   * hundreds of nodes before the balance above it is even readable. */
+  const PAGE = 25;
+  let shown = PAGE;
+
   const paintTxs = (txs: readonly TxSummary[]): void => {
     txHost.replaceChildren(
       el("div", { className: "m-list-head" }, [
         sectionLabel("Transactions"),
-        el("span", { className: "m-txmeta", text: `${txs.length} · newest first` }),
+        el("span", {
+          className: "m-txmeta",
+          // The list is capped, so the count has to say which number it is.
+          text:
+            txs.length > shown
+              ? `${shown} of ${txs.length} · newest first`
+              : `${txs.length} · newest first`,
+        }),
       ]),
       ...(txs.length === 0
         ? [el("div", { className: "m-empty", text: "No transactions yet." })]
-        : txs.slice(0, 25).map(txRow)),
+        : txs.slice(0, shown).map(txRow)),
+      ...(txs.length > shown
+        ? [
+            button(
+              `Show all ${txs.length}`,
+              () => {
+                shown = txs.length;
+                paintTxs(txs);
+              },
+              { variant: "quiet", block: true },
+            ),
+          ]
+        : []),
     );
   };
 

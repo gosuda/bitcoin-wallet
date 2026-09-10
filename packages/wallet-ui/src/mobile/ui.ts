@@ -141,7 +141,7 @@ export function chips<T extends string>(
   selected: T,
   onChange?: (value: T) => void,
   opts: { tight?: boolean; label?: string } = {},
-): { node: HTMLElement; value(): T } {
+): { node: HTMLElement; value(): T; select(value: T): void } {
   let current = selected;
   const node = el("div", {
     className: opts.tight ? "m-chips m-chips-tight" : "m-chips",
@@ -152,20 +152,21 @@ export function chips<T extends string>(
       className: "m-chip",
       text: opt.label,
       attrs: { type: "button", role: "radio", "aria-checked": String(opt.value === current) },
-      on: {
-        click: () => {
-          current = opt.value;
-          for (const [i, other] of buttons.entries()) {
-            other.setAttribute("aria-checked", String(options[i]?.value === current));
-          }
-          onChange?.(current);
-        },
-      },
+      on: { click: () => select(opt.value) },
     });
     node.appendChild(b);
     return b;
   });
-  return { node, value: () => current };
+
+  function select(value: T): void {
+    current = value;
+    for (const [i, other] of buttons.entries()) {
+      other.setAttribute("aria-checked", String(options[i]?.value === current));
+    }
+    onChange?.(current);
+  }
+
+  return { node, value: () => current, select };
 }
 
 /**

@@ -40,7 +40,12 @@ pub fn run() {
             // rather than when someone first presses "Remember on this device".
             // Not fatal: everything except remembering a key still works.
             use tauri::Manager;
-            app.state::<state::AppState>().keystore_ok();
+            // Primed off the startup path: on mobile this is keychain I/O, and
+            // blocking here delays the first window for it.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                handle.state::<state::AppState>().keystore_ok().await;
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
