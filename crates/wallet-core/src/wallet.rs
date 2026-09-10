@@ -8,7 +8,7 @@
 use std::str::FromStr;
 
 use async_lock::Mutex;
-use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, Transaction};
+use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, ScriptBuf, Transaction};
 use bdk_wallet::chain::{ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::error::CreateTxError;
@@ -689,6 +689,9 @@ impl WalletHandle {
             }
             outputs.push((addr.script_pubkey(), Amount::from_sat(r.amount_sat)));
         }
+        // Kept so the summary can tell a payment from change even when a
+        // recipient is one of our own addresses.
+        let destinations: Vec<ScriptBuf> = outputs.iter().map(|(s, _)| s.clone()).collect();
 
         let mut inner = self.inner.lock().await;
         let psbt = {
@@ -700,8 +703,7 @@ impl WalletHandle {
         };
         Self::persist(&mut inner).await?;
 
-        let total_out_sat = recipients.iter().map(|r| r.amount_sat).sum();
-        Self::summarize(&inner, psbt, Some(total_out_sat))
+        Self::summarize(&inner, psbt, Some(&destinations))
     }
 
     /// Build a transfer that empties the wallet into one address.
@@ -713,17 +715,18 @@ impl WalletHandle {
     /// either way — it then fails to build, or leaves dust behind.
     pub async fn build_drain(&self, address: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
         let addr = self.recipient_address(address)?;
+        let destination = addr.script_pubkey();
         let mut inner = self.inner.lock().await;
         let psbt = {
             let mut builder = inner.wallet.build_tx();
             builder
                 .drain_wallet()
-                .drain_to(addr.script_pubkey())
+                .drain_to(destination.clone())
                 .fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
-        Self::summarize(&inner, psbt, None)
+        Self::summarize(&inner, psbt, Some(&[destination]))
     }
 
     /// Parse an address and insist it belongs to this wallet's network.
@@ -758,25 +761,30 @@ impl WalletHandle {
         Self::summarize(&inner, psbt, None)
     }
 
-    /// Describe a built PSBT. `total_out` is the amount intended for others;
-    /// when it is not known up front (a fee bump) it is taken to be everything
-    /// paid to scripts the wallet does not own.
-    fn summarize(inner: &Inner, psbt: Psbt, total_out: Option<u64>) -> Result<BuiltTx> {
+    /// Describe a built PSBT.
+    ///
+    /// `paid_to` is the scripts this build aimed at. Ownership alone cannot
+    /// separate a payment from change when the destination belongs to this
+    /// wallet: a Max to one of our own addresses reported the entire amount as
+    /// change and nothing paid out, so Review showed a transaction that sent
+    /// nowhere. Knowing the destinations settles it.
+    ///
+    /// `None` is for a build whose outputs we did not choose — a fee bump
+    /// rebuilds the original's — where "anything of ours is change" is still
+    /// the best available reading.
+    fn summarize(inner: &Inner, psbt: Psbt, paid_to: Option<&[ScriptBuf]>) -> Result<BuiltTx> {
         let fee_sat = psbt.fee().map_err(|e| Error::Psbt(e.to_string()))?.to_sat();
         let tx = &psbt.unsigned_tx;
-        let change_sat = tx
-            .output
-            .iter()
-            .filter(|o| inner.wallet.is_mine(o.script_pubkey.clone()))
-            .map(|o| o.value.to_sat())
-            .sum();
-        let total_out_sat = total_out.unwrap_or_else(|| {
-            tx.output
-                .iter()
-                .filter(|o| !inner.wallet.is_mine(o.script_pubkey.clone()))
-                .map(|o| o.value.to_sat())
-                .sum()
-        });
+        let mut total_out_sat = 0_u64;
+        let mut change_sat = 0_u64;
+        for o in &tx.output {
+            let designated = paid_to.is_some_and(|s| s.contains(&o.script_pubkey));
+            if designated || !inner.wallet.is_mine(o.script_pubkey.clone()) {
+                total_out_sat += o.value.to_sat();
+            } else {
+                change_sat += o.value.to_sat();
+            }
+        }
         Ok(BuiltTx {
             psbt_base64: psbt.to_string(),
             fee_sat,
@@ -1468,6 +1476,45 @@ mod tests {
         assert_eq!(built.total_out_sat + built.fee_sat, 100_000);
         // A real spend, not a preview trick: it signs.
         handle.sign(&built.psbt_base64).await.unwrap();
+    }
+
+    /// Sending to yourself is legitimate — consolidating, or moving to a
+    /// fresh address — and the summary has to describe it truthfully. Judging
+    /// by ownership alone called the whole payment change and reported nothing
+    /// sent, so Review showed a transaction that went nowhere.
+    #[tokio::test]
+    async fn a_drain_to_our_own_address_still_reports_what_it_sends() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let own = handle.address().await;
+        let built = handle.build_drain(&own, 2.0).await.unwrap();
+        assert_eq!(built.change_sat, 0, "a drain leaves nothing behind");
+        assert_eq!(built.total_out_sat + built.fee_sat, 100_000);
+        assert!(built.total_out_sat > 0, "it sends something");
+    }
+
+    /// The same for an ordinary transfer: paying our own address is a payment,
+    /// and only what actually comes back is change.
+    #[tokio::test]
+    async fn a_transfer_to_our_own_address_is_not_change() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let own = handle.address().await;
+        let built = handle
+            .build_transfer(
+                &[Recipient {
+                    address: own,
+                    amount_sat: 40_000,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(built.total_out_sat, 40_000);
+        assert_eq!(
+            built.change_sat + built.total_out_sat + built.fee_sat,
+            100_000
+        );
     }
 
     #[tokio::test]
