@@ -178,6 +178,25 @@ pub struct TxDetail {
     pub outputs: Vec<TxOutput>,
 }
 
+/// What a build aimed to pay, as the builder knows it.
+///
+/// Ownership alone cannot separate a payment from change when the destination
+/// belongs to this wallet, and neither can the script alone: a single-key
+/// wallet returns change to the address it receives on, so a payment to
+/// yourself and the change it leaves carry the same script.
+enum Paid<'a> {
+    /// Outputs the caller named, with the amounts they asked for. Matching
+    /// consumes one entry per transaction output, so a second output with the
+    /// same script is change rather than a second payment.
+    Exact(&'a [(ScriptBuf, Amount)]),
+    /// A drain: one output, its amount decided by the builder once the fee is
+    /// known, and no change to confuse it with.
+    Drain(&'a ScriptBuf),
+    /// Outputs we did not choose — a fee bump rebuilds the original's — where
+    /// "anything of ours is change" is the best reading available.
+    Rebuilt,
+}
+
 /// Map a builder failure onto the error domain, keeping the one case a UI
 /// can act on — not enough money — structured instead of stringified.
 fn build_error(e: CreateTxError) -> Error {
@@ -692,7 +711,7 @@ impl WalletHandle {
         }
         // Kept so the summary can tell a payment from change even when a
         // recipient is one of our own addresses.
-        let destinations: Vec<ScriptBuf> = outputs.iter().map(|(s, _)| s.clone()).collect();
+        let destinations = outputs.clone();
 
         let mut inner = self.inner.lock().await;
         let psbt = {
@@ -704,7 +723,7 @@ impl WalletHandle {
         };
         Self::persist(&mut inner).await?;
 
-        Self::summarize(&inner, psbt, Some(&destinations))
+        Self::summarize(&inner, psbt, Paid::Exact(&destinations))
     }
 
     /// Build a transfer that empties the wallet into one address.
@@ -727,7 +746,7 @@ impl WalletHandle {
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
-        Self::summarize(&inner, psbt, Some(&[destination]))
+        Self::summarize(&inner, psbt, Paid::Drain(&destination))
     }
 
     /// Parse an address and insist it belongs to this wallet's network.
@@ -759,27 +778,37 @@ impl WalletHandle {
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
-        Self::summarize(&inner, psbt, None)
+        Self::summarize(&inner, psbt, Paid::Rebuilt)
     }
 
     /// Describe a built PSBT.
     ///
-    /// `paid_to` is the scripts this build aimed at. Ownership alone cannot
-    /// separate a payment from change when the destination belongs to this
-    /// wallet: a Max to one of our own addresses reported the entire amount as
-    /// change and nothing paid out, so Review showed a transaction that sent
-    /// nowhere. Knowing the destinations settles it.
-    ///
-    /// `None` is for a build whose outputs we did not choose — a fee bump
-    /// rebuilds the original's — where "anything of ours is change" is still
-    /// the best available reading.
-    fn summarize(inner: &Inner, psbt: Psbt, paid_to: Option<&[ScriptBuf]>) -> Result<BuiltTx> {
+    /// Ownership alone cannot separate a payment from change when the
+    /// destination belongs to this wallet: a Max to one of our own addresses
+    /// reported the entire amount as change and nothing paid out, so Review
+    /// showed a transaction that sent nowhere. [`Paid`] carries what the build
+    /// aimed at, which settles it.
+    fn summarize(inner: &Inner, psbt: Psbt, paid: Paid<'_>) -> Result<BuiltTx> {
         let fee_sat = psbt.fee().map_err(|e| Error::Psbt(e.to_string()))?.to_sat();
         let tx = &psbt.unsigned_tx;
+        // Claimed one at a time, so two outputs sharing a script cannot both
+        // answer to the same recipient.
+        let mut unclaimed: Vec<(ScriptBuf, Amount)> = match paid {
+            Paid::Exact(list) => list.to_vec(),
+            Paid::Drain(_) | Paid::Rebuilt => Vec::new(),
+        };
         let mut total_out_sat = 0_u64;
         let mut change_sat = 0_u64;
         for o in &tx.output {
-            let designated = paid_to.is_some_and(|s| s.contains(&o.script_pubkey));
+            let designated = match paid {
+                Paid::Exact(_) => unclaimed
+                    .iter()
+                    .position(|(script, amount)| *script == o.script_pubkey && *amount == o.value)
+                    .map(|i| unclaimed.swap_remove(i))
+                    .is_some(),
+                Paid::Drain(script) => *script == o.script_pubkey,
+                Paid::Rebuilt => false,
+            };
             if designated || !inner.wallet.is_mine(o.script_pubkey.clone()) {
                 total_out_sat += o.value.to_sat();
             } else {
@@ -803,8 +832,9 @@ impl WalletHandle {
     /// would claim a rate the transaction does not pay. Every input a wallet
     /// spends is satisfied by its own descriptor, and the descriptor's maximum
     /// satisfaction is what BDK charged the fee for, so that is the size to
-    /// add. Signatures grind smaller than the maximum, so this is an upper
-    /// bound: at most a vbyte or two above what the network finally sees.
+    /// add. A signature can grind a byte under the maximum a descriptor
+    /// promises, so this is an upper bound — up to about a vbyte per input
+    /// above what the network finally sees, and never under it.
     fn signed_vsize(inner: &Inner, tx: &Transaction) -> Result<u64> {
         let descriptor = inner.wallet.public_descriptor(KeychainKind::External);
         let satisfaction = descriptor
@@ -1038,6 +1068,27 @@ mod tests {
         inner
             .wallet
             .apply_unconfirmed_txs([(funding_tx(spk, sats), 1)]);
+        WalletHandle::persist(&mut inner).await.unwrap();
+    }
+
+    /// Several spendable outputs on one address. Calling `fund` twice cannot
+    /// do it: every funding transaction spends the same outpoint, so the
+    /// second one replaces the first.
+    async fn fund_with_outputs(handle: &WalletHandle, count: usize, sats: u64) {
+        let mut inner = handle.inner.lock().await;
+        let spk = inner
+            .wallet
+            .peek_address(KeychainKind::External, 0)
+            .address
+            .script_pubkey();
+        let mut tx = funding_tx(spk.clone(), sats);
+        for _ in 1..count {
+            tx.output.push(TxOut {
+                value: Amount::from_sat(sats),
+                script_pubkey: spk.clone(),
+            });
+        }
+        inner.wallet.apply_unconfirmed_txs([(tx, 1)]);
         WalletHandle::persist(&mut inner).await.unwrap();
     }
 
@@ -1584,6 +1635,71 @@ mod tests {
             built.change_sat + built.total_out_sat + built.fee_sat,
             100_000
         );
+    }
+
+    /// A single key receives and returns change on one address, so a payment
+    /// to yourself and the change it leaves are the same script. Recognising
+    /// the payment by its script alone claimed both outputs, and Review said
+    /// the wallet was spending its whole balance on a 40,000 sat transfer.
+    #[tokio::test]
+    async fn a_single_key_paying_itself_still_keeps_its_change() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let own = handle.address().await;
+        let built = handle
+            .build_transfer(
+                &[Recipient {
+                    address: own,
+                    amount_sat: 40_000,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(built.total_out_sat, 40_000, "one payment, not both outputs");
+        assert_eq!(built.change_sat, 100_000 - 40_000 - built.fee_sat);
+    }
+
+    /// The same rule with several inputs, where legacy is the worst case: a
+    /// signature can grind one byte under the maximum the descriptor promises,
+    /// so the reviewed size runs up to a byte per input above what the network
+    /// finally sees — and never under it, and never at a rate other than the
+    /// one that was asked for.
+    #[tokio::test]
+    async fn a_multi_input_review_keeps_the_rate_and_stays_an_upper_bound() {
+        for t in [AddressType::P2pkh, AddressType::P2wpkh] {
+            let (handle, mock) = open(t).await;
+            fund_with_outputs(&handle, 4, 30_000).await;
+            let rate = 3.0;
+            let built = handle
+                .build_transfer(
+                    &[Recipient {
+                        address: dest(AddressType::P2wpkh),
+                        amount_sat: 115_000,
+                    }],
+                    rate,
+                )
+                .await
+                .unwrap_or_else(|e| panic!("{t:?}: {e}"));
+            assert_eq!(built.input_count, 4, "{t:?} needs every output");
+
+            let reads_as = built.fee_sat as f64 / built.vsize as f64;
+            assert!(
+                (reads_as - rate).abs() < 0.05,
+                "{t:?}: {} sat over {} vB reads as {reads_as:.2} sat/vB",
+                built.fee_sat,
+                built.vsize
+            );
+
+            let signed = handle.sign(&built.psbt_base64).await.unwrap();
+            handle.broadcast(&signed).await.unwrap();
+            let broadcast = mock.broadcasts.lock().unwrap()[0].vsize() as u64;
+            assert!(
+                built.vsize >= broadcast && built.vsize - broadcast <= u64::from(built.input_count),
+                "{t:?}: reviewed {} vB, broadcast {broadcast} vB",
+                built.vsize
+            );
+        }
     }
 
     #[tokio::test]
