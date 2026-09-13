@@ -1114,6 +1114,19 @@ mod tests {
             .clone()
     }
 
+    /// A recipient that does not change between runs.
+    ///
+    /// `dest` makes a fresh key each call, so the transaction paying it has a
+    /// different sighash every run and its signatures come out at whatever
+    /// length that draw produces. Any test that measures a signed size needs
+    /// this one instead, or it is measuring the dice.
+    fn fixed_dest(t: AddressType) -> String {
+        let key = KeyMaterial::PrivHex(
+            "0000000000000000000000000000000000000000000000000000000000000002".into(),
+        );
+        crate::keys::address_for_key(&key, Network::Regtest, t).unwrap()
+    }
+
     #[tokio::test]
     async fn build_sign_broadcast_each_type() {
         for t in [
@@ -1182,7 +1195,7 @@ mod tests {
             let built = handle
                 .build_transfer(
                     &[Recipient {
-                        address: dest(AddressType::P2wpkh),
+                        address: fixed_dest(AddressType::P2wpkh),
                         amount_sat: 40_000,
                     }],
                     rate,
@@ -1689,7 +1702,7 @@ mod tests {
             let built = handle
                 .build_transfer(
                     &[Recipient {
-                        address: dest(AddressType::P2wpkh),
+                        address: fixed_dest(AddressType::P2wpkh),
                         amount_sat: 115_000,
                     }],
                     rate,
@@ -1709,8 +1722,15 @@ mod tests {
             let signed = handle.sign(&built.psbt_base64).await.unwrap();
             handle.broadcast(&signed).await.unwrap();
             let broadcast = mock.broadcasts.lock().unwrap()[0].vsize() as u64;
+            // Never under the real size — that is the half that protects the
+            // reader — and not far over it. The descriptor's maximum assumes a
+            // 73-byte signature; a real low-S DER signature is 71 or 72, and
+            // shorter again when r or s carry leading zeros, so for a legacy
+            // input, where every scriptSig byte is a vbyte, the estimate runs a
+            // byte or two per input high.
             assert!(
-                built.vsize >= broadcast && built.vsize - broadcast <= u64::from(built.input_count),
+                built.vsize >= broadcast
+                    && built.vsize - broadcast <= 2 * u64::from(built.input_count),
                 "{t:?}: reviewed {} vB, broadcast {broadcast} vB",
                 built.vsize
             );
