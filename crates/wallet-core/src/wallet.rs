@@ -1724,13 +1724,13 @@ mod tests {
             let broadcast = mock.broadcasts.lock().unwrap()[0].vsize() as u64;
             // Never under the real size — that is the half that protects the
             // reader — and not far over it. The descriptor's maximum assumes a
-            // 73-byte signature; a real low-S DER signature is 71 or 72, and
-            // shorter again when r or s carry leading zeros, so for a legacy
-            // input, where every scriptSig byte is a vbyte, the estimate runs a
-            // byte or two per input high.
+            // 73-byte signature; a minimally encoded low-S DER signature can be 70 bytes when r or s carries
+            // a leading zero. Thus, for a legacy
+            // input, where every scriptSig byte is a vbyte, the estimate can run up to three
+            // bytes per input high.
             assert!(
                 built.vsize >= broadcast
-                    && built.vsize - broadcast <= 2 * u64::from(built.input_count),
+                    && built.vsize - broadcast <= 3 * u64::from(built.input_count),
                 "{t:?}: reviewed {} vB, broadcast {broadcast} vB",
                 built.vsize
             );
