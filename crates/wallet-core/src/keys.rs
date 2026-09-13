@@ -1082,10 +1082,25 @@ mod tests {
         };
         // Regtest is a test network, so BIP84 coin type 1', and the two
         // keychains are the `0` and `1` branches of the same account.
-        assert!(external.contains("tprv"), "{external}");
-        assert!(external.contains("/84'/1'/0'/0/*"), "{external}");
-        assert!(internal.contains("/84'/1'/0'/1/*"), "{internal}");
-        assert_ne!(external, internal);
+        // These descriptors carry the account's private key, so a failure says
+        // which expectation broke and never quotes the value — `assert_ne!`
+        // included, which prints both sides.
+        assert!(
+            external.contains("tprv"),
+            "the external descriptor carries no private key"
+        );
+        assert!(
+            external.contains("/84'/1'/0'/0/*"),
+            "the external descriptor is not the BIP84 receive branch"
+        );
+        assert!(
+            internal.contains("/84'/1'/0'/1/*"),
+            "the internal descriptor is not the BIP84 change branch"
+        );
+        assert!(
+            external != internal,
+            "both keychains resolved to one descriptor"
+        );
 
         let wallet = bdk_wallet::Wallet::create(external, internal)
             .network(bdk_wallet::bitcoin::Network::Regtest)
