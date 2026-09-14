@@ -115,6 +115,7 @@ $btcw generate -n signet -t p2wpkh                 # new key + address (printed 
 $btcw generate -n signet -t p2wpkh --mnemonic      # 12-word BIP39 seed + first address
 $btcw generate -n signet --mnemonic --words 24     # 24 words instead
 export BTCW_KEY=<priv_hex_or_wif_or_mnemonic>      # quote a mnemonic; `--key -` reads stdin
+export BTCW_PASSPHRASE=<optional>                  # BIP39 passphrase; --passphrase also works
 $btcw address -n signet                            # first receive address, offline
 $btcw address -n signet --new                      # HD: sync, then reveal a fresh one
 $btcw balance -n signet                            # Esplora (mempool.space by default)
@@ -129,6 +130,12 @@ Address types: `p2pk`, `p2pkh`, `p2wpkh`, `np2wpkh`, `p2tr`. Networks: `bitcoin`
 Every transaction the wallet builds signals replaceability, so a stuck payment can be re-sent with `bump`.
 The CLI keeps wallet state in memory for the run and re-syncs each time; keys are never persisted.
 Because of that, `address --new` reveals the address after the last one the sync found used.
+A mnemonic's passphrase is part of the wallet's identity — the same words without it open a
+different wallet, not a locked version of this one. `--key`/`--passphrase` on the command line
+are visible to anyone who can run `ps` on this machine while the process is alive, and land in
+shell history; prefer `--key -` (stdin) or the `BTCW_*` env vars. On failure the process exits
+with a code that names the failure class (`error.rs`'s codes, offset so 1 stays "a CLI-level
+problem, not wallet-core") instead of always 1, so a script can branch on `$?`.
 
 ### Tests
 

@@ -170,13 +170,37 @@ or a signed transaction. Nothing visual.
       an automated proof; this item's bar was the guard being present and correct, and the app
       actually working end to end, both now true.
 
-- [ ] **1.8 The CLI opens the wallet the user means** · S · `crates/wallet-cli/src/main.rs`,
-  README CLI section
+- [x] **1.8 The CLI opens the wallet the user means** · S · `crates/wallet-cli/src/main.rs`,
+  `crates/wallet-cli/Cargo.toml`, `README.md`
       why: `btcw` never applies a passphrase, so the same words silently open a different
       wallet; the stdin buffer is not zeroized; every failure exits 1 with the code discarded ·
-      done when: `--passphrase` / `BTCW_PASSPHRASE`; `Zeroizing` buffer; exit code per error
-      code; `--key` on the command line documented as unsafe; a test shows the same words with
-      and without a passphrase print different addresses
+      done: 2026-09-14 — `BackendArgs` gained `--passphrase`/`BTCW_PASSPHRASE`, wired through
+      `read_key` to `KeyMaterial::parse_with_passphrase` (the stdin and env-var buffers are
+      `Zeroizing`). A new `CliError` wraps either a CLI-level `String` or a `wallet_core::Error`;
+      `run()` returns it instead of a bare `String`, which let every `.map_err(|e| e.to_string())`
+      in the file come out — `?` converts on its own now — and `CliError::exit_code` gives each
+      `Error` variant its own process exit code (10-27; 1 stays "a CLI-level problem"), which
+      `main` now actually uses instead of a flat `ExitCode::FAILURE`. `--key`'s and
+      `--passphrase`'s doc comments name the `ps`/shell-history exposure of passing a secret on
+      argv. README's CLI section documents `BTCW_PASSPHRASE` and the exit-code convention.
+
+      Live-testing this surfaced a real, pre-existing bug this item's own verification needed
+      to get past: `Send`'s `--to` derived the short flag `-t`, already claimed globally by
+      `--address-type` — clap only checks this the first time a subcommand is actually parsed,
+      so `btcw send` has panicked on every real invocation since `--to` was added, on `main`,
+      unrelated to anything else in this round. Fixed by dropping `to`'s short flag (`--to` only
+      — `-t` stays `--address-type`'s), and `tests::every_subcommand_has_a_well_formed_arg_definition`
+      now calls clap's own `Command::debug_assert()` in CI so a future version of the same
+      mistake fails the test suite instead of waiting for someone to actually type the command.
+
+      Verified: `cargo test -p wallet-cli` (5 new tests: the arg-definition check above, the
+      same-words-different-passphrase address check via `address_for_key` directly, `read_key`
+      applying a given vs. absent passphrase, every core error's exit code pairwise unique and
+      never colliding with 1, a bare CLI error always exiting 1); `cargo test -p wallet-core`
+      still 73 green; fmt and clippy clean. Manually: built and ran the real binary —
+      `abandon…about` with and without `--passphrase TREZOR` printed different addresses (also
+      via `BTCW_PASSPHRASE`), and `send` against a backend nothing is listening on now exits 14
+      (`backend`) instead of panicking.
 
 - [ ] **1.9 Outbound HTTP is pinned to the configured backend** · M ·
   `apps/native/src-tauri/capabilities/{desktop,mobile}.json`, `src-tauri/src/lib.rs`,

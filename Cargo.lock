@@ -5933,6 +5933,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "wallet-core",
+ "zeroize",
 ]
 
 [[package]]
