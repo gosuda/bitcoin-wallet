@@ -10,6 +10,9 @@ only — it is not extended; use it for parity checks and to recover intended be
 Found a security problem? [SECURITY.md](SECURITY.md) says how to report it, and what
 this wallet does and does not protect you from.
 
+What is left to build, and why, lives in [docs/ROADMAP.md](docs/ROADMAP.md) —
+read it before opening an issue asking for something that is already listed there.
+
 ## What it does
 
 **Open a wallet** three ways: a BIP39 recovery phrase (an HD account, with a
