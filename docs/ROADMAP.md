@@ -73,14 +73,21 @@ or a signed transaction. Nothing visual.
       router/guard/discard infrastructure finds nothing left hand-rolled; 85/85 tests,
       typecheck and biome all green
 
-- [ ] **1.4 Secret strings are zeroized and cannot be serialized by accident** · M ·
+- [x] **1.4 Secret strings are zeroized and cannot be serialized by accident** · M ·
   `crates/wallet-core/src/keys.rs`, `keystore.rs`, `wallet.rs`, `SECURITY.md`
       why: the descriptor strings that carry the WIF or xprv are plain `String`, built on every
       open and dropped unwiped; `KeyMaterial` derives `Serialize` for the keystore, so
-      `serde_json::to_string(&key)` compiles anywhere · done when: `Zeroizing<String>` through
-      `descriptors_for` into `Wallet::create`; a keystore-private DTO with the same JSON shape
-      (existing keychain entries still load, checked with the native round-trip test on macOS);
-      a `compile_fail` doctest for serializing `KeyMaterial`
+      `serde_json::to_string(&key)` compiles anywhere · done: 2026-09-14 — every descriptor
+      string (`descriptor_for`, `hd_descriptor_string`, all four `watch_only_descriptors` sites)
+      is `Zeroizing<String>`; `KeyMaterial` no longer derives `Serialize`/`Deserialize`, with a
+      private `keystore::StoredKey` DTO (identical wire shape, so existing keychain entries
+      still load — verified against the real macOS Keychain via the `#[ignore]`d
+      `native_roundtrip` test, plus a relocated `stored_key_json_shape_is_stable` test pinning
+      the JSON exactly); a `compile_fail` doctest on `KeyMaterial` proves
+      `serde_json::to_string(&key)` no longer compiles; SECURITY.md's key-storage paragraph
+      updated. 60 core tests + 1 doctest, fmt, and clippy (native + wasm32) all green;
+      mobile targets (iOS/Android) were not locally cross-compiled but the change adds no
+      `target_os`-specific code to the already-abstracted `backend::Entry` path
 
 - [ ] **1.5 Typed errors carry their data to the screen** · M · `error.rs`, `wallet.rs`,
   `crates/wallet-wasm/src/lib.rs`, `apps/native/src-tauri/src/error.rs`, `types.ts`

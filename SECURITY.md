@@ -61,9 +61,13 @@ Anything that could lose or expose funds, or make the wallet lie about them:
   lives exactly as long as the tab.
 - **CLI.** `btcw` keeps state in memory for the run and persists nothing.
 
-Key material is held in a type that zeroizes on drop and redacts its `Debug`, and the
-wallet core is compiled without a chain backend into the native shell — the webview
-owns the wallet, the shell owns the keychain.
+Key material is held in a type that zeroizes on drop, redacts its `Debug`, and does
+not implement `Serialize`/`Deserialize` — a JSON wire form exists only inside the
+keystore module that writes to the OS credential store, so nothing else in the code
+base can serialize a key by accident. The BDK descriptor strings built from it
+(the ones that actually carry a WIF or an extended private key) are held the same way.
+The wallet core is compiled without a chain backend into the native shell — the
+webview owns the wallet, the shell owns the keychain.
 
 ## Known limits
 

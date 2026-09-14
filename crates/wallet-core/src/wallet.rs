@@ -324,25 +324,34 @@ impl WalletHandle {
 
         let stored = persister.initialize().await?;
         let fresh = stored.is_empty();
+        // BDK's descriptor traits need an owned, `'static` `String`, so each
+        // arm clones out of the `Zeroizing` wrapper here — the clone is no
+        // more exposed than the copy BDK's own `KeyMap` already holds
+        // un-zeroized for the wallet's lifetime, and the original stays
+        // wrapped, zeroized when `descriptors` drops at the end of this match.
         let wallet = match descriptors {
-            Descriptors::Single(descriptor) if fresh => Wallet::create_single(descriptor)
-                .network(net)
-                .create_wallet_no_persist()
-                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            Descriptors::Single(descriptor) if fresh => {
+                Wallet::create_single(descriptor.to_string())
+                    .network(net)
+                    .create_wallet_no_persist()
+                    .map_err(|e| Error::Descriptor(e.to_string()))?
+            }
             Descriptors::Single(descriptor) => Wallet::load()
-                .descriptor(KeychainKind::External, Some(descriptor))
+                .descriptor(KeychainKind::External, Some(descriptor.to_string()))
                 .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
                 .map_err(|e| Error::Persist(e.to_string()))?
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
-            Descriptors::Hd { external, internal } if fresh => Wallet::create(external, internal)
-                .network(net)
-                .create_wallet_no_persist()
-                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            Descriptors::Hd { external, internal } if fresh => {
+                Wallet::create(external.to_string(), internal.to_string())
+                    .network(net)
+                    .create_wallet_no_persist()
+                    .map_err(|e| Error::Descriptor(e.to_string()))?
+            }
             Descriptors::Hd { external, internal } => Wallet::load()
-                .descriptor(KeychainKind::External, Some(external))
-                .descriptor(KeychainKind::Internal, Some(internal))
+                .descriptor(KeychainKind::External, Some(external.to_string()))
+                .descriptor(KeychainKind::Internal, Some(internal.to_string()))
                 .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
