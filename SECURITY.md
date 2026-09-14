@@ -80,6 +80,13 @@ Stated because you should know them, not because they are acceptable:
 - **A compromised endpoint sees your addresses.** Requests go to the configured Esplora
   server with no privacy layer — no Tor, no address rotation across servers. It learns
   which addresses belong together.
+- **The native shell's outbound HTTP scope only grows, within one run.** The webview's
+  proxied `fetch` (desktop, iOS, Android) starts with no origin granted at all; opening
+  a wallet or changing the backend in Setup grants exactly that origin at runtime, in
+  place of the wildcard `https://*:*` this used to be. Tauri's dynamic capability grant
+  has no matching revoke, so an origin stays reachable for the rest of the process even
+  after the backend is pointed elsewhere — narrower than "any host" by a lot, but not the
+  same as "only the current one." A fresh launch starts from nothing again.
 - **Backups are your problem.** Losing a recovery phrase, or a passphrase set on one,
   loses the wallet. "Forget this wallet" deletes the stored key immediately.
 - **Not audited against side channels.** Signing uses `rust-secp256k1`; nothing here

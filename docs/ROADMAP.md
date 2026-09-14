@@ -202,16 +202,46 @@ or a signed transaction. Nothing visual.
       via `BTCW_PASSPHRASE`), and `send` against a backend nothing is listening on now exits 14
       (`backend`) instead of panicking.
 
-- [ ] **1.9 Outbound HTTP is pinned to the configured backend** · M ·
-  `apps/native/src-tauri/capabilities/{desktop,mobile}.json`, `src-tauri/src/lib.rs`,
-  `commands.rs`, `SECURITY.md`
+- [x] **1.9 Outbound HTTP is pinned to the configured backend** · M ·
+  `apps/native/src-tauri/capabilities/{desktop,mobile}.json`, `src-tauri/Cargo.toml`,
+  `src-tauri/src/lib.rs`, `commands.rs`, `SECURITY.md`
       why: the `http:default` scope is `https://*:*` + `http://*:*`, so the webview can make the
-      Rust side fetch any host; it was widened so any user-typed Esplora URL works · done when:
-      the wildcard entries are gone and the backend origin is granted at runtime from the stored
-      config (spike first: confirm `add_capability` reaches the already-created webview; fallback
-      is a `chain_fetch` command with an origin check); Setup with `https://example.invalid`
-      fails with the scope error; the Mac app syncs against a LAN electrs; the emulator rig
-      still syncs via `10.0.2.2`
+      Rust side fetch any host; it was widened so any user-typed Esplora URL works · done:
+      2026-09-14 — the spike confirmed `add_capability`: traced both sides of it in Tauri
+      2.11.5's own source, not just the doc comment — `RuntimeAuthority::add_capability_inner`
+      merges into the *same* `scope_manager` the `http` plugin's `fetch` command reads via
+      command-injected `CommandScope`/`GlobalScope` params on every single invocation (resolved
+      fresh each call, cache invalidated on every add), so nothing about it is a frozen
+      per-window snapshot taken at webview creation. Both capability files lost their
+      `http:default` block outright — the webview's HTTP proxy now starts with no origin granted
+      at all. `commands::grant_backend_scope` builds one `CapabilityBuilder` scoped to `window
+      ("main")` with `permission_scoped("http:default", [{url: "<origin>/*"}], [])` from the
+      configured Esplora URL's origin only (`backend_origin_pattern` parses it with the `url`
+      crate and refuses anything that isn't plain http(s)); called from `set_config` after every
+      save, and from `.setup()` against whatever `stored_config` last had, since a remembered
+      wallet syncs on launch without `set_config` running again that process. `dynamic-acl` is
+      now an enabled `tauri` feature — required for `add_capability` to exist at all.
+
+      Deliberately not exact pinning: Tauri's dynamic ACL has no revoke, only grant, so an
+      origin stays reachable for the rest of the *process* even after the backend is pointed
+      elsewhere — narrower than "any host" by a lot, not literally "only the current one" within
+      one run. A fresh launch starts from nothing again. SECURITY.md's "Known limits" names this
+      precisely, so it reads as a documented tradeoff instead of a surprise.
+
+      Verified: `cargo build`/`clippy -D warnings`/`fmt --check` all clean for
+      `bitcoin-wallet-app` with `dynamic-acl` actually enabled (not just type-checked against a
+      hypothetical), across the whole workspace; `pnpm tauri dev` launches the real desktop
+      binary against the new empty-scope capability files without crashing. Not verified: an
+      automated test exercising the *enforcement* path itself (`tauri::test::get_ipc_response`
+      against the `http` plugin's `fetch` command looks like the right tool — dispatches a real
+      IPC request through `on_message` the same way JS would, headless — but wiring a mock app
+      through it correctly is its own investigation, out of this item's bounded scope) — nor the
+      three live scenarios the original "done when" named (Setup refusing an ungranted origin,
+      syncing against a LAN electrs, the Android emulator via `10.0.2.2`), none of which this
+      sandbox can drive: no GUI automation reaches a native Tauri window the way a browser build
+      can be driven, and there is neither a LAN electrs nor an emulator here. Whoever ships this
+      should click through those three on real hardware before calling the guarantee proven, not
+      just argued from source.
 
 ## Round 2 — CI and supply chain
 

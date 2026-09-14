@@ -5,9 +5,10 @@
 //! - keystore calls may block on an OS prompt, so they run in `spawn_blocking`;
 //! - secrets are zeroized as soon as they are consumed and are never logged.
 
-use tauri::{AppHandle, State};
+use tauri::ipc::CapabilityBuilder;
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
-use wallet_core::{KeyMaterial, Keystore};
+use wallet_core::{BackendConfig, KeyMaterial, Keystore};
 use zeroize::Zeroizing;
 
 use crate::dto::{AppConfig, StoredSecret};
@@ -17,13 +18,20 @@ use crate::state::AppState;
 const STORE_FILE: &str = "config.json";
 const STORE_KEY: &str = "config";
 
-#[tauri::command]
-pub async fn get_config(app: AppHandle) -> AppResult<AppConfig> {
+/// The persisted config, or [`AppConfig::default`] when nothing has been
+/// saved yet. Shared by the `get_config` command and startup, which needs
+/// the same read before any command has been called this run.
+pub(crate) fn stored_config(app: &AppHandle) -> AppResult<AppConfig> {
     let store = app.store(STORE_FILE)?;
     Ok(store
         .get(STORE_KEY)
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn get_config(app: AppHandle) -> AppResult<AppConfig> {
+    stored_config(&app)
 }
 
 #[tauri::command]
@@ -33,7 +41,49 @@ pub async fn set_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
         serde_json::to_value(&config).map_err(|e| AppError::new("config", e.to_string()))?;
     store.set(STORE_KEY, value);
     store.save()?;
+    grant_backend_scope(&app, &config.backend);
     Ok(())
+}
+
+/// `scheme://host[:port]/*`, the origin-only glob the http plugin's scope
+/// wants — or `None` for anything that is not plain http(s), which the
+/// plugin would never dispatch a request for anyway.
+fn backend_origin_pattern(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    matches!(parsed.scheme(), "http" | "https")
+        .then(|| format!("{}/*", parsed.origin().ascii_serialization()))
+}
+
+/// Grants the webview's HTTP proxy exactly the origin the wallet is
+/// configured to talk to. `capabilities/*.json` grant `http:default` no
+/// scope at all, so without this call every chain request the webview makes
+/// is refused — this is the only thing that ever opens it up, and only to
+/// the one origin the user actually chose, in place of the `https://*:*` /
+/// `http://*:*` wildcard that used to sit in those files. Called once at
+/// startup for whatever was last saved (a remembered wallet syncs
+/// immediately on launch, without `set_config` ever running again this
+/// process) and again every time `set_config` saves a new one.
+///
+/// Additive only: Tauri's dynamic ACL has no matching "revoke", so an origin
+/// granted this way stays reachable for the rest of the process even after
+/// the backend is pointed elsewhere. Still a large narrowing — from any
+/// host on the internet to only origins this app was, at some point in this
+/// run, actually configured to talk to.
+pub(crate) fn grant_backend_scope(app: &AppHandle, backend: &BackendConfig) {
+    let BackendConfig::Esplora { url } = backend;
+    let Some(pattern) = backend_origin_pattern(url) else {
+        return;
+    };
+    let capability = CapabilityBuilder::new("dynamic-backend-scope")
+        .window("main")
+        .permission_scoped(
+            "http:default",
+            vec![serde_json::json!({ "url": pattern })],
+            Vec::<serde_json::Value>::new(),
+        );
+    if let Err(e) = app.add_capability(capability) {
+        eprintln!("warning: could not grant HTTP scope for the configured backend: {e}");
+    }
 }
 
 /// Whether the OS credential store can actually be used in this process.

@@ -35,16 +35,31 @@ pub fn run() {
     builder
         .manage(state::AppState::default())
         .setup(|app| {
+            use tauri::Manager;
+            let handle = app.handle().clone();
+
+            // capabilities/*.json grant the webview's HTTP proxy no scope at
+            // all, so a remembered wallet that syncs immediately on launch —
+            // before `set_config` ever runs again this process — needs this
+            // read here too, not only inside `set_config`'s own handler.
+            match commands::stored_config(&handle) {
+                Ok(cfg) => commands::grant_backend_scope(&handle, &cfg.backend),
+                Err(e) => eprintln!("warning: could not read the stored config at startup: {e:?}"),
+            }
+
             // The mobile credential stores are installed at runtime and can fail
             // on a device while compiling perfectly well on CI, so ask now
             // rather than when someone first presses "Remember on this device".
             // Not fatal: everything except remembering a key still works.
-            use tauri::Manager;
+            //
             // Primed off the startup path: on mobile this is keychain I/O, and
             // blocking here delays the first window for it.
-            let handle = app.handle().clone();
+            let keystore_handle = handle.clone();
             tauri::async_runtime::spawn(async move {
-                handle.state::<state::AppState>().keystore_ok().await;
+                keystore_handle
+                    .state::<state::AppState>()
+                    .keystore_ok()
+                    .await;
             });
             Ok(())
         })
