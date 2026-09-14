@@ -1,5 +1,6 @@
 import { api } from "../api";
 import { navigate } from "../router";
+import { screenGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount } from "../types";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
@@ -44,6 +45,7 @@ export function renderRestore(): HTMLElement {
     navigate("setup");
     return el("main");
   }
+  const onScreen = screenGuard();
 
   const alert = banner();
   const errorLine = el("p", { className: "field-error", attrs: { role: "status" } });
@@ -90,11 +92,11 @@ export function renderRestore(): HTMLElement {
     const typed = words();
     try {
       await api.validateMnemonic(typed.join(" "));
-      if (seq !== checking) return;
+      if (seq !== checking || !onScreen()) return;
       valid = true;
       errorLine.textContent = "";
     } catch (e) {
-      if (seq !== checking) return;
+      if (seq !== checking || !onScreen()) return;
       valid = false;
       errorLine.textContent = phraseError(errorMessage(e), typed);
     }
@@ -196,6 +198,9 @@ export function renderRestore(): HTMLElement {
       passphrase.value = "";
       session.wallet = info;
       if (willRemember) session.remembered = info;
+      // Not `onScreen()`-gated: `api.openWallet` already sets `session.wallet`
+      // as a side effect before this line ever runs, so the guard's own
+      // wallet-id check would always read as a swap and never navigate.
       navigate("dashboard");
     } catch (e) {
       alert.show("error", errorMessage(e));

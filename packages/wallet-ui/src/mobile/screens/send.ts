@@ -193,11 +193,12 @@ export function renderSend(): HTMLElement {
         // The target can change — including to Custom — while the estimate is
         // in flight. `Number("custom")` is NaN, so applying it afterwards
         // silently built at 1 sat/vB while the field showed the typed rate.
-        if (fee.value() !== choice) return;
+        // The screen can also have changed while it was in flight.
+        if (fee.value() !== choice || !onScreen()) return;
         rate = rateForTarget(estimate, Number(choice)) ?? 1;
         rateNote.textContent = `${rate.toFixed(2)} sat/vB`;
       } catch (e) {
-        if (fee.value() !== choice) return;
+        if (fee.value() !== choice || !onScreen()) return;
         rateNote.textContent = `Using 1 sat/vB — ${errorMessage(e)}`;
         rate = 1;
       }

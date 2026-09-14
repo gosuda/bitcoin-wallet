@@ -1,5 +1,6 @@
 import { api } from "../api";
 import { navigate } from "../router";
+import { screenGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -50,6 +51,7 @@ export function renderCreate(): HTMLElement {
     navigate("setup");
     return el("main");
   }
+  const onScreen = screenGuard();
 
   const mine = ++generation;
   phrase = null;
@@ -121,6 +123,9 @@ export function renderCreate(): HTMLElement {
       passphrase.value = "";
       session.wallet = info;
       if (willRemember) session.remembered = info;
+      // Not `onScreen()`-gated: `api.openWallet` already sets `session.wallet`
+      // as a side effect before this line ever runs, so the guard's own
+      // wallet-id check would always read as a swap and never navigate.
       navigate("dashboard");
     } catch (e) {
       alert.show("error", errorMessage(e));
@@ -163,11 +168,11 @@ export function renderCreate(): HTMLElement {
   void (async () => {
     try {
       const generated = await api.generateMnemonic(cfg.network, cfg.address_type, WORD_COUNT);
-      if (generation !== mine) return;
+      if (generation !== mine || !onScreen()) return;
       phrase = generated.words;
       showPhrase(generated.words);
     } catch (e) {
-      if (generation !== mine) return;
+      if (generation !== mine || !onScreen()) return;
       const failed = el("p", { className: "empty", text: "No recovery phrase was generated." });
       phraseBox.replaceChildren(failed.cloneNode(true));
       confirmBox.replaceChildren(failed);

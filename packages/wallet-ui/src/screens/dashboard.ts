@@ -7,6 +7,7 @@ import { buildPaymentUri, qrPayload } from "../bip21";
 import { suggestBumpRate } from "../feebump";
 import { platform } from "../platform";
 import { navigate } from "../router";
+import { screenGuard } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -195,6 +196,7 @@ export function renderDashboard(): HTMLElement {
     navigate("setup");
     return el("main");
   }
+  const onScreen = screenGuard();
 
   const alert = banner();
   const heroTotal = el("span", { className: "stat-hero mono", text: "0" });
@@ -256,13 +258,17 @@ export function renderDashboard(): HTMLElement {
           try {
             const preview = await api.buildFeeBump(txid, value);
             const result = await api.signAndBroadcast(preview.psbt_id);
-            closeDetail();
+            // The bump already broadcast: record it regardless, but only
+            // steal the screen away if this is still the one that asked.
             session.lastResult = result;
-            navigate("result");
+            if (onScreen()) {
+              closeDetail();
+              navigate("result");
+            }
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
             // node's own wording is the most useful thing to show.
-            alert.show("error", errorMessage(e));
+            if (onScreen()) alert.show("error", errorMessage(e));
           }
         }),
       "primary",
@@ -358,12 +364,14 @@ export function renderDashboard(): HTMLElement {
             suggested = suggestBumpRate(null, d.fee_rate_sat_vb);
           }
         }
-        if (open?.detail === detail) cell.replaceChildren(detailBox(d, explorer, suggested));
+        if (onScreen() && open?.detail === detail) {
+          cell.replaceChildren(detailBox(d, explorer, suggested));
+        }
       } catch (e) {
         // Only this row's own failure may close this row. A slow request for a
         // transaction the user has already navigated past would otherwise shut
         // the detail they opened afterwards and show them the wrong error.
-        if (open?.detail === detail) {
+        if (onScreen() && open?.detail === detail) {
           alert.show("error", errorMessage(e));
           closeDetail();
         }
@@ -392,6 +400,7 @@ export function renderDashboard(): HTMLElement {
       api.listUtxos(),
       api.listTransactions(),
     ]);
+    if (!onScreen()) return;
     renderBalance(balance);
     renderUtxos(utxos);
     renderTxs(txs);
@@ -410,14 +419,19 @@ export function renderDashboard(): HTMLElement {
     try {
       if (!silent) alert.hide();
       const balance = await api.sync();
+      // A wallet swap while this was in flight must not stamp the new
+      // wallet's session with a sync that was never for it.
+      if (!onScreen()) return;
       session.lastSyncedAt = new Date();
       autoSyncFailed = false;
       renderBalance(balance);
       const [utxos, txs] = await Promise.all([api.listUtxos(), api.listTransactions()]);
+      if (!onScreen()) return;
       renderUtxos(utxos);
       renderTxs(txs);
       renderSynced();
     } catch (e) {
+      if (!onScreen()) return;
       if (silent) {
         autoSyncFailed = true;
         renderSynced();
@@ -514,11 +528,12 @@ export function renderDashboard(): HTMLElement {
           alert.hide();
           try {
             receiving = await api.newAddress();
+            if (!onScreen()) return;
             addressBox.textContent = receiving;
             addressBox.setAttribute("title", receiving);
             await paintQr();
           } catch (e) {
-            alert.show("error", errorMessage(e));
+            if (onScreen()) alert.show("error", errorMessage(e));
           }
         }),
       "default",
@@ -568,6 +583,7 @@ export function renderDashboard(): HTMLElement {
         alert.hide();
         try {
           const balance = await api.rescan(Number(gap));
+          if (!onScreen()) return;
           session.lastSyncedAt = new Date();
           autoSyncFailed = false;
           renderBalance(balance);
@@ -578,7 +594,7 @@ export function renderDashboard(): HTMLElement {
             `Rescanned with a gap of ${gap}: ${formatSats(headlineSat(balance))} in this wallet.`,
           );
         } catch (e) {
-          alert.show("error", errorMessage(e));
+          if (onScreen()) alert.show("error", errorMessage(e));
         }
       }),
     "default",
@@ -594,9 +610,13 @@ export function renderDashboard(): HTMLElement {
   void paintQr();
   void api
     .publicDescriptors()
-    .then(renderKeys)
+    .then((d) => {
+      if (onScreen()) renderKeys(d);
+    })
     .catch((e: unknown) => {
-      keysBox.replaceChildren(el("p", { className: "empty", text: errorMessage(e) }));
+      if (onScreen()) {
+        keysBox.replaceChildren(el("p", { className: "empty", text: errorMessage(e) }));
+      }
     });
 
   const kind = wallet.is_watch_only ? " · Watch-only" : "";

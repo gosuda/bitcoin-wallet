@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 
 import { api } from "../../api";
 import { navigate } from "../../router";
+import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type PublicDescriptors } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -15,6 +16,7 @@ export function renderExport(): HTMLElement {
     navigate("setup");
     return host;
   }
+  const onScreen = screenGuard();
 
   const alert = banner();
   const content = body(alert.node, lede("Loading…"));
@@ -46,6 +48,7 @@ export function renderExport(): HTMLElement {
       } catch (e) {
         alert.show("warn", errorMessage(e));
       }
+      if (!onScreen()) return;
     }
     const both = d.internal === null ? d.external : `${d.external}\n${d.internal}`;
     sections.push(
@@ -68,8 +71,11 @@ export function renderExport(): HTMLElement {
 
   void (async () => {
     try {
-      await paint(await api.publicDescriptors());
+      const descriptors = await api.publicDescriptors();
+      if (!onScreen()) return;
+      await paint(descriptors);
     } catch (e) {
+      if (!onScreen()) return;
       content.replaceChildren(alert.node);
       alert.show("error", errorMessage(e));
     }

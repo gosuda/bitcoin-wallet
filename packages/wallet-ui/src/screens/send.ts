@@ -2,6 +2,7 @@ import { addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
+import { screenGuard } from "../screen";
 import { session } from "../session";
 import {
   backendHost,
@@ -59,6 +60,7 @@ export function renderSend(): HTMLElement {
     navigate("setup");
     return el("main");
   }
+  const onScreen = screenGuard();
   const host = backendHost(cfg.backend);
   const networkName = NETWORK_LABELS[wallet.network].toLowerCase();
 
@@ -157,10 +159,10 @@ export function renderSend(): HTMLElement {
   const loadEstimate = async () => {
     try {
       estimate = await api.estimateFee();
-      if (rateTouched) return;
+      if (!onScreen() || rateTouched) return;
       applyEstimate();
     } catch (e) {
-      feeHint.textContent = `Estimate unavailable: ${errorMessage(e)}`;
+      if (onScreen()) feeHint.textContent = `Estimate unavailable: ${errorMessage(e)}`;
     }
   };
 
@@ -257,9 +259,10 @@ export function renderSend(): HTMLElement {
         leaveDrain();
         const seq = drainSeq;
         const preview = await api.buildDrain(address, currentRate());
-        if (seq !== drainSeq) {
-          // The form moved under us. Keeping this would let Review broadcast
-          // to the previous address at the previous rate.
+        if (seq !== drainSeq || !onScreen()) {
+          // The form moved under us, or the screen went away. Keeping this
+          // would let Review broadcast to the previous address at the
+          // previous rate, or build against a form nobody is looking at.
           void api.discardTx(preview.psbt_id);
           return;
         }
@@ -271,7 +274,7 @@ export function renderSend(): HTMLElement {
         refreshRow(row);
         syncRowChrome();
       } catch (e) {
-        alert.show("error", errorMessage(e));
+        if (onScreen()) alert.show("error", errorMessage(e));
       }
     });
 
@@ -454,17 +457,21 @@ export function renderSend(): HTMLElement {
             const result = await api.signAndBroadcast(p.psbt_id);
             preview = null;
             drain = null;
+            // Broadcast either way: record it regardless, but only steal the
+            // screen away if this is still the one that asked for it.
             session.lastResult = result;
-            navigate("result");
+            if (onScreen()) navigate("result");
           } catch (e) {
             preview = null;
             // The PSBT is spent either way: signing consumed it before it
             // failed. Leaving `drain` pointing at it made the next Review
             // reuse a psbt_id the core no longer has and fail as unknown_psbt.
             clearDrainChrome();
-            previewBox.className = "card review-card hidden";
-            setFormLocked(false);
-            alert.show("error", errorMessage(e));
+            if (onScreen()) {
+              previewBox.className = "card review-card hidden";
+              setFormLocked(false);
+              alert.show("error", errorMessage(e));
+            }
           }
         }),
       "primary",
@@ -531,29 +538,31 @@ export function renderSend(): HTMLElement {
           const seq = drainSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
           const p = drain ?? (await api.buildTransfer(recipients, rate));
-          if (seq !== drainSeq) {
+          if (seq !== drainSeq || !onScreen()) {
             if (p !== drain) await api.discardTx(p.psbt_id);
             return;
           }
           setFormLocked(true);
           showPreview(p);
         } catch (e) {
-          alert.show("error", errorMessage(e));
+          if (onScreen()) alert.show("error", errorMessage(e));
         }
       }),
     "primary",
   );
 
-  const cancelBtn = button("Cancel", async () => {
-    if (preview) {
-      try {
-        await api.discardTx(preview.psbt_id);
-      } catch {
-        // best-effort
-      }
-    }
-    navigate("dashboard");
-  });
+  // Screens are rebuilt on every navigation, so a preview or a Max build
+  // still pending when this one goes away is unreachable — left alone it
+  // would strand its PSBT in the core's pending map indefinitely.
+  const discardOnLeave = (): void => {
+    if (preview && preview !== drain) void api.discardTx(preview.psbt_id);
+    preview = null;
+    leaveDrain();
+    window.removeEventListener("hashchange", discardOnLeave);
+  };
+  window.addEventListener("hashchange", discardOnLeave);
+
+  const cancelBtn = button("Cancel", () => navigate("dashboard"));
 
   // After `reviewBtn` exists: the first row immediately reports its validity.
   addRow();

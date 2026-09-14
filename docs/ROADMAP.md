@@ -131,14 +131,44 @@ or a signed transaction. Nothing visual.
       (native + wasm32) all green. Not done: the reset-UI action that consumes `corrupt_state`
       — Round 5, it needs a button.
 
-- [ ] **1.7 Desktop screens own their async results** · M · desktop `screens/dashboard.ts`,
+- [x] **1.7 Desktop screens own their async results** · M · desktop `screens/dashboard.ts`,
   `screens/send.ts`, `screens/create.ts`, `screens/restore.ts`, `screens/key.ts`; mobile
   `screens/{settings,export,receive,send,scan}.ts`
       why: `screenGuard` protects five phone screens and no desktop one — a sync finishing after
       Close wallet stamps the next wallet's sync time, a slow bump navigates away from whatever
       opened next, and leaving desktop Send strands its PSBT in `api.pending` (mobile has
-      `discardOnLeave`) · done when: every post-await write on desktop checks the guard; desktop
-      Send discards on leave; on the Mac app, Max → leave → return builds a fresh Review
+      `discardOnLeave`) · done: 2026-09-14 — every desktop screen now calls `screenGuard()`;
+      `dashboard.ts`'s `runSync`/`rescanBtn` stop stamping `lastSyncedAt` once the wallet has
+      changed underneath them, `bumpInline` and Send's Confirm still record `lastResult`
+      unconditionally (the broadcast happened) but only navigate if still on-screen, and
+      `openDetail`'s async paint checks both the guard and its own row-identity check; Send
+      gained `discardOnLeave` (mirroring mobile) so `cancelBtn` shrinks to a bare `navigate` and
+      every abandoned preview or Max build is discarded on any way off the screen, not just
+      Cancel. Five mobile call sites gained the same check where none of the existing five
+      screens' own guards already covered them. Verified: `pnpm -r typecheck`, `pnpm check`,
+      95 frontend tests, and `pnpm -r build`, all green; then a real click-through against the
+      web build (`vite dev` + a live browser) — Setup → Create → confirm grid → Dashboard →
+      Send → Cancel, Setup → Key → generate → open, Setup → Restore → open, and Dashboard's New
+      address — on regtest against an unreachable backend, so wallet creation exercises the
+      real code path with nothing to actually sync.
+
+      That click-through caught a real bug the type checker couldn't: `api.openWallet` sets
+      `session.wallet` itself, inside `install()`, before the promise the caller awaits ever
+      resolves — so the four handlers that call it (Create/Restore's `submit`, Key's `openBtn`
+      and `followBtn`) had their own `onScreen()` check read a wallet-id mismatch against
+      *themselves* on every single call, not just a real swap, and silently ate the navigate to
+      Dashboard every time. Reordering the check earlier in the same function does not help —
+      the mutation happens inside the awaited call, before any of the caller's own code runs —
+      so those four call sites go back to navigating unconditionally, same as before this item,
+      with a comment naming why `onScreen()` does not belong there. Every other call site was
+      checked against the same failure mode (`api.newAddress` also reassigns `session.wallet`,
+      but preserves `wallet_id`, so it is unaffected) before this was marked done.
+
+      Not verified live: the mobile call sites (`apps/web` does not route to them) and the
+      timing-dependent claims themselves — leaving mid-flight is exactly what a manual
+      click-through cannot reliably force. Round 3 item 3.8's jsdom harness is where that gets
+      an automated proof; this item's bar was the guard being present and correct, and the app
+      actually working end to end, both now true.
 
 - [ ] **1.8 The CLI opens the wallet the user means** · S · `crates/wallet-cli/src/main.rs`,
   README CLI section

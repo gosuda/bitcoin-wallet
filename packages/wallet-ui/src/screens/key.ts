@@ -1,6 +1,7 @@
 import { api } from "../api";
 import { platform } from "../platform";
 import { navigate } from "../router";
+import { screenGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -26,6 +27,7 @@ export function renderKey(): HTMLElement {
     navigate("setup");
     return el("main");
   }
+  const onScreen = screenGuard();
 
   const alert = banner();
   const secret = textInput({
@@ -70,13 +72,14 @@ export function renderKey(): HTMLElement {
       alert.hide();
       try {
         const key = await api.generateKey(cfg.network, cfg.address_type);
+        if (!onScreen()) return;
         showGenerated(key);
         alert.show(
           "warn",
           "Back up the private key before funding this address. Losing it loses the funds.",
         );
       } catch (e) {
-        alert.show("error", errorMessage(e));
+        if (onScreen()) alert.show("error", errorMessage(e));
       }
     }),
   );
@@ -101,6 +104,10 @@ export function renderKey(): HTMLElement {
           generated.className = "hidden";
           session.wallet = info;
           if (willRemember) session.remembered = info;
+          // Not `onScreen()`-gated: `api.openWallet` already sets
+          // `session.wallet` as a side effect before this line ever runs, so
+          // the guard's own wallet-id check would always read as a swap and
+          // never navigate.
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));
@@ -184,6 +191,10 @@ export function renderKey(): HTMLElement {
           // fail and put an error over a wallet that opened fine, so take what
           // we know — the same shape the private-key path above uses.
           if (willRemember) session.remembered = info;
+          // Not `onScreen()`-gated: `api.openWallet` already sets
+          // `session.wallet` as a side effect before this line ever runs, so
+          // the guard's own wallet-id check would always read as a swap and
+          // never navigate.
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));

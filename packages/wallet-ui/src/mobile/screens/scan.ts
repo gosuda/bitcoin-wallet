@@ -76,9 +76,10 @@ export function renderScan(): HTMLElement {
     alert.hide();
     try {
       const text = await navigator.clipboard.readText();
+      if (!onScreen()) return;
       accept(text);
     } catch {
-      alert.show("warn", "Nothing readable in the clipboard.");
+      if (onScreen()) alert.show("warn", "Nothing readable in the clipboard.");
     }
   });
 
