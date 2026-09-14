@@ -8,7 +8,9 @@
 use std::str::FromStr;
 
 use async_lock::Mutex;
-use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, ScriptBuf, Transaction, Weight};
+use bdk_wallet::bitcoin::{
+    Address, Amount, FeeRate, Psbt, ScriptBuf, Sequence, Transaction, Weight,
+};
 use bdk_wallet::chain::{ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::error::CreateTxError;
@@ -748,7 +750,14 @@ impl WalletHandle {
         let mut inner = self.inner.lock().await;
         let psbt = {
             let mut builder = inner.wallet.build_tx();
-            builder.set_recipients(outputs).fee_rate(rate);
+            builder
+                .set_recipients(outputs)
+                .fee_rate(rate)
+                // BDK defaults to this already when no CSV descriptor requires
+                // otherwise, which is every address type this wallet offers.
+                // Set explicitly so replaceability is a property of the code,
+                // not of a default that could change upstream.
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -773,7 +782,8 @@ impl WalletHandle {
             builder
                 .drain_wallet()
                 .drain_to(destination.clone())
-                .fee_rate(rate);
+                .fee_rate(rate)
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -1670,6 +1680,58 @@ mod tests {
         assert_eq!(built.total_out_sat + built.fee_sat, 100_000);
         // A real spend, not a preview trick: it signs.
         handle.sign(&built.psbt_base64).await.unwrap();
+    }
+
+    /// BDK signals replaceability by default when nothing overrides it, so
+    /// this held before `set_exact_sequence` too — but it held as a property
+    /// of a default that a future BDK release is free to change, not of this
+    /// code. This pins the promise the fee-bump doc comment makes.
+    #[tokio::test]
+    async fn transfer_and_drain_signal_replaceability() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 200_000).await;
+
+        let transfer = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2wpkh),
+                    amount_sat: 40_000,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap();
+        let transfer_psbt = Psbt::from_str(&transfer.psbt_base64).unwrap();
+        assert!(
+            !transfer_psbt.unsigned_tx.input.is_empty(),
+            "the transfer must actually spend something"
+        );
+        assert!(
+            transfer_psbt
+                .unsigned_tx
+                .input
+                .iter()
+                .all(|i| i.sequence.is_rbf()),
+            "every input of a transfer must signal replaceability"
+        );
+
+        let drain = handle
+            .build_drain(&dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap();
+        let drain_psbt = Psbt::from_str(&drain.psbt_base64).unwrap();
+        assert!(
+            !drain_psbt.unsigned_tx.input.is_empty(),
+            "the drain must actually spend something"
+        );
+        assert!(
+            drain_psbt
+                .unsigned_tx
+                .input
+                .iter()
+                .all(|i| i.sequence.is_rbf()),
+            "every input of a drain must signal replaceability"
+        );
     }
 
     /// Sending to yourself is legitimate — consolidating, or moving to a

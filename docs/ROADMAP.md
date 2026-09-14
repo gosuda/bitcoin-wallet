@@ -50,10 +50,14 @@ or a signed transaction. Nothing visual.
       -p wallet-cli`, workspace clippy (native + wasm32 target), `cargo fmt --check`,
       `pnpm -r typecheck`, `pnpm -r check`, and `pnpm test` (81/81) are all green
 
-- [ ] **1.2 RBF is set, not assumed** · S · `wallet.rs` (`build_transfer`, `build_drain`)
+- [x] **1.2 RBF is set, not assumed** · S · `wallet.rs` (`build_transfer`, `build_drain`)
       why: replaceability rests on BDK's default sequence; the code claims it and nothing
-      asserts it · done when: `set_exact_sequence(ENABLE_RBF_NO_LOCKTIME)` on both builders and
-      a test asserting `is_rbf()` on every input
+      asserts it · done: 2026-09-14 — both builders call
+      `set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME)` (confirmed against BDK 3.1.0's
+      source to be byte-identical to the default for every address type this wallet offers,
+      since none carry a CSV requirement); `transfer_and_drain_signal_replaceability` asserts
+      `is_rbf()` on every input of both; full suite (60 core tests), fmt and clippy
+      (native + wasm32) green
 
 - [ ] **1.3 Every secret field is wiped on leave** · S · `packages/wallet-ui/src/ui/words.ts`
   (`wipeOnLeave`), desktop `screens/key.ts`, `screens/create.ts`, mobile `screens/create.ts`,
