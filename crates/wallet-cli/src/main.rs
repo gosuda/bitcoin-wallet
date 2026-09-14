@@ -14,6 +14,7 @@
 
 use std::io::Read;
 use std::process::ExitCode;
+use std::str::FromStr;
 
 use clap::{Args, Parser, Subcommand};
 use wallet_core::{
@@ -21,6 +22,24 @@ use wallet_core::{
     WalletConfig, WalletHandle,
 };
 use zeroize::Zeroizing;
+
+/// A command-line secret whose allocation is wiped when it is dropped.
+#[derive(Clone)]
+struct Secret(Zeroizing<String>);
+
+impl FromStr for Secret {
+    type Err = std::convert::Infallible;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(Self(Zeroizing::new(value.to_owned())))
+    }
+}
+
+impl Secret {
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "btcw", version, about)]
@@ -58,7 +77,7 @@ struct BackendArgs {
     /// different passphrase open a different wallet. Subject to the same
     /// `ps`/shell-history exposure as --key above.
     #[arg(long)]
-    passphrase: Option<String>,
+    passphrase: Option<Secret>,
 }
 
 #[derive(Subcommand)]
@@ -234,7 +253,10 @@ async fn open(
         address_type,
         backend,
     };
-    let key = read_key(a.key.clone(), a.passphrase.as_deref())?;
+    let key = read_key(
+        a.key.clone(),
+        a.passphrase.as_ref().map(|passphrase| passphrase.as_str()),
+    )?;
     // The CLI keeps wallet state in memory for the run; it re-syncs each time.
     Ok(WalletHandle::open(cfg, &key, Box::new(MemoryPersister::new())).await?)
 }
