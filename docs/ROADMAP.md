@@ -59,14 +59,19 @@ or a signed transaction. Nothing visual.
       `is_rbf()` on every input of both; full suite (60 core tests), fmt and clippy
       (native + wasm32) green
 
-- [ ] **1.3 Every secret field is wiped on leave** · S · `packages/wallet-ui/src/ui/words.ts`
+- [x] **1.3 Every secret field is wiped on leave** · S · `packages/wallet-ui/src/ui/words.ts`
   (`wipeOnLeave`), desktop `screens/key.ts`, `screens/create.ts`, mobile `screens/create.ts`,
   `screens/restore.ts`
       why: the desktop Key screen's private key and watch-only textarea survive navigation;
       mobile Create detaches nodes without zeroing the passphrase; desktop Create duplicates the
-      helper by hand · done when: one helper (accepting textareas) used everywhere; a jsdom test
-      types a key, changes the hash, and finds the field empty; no hand-rolled `hashchange`
-      wipes remain
+      helper by hand · done: 2026-09-14 — `wipeOnLeave` widened to `Wipeable` (anything with a
+      `.value`, so a textarea fits with no `also` workaround); desktop Key wipes the private-key
+      field and the watch-only textarea; desktop Create's two hand-written listeners collapsed
+      into one `wipeOnLeave` call that also covers the confirm-grid words; mobile Create zeroes
+      the passphrase and confirm words before detaching; mobile Restore's watch-only textarea now
+      wipes too. 4 new jsdom tests (`test/words.test.ts`); `grep hashchange` outside the shared
+      router/guard/discard infrastructure finds nothing left hand-rolled; 85/85 tests,
+      typecheck and biome all green
 
 - [ ] **1.4 Secret strings are zeroized and cannot be serialized by accident** · M ·
   `crates/wallet-core/src/keys.rs`, `keystore.rs`, `wallet.rs`, `SECURITY.md`

@@ -35,12 +35,19 @@ export function wordGrid(cells: readonly HTMLElement[]): HTMLElement {
   return el("div", { className: "word-grid" }, [...cells]);
 }
 
+/** Anything with a `.value` to blank out: an `HTMLInputElement`, an `HTMLTextAreaElement`, or a stand-in for a test. */
+export interface Wipeable {
+  value: string;
+}
+
 /**
- * Clears `inputs` the moment the route changes. Typed words and passphrases
- * are secret and must not outlive their screen in the DOM; `inputs` is a
- * function because a grid can be rebuilt (12 → 24 words) after this is armed.
+ * Clears `inputs` the moment the route changes. Typed words, passphrases,
+ * private keys and pasted descriptors are secret and must not outlive their
+ * screen in the DOM; `inputs` is a function because a grid can be rebuilt
+ * (12 → 24 words) after this is armed, and because a screen with more than
+ * one secret field can hand back all of them from one place.
  */
-export function wipeOnLeave(inputs: () => Iterable<HTMLInputElement>, also?: () => void): void {
+export function wipeOnLeave(inputs: () => Iterable<Wipeable>, also?: () => void): void {
   window.addEventListener(
     "hashchange",
     () => {

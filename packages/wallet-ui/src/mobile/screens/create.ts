@@ -6,7 +6,7 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
-import { wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
+import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
 import { body, button, card, header, labelled, spacer, withBusy } from "../ui";
 
 /** How many words the user has to type back before the wallet is created. */
@@ -116,13 +116,12 @@ export function renderCreate(): HTMLElement {
         create,
       );
 
-      // The words must not outlive this screen in the DOM.
-      window.addEventListener(
-        "hashchange",
-        () => {
-          content.replaceChildren();
-        },
-        { once: true },
+      // The phrase, the passphrase and every confirm-grid word the user
+      // typed back are secret; zero each one before detaching the subtree
+      // that held them, rather than trust nothing still references it.
+      wipeOnLeave(
+        () => [passphrase, ...answers.values()],
+        () => content.replaceChildren(),
       );
     } catch (e) {
       // Same reason as the success path: a rejection after the user has left

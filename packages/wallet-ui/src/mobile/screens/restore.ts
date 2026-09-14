@@ -225,6 +225,9 @@ function watchOnly(): HTMLElement {
       autocomplete: "off",
     },
   }) as HTMLTextAreaElement;
+  // Not spendable, but it reveals the wallet's whole history and every
+  // future address — the same reason Export warns before it is shared.
+  wipeOnLeave(() => [source]);
 
   const go = button(
     "Follow this wallet",

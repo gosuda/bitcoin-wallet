@@ -6,6 +6,7 @@ import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "..
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { NO_KEYSTORE_HINT, rememberCheckbox } from "../ui/remember";
+import { wipeOnLeave } from "../ui/words";
 
 /**
  * Whether the single-key disclosure is expanded. Sticky for the session so the
@@ -192,6 +193,10 @@ export function renderKey(): HTMLElement {
     "md",
     { name: "eye" },
   );
+  // A screen can hold at most one of these at a time in practice, but
+  // whichever the user typed into must not survive a route change.
+  wipeOnLeave(() => [secret, watchSource]);
+
   const watchOnly = el("section", { className: "card" }, [
     el("div", { className: "card-head" }, [
       sectionLabel("Watch-only"),

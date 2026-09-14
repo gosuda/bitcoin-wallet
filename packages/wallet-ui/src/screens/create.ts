@@ -5,7 +5,7 @@ import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
-import { wordCell, wordGrid, wordInput, wordText } from "../ui/words";
+import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
 
 const WORD_COUNT = 12;
@@ -53,13 +53,6 @@ export function renderCreate(): HTMLElement {
 
   const mine = ++generation;
   phrase = null;
-  window.addEventListener(
-    "hashchange",
-    () => {
-      if (generation === mine) phrase = null;
-    },
-    { once: true },
-  );
 
   const alert = banner();
   const phraseBox = el("div", {}, [el("p", { className: "empty", text: "Generating…" })]);
@@ -74,14 +67,6 @@ export function renderCreate(): HTMLElement {
     placeholder: "Leave empty for none",
     name: "passphrase",
   });
-  // Secret, like the phrase itself: out of the DOM the moment the route changes.
-  window.addEventListener(
-    "hashchange",
-    () => {
-      passphrase.value = "";
-    },
-    { once: true },
-  );
 
   const copyBtn = copyButton(() => phrase ?? "", "Copy", "sm");
   copyBtn.disabled = true;
@@ -90,6 +75,15 @@ export function renderCreate(): HTMLElement {
   let words: string[] = [];
   let blanks: number[] = [];
   let answers: HTMLInputElement[] = [];
+  // One wipe covers the phrase itself, the passphrase, and every confirm-grid
+  // word the user typed back — all secret, none of it allowed to outlive
+  // this screen. `answers` is read lazily so a regenerated grid is covered too.
+  wipeOnLeave(
+    () => [passphrase, ...answers],
+    () => {
+      if (generation === mine) phrase = null;
+    },
+  );
 
   const confirmed = (): boolean =>
     answers.length === blanks.length &&
