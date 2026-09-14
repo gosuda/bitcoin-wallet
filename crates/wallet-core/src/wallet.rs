@@ -218,8 +218,8 @@ fn script_display(script: &ScriptBuf, net: bdk_wallet::bitcoin::Network) -> Opti
     })
 }
 
-/// Map a builder failure onto the error domain, keeping the one case a UI
-/// can act on — not enough money — structured instead of stringified.
+/// Map a builder failure onto the error domain, keeping every case a UI can
+/// act on differently structured instead of stringified.
 fn build_error(e: CreateTxError) -> Error {
     match e {
         CreateTxError::CoinSelection(InsufficientFunds { needed, available }) => {
@@ -228,6 +228,18 @@ fn build_error(e: CreateTxError) -> Error {
                 available_sat: available.to_sat(),
             }
         }
+        CreateTxError::OutputBelowDustLimit(output) => Error::Dust { output },
+        // sat/kwu → sat/vB by the same factor `fee_rate_from_sat_vb` uses the
+        // other way, so a rate this reports and a rate the UI accepts agree.
+        CreateTxError::FeeRateTooLow { required } => Error::FeeTooLow {
+            required_sat_vb: Some(required.to_sat_per_kwu() as f64 / 250.0),
+            required_sat: None,
+        },
+        CreateTxError::FeeTooLow { required } => Error::FeeTooLow {
+            required_sat_vb: None,
+            required_sat: Some(required.to_sat()),
+        },
+        CreateTxError::NoUtxosSelected => Error::NoUtxos,
         other => Error::BuildTx(other.to_string()),
     }
 }
@@ -667,7 +679,7 @@ impl WalletHandle {
     /// when the txid is not in its history.
     pub async fn transaction(&self, txid: &str) -> Result<Option<TxDetail>> {
         let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::BuildTx(format!("{txid}: {e}")))?;
+            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
         let inner = self.inner.lock().await;
         let Some(d) = inner.wallet.tx_details(txid) else {
             return Ok(None);
@@ -818,13 +830,20 @@ impl WalletHandle {
     pub async fn build_fee_bump(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
         let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::BuildTx(format!("{txid}: {e}")))?;
+            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
         let mut inner = self.inner.lock().await;
         let psbt = {
-            let mut builder = inner
-                .wallet
-                .build_fee_bump(txid)
-                .map_err(|e| Error::BuildTx(e.to_string()))?;
+            let mut builder = inner.wallet.build_fee_bump(txid).map_err(|e| {
+                use bdk_wallet::error::BuildFeeBumpError as E;
+                match e {
+                    E::TransactionNotFound(_)
+                    | E::TransactionConfirmed(_)
+                    | E::IrreplaceableTransaction(_) => Error::NotReplaceable(e.to_string()),
+                    E::UnknownUtxo(_) | E::FeeRateUnavailable | E::InvalidOutputIndex(_) => {
+                        Error::BuildTx(e.to_string())
+                    }
+                }
+            })?;
             builder.fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
@@ -1674,6 +1693,46 @@ mod tests {
             }
             other => panic!("expected InsufficientFunds, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn a_dust_output_is_refused_by_amount_not_lumped_into_build_tx() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let err = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2wpkh),
+                    amount_sat: 1,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "dust");
+        assert!(matches!(err, Error::Dust { .. }), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn a_malformed_txid_is_refused_before_any_lookup() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        let err = handle.transaction("not-a-txid").await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+
+        let err = handle.build_fee_bump("not-a-txid", 2.0).await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+    }
+
+    #[tokio::test]
+    async fn bumping_an_unknown_transaction_is_refused_as_not_replaceable() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let unknown = bdk_wallet::bitcoin::Txid::from_str(&"22".repeat(32)).unwrap();
+        let err = handle
+            .build_fee_bump(&unknown.to_string(), 5.0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
     }
 
     #[tokio::test]

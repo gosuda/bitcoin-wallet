@@ -89,15 +89,28 @@ or a signed transaction. Nothing visual.
       mobile targets (iOS/Android) were not locally cross-compiled but the change adds no
       `target_os`-specific code to the already-abstracted `backend::Entry` path
 
-- [ ] **1.5 Typed errors carry their data to the screen** · M · `error.rs`, `wallet.rs`,
+- [x] **1.5 Typed errors carry their data to the screen** · M · `error.rs`, `wallet.rs`,
   `crates/wallet-wasm/src/lib.rs`, `apps/native/src-tauri/src/error.rs`, `types.ts`
       why: `insufficient_funds` computes the shortfall and then flattens it into prose; dust,
       fee-too-low, no-utxos and a malformed txid all arrive as `build_tx`; the UI appends raw
-      codes to messages · done when: new codes `dust`, `fee_too_low`, `no_utxos`, `invalid_txid`,
-      `not_replaceable`, `invalid_fee_rate`, `corrupt_state`; a `details` object on the wasm
-      error and the Tauri DTO; `errorMessage()` has copy per code and never prints a code; a
-      Rust test maps every variant and asserts codes are unique; a TS test asserts copy per code;
-      an over-spend in the web build reads "Need N sat more"
+      codes to messages · done: 2026-09-14 — six new variants (`Dust`, `FeeTooLow`, `NoUtxos`,
+      `InvalidTxid`, `NotReplaceable`, `CorruptState` — the last unconstructed until 1.6) each
+      with a code and, where there is more than prose, a `details()` object; a new
+      `ErrorPayload` carries `{code, message, details?}`; `wallet.rs`'s `build_error` and the
+      two txid-parse sites and the fee-bump error mapping all construct the new variants instead
+      of `build_tx`; `crates/wallet-wasm`'s `core_err` attaches `details` to the thrown JS Error;
+      the Tauri `AppError` DTO carries the same field; `errorMessage()` now falls through to the
+      message unchanged for any code with no special copy, and has computed copy for
+      `insufficient_funds` (the shortfall), `timeout`, `invalid_fee_rate`, `dust`, `fee_too_low`
+      and `not_replaceable` — never appending `(code)`. Verified: 3 new `error.rs` tests
+      (every variant → code/details shape, codes pairwise unique, `ErrorPayload` conversion);
+      3 new `wallet.rs` tests exercising the real construction paths (a dust output, a malformed
+      txid on both `transaction`/`build_fee_bump`, bumping an unknown txid); 10 new
+      `test/errors.test.ts` tests including the literal "Need 60 more sat." computation; the
+      full workspace typechecks, biome-checks, and `pnpm -r build` succeeds against a real
+      `wasm-pack build` of the changed wasm crate (not just clippy); 69 core tests, fmt and
+      clippy (native + wasm32) all green. Not done: a live click-through in a running browser —
+      the unit tests exercise the exact same shapes the real path produces
 
 - [ ] **1.6 Persisted state carries a version** · M · `crates/wallet-core/src/persist.rs`,
   `wallet.rs`

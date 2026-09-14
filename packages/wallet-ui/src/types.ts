@@ -231,16 +231,24 @@ export interface BroadcastResult {
 export interface AppError {
   code: string;
   message: string;
+  /** Structured data for the codes that carry more than prose — amounts, a
+   * reason — mirroring `wallet_core::Error::details`. Absent otherwise. */
+  details?: Record<string, unknown>;
 }
 
-/** Frontend failure carrying the same `{ code, message }` shape the commands return. */
+/** Frontend failure carrying the same `{ code, message, details? }` shape the commands return. */
 export class WalletError extends Error implements AppError {
   readonly code: string;
+  readonly details?: Record<string, unknown>;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "WalletError";
     this.code = code;
+    // Not `this.details = details`: under `exactOptionalPropertyTypes`, an
+    // optional property left unset and one explicitly set to `undefined`
+    // are different types, and only the former matches `AppError`.
+    if (details !== undefined) this.details = details;
   }
 }
 
@@ -250,8 +258,54 @@ export function isAppError(value: unknown): value is AppError {
   return typeof v.code === "string" && typeof v.message === "string";
 }
 
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+/**
+ * Copy for the codes worth saying something more specific about than the
+ * message the core already wrote — using `details` where it helps.
+ * Everything else falls through to `value.message` unchanged: most codes
+ * already carry a clear message, and the fix this table exists for is that
+ * `errorMessage` used to append the raw code to every one of them.
+ */
+function detailedMessage(value: AppError): string | null {
+  const d = value.details;
+  switch (value.code) {
+    case "insufficient_funds":
+      if (isFiniteNumber(d?.needed_sat) && isFiniteNumber(d?.available_sat)) {
+        return `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
+      }
+      return null;
+    case "timeout":
+      return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
+    case "invalid_fee_rate":
+      return `Enter a fee rate between 0 and ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
+    case "dust":
+      return isFiniteNumber(d?.output)
+        ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
+        : null;
+    case "fee_too_low":
+      if (isFiniteNumber(d?.required_sat_vb)) {
+        return `The fee rate must be at least ${d.required_sat_vb} sat/vB to replace the original.`;
+      }
+      if (isFiniteNumber(d?.required_sat)) {
+        return `The fee must be at least ${d.required_sat.toLocaleString()} sat to replace the original.`;
+      }
+      return null;
+    case "not_replaceable":
+      return "This transaction can no longer be replaced.";
+    case "corrupt_state":
+      return typeof d?.reason === "string"
+        ? `The saved wallet data could not be read (${d.reason}).`
+        : "The saved wallet data could not be read.";
+    default:
+      return null;
+  }
+}
+
 export function errorMessage(value: unknown): string {
-  if (isAppError(value)) return `${value.message} (${value.code})`;
+  if (isAppError(value)) return detailedMessage(value) ?? value.message;
   if (value instanceof Error) return value.message;
   return typeof value === "string" ? value : "unexpected error";
 }

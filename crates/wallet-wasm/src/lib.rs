@@ -24,7 +24,8 @@ use wasm_bindgen_futures::JsFuture;
 /// The UI branches on the code and shows the message. `isAppError()` on the
 /// TS side accepts any object with both, so a wallet-core error reaching the
 /// browser reads the same as one arriving over Tauri IPC. The plain error
-/// type wasm-bindgen offers would have kept only the prose.
+/// type wasm-bindgen offers would have kept only the prose. [`core_err`]
+/// adds a `details` property on top of this for the errors that carry one.
 fn js_error(code: &str, message: &str) -> JsValue {
     let err = js_sys::Error::new(message);
     let _ = Reflect::set(&err, &JsValue::from_str("code"), &JsValue::from_str(code));
@@ -32,7 +33,13 @@ fn js_error(code: &str, message: &str) -> JsValue {
 }
 
 fn core_err(e: wallet_core::Error) -> JsValue {
-    js_error(e.code(), &e.to_string())
+    let err = js_error(e.code(), &e.to_string());
+    if let Some(details) = e.details()
+        && let Ok(js_details) = serde_wasm_bindgen::to_value(&details)
+    {
+        let _ = Reflect::set(&err, &JsValue::from_str("details"), &js_details);
+    }
+    err
 }
 
 fn other_err(e: impl std::fmt::Display) -> JsValue {
