@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 use serde::{Deserialize, Serialize};
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::keys::KeyMaterial;
 use crate::{Error, Result};
@@ -157,7 +157,7 @@ mod backend {
 /// `rename_all = "snake_case"`, same fields — so an entry a previous build
 /// wrote to the credential store still loads.
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 #[serde(rename_all = "snake_case")]
 enum StoredKey {
     PrivHex(String),
