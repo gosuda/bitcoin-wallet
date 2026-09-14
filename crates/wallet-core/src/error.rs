@@ -77,11 +77,18 @@ pub enum Error {
     #[error("transaction cannot be replaced: {0}")]
     NotReplaceable(String),
     /// The persisted wallet state could not be read back: a future format
-    /// version, or a record that does not parse at all. Kept apart from
+    /// version, a record that does not decode as a changeset, or one that
+    /// does not match the wallet being opened. Kept apart from
     /// [`Error::Persist`], which is an I/O failure talking to the store —
-    /// this is the store answering fine with something unusable.
+    /// this is the store answering fine with something unusable. `reason`
+    /// is one of a fixed set of tags ("future_version", "malformed",
+    /// "mismatch"); `found`/`supported` are set only for "future_version".
     #[error("saved wallet data could not be read: {reason}")]
-    CorruptState { reason: String },
+    CorruptState {
+        reason: &'static str,
+        found: Option<u64>,
+        supported: Option<u64>,
+    },
 }
 
 impl Error {
@@ -127,7 +134,11 @@ impl Error {
                 "required_sat_vb": required_sat_vb,
                 "required_sat": required_sat,
             })),
-            Error::CorruptState { reason } => Some(json!({ "reason": reason })),
+            Error::CorruptState {
+                reason,
+                found,
+                supported,
+            } => Some(json!({ "reason": reason, "found": found, "supported": supported })),
             _ => None,
         }
     }
@@ -204,9 +215,13 @@ mod tests {
             (Error::InvalidTxid("x".into()), "invalid_txid", None),
             (Error::NotReplaceable("x".into()), "not_replaceable", None),
             (
-                Error::CorruptState { reason: "x".into() },
+                Error::CorruptState {
+                    reason: "future_version",
+                    found: Some(2),
+                    supported: Some(1),
+                },
                 "corrupt_state",
-                Some(["reason"].as_slice()),
+                Some(["reason", "found", "supported"].as_slice()),
             ),
         ]
     }

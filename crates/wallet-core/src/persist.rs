@@ -21,19 +21,69 @@ pub trait Persister: MaybeSend {
     async fn persist(&mut self, delta: &ChangeSet) -> Result<()>;
 }
 
+/// Current shape of a persisted changeset on the wire. Bumped only when a
+/// change to the envelope or to [`ChangeSet`] itself would stop an older
+/// build of this crate from reading a newer record correctly.
+pub const STATE_FORMAT: u64 = 1;
+
 /// Serialize a changeset for storage (JSON; stable across native and WASM).
+///
+/// Wraps the changeset in a small envelope carrying [`STATE_FORMAT`], so a
+/// later format change can tell "written by an older build" from
+/// "unreadable" instead of just failing to parse.
 pub fn changeset_to_json(cs: &ChangeSet) -> Result<String> {
-    serde_json::to_string(cs).map_err(|e| Error::Persist(e.to_string()))
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct Envelope<'a> {
+        v: u64,
+        changeset: &'a ChangeSet,
+    }
+
+    serde_json::to_string(&Envelope {
+        v: STATE_FORMAT,
+        changeset: cs,
+    })
+    .map_err(|e| Error::Persist(e.to_string()))
 }
 
-/// Inverse of [`changeset_to_json`]; `None`/empty input yields an empty changeset.
+/// Inverse of [`changeset_to_json`]; `None`/empty input yields an empty
+/// changeset.
+///
+/// Reads three shapes: a versioned envelope `{"v": N, "changeset": ...}` at
+/// or below [`STATE_FORMAT`]; a bare `ChangeSet` object with no `"v"` key —
+/// what every record written before the envelope existed still looks like;
+/// or nothing at all. A `"v"` from the future, or JSON that does not parse
+/// or does not decode as a changeset, is refused as [`Error::CorruptState`]
+/// rather than handed to BDK, which would fail later with a less specific
+/// error and no way to tell "written by a newer build" from "actually
+/// corrupt".
 pub fn changeset_from_json(json: Option<&str>) -> Result<ChangeSet> {
-    match json {
-        Some(j) if !j.trim().is_empty() => {
-            serde_json::from_str(j).map_err(|e| Error::Persist(e.to_string()))
+    let json = match json {
+        Some(j) if !j.trim().is_empty() => j,
+        _ => return Ok(ChangeSet::default()),
+    };
+    let malformed = || Error::CorruptState {
+        reason: "malformed",
+        found: None,
+        supported: None,
+    };
+    let value: serde_json::Value = serde_json::from_str(json).map_err(|_| malformed())?;
+    let record = match value.get("v") {
+        Some(v) => {
+            let found = v.as_u64().ok_or_else(malformed)?;
+            if found > STATE_FORMAT {
+                return Err(Error::CorruptState {
+                    reason: "future_version",
+                    found: Some(found),
+                    supported: Some(STATE_FORMAT),
+                });
+            }
+            value.get("changeset").cloned().ok_or_else(malformed)?
         }
-        _ => Ok(ChangeSet::default()),
-    }
+        None => value,
+    };
+    serde_json::from_value(record).map_err(|_| malformed())
 }
 
 /// Keeps the aggregated changeset in memory; state lives only for the session.
@@ -76,5 +126,44 @@ mod tests {
         assert!(cs.is_empty());
         let json = changeset_to_json(&cs).unwrap();
         assert!(changeset_from_json(Some(&json)).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_legacy_bare_record_still_loads() {
+        // What every record looked like before the envelope existed: the
+        // `ChangeSet`'s own JSON with no wrapper at all.
+        let bare = serde_json::to_string(&ChangeSet::default()).unwrap();
+        assert!(changeset_from_json(Some(&bare)).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_v1_envelope_round_trips() {
+        let json = changeset_to_json(&ChangeSet::default()).unwrap();
+        assert!(json.contains("\"v\":1"), "no envelope in {json}");
+        assert!(changeset_from_json(Some(&json)).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_future_version_is_refused_with_found_and_supported() {
+        let err = changeset_from_json(Some(r#"{"v":2,"changeset":{}}"#)).unwrap_err();
+        assert_eq!(err.code(), "corrupt_state");
+        let details = err.details().unwrap();
+        assert_eq!(details["reason"], "future_version");
+        assert_eq!(details["found"], 2);
+        assert_eq!(details["supported"], 1);
+    }
+
+    #[test]
+    fn garbage_is_refused_as_malformed_not_handed_to_bdk() {
+        for garbage in [
+            "not json",
+            "42",
+            "[1,2,3]",
+            r#"{"v":"not a number"}"#,
+            r#"{"v":1}"#,
+        ] {
+            let err = changeset_from_json(Some(garbage)).unwrap_err();
+            assert_eq!(err.code(), "corrupt_state", "input: {garbage}");
+        }
     }
 }

@@ -244,6 +244,21 @@ fn build_error(e: CreateTxError) -> Error {
     }
 }
 
+/// Every [`bdk_wallet::error::LoadError`] variant means the same thing at
+/// this boundary: the persisted record does not correspond to the wallet
+/// being opened — wrong network, wrong genesis, wrong descriptor, or a
+/// required field missing outright. None of that is actionable detail for
+/// a caller; what matters is that it is [`Error::CorruptState`], not
+/// [`Error::Persist`] (an I/O failure), so the UI can offer to reset rather
+/// than retry.
+fn load_error(_: bdk_wallet::error::LoadError) -> Error {
+    Error::CorruptState {
+        reason: "mismatch",
+        found: None,
+        supported: None,
+    }
+}
+
 struct Inner {
     wallet: Wallet,
     persister: Box<dyn Persister>,
@@ -353,7 +368,7 @@ impl WalletHandle {
                 .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
-                .map_err(|e| Error::Persist(e.to_string()))?
+                .map_err(load_error)?
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
             Descriptors::Hd { external, internal } if fresh => {
                 Wallet::create(external.to_string(), internal.to_string())
@@ -367,7 +382,7 @@ impl WalletHandle {
                 .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
-                .map_err(|e| Error::Persist(e.to_string()))?
+                .map_err(load_error)?
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
         };
 

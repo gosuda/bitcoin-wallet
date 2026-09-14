@@ -112,13 +112,24 @@ or a signed transaction. Nothing visual.
       clippy (native + wasm32) all green. Not done: a live click-through in a running browser —
       the unit tests exercise the exact same shapes the real path produces
 
-- [ ] **1.6 Persisted state carries a version** · M · `crates/wallet-core/src/persist.rs`,
-  `wallet.rs`
-      why: the record is a bare BDK changeset with no version; a corrupt or newer record makes
-      the wallet unopenable with a generic `persist` error · done when: `{"v":1,"changeset":…}`
-      written; bare records read as v1; `v > 1` and garbage surface as `corrupt_state` with
-      details; the regtest reopen test still passes. (The "reset local history, keep the key"
-      action that consumes this is in Round 5 — it needs a button.)
+- [x] **1.6 Persisted state carries a version** · M · `crates/wallet-core/src/persist.rs`,
+  `wallet.rs`, `error.rs`
+      why: the record was a bare BDK changeset with no version; a corrupt or newer record made
+      the wallet unopenable with a generic `persist` error, indistinguishable from a real I/O
+      failure · done: 2026-09-14 — `changeset_to_json` wraps every write in `{"v":1,"changeset":
+      …}` (`STATE_FORMAT`); `changeset_from_json` reads a v1 envelope, a bare pre-envelope
+      record (no `"v"` key — every wallet already on disk), or refuses as `Error::CorruptState`:
+      `future_version` (with `found`/`supported`) when `v` exceeds `STATE_FORMAT`, `malformed`
+      for anything else that does not parse or decode. `CorruptState` grew `found`/`supported:
+      Option<u64>` fields to carry that. `wallet.rs`'s new `load_error` maps every
+      `bdk_wallet::error::LoadError` variant (`Mismatch`, `MissingNetwork`, `MissingGenesis`,
+      `MissingDescriptor`, `Descriptor`) to `CorruptState{reason:"mismatch"}`, replacing the
+      generic `Error::Persist` those used to surface as. Verified: 5 `persist.rs` tests (a
+      legacy bare record, a v1 envelope round-trip, `{"v":2}` → `future_version` with the exact
+      `found`/`supported` values, five shapes of garbage all refused as `malformed`); the
+      regtest `state_survives_reopen_from_persister` green; 73 core tests, fmt and clippy
+      (native + wasm32) all green. Not done: the reset-UI action that consumes `corrupt_state`
+      — Round 5, it needs a button.
 
 - [ ] **1.7 Desktop screens own their async results** · M · desktop `screens/dashboard.ts`,
   `screens/send.ts`, `screens/create.ts`, `screens/restore.ts`, `screens/key.ts`; mobile
