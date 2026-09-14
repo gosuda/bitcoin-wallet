@@ -38,13 +38,17 @@ or a signed transaction. Nothing visual.
       why: the work needs a place to be ticked · done: 2026-09-14 —
       README's second paragraph links here
 
-- [ ] **1.1 Fee rate gets a ceiling** · M · `crates/wallet-core/src/wallet.rs`
+- [x] **1.1 Fee rate gets a ceiling** · M · `crates/wallet-core/src/wallet.rs`
   (`fee_rate_from_sat_vb`), `error.rs`, `packages/wallet-ui/src/{api,types}.ts`, both Send
   screens, both bump fields
       why: the rate is clamped at the bottom and saturated at the top, and BDK multiplies it
-      unchecked — a huge rate wraps in release and panics in debug · done when: core rejects
-      NaN, infinity, negatives and anything over 10 000 sat/vB with a typed `invalid_fee_rate`;
-      tests cover each; both Send screens refuse `1e30` inline
+      unchecked — a huge rate wraps in release and panics in debug · done: 2026-09-14 —
+      `fee_rate_from_sat_vb` now returns `Result`, refusing non-finite, negative and
+      >10,000 sat/vB with `invalid_fee_rate`; 5 new Rust tests + 3 new TS tests
+      (`test/feerate.test.ts`) cover it; both Send screens and both bump fields share
+      `feeRateError()`, disable their action and show it inline; `cargo test -p wallet-core
+      -p wallet-cli`, workspace clippy (native + wasm32 target), `cargo fmt --check`,
+      `pnpm -r typecheck`, `pnpm -r check`, and `pnpm test` (81/81) are all green
 
 - [ ] **1.2 RBF is set, not assumed** · S · `wallet.rs` (`build_transfer`, `build_drain`)
       why: replaceability rests on BDK's default sequence; the code claims it and nothing

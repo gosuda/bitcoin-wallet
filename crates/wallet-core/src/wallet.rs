@@ -28,6 +28,11 @@ use crate::{Error, Result};
 pub const DEFAULT_FEE_TARGET: u16 = 6;
 /// Floor applied to any fee rate (Go parity: 1 sat/vB).
 pub const MIN_FEE_RATE_SAT_VB: f64 = 1.0;
+/// Ceiling on any fee rate. Past this a rate is almost certainly a mistake —
+/// a misplaced decimal point, sat/vB confused with sat/vkB — rather than an
+/// urgent bump, and it is well short of where `FeeRate` multiplied against a
+/// transaction's weight would overflow a `u64` in the sat/kwu domain.
+pub const MAX_FEE_RATE_SAT_VB: f64 = 10_000.0;
 /// Unused scripts a full scan walks past before deciding a keychain is done.
 pub const DEFAULT_STOP_GAP: u32 = 20;
 /// Ceiling for a caller-chosen gap: past this a scan is minutes of round trips.
@@ -259,10 +264,23 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// Convert a fractional sat/vB rate into BDK's sat/kwu representation (rounding up).
-pub fn fee_rate_from_sat_vb(sat_per_vb: f64) -> FeeRate {
+/// Convert a fractional sat/vB rate into BDK's sat/kwu representation
+/// (rounding up), refusing anything that is not a plausible fee rate.
+///
+/// A value between 0 and [`MIN_FEE_RATE_SAT_VB`] is raised to the floor —
+/// that is the relay minimum, not a data error. NaN, an infinity, a negative
+/// number, or anything past [`MAX_FEE_RATE_SAT_VB`] is refused instead of
+/// silently clamped: BDK multiplies the rate by a transaction's weight with
+/// no overflow check, so an unchecked huge rate wraps in a release build and
+/// panics in a debug one.
+pub fn fee_rate_from_sat_vb(sat_per_vb: f64) -> Result<FeeRate> {
+    if !sat_per_vb.is_finite() || !(0.0..=MAX_FEE_RATE_SAT_VB).contains(&sat_per_vb) {
+        return Err(Error::InvalidFeeRate(format!(
+            "{sat_per_vb} sat/vB is not between 0 and {MAX_FEE_RATE_SAT_VB}"
+        )));
+    }
     let clamped = sat_per_vb.max(MIN_FEE_RATE_SAT_VB);
-    FeeRate::from_sat_per_kwu((clamped * 250.0).ceil() as u64)
+    Ok(FeeRate::from_sat_per_kwu((clamped * 250.0).ceil() as u64))
 }
 
 impl WalletHandle {
@@ -714,6 +732,7 @@ impl WalletHandle {
         if recipients.is_empty() {
             return Err(Error::BuildTx("no recipients".into()));
         }
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let mut outputs = Vec::with_capacity(recipients.len());
         for r in recipients {
             let addr = self.recipient_address(&r.address)?;
@@ -729,9 +748,7 @@ impl WalletHandle {
         let mut inner = self.inner.lock().await;
         let psbt = {
             let mut builder = inner.wallet.build_tx();
-            builder
-                .set_recipients(outputs)
-                .fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+            builder.set_recipients(outputs).fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -747,6 +764,7 @@ impl WalletHandle {
     /// that number from an assumed size and subtracting is off by a few sats
     /// either way — it then fails to build, or leaves dust behind.
     pub async fn build_drain(&self, address: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let addr = self.recipient_address(address)?;
         let destination = addr.script_pubkey();
         let mut inner = self.inner.lock().await;
@@ -755,7 +773,7 @@ impl WalletHandle {
             builder
                 .drain_wallet()
                 .drain_to(destination.clone())
-                .fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+                .fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -779,6 +797,7 @@ impl WalletHandle {
     /// any other. The backend rejects a bump that does not raise the fee enough
     /// to replace the original.
     pub async fn build_fee_bump(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
             .map_err(|e| Error::BuildTx(format!("{txid}: {e}")))?;
         let mut inner = self.inner.lock().await;
@@ -787,7 +806,7 @@ impl WalletHandle {
                 .wallet
                 .build_fee_bump(txid)
                 .map_err(|e| Error::BuildTx(e.to_string()))?;
-            builder.fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+            builder.fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -1502,9 +1521,36 @@ mod tests {
 
     #[test]
     fn fee_rate_conversion_rounds_up() {
-        assert_eq!(fee_rate_from_sat_vb(1.0).to_sat_per_kwu(), 250);
-        assert_eq!(fee_rate_from_sat_vb(0.1).to_sat_per_kwu(), 250);
-        assert_eq!(fee_rate_from_sat_vb(2.5).to_sat_per_kwu(), 625);
+        assert_eq!(fee_rate_from_sat_vb(1.0).unwrap().to_sat_per_kwu(), 250);
+        assert_eq!(fee_rate_from_sat_vb(0.1).unwrap().to_sat_per_kwu(), 250);
+        assert_eq!(fee_rate_from_sat_vb(2.5).unwrap().to_sat_per_kwu(), 625);
+    }
+
+    #[test]
+    fn a_fee_rate_below_the_floor_is_raised_not_refused() {
+        // 0 and small positive values are a caller asking for "as cheap as
+        // possible", not a data error — the floor is the relay minimum.
+        assert!(fee_rate_from_sat_vb(0.0).is_ok());
+        assert!(fee_rate_from_sat_vb(0.01).is_ok());
+    }
+
+    #[test]
+    fn implausible_fee_rates_are_refused_not_wrapped() {
+        for bad in [
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            -1.0,
+            -0.001,
+            MAX_FEE_RATE_SAT_VB + 0.01,
+            1e30,
+            f64::MAX,
+        ] {
+            let err = fee_rate_from_sat_vb(bad).expect_err(&format!("{bad} should be refused"));
+            assert_eq!(err.code(), "invalid_fee_rate");
+        }
+        // The ceiling itself is still a plausible, if aggressive, rate.
+        assert!(fee_rate_from_sat_vb(MAX_FEE_RATE_SAT_VB).is_ok());
     }
 
     /// State persisted through the portable boundary reloads into a new handle

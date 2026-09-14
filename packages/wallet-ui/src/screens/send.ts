@@ -7,6 +7,8 @@ import {
   backendHost,
   errorMessage,
   type FeeEstimate,
+  feeRateError,
+  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type Recipient,
   rateForTarget,
@@ -84,8 +86,11 @@ export function renderSend(): HTMLElement {
   let rowSeq = 0;
 
   const feeRate = textInput({ value: "1", type: "number", mono: true });
+  feeRate.id = "send-fee-rate";
   feeRate.min = "1";
+  feeRate.max = String(MAX_FEE_RATE_SAT_VB);
   feeRate.step = "0.1";
+  const feeError = el("span", { className: "field-error hidden" });
   /**
    * Set once the user types a rate. The first estimate can land afterwards,
    * and applying it then replaces a rate they chose deliberately. Picking a
@@ -97,8 +102,14 @@ export function renderSend(): HTMLElement {
     rateTouched = true;
     leaveDrain();
     feeHint.textContent = `Custom rate · ${FLOOR_NOTE}`;
+    renderFeeError();
+    updateReview();
   });
   const feeHint = el("span", { className: "hint fee-source", text: "Fetching estimate…" });
+
+  const renderFeeError = () => {
+    setError(feeError, feeRate, rateTouched ? feeRateError(Number(feeRate.value)) : null);
+  };
 
   /** The rate the form will build at, floored at the relay minimum. */
   const currentRate = (): number => {
@@ -128,6 +139,8 @@ export function renderSend(): HTMLElement {
     const rate = rateForTarget(estimate, Number(targetBlocks));
     if (rate === null) {
       feeHint.textContent = "No estimate available; enter a rate.";
+      renderFeeError();
+      updateReview();
       return;
     }
     const rounded = Math.max(1, Math.ceil(rate * 10) / 10);
@@ -137,6 +150,8 @@ export function renderSend(): HTMLElement {
     if (feeRate.value !== String(rounded)) leaveDrain();
     feeRate.value = String(rounded);
     feeHint.textContent = `${host} estimate for ${targetBlocks} block${targetBlocks === "1" ? "" : "s"} · ${FLOOR_NOTE}`;
+    renderFeeError();
+    updateReview();
   };
 
   const loadEstimate = async () => {
@@ -153,10 +168,13 @@ export function renderSend(): HTMLElement {
     addressLooksValid(row.address.value, wallet.network) &&
     parseAmount(row.amount.value, row.unit).sats !== null;
 
-  /** Review is the only gate: it stays off while any row is empty or wrong. */
+  /** Review is the only gate: it stays off while any row or the fee is empty or wrong. */
   const updateReview = () => {
     if (formLocked) return;
-    reviewBtn.disabled = rows.length === 0 || rows.some((r) => !rowValid(r));
+    reviewBtn.disabled =
+      rows.length === 0 ||
+      rows.some((r) => !rowValid(r)) ||
+      feeRateError(Number(feeRate.value)) !== null;
   };
 
   const setError = (slot: HTMLElement, input: HTMLInputElement, message: string | null) => {
@@ -552,7 +570,15 @@ export function renderSend(): HTMLElement {
       sectionLabel("Fee"),
       el("div", { className: "fee-row" }, [
         field("Target", target),
-        field("Rate (sat/vB)", feeRate),
+        el("div", { className: "field" }, [
+          el("label", {
+            className: "field-label",
+            text: "Rate (sat/vB)",
+            attrs: { for: feeRate.id },
+          }),
+          feeRate,
+          feeError,
+        ]),
         el("div", { className: "field" }, [
           el("span", { className: "field-label", text: "Source" }),
           feeHint,

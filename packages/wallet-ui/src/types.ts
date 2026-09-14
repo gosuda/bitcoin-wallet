@@ -163,6 +163,27 @@ export function rateForTarget(estimate: FeeEstimate, target: number): number | n
   return slower ? slower[1] : null;
 }
 
+/**
+ * Mirrors `wallet_core::wallet::MAX_FEE_RATE_SAT_VB`. Past this a rate is
+ * almost certainly a mistake — a misplaced decimal, sat/vB confused with
+ * sat/vkB — rather than an urgent bump, and the core refuses it outright.
+ */
+export const MAX_FEE_RATE_SAT_VB = 10_000;
+
+/**
+ * `null` when `rate` is a fee the core will accept; otherwise why not, so a
+ * screen can say so before the round trip to `build_transfer`/`build_drain`/
+ * `build_fee_bump` fails with `invalid_fee_rate`.
+ */
+export function feeRateError(rate: number): string | null {
+  if (!Number.isFinite(rate)) return "Enter a fee rate.";
+  if (rate <= 0) return "Fee rate must be more than 0 sat/vB.";
+  if (rate > MAX_FEE_RATE_SAT_VB) {
+    return `Fee rate can't be over ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
+  }
+  return null;
+}
+
 /** Returned once by `generate_key`; never persisted by the UI. */
 export interface GeneratedKey {
   priv_hex: string;

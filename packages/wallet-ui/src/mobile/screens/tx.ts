@@ -4,7 +4,13 @@ import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { session } from "../../session";
-import { errorMessage, type TxDetail, type TxOutput } from "../../types";
+import {
+  errorMessage,
+  feeRateError,
+  MAX_FEE_RATE_SAT_VB,
+  type TxDetail,
+  type TxOutput,
+} from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, formatNumber, sectionLabel, textInput } from "../../ui/dom";
 import { icon } from "../../ui/icons";
@@ -148,6 +154,7 @@ export function renderTransaction(): HTMLElement {
   const bumpCard = (id: string, originalRate: number | null): HTMLElement => {
     const rate = textInput({ value: "1", type: "number", mono: true, name: "bump_rate" });
     rate.min = "1";
+    rate.max = String(MAX_FEE_RATE_SAT_VB);
     rate.step = "0.1";
     rate.setAttribute("inputmode", "decimal");
     const note = el("span", { className: "hint", text: "Fetching the 1-block estimate…" });
@@ -157,8 +164,9 @@ export function renderTransaction(): HTMLElement {
         withBusy(bump, async () => {
           alert.hide();
           const value = Number(rate.value);
-          if (!Number.isFinite(value) || value < 1) {
-            return alert.show("error", "Fee rate must be at least 1 sat/vB.");
+          const rateErr = feeRateError(value);
+          if (rateErr) {
+            return alert.show("error", rateErr);
           }
           try {
             const preview = await api.buildFeeBump(id, value);

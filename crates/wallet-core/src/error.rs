@@ -30,6 +30,12 @@ pub enum Error {
     /// along so a UI can say by how much, not only that it failed.
     #[error("insufficient funds: need {needed_sat} sat, have {available_sat} sat")]
     InsufficientFunds { needed_sat: u64, available_sat: u64 },
+    /// A fee rate that is not a plausible sat/vB value: not finite, negative,
+    /// or past the ceiling. Kept apart from [`Error::BuildTx`] because it is
+    /// caught before a builder is touched, on every path a rate can arrive
+    /// from (a manual entry, a bump, a saved preference).
+    #[error("invalid fee rate: {0}")]
+    InvalidFeeRate(String),
     #[error("signing error: {0}")]
     Sign(String),
     #[error("psbt error: {0}")]
@@ -50,6 +56,7 @@ impl Error {
             Error::Timeout(_) => "timeout",
             Error::BuildTx(_) => "build_tx",
             Error::InsufficientFunds { .. } => "insufficient_funds",
+            Error::InvalidFeeRate(_) => "invalid_fee_rate",
             Error::Sign(_) => "sign",
             Error::Psbt(_) => "psbt",
             Error::Unsupported(_) => "unsupported",

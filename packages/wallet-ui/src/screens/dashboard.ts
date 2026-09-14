@@ -12,6 +12,8 @@ import {
   ADDRESS_TYPE_LABELS,
   type Balance,
   errorMessage,
+  feeRateError,
+  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type PublicDescriptors,
   type TxDetail,
@@ -237,6 +239,7 @@ export function renderDashboard(): HTMLElement {
     const rate = textInput({ value: String(suggested), type: "number", mono: true });
     rate.id = `bump-rate-${txid.slice(0, 8)}`;
     rate.min = "1";
+    rate.max = String(MAX_FEE_RATE_SAT_VB);
     rate.step = "0.1";
     rate.classList.add("bump-rate");
     const bumpBtn = button(
@@ -245,8 +248,9 @@ export function renderDashboard(): HTMLElement {
         withBusy(bumpBtn, async () => {
           alert.hide();
           const value = Number(rate.value);
-          if (!Number.isFinite(value) || value < 1) {
-            alert.show("error", "Fee rate must be at least 1 sat/vB.");
+          const rateErr = feeRateError(value);
+          if (rateErr) {
+            alert.show("error", rateErr);
             return;
           }
           try {

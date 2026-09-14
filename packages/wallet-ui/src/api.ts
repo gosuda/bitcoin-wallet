@@ -29,7 +29,7 @@ import type {
   Utxo,
   WalletInfo,
 } from "./types";
-import { WalletError } from "./types";
+import { MAX_FEE_RATE_SAT_VB, WalletError } from "./types";
 import type { BuiltTx } from "./wasm";
 import {
   explorerTxUrl,
@@ -200,6 +200,12 @@ function retainPsbt(built: BuiltTx): TxPreview {
 function requireRate(feeRateSatVb: number): void {
   if (!Number.isFinite(feeRateSatVb) || feeRateSatVb <= 0) {
     throw new WalletError("build_tx", "fee rate must be a positive number");
+  }
+  if (feeRateSatVb > MAX_FEE_RATE_SAT_VB) {
+    throw new WalletError(
+      "invalid_fee_rate",
+      `fee rate must be at most ${MAX_FEE_RATE_SAT_VB} sat/vB`,
+    );
   }
 }
 
