@@ -40,11 +40,12 @@ struct Cli {
 
 /// clap value parser for a secret argument: the copy this returns is
 /// zeroized on drop instead of left for the allocator to reclaim later.
-/// `s` only borrows from a copy clap already made while parsing argv into
-/// `ArgMatches` — that copy is not zeroized, and outlives this function for
-/// as long as the parsed `Cli` does, so it narrows the unzeroized window to
-/// clap's own bookkeeping rather than closing it. Does not hide the value
-/// from `ps` or shell history either — nothing in-process can.
+/// `s` only borrows from a copy clap made internally while parsing argv;
+/// this function has no way to reach that copy or control when it is
+/// reclaimed, and it is not zeroized regardless. This narrows the
+/// unzeroized window to clap's own bookkeeping; it does not close it. Does
+/// not hide the value from `ps` or shell history either — nothing
+/// in-process can.
 fn zeroizing_arg(s: &str) -> Result<Zeroizing<String>, std::convert::Infallible> {
     Ok(Zeroizing::new(s.to_owned()))
 }
