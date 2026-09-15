@@ -41,11 +41,8 @@ pub fn run() {
             // capabilities/*.json grant the webview's HTTP proxy no scope at
             // all, so a remembered wallet that syncs immediately on launch —
             // before `set_config` ever runs again this process — needs this
-            // read here too, not only inside `set_config`'s own handler.
-            match commands::stored_config(&handle) {
-                Ok(cfg) => commands::grant_backend_scope(&handle, &cfg.backend),
-                Err(e) => eprintln!("warning: could not read the stored config at startup: {e:?}"),
-            }
+            // grant here too, not only inside `set_config`'s own handler.
+            commands::grant_stored_backend_scope(&handle);
 
             // The mobile credential stores are installed at runtime and can fail
             // on a device while compiling perfectly well on CI, so ask now
