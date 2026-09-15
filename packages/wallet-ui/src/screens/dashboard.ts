@@ -7,7 +7,7 @@ import { buildPaymentUri, qrPayload } from "../bip21";
 import { suggestBumpRate } from "../feebump";
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { screenGuard } from "../screen";
+import { sameWalletGuard, screenGuard } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -197,6 +197,7 @@ export function renderDashboard(): HTMLElement {
     return el("main");
   }
   const onScreen = screenGuard();
+  const sameWallet = sameWalletGuard();
 
   const alert = banner();
   const heroTotal = el("span", { className: "stat-hero mono", text: "0" });
@@ -262,10 +263,15 @@ export function renderDashboard(): HTMLElement {
           try {
             const preview = await api.buildFeeBump(txid, value);
             const result = await api.signAndBroadcast(preview.psbt_id);
-            // The bump already broadcast: record it regardless, but only
-            // steal the screen away if this row's detail is still the one
+            // The bump already broadcast. If the session has since moved to
+            // a different wallet, this result is not that wallet's to show:
+            // recording it here would leave a stale txid sitting where the
+            // new wallet's Result screen would read it as its own, so only
+            // a still-current wallet gets it recorded at all. From there,
+            // steal the screen only if this row's detail is still the one
             // open — the user may have opened a different transaction's
             // detail on this same dashboard while the bump was in flight.
+            if (!sameWallet()) return;
             session.lastResult = result;
             if (!onScreen()) return;
             if (open?.detail === ownerDetail) {

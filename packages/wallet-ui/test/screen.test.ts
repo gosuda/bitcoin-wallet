@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it } from "vitest";
-import { screenGuard } from "../src/screen";
+import { sameWalletGuard, screenGuard } from "../src/screen";
 import { session } from "../src/session";
 import type { WalletInfo } from "../src/types";
 
@@ -81,5 +81,28 @@ describe("screenGuard", () => {
     const onScreen = screenGuard();
     session.wallet = null;
     expect(onScreen()).toBe(false);
+  });
+});
+
+describe("sameWalletGuard", () => {
+  // The property screenGuard's own tests can't isolate: a plain navigation
+  // must not trip this half, or a still-current wallet's own broadcast
+  // result would go unrecorded just because the user changed screens.
+  it("holds across a route change", () => {
+    const sameWallet = sameWalletGuard();
+    navigateTo("#/settings");
+    expect(sameWallet()).toBe(true);
+  });
+
+  it("lapses when the wallet changes", () => {
+    const sameWallet = sameWalletGuard();
+    session.wallet = wallet("signet-p2wpkh-bbbb");
+    expect(sameWallet()).toBe(false);
+  });
+
+  it("lapses when the wallet is closed", () => {
+    const sameWallet = sameWalletGuard();
+    session.wallet = null;
+    expect(sameWallet()).toBe(false);
   });
 });

@@ -35,6 +35,23 @@ export function routeGuard(): () => boolean {
 }
 
 /**
+ * Whether `session.wallet` is still the wallet this render opened — no route
+ * check, the mirror image of `routeGuard`. Split out for call sites that
+ * need this half alone: recording that a broadcast already happened is
+ * correct no matter which screen is on top afterward, but wrong once the
+ * session has moved on to a different wallet, and `screenGuard`'s combined
+ * check would also suppress it on a plain navigation that never touched the
+ * wallet at all.
+ *
+ * Call this once, while the screen is being built — see `screenGuard`'s own
+ * doc comment for why.
+ */
+export function sameWalletGuard(): () => boolean {
+  const openedFor = session.wallet?.wallet_id ?? "";
+  return () => (session.wallet?.wallet_id ?? "") === openedFor;
+}
+
+/**
  * Whether the screen render that started a piece of async work is still on screen.
  *
  * Every `await` is a place the user can leave. When the result arrives the
@@ -54,6 +71,6 @@ export function routeGuard(): () => boolean {
  */
 export function screenGuard(): () => boolean {
   const onRoute = routeGuard();
-  const openedFor = session.wallet?.wallet_id ?? "";
-  return () => onRoute() && (session.wallet?.wallet_id ?? "") === openedFor;
+  const sameWallet = sameWalletGuard();
+  return () => onRoute() && sameWallet();
 }
