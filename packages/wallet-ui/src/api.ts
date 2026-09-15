@@ -84,6 +84,25 @@ function stillCurrent(attempt: number): boolean {
 }
 
 /**
+ * Serializes `openWallet`'s remember step across every open attempt: each
+ * call to `fn` waits for every previously queued one to settle first,
+ * whether that one resolved or threw, so no two attempts' keystore and
+ * remembered-record writes ever interleave. `install`'s own commit needs no
+ * queue - it has nothing left to await between its staleness check and the
+ * write - but the writes here are each a separate round trip, and it is
+ * exactly the gap between them a newer attempt could otherwise land in.
+ */
+let rememberQueue: Promise<unknown> = Promise.resolve();
+function serializeRemember<T>(fn: () => Promise<T>): Promise<T> {
+  const turn = rememberQueue.then(fn, fn);
+  rememberQueue = turn.then(
+    () => undefined,
+    () => undefined,
+  );
+  return turn;
+}
+
+/**
  * Opens the wallet for `secret` against `network`/`addressType`, backed by the
  * IndexedDB record for its wallet id. The secret is used here and dropped.
  *
@@ -154,35 +173,37 @@ async function openWallet(
   const { network } = await requireConfig();
   const { info, attempt } = await install(secret, network, addressType, passphrase);
   if (remember) {
-    // `install` already refused to commit a superseded attempt, but a
-    // newer open can still commit while the keystore write below is in
-    // flight — checked again after it too, since that is the actual point
-    // a second one could land in between and make this one stale.
-    if (!stillCurrent(attempt)) {
-      throw new WalletError("superseded", "a newer wallet-open request replaced this one");
-    }
-    await platform().rememberSecret(info.wallet_id, secret, passphrase);
-    if (!stillCurrent(attempt)) {
-      // The secret is already in the keystore under this wallet's own id
-      // from the call just above, and nothing else will ever find it if
-      // setRemembered below never runs — forgetWallet only ever follows
-      // whatever "remembered" already points to. Left alone it would sit
-      // there forever with no UI path to remove it. Clean it up, unless
-      // the wallet that superseded us has this exact id too (the same
-      // secret opened twice at once): then the entry may already be the
-      // winner's own, and deleting it would break that one instead.
-      if (session.wallet?.wallet_id !== info.wallet_id) {
-        await platform().forgetSecret(info.wallet_id);
+    await serializeRemember(async () => {
+      // Checked fresh at the start of this attempt's turn, not before
+      // queuing for one: a newer attempt only has to have started, not
+      // committed, to make this one stale - a check against `session.wallet`
+      // here would still be looking at whatever was active before either of
+      // them, since the newer one has not written it yet either. Nothing
+      // else can be touching the keystore or the remembered record while
+      // this turn holds the queue, so only what happened before the turn
+      // began matters; there is nothing concurrent left to race.
+      if (!stillCurrent(attempt)) {
+        throw new WalletError("superseded", "a newer wallet-open request replaced this one");
       }
-      throw new WalletError("superseded", "a newer wallet-open request replaced this one");
-    }
-    const record: RememberedWallet = {
-      wallet_id: info.wallet_id,
-      address: info.address,
-      network: info.network,
-      address_type: info.address_type,
-    };
-    await platform().setRemembered(record);
+      await platform().rememberSecret(info.wallet_id, secret, passphrase);
+      if (!stillCurrent(attempt)) {
+        // The entry just written above can only be this attempt's own -
+        // nothing else could have raced to write it while this turn held
+        // the queue - so it is safe to remove outright before conceding.
+        // Left alone, forgetWallet would never find it: it only follows
+        // whatever the remembered record already points to, and
+        // setRemembered below is exactly the call this path skips.
+        await platform().forgetSecret(info.wallet_id);
+        throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+      }
+      const record: RememberedWallet = {
+        wallet_id: info.wallet_id,
+        address: info.address,
+        network: info.network,
+        address_type: info.address_type,
+      };
+      await platform().setRemembered(record);
+    });
   }
   return info;
 }
