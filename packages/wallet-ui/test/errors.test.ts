@@ -68,7 +68,7 @@ describe("errorMessage", () => {
       required_sat_vb: null,
       required_sat: 2000,
     });
-    expect(errorMessage(byAmount)).toContain("2,000 sat");
+    expect(errorMessage(byAmount)).toContain(`${(2000).toLocaleString("en-US")} sat`);
   });
 
   it("names the output for dust, one-indexed for a reader", () => {
@@ -78,7 +78,7 @@ describe("errorMessage", () => {
 
   it("names the ceiling for invalid_fee_rate", () => {
     const msg = errorMessage(new WalletError("invalid_fee_rate", "x"));
-    expect(msg).toContain(MAX_FEE_RATE_SAT_VB.toLocaleString());
+    expect(msg).toContain(MAX_FEE_RATE_SAT_VB.toLocaleString("en-US"));
   });
 
   it("falls back to the message when details are missing or the wrong shape", () => {

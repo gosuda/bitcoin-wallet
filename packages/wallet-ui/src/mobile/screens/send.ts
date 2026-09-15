@@ -203,9 +203,16 @@ export function renderSend(): HTMLElement {
         rate = 1;
       }
     }
-    // A Max preview is built at one rate. Changing it afterwards would leave
-    // Review showing the new rate and broadcasting the old one.
-    if (rate !== before) leaveDrain();
+    if (rate !== before) {
+      // A Max preview is built at one rate; changing it afterwards would
+      // leave Review showing the new rate and broadcasting the old one.
+      leaveDrain();
+      // The caller's own `refresh()` right after calling this ran against
+      // the rate from before this estimate arrived. Re-validate now that
+      // `rate` itself changed, so an implausible estimate disables Review
+      // instead of leaving it clickable until the build rejects it.
+      refresh();
+    }
   }
   rateInput.addEventListener("input", () => {
     clearPreview();
@@ -227,9 +234,15 @@ export function renderSend(): HTMLElement {
    * follows the values: a form filled in correctly is ready whether or not
    * focus has left the last field.
    */
-  /** Only "custom" lets the user type an implausible rate; the presets are estimates. */
+  /**
+   * Custom validates what was typed, so a bad keystroke is flagged before
+   * `rate` ever changes. A preset has no typed value to check — but its
+   * estimate still becomes `rate`, and a backend that returns something
+   * non-finite or past the ceiling must not sail through unchecked just
+   * because a person did not type it.
+   */
   const rateError = (): string | null =>
-    fee.value() === "custom" ? feeRateError(Number(rateInput.value)) : null;
+    fee.value() === "custom" ? feeRateError(Number(rateInput.value)) : feeRateError(rate);
 
   const refresh = (): void => {
     setError(

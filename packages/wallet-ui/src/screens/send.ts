@@ -526,8 +526,12 @@ export function renderSend(): HTMLElement {
         const recipients = collectRecipients();
         if (!recipients) return;
         const rate = Number(feeRate.value);
-        if (!Number.isFinite(rate) || rate < 1) {
-          alert.show("error", "Fee rate must be at least 1 sat/vB.");
+        // Same check `updateReview` already gated the button on: a positive
+        // rate under the floor is valid input, raised by the core, not an
+        // error — this must not be stricter than what enabled the click.
+        const rateErr = feeRateError(rate);
+        if (rateErr) {
+          alert.show("error", rateErr);
           return;
         }
         try {

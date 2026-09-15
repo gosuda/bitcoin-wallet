@@ -198,8 +198,11 @@ function retainPsbt(built: BuiltTx): TxPreview {
 }
 
 function requireRate(feeRateSatVb: number): void {
+  // Same code for the whole invalid class as the core's own
+  // fee_rate_from_sat_vb, so a screen branching on `invalid_fee_rate` sees
+  // it regardless of which of these two conditions actually caught it.
   if (!Number.isFinite(feeRateSatVb) || feeRateSatVb <= 0) {
-    throw new WalletError("build_tx", "fee rate must be a positive number");
+    throw new WalletError("invalid_fee_rate", "fee rate must be a positive number");
   }
   if (feeRateSatVb > MAX_FEE_RATE_SAT_VB) {
     throw new WalletError(

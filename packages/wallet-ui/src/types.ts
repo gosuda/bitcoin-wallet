@@ -171,9 +171,15 @@ export function rateForTarget(estimate: FeeEstimate, target: number): number | n
 export const MAX_FEE_RATE_SAT_VB = 10_000;
 
 /**
- * `null` when `rate` is a fee the core will accept; otherwise why not, so a
+ * `null` when `rate` is a fee this UI will submit; otherwise why not, so a
  * screen can say so before the round trip to `build_transfer`/`build_drain`/
  * `build_fee_bump` fails with `invalid_fee_rate`.
+ *
+ * Not quite the core's own contract: `fee_rate_from_sat_vb` accepts `0` and
+ * raises it to the floor, but an empty numeric input reads as `Number("")
+ * === 0` in every browser, so treating a bare `0` as valid here would let a
+ * cleared field silently enable Review. Refusing it is a deliberate product
+ * choice on top of a core rule this UI otherwise mirrors exactly.
  */
 export function feeRateError(rate: number): string | null {
   if (!Number.isFinite(rate)) return "Enter a fee rate.";
@@ -274,13 +280,13 @@ function detailedMessage(value: AppError): string | null {
   switch (value.code) {
     case "insufficient_funds":
       if (isFiniteNumber(d?.needed_sat) && isFiniteNumber(d?.available_sat)) {
-        return `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
+        return `Need ${(d.needed_sat - d.available_sat).toLocaleString("en-US")} more sat.`;
       }
       return null;
     case "timeout":
       return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
     case "invalid_fee_rate":
-      return `Enter a fee rate between 0 and ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
+      return `Enter a fee rate between 0 and ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
     case "dust":
       return isFiniteNumber(d?.output)
         ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
@@ -290,7 +296,7 @@ function detailedMessage(value: AppError): string | null {
         return `The fee rate must be at least ${d.required_sat_vb} sat/vB to replace the original.`;
       }
       if (isFiniteNumber(d?.required_sat)) {
-        return `The fee must be at least ${d.required_sat.toLocaleString()} sat to replace the original.`;
+        return `The fee must be at least ${d.required_sat.toLocaleString("en-US")} sat to replace the original.`;
       }
       return null;
     case "not_replaceable":

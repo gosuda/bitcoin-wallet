@@ -237,7 +237,11 @@ export function renderDashboard(): HTMLElement {
     open = null;
   };
 
-  const bumpInline = (txid: string, suggested: number): HTMLElement => {
+  const bumpInline = (
+    txid: string,
+    suggested: number,
+    ownerDetail: HTMLTableRowElement,
+  ): HTMLElement => {
     const rate = textInput({ value: String(suggested), type: "number", mono: true });
     rate.id = `bump-rate-${txid.slice(0, 8)}`;
     rate.min = "1";
@@ -259,16 +263,18 @@ export function renderDashboard(): HTMLElement {
             const preview = await api.buildFeeBump(txid, value);
             const result = await api.signAndBroadcast(preview.psbt_id);
             // The bump already broadcast: record it regardless, but only
-            // steal the screen away if this is still the one that asked.
+            // steal the screen away if this row's detail is still the one
+            // open — the user may have opened a different transaction's
+            // detail on this same dashboard while the bump was in flight.
             session.lastResult = result;
-            if (onScreen()) {
+            if (onScreen() && open?.detail === ownerDetail) {
               closeDetail();
               navigate("result");
             }
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
             // node's own wording is the most useful thing to show.
-            if (onScreen()) alert.show("error", errorMessage(e));
+            if (onScreen() && open?.detail === ownerDetail) alert.show("error", errorMessage(e));
           }
         }),
       "primary",
@@ -287,6 +293,7 @@ export function renderDashboard(): HTMLElement {
     d: TxDetail,
     explorer: string | null,
     suggested: number | null,
+    ownerDetail: HTMLTableRowElement,
   ): HTMLElement => {
     const ownInputs = d.inputs.filter((i) => i.ours).length;
     const muted = (text: string) => el("span", { className: "muted", text });
@@ -330,7 +337,7 @@ export function renderDashboard(): HTMLElement {
         ),
       );
     }
-    if (suggested !== null) actions.appendChild(bumpInline(d.txid, suggested));
+    if (suggested !== null) actions.appendChild(bumpInline(d.txid, suggested, ownerDetail));
     return el("div", { className: "tx-detail-box" }, [kv(rows), actions]);
   };
 
@@ -365,7 +372,7 @@ export function renderDashboard(): HTMLElement {
           }
         }
         if (onScreen() && open?.detail === detail) {
-          cell.replaceChildren(detailBox(d, explorer, suggested));
+          cell.replaceChildren(detailBox(d, explorer, suggested, detail));
         }
       } catch (e) {
         // Only this row's own failure may close this row. A slow request for a
@@ -606,7 +613,9 @@ export function renderDashboard(): HTMLElement {
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
   txBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
-  void refreshLocal().catch((e: unknown) => alert.show("error", errorMessage(e)));
+  void refreshLocal().catch((e: unknown) => {
+    if (onScreen()) alert.show("error", errorMessage(e));
+  });
   void paintQr();
   void api
     .publicDescriptors()
