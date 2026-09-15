@@ -163,6 +163,17 @@ async function openWallet(
     }
     await platform().rememberSecret(info.wallet_id, secret, passphrase);
     if (!stillCurrent(attempt)) {
+      // The secret is already in the keystore under this wallet's own id
+      // from the call just above, and nothing else will ever find it if
+      // setRemembered below never runs — forgetWallet only ever follows
+      // whatever "remembered" already points to. Left alone it would sit
+      // there forever with no UI path to remove it. Clean it up, unless
+      // the wallet that superseded us has this exact id too (the same
+      // secret opened twice at once): then the entry may already be the
+      // winner's own, and deleting it would break that one instead.
+      if (session.wallet?.wallet_id !== info.wallet_id) {
+        await platform().forgetSecret(info.wallet_id);
+      }
       throw new WalletError("superseded", "a newer wallet-open request replaced this one");
     }
     const record: RememberedWallet = {
