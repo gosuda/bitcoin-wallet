@@ -134,9 +134,12 @@ A mnemonic's passphrase is part of the wallet's identity — the same words with
 different wallet, not a locked version of this one. `--key`/`--passphrase` on the command line
 are visible to anyone who can run `ps` on this machine while the process is alive, and land in
 shell history if typed interactively. `--key -` (stdin) avoids both — the secret is never a
-command-line token at all. The `BTCW_*` env vars avoid only the `ps` exposure: typing
-`export BTCW_KEY=...` at a prompt still writes it to shell history the same as `--key` would,
-so set them from a sourced file that is not itself committed, not by typing the assignment.
+command-line token at all. The `BTCW_*` env vars avoid the command-line vectors — `ps` output,
+shell history, `/proc/<pid>/cmdline` — but the value still sits in the process environment for
+the life of the process, readable via `/proc/<pid>/environ` on Linux and inherited by every
+child process it spawns. Typing `export BTCW_KEY=...` at a prompt writes it to shell history
+the same as `--key` would, so set them from a sourced file that is not itself committed, not by
+typing the assignment.
 On failure the process exits with a code that names the failure class (`error.rs`'s codes,
 offset so 1 stays "a CLI-level problem, not wallet-core") instead of always 1, so a script can
 branch on `$?`.
