@@ -1,25 +1,3 @@
-/**
- * Whether the screen render that started a piece of async work is still on screen.
- *
- * Every `await` is a place the user can leave. When the result arrives the
- * screen that asked for it may be gone, and applying it then writes into a
- * detached DOM at best — at worst into the screen that replaced it, which is
- * how a sync started for one wallet repaints another's balance.
- *
- * The guard is per *render*, not per route. Comparing route and wallet alone
- * looked sufficient and was not: leaving Scan and opening it again rebuilds the
- * screen but reproduces the same route and wallet, so a camera promise from the
- * abandoned render still read as current and navigated the fresh one away to
- * Send. Screens are rebuilt on every navigation, so each render retires its own
- * guard on the next one.
- *
- * Call this once, while the screen is being built — a guard created later
- * belongs to a later moment and cannot speak for work already in flight.
- *
- * This is not a substitute for disabling a button while its own work runs;
- * that is `withBusy`, and it answers a different question.
- */
-
 import { currentRoute } from "./router";
 import { session } from "./session";
 
