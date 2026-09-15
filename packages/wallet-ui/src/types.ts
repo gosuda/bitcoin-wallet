@@ -286,7 +286,7 @@ function detailedMessage(value: AppError): string | null {
     case "timeout":
       return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
     case "invalid_fee_rate":
-      return `Enter a fee rate between 0 and ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
+      return `Enter a fee rate greater than 0, up to ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
     case "dust":
       return isFiniteNumber(d?.output)
         ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
