@@ -267,9 +267,17 @@ export function renderDashboard(): HTMLElement {
             // open — the user may have opened a different transaction's
             // detail on this same dashboard while the bump was in flight.
             session.lastResult = result;
-            if (onScreen() && open?.detail === ownerDetail) {
+            if (!onScreen()) return;
+            if (open?.detail === ownerDetail) {
               closeDetail();
               navigate("result");
+            } else {
+              // The bump already broadcast, but the row that started it is
+              // no longer the open detail — closeDetail/navigate would steal
+              // a screen the user has since moved on from. Confirm it landed
+              // some other way, or a silent success invites a retry into a
+              // double-bump.
+              alert.show("ok", `Fee bump broadcast: ${shortTxid(result.txid)}.`);
             }
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
