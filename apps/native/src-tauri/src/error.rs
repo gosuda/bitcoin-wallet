@@ -30,11 +30,14 @@ impl From<wallet_core::Error> for AppError {
     fn from(e: wallet_core::Error) -> Self {
         // The core owns the code table, so the browser build and this shell
         // report the same names — and the same structured details — for the
-        // same failures.
+        // same failures. Going through `ErrorPayload` rather than calling
+        // `e.code()`/`e.to_string()`/`e.details()` separately means this and
+        // the wasm boundary's `core_err` cannot drift on what the shape is.
+        let payload = wallet_core::ErrorPayload::from(&e);
         Self {
-            code: e.code(),
-            message: e.to_string(),
-            details: e.details(),
+            code: payload.code,
+            message: payload.message,
+            details: payload.details,
         }
     }
 }

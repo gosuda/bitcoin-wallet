@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 use serde::{Deserialize, Serialize};
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::keys::KeyMaterial;
 use crate::{Error, Result};
@@ -157,7 +157,7 @@ mod backend {
 /// `rename_all = "snake_case"`, same fields — so an entry a previous build
 /// wrote to the credential store still loads.
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 #[serde(rename_all = "snake_case")]
 enum StoredKey {
     PrivHex(String),
@@ -187,13 +187,21 @@ impl From<&KeyMaterial> for StoredKey {
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 impl From<StoredKey> for KeyMaterial {
     fn from(stored: StoredKey) -> Self {
+        // `ref` bindings, not a move: `StoredKey` now zeroizes on drop, and
+        // Rust refuses to move a field out of a type that does. `stored`
+        // stays fully intact and gets wiped when it drops at the end of this
+        // call, after these clones have handed the data to the new value.
         match stored {
-            StoredKey::PrivHex(s) => KeyMaterial::PrivHex(s),
-            StoredKey::Wif(s) => KeyMaterial::Wif(s),
-            StoredKey::Mnemonic { words, passphrase } => {
-                KeyMaterial::Mnemonic { words, passphrase }
-            }
-            StoredKey::WatchOnly(s) => KeyMaterial::WatchOnly(s),
+            StoredKey::PrivHex(ref s) => KeyMaterial::PrivHex(s.clone()),
+            StoredKey::Wif(ref s) => KeyMaterial::Wif(s.clone()),
+            StoredKey::Mnemonic {
+                ref words,
+                ref passphrase,
+            } => KeyMaterial::Mnemonic {
+                words: words.clone(),
+                passphrase: passphrase.clone(),
+            },
+            StoredKey::WatchOnly(ref s) => KeyMaterial::WatchOnly(s.clone()),
         }
     }
 }

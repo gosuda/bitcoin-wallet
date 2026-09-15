@@ -33,8 +33,13 @@ fn js_error(code: &str, message: &str) -> JsValue {
 }
 
 fn core_err(e: wallet_core::Error) -> JsValue {
-    let err = js_error(e.code(), &e.to_string());
-    if let Some(details) = e.details()
+    // `ErrorPayload` is the one place that decides this shape; building it
+    // here instead of calling `e.code()`/`e.to_string()`/`e.details()`
+    // separately means the wasm and Tauri boundaries cannot drift apart on
+    // what a wire error looks like.
+    let payload = wallet_core::ErrorPayload::from(&e);
+    let err = js_error(payload.code, &payload.message);
+    if let Some(details) = payload.details
         && let Ok(js_details) = serde_wasm_bindgen::to_value(&details)
     {
         let _ = Reflect::set(&err, &JsValue::from_str("details"), &js_details);
