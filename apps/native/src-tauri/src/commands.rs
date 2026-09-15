@@ -36,18 +36,20 @@ pub async fn get_config(app: AppHandle) -> AppResult<AppConfig> {
 
 #[tauri::command]
 pub async fn set_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
-    // Checked before anything is persisted: a saved config the webview's
-    // HTTP proxy can never be granted scope for is worse than refusing the
-    // save outright — the UI would report success and then every sync fails.
+    // Both checked before anything is persisted: a saved config the webview's
+    // HTTP proxy can never reach — an unparseable URL, or a scope grant that
+    // fails — is worse than refusing the save outright, since the UI would
+    // report success and then every sync fails against a backend startup
+    // cannot get scope for either.
     let pattern = backend_origin_pattern(&config.backend).ok_or_else(|| {
         AppError::new("config", "the Esplora URL must be a plain http(s) address")
     })?;
+    grant_backend_scope(&app, &pattern)?;
     let store = app.store(STORE_FILE)?;
     let value =
         serde_json::to_value(&config).map_err(|e| AppError::new("config", e.to_string()))?;
     store.set(STORE_KEY, value);
     store.save()?;
-    grant_backend_scope(&app, &pattern)?;
     Ok(())
 }
 
