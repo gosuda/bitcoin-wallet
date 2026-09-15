@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { navigate } from "../router";
-import { screenGuard } from "../screen";
+import { routeGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -51,7 +51,7 @@ export function renderCreate(): HTMLElement {
     navigate("setup");
     return el("main");
   }
-  const onScreen = screenGuard();
+  const onScreen = routeGuard();
 
   const mine = ++generation;
   phrase = null;
@@ -123,12 +123,11 @@ export function renderCreate(): HTMLElement {
       passphrase.value = "";
       session.wallet = info;
       if (willRemember) session.remembered = info;
-      // Not `onScreen()`-gated: `api.openWallet` already sets `session.wallet`
-      // as a side effect before this line ever runs, so the guard's own
-      // wallet-id check would always read as a swap and never navigate.
-      navigate("dashboard");
+      // `onScreen` is `routeGuard`, not `screenGuard`: it has no wallet-id
+      // check to misfire against `session.wallet` just having been set above.
+      if (onScreen()) navigate("dashboard");
     } catch (e) {
-      alert.show("error", errorMessage(e));
+      if (onScreen()) alert.show("error", errorMessage(e));
     }
   };
 
