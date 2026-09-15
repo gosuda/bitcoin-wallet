@@ -75,6 +75,14 @@ function releaseWallet(): void {
   wallet?.free();
 }
 
+/** Ordinal of the most recently started `install` call; only the newest may commit. */
+let openAttempt = 0;
+
+/** Whether `attempt` (from `install`) is still the newest one anyone has started. */
+function stillCurrent(attempt: number): boolean {
+  return attempt === openAttempt;
+}
+
 /**
  * Opens the wallet for `secret` against `network`/`addressType`, backed by the
  * IndexedDB record for its wallet id. The secret is used here and dropped.
@@ -82,16 +90,18 @@ function releaseWallet(): void {
  * `passphrase` is the optional BIP39 one. It goes into the wallet id as much as
  * the words do, so the same phrase under two passphrases gets two ids — two
  * IndexedDB records and two keystore entries, never a collision.
+ *
+ * Returns the attempt's own ordinal alongside `info` so a caller that keeps
+ * working after this resolves — `openWallet` persists a remembered secret —
+ * can keep calling `stillCurrent` for as long as it keeps touching shared
+ * state, not just for the commit this function already guarded.
  */
-/** Ordinal of the most recently started `install` call; only the newest may commit. */
-let openAttempt = 0;
-
 async function install(
   secret: string,
   network: Network,
   addressType: AddressType,
   passphrase?: string,
-): Promise<WalletInfo> {
+): Promise<{ info: WalletInfo; attempt: number }> {
   const attempt = ++openAttempt;
   const base = await requireConfig();
   const config: AppConfig = { ...base, network, address_type: addressType };
@@ -109,7 +119,7 @@ async function install(
   // nothing below it awaits, so once a call reaches this check, whether it
   // is still the newest one cannot change out from under it before
   // `session` is written.
-  if (attempt !== openAttempt) {
+  if (!stillCurrent(attempt)) {
     wallet.free();
     throw new WalletError("superseded", "a newer wallet-open request replaced this one");
   }
@@ -126,7 +136,7 @@ async function install(
     is_watch_only: wallet.isWatchOnly,
   };
   session.wallet = info;
-  return info;
+  return { info, attempt };
 }
 
 /**
@@ -142,9 +152,19 @@ async function openWallet(
   passphrase?: string,
 ): Promise<WalletInfo> {
   const { network } = await requireConfig();
-  const info = await install(secret, network, addressType, passphrase);
+  const { info, attempt } = await install(secret, network, addressType, passphrase);
   if (remember) {
+    // `install` already refused to commit a superseded attempt, but a
+    // newer open can still commit while the keystore write below is in
+    // flight — checked again after it too, since that is the actual point
+    // a second one could land in between and make this one stale.
+    if (!stillCurrent(attempt)) {
+      throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+    }
     await platform().rememberSecret(info.wallet_id, secret, passphrase);
+    if (!stillCurrent(attempt)) {
+      throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+    }
     const record: RememberedWallet = {
       wallet_id: info.wallet_id,
       address: info.address,
@@ -167,12 +187,13 @@ async function unlockWallet(): Promise<WalletInfo> {
   if (!record) throw notRemembered();
   const stored = await platform().loadSecret(record.wallet_id);
   if (!stored?.secret) throw notRemembered();
-  return install(
+  const { info } = await install(
     stored.secret,
     record.network,
     record.address_type,
     stored.passphrase ?? undefined,
   );
+  return info;
 }
 
 /** Removes the keystore entry, the local wallet state and the remembered record. */
