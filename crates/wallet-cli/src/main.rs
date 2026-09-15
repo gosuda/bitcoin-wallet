@@ -38,6 +38,14 @@ struct Cli {
     cmd: Cmd,
 }
 
+/// clap value parser for a secret argument: parsed like a plain string, but
+/// zeroized on drop instead of left for the allocator to reclaim later. Does
+/// not hide the value from `ps` or shell history — nothing in-process can —
+/// only what lingers in memory after `read_key` has consumed it.
+fn zeroizing_arg(s: &str) -> Result<Zeroizing<String>, std::convert::Infallible> {
+    Ok(Zeroizing::new(s.to_owned()))
+}
+
 #[derive(Args, Clone)]
 struct BackendArgs {
     /// Esplora base URL (defaults to mempool.space for the network)
@@ -50,15 +58,15 @@ struct BackendArgs {
     /// unless the line is prefixed with a space (and history for it is
     /// configured to notice). Prefer `--key -` with the secret on stdin, or
     /// $BTCW_KEY in an env file that is not itself committed.
-    #[arg(short, long)]
-    key: Option<String>,
+    #[arg(short, long, value_parser = zeroizing_arg)]
+    key: Option<Zeroizing<String>>,
     /// BIP39 passphrase, for a mnemonic key; falls back to $BTCW_PASSPHRASE
     ///
     /// Part of the wallet's identity, not a lock on it: the same words with a
     /// different passphrase open a different wallet. Subject to the same
     /// `ps`/shell-history exposure as --key above.
-    #[arg(long)]
-    passphrase: Option<String>,
+    #[arg(long, value_parser = zeroizing_arg)]
+    passphrase: Option<Zeroizing<String>>,
 }
 
 #[derive(Subcommand)]
@@ -194,16 +202,19 @@ fn parse_address_type(s: &str) -> Result<AddressType, String> {
     AddressType::parse(s).ok_or_else(|| format!("unknown address type '{s}'"))
 }
 
-fn read_key(arg: Option<String>, passphrase: Option<&str>) -> Result<KeyMaterial, CliError> {
+fn read_key(
+    arg: Option<Zeroizing<String>>,
+    passphrase: Option<&str>,
+) -> Result<KeyMaterial, CliError> {
     let raw: Zeroizing<String> = match arg {
-        Some(k) if k == "-" => {
+        Some(k) if k.as_str() == "-" => {
             let mut buf = Zeroizing::new(String::new());
             std::io::stdin()
                 .read_to_string(&mut buf)
                 .map_err(|e| e.to_string())?;
             buf
         }
-        Some(k) => Zeroizing::new(k),
+        Some(k) => k,
         None => Zeroizing::new(
             std::env::var("BTCW_KEY")
                 .map_err(|_| "no key: pass --key or set BTCW_KEY".to_string())?,
@@ -234,7 +245,7 @@ async fn open(
         address_type,
         backend,
     };
-    let key = read_key(a.key.clone(), a.passphrase.as_deref())?;
+    let key = read_key(a.key.clone(), a.passphrase.as_ref().map(|p| p.as_str()))?;
     // The CLI keeps wallet state in memory for the run; it re-syncs each time.
     Ok(WalletHandle::open(cfg, &key, Box::new(MemoryPersister::new())).await?)
 }
@@ -278,7 +289,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
                 let address = w.new_address().await?;
                 return Ok(serde_json::json!({ "address": address, "hd": w.is_hd() }));
             }
-            let key = read_key(backend.key, backend.passphrase.as_deref())?;
+            let key = read_key(backend.key, backend.passphrase.as_ref().map(|p| p.as_str()))?;
             let address = wallet_core::address_for_key(&key, network, address_type)?;
             Ok(serde_json::json!({ "address": address, "hd": key.is_hd() }))
         }
@@ -446,8 +457,9 @@ mod tests {
 
     #[test]
     fn read_key_applies_the_passphrase_it_is_given() {
-        let plain = read_key(Some(TEST_WORDS.to_string()), None).unwrap();
-        let passphrased = read_key(Some(TEST_WORDS.to_string()), Some("TREZOR")).unwrap();
+        let plain = read_key(Some(Zeroizing::new(TEST_WORDS.to_string())), None).unwrap();
+        let passphrased =
+            read_key(Some(Zeroizing::new(TEST_WORDS.to_string())), Some("TREZOR")).unwrap();
         assert_eq!(plain.passphrase(), None);
         assert_eq!(passphrased.passphrase(), Some("TREZOR"));
     }
