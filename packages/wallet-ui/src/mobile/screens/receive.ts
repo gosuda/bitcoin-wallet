@@ -4,6 +4,7 @@ import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
 import { buildPaymentUri, qrPayload } from "../../bip21";
 import { navigate } from "../../router";
+import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -17,6 +18,7 @@ export function renderReceive(): HTMLElement {
     navigate("setup");
     return host;
   }
+  const onScreen = screenGuard();
 
   const alert = banner();
   let address = info.address;
@@ -86,9 +88,10 @@ export function renderReceive(): HTMLElement {
         alert.hide();
         try {
           address = await api.newAddress();
+          if (!onScreen()) return;
           await paint();
         } catch (e) {
-          alert.show("error", errorMessage(e));
+          if (onScreen()) alert.show("error", errorMessage(e));
         }
       }),
     { icon: "plus" },

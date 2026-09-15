@@ -10,6 +10,9 @@ only — it is not extended; use it for parity checks and to recover intended be
 Found a security problem? [SECURITY.md](SECURITY.md) says how to report it, and what
 this wallet does and does not protect you from.
 
+What is left to build, and why, lives in [docs/ROADMAP.md](docs/ROADMAP.md) —
+read it before opening an issue asking for something that is already listed there.
+
 ## What it does
 
 **Open a wallet** three ways: a BIP39 recovery phrase (an HD account, with a
@@ -112,6 +115,7 @@ $btcw generate -n signet -t p2wpkh                 # new key + address (printed 
 $btcw generate -n signet -t p2wpkh --mnemonic      # 12-word BIP39 seed + first address
 $btcw generate -n signet --mnemonic --words 24     # 24 words instead
 export BTCW_KEY=<priv_hex_or_wif_or_mnemonic>      # quote a mnemonic; `--key -` reads stdin
+export BTCW_PASSPHRASE=<optional>                  # BIP39 passphrase; --passphrase also works
 $btcw address -n signet                            # first receive address, offline
 $btcw address -n signet --new                      # HD: sync, then reveal a fresh one
 $btcw balance -n signet                            # Esplora (mempool.space by default)
@@ -126,6 +130,19 @@ Address types: `p2pk`, `p2pkh`, `p2wpkh`, `np2wpkh`, `p2tr`. Networks: `bitcoin`
 Every transaction the wallet builds signals replaceability, so a stuck payment can be re-sent with `bump`.
 The CLI keeps wallet state in memory for the run and re-syncs each time; keys are never persisted.
 Because of that, `address --new` reveals the address after the last one the sync found used.
+A mnemonic's passphrase is part of the wallet's identity — the same words without it open a
+different wallet, not a locked version of this one. `--key`/`--passphrase` on the command line
+are visible to anyone who can run `ps` on this machine while the process is alive, and land in
+shell history if typed interactively. `--key -` (stdin) avoids both — the secret is never a
+command-line token at all. The `BTCW_*` env vars avoid the command-line vectors — `ps` output,
+shell history, `/proc/<pid>/cmdline` — but the value still sits in the process environment for
+the life of the process, readable via `/proc/<pid>/environ` on Linux and inherited by every
+child process it spawns. Typing `export BTCW_KEY=...` at a prompt writes it to shell history
+the same as `--key` would, so set them from a sourced file that is not itself committed, not by
+typing the assignment.
+On failure the process exits with a code that names the failure class (`error.rs`'s codes,
+offset so 1 stays "a CLI-level problem, not wallet-core") instead of always 1, so a script can
+branch on `$?`.
 
 ### Tests
 

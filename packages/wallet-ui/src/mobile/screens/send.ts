@@ -4,7 +4,14 @@ import { api } from "../../api";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { session } from "../../session";
-import { errorMessage, type FeeEstimate, rateForTarget, type TxPreview } from "../../types";
+import {
+  errorMessage,
+  type FeeEstimate,
+  feeRateError,
+  MAX_FEE_RATE_SAT_VB,
+  rateForTarget,
+  type TxPreview,
+} from "../../types";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
 import { body, button, card, chips, header, labelled, lede, row, spacer, withBusy } from "../ui";
 
@@ -141,6 +148,7 @@ export function renderSend(): HTMLElement {
   // --- fee -----------------------------------------------------------------
   const rateInput = textInput({ value: "1", type: "number", mono: true, name: "rate" });
   rateInput.min = "1";
+  rateInput.max = String(MAX_FEE_RATE_SAT_VB);
   rateInput.step = "0.1";
   rateInput.setAttribute("inputmode", "decimal");
   const customRow = el("div", { className: "m-rate-row" }, [
@@ -148,6 +156,7 @@ export function renderSend(): HTMLElement {
     el("span", { className: "m-rate-unit", text: "sat/vB · floor 1" }),
   ]);
   customRow.hidden = true;
+  const rateErr = el("span", { className: "m-err", attrs: { role: "status" } });
   const rateNote = el("span", { className: "m-txmeta", text: "Fetching fee estimate…" });
   let estimate: FeeEstimate | null = null;
   let rate = 1;
@@ -166,6 +175,7 @@ export function renderSend(): HTMLElement {
       clearPreview();
       leaveDrain();
       void refreshRate();
+      refresh();
     },
     { tight: true, label: "Fee target" },
   );
@@ -183,23 +193,32 @@ export function renderSend(): HTMLElement {
         // The target can change — including to Custom — while the estimate is
         // in flight. `Number("custom")` is NaN, so applying it afterwards
         // silently built at 1 sat/vB while the field showed the typed rate.
-        if (fee.value() !== choice) return;
+        // The screen can also have changed while it was in flight.
+        if (fee.value() !== choice || !onScreen()) return;
         rate = rateForTarget(estimate, Number(choice)) ?? 1;
         rateNote.textContent = `${rate.toFixed(2)} sat/vB`;
       } catch (e) {
-        if (fee.value() !== choice) return;
+        if (fee.value() !== choice || !onScreen()) return;
         rateNote.textContent = `Using 1 sat/vB — ${errorMessage(e)}`;
         rate = 1;
       }
     }
-    // A Max preview is built at one rate. Changing it afterwards would leave
-    // Review showing the new rate and broadcasting the old one.
-    if (rate !== before) leaveDrain();
+    if (rate !== before) {
+      // A Max preview is built at one rate; changing it afterwards would
+      // leave Review showing the new rate and broadcasting the old one.
+      leaveDrain();
+      // The caller's own `refresh()` right after calling this ran against
+      // the rate from before this estimate arrived. Re-validate now that
+      // `rate` itself changed, so an implausible estimate disables Review
+      // instead of leaving it clickable until the build rejects it.
+      refresh();
+    }
   }
   rateInput.addEventListener("input", () => {
     clearPreview();
     leaveDrain();
     void refreshRate();
+    refresh();
   });
 
   // --- validation -----------------------------------------------------------
@@ -215,6 +234,16 @@ export function renderSend(): HTMLElement {
    * follows the values: a form filled in correctly is ready whether or not
    * focus has left the last field.
    */
+  /**
+   * Custom validates what was typed, so a bad keystroke is flagged before
+   * `rate` ever changes. A preset has no typed value to check — but its
+   * estimate still becomes `rate`, and a backend that returns something
+   * non-finite or past the ceiling must not sail through unchecked just
+   * because a person did not type it.
+   */
+  const rateError = (): string | null =>
+    fee.value() === "custom" ? feeRateError(Number(rateInput.value)) : feeRateError(rate);
+
   const refresh = (): void => {
     setError(
       addressErr,
@@ -226,9 +255,11 @@ export function renderSend(): HTMLElement {
       amount,
       touched.amount ? parseAmount(amount.value, currentUnit).error : null,
     );
+    setError(rateErr, rateInput, rateError());
     review.disabled =
       !addressLooksValid(address.value, info.network) ||
-      parseAmount(amount.value, currentUnit).sats === null;
+      parseAmount(amount.value, currentUnit).sats === null ||
+      rateError() !== null;
   };
 
   address.addEventListener("input", () => {
@@ -373,7 +404,7 @@ export function renderSend(): HTMLElement {
       alert.node,
       card(labelled("To", address), row(address, scan), addressErr),
       card(labelled("Amount", amount), row(amount, unit.node, max), amountErr, maxNote),
-      card(sectionLabel("Fee"), fee.node, customRow, rateNote),
+      card(sectionLabel("Fee"), fee.node, customRow, rateErr, rateNote),
       reviewHost,
       spacer(),
       review,

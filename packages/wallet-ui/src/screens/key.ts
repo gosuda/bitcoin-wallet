@@ -1,11 +1,13 @@
 import { api } from "../api";
 import { platform } from "../platform";
 import { navigate } from "../router";
+import { routeGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { NO_KEYSTORE_HINT, rememberCheckbox } from "../ui/remember";
+import { wipeOnLeave } from "../ui/words";
 
 /**
  * Whether the single-key disclosure is expanded. Sticky for the session so the
@@ -25,6 +27,7 @@ export function renderKey(): HTMLElement {
     navigate("setup");
     return el("main");
   }
+  const onScreen = routeGuard();
 
   const alert = banner();
   const secret = textInput({
@@ -69,13 +72,14 @@ export function renderKey(): HTMLElement {
       alert.hide();
       try {
         const key = await api.generateKey(cfg.network, cfg.address_type);
+        if (!onScreen()) return;
         showGenerated(key);
         alert.show(
           "warn",
           "Back up the private key before funding this address. Losing it loses the funds.",
         );
       } catch (e) {
-        alert.show("error", errorMessage(e));
+        if (onScreen()) alert.show("error", errorMessage(e));
       }
     }),
   );
@@ -100,9 +104,11 @@ export function renderKey(): HTMLElement {
           generated.className = "hidden";
           session.wallet = info;
           if (willRemember) session.remembered = info;
-          navigate("dashboard");
+          // `onScreen` is `routeGuard`, not `screenGuard`: it has no
+          // wallet-id check to misfire against `session.wallet` just set above.
+          if (onScreen()) navigate("dashboard");
         } catch (e) {
-          alert.show("error", errorMessage(e));
+          if (onScreen()) alert.show("error", errorMessage(e));
         }
       }),
     "primary",
@@ -183,15 +189,31 @@ export function renderKey(): HTMLElement {
           // fail and put an error over a wallet that opened fine, so take what
           // we know — the same shape the private-key path above uses.
           if (willRemember) session.remembered = info;
-          navigate("dashboard");
+          // `onScreen` is `routeGuard`, not `screenGuard`: it has no
+          // wallet-id check to misfire against `session.wallet` just set above.
+          if (onScreen()) navigate("dashboard");
         } catch (e) {
-          alert.show("error", errorMessage(e));
+          if (onScreen()) alert.show("error", errorMessage(e));
         }
       }),
     "default",
     "md",
     { name: "eye" },
   );
+  // A screen can hold at most one of these at a time in practice, but
+  // whichever the user typed into must not survive a route change. A
+  // generated key is shown, not typed, so it needs the same treatment
+  // through `also` rather than the input list `wipeOnLeave` clears itself —
+  // the same reset `openBtn`'s own success path already does before it
+  // navigates away with a key actually in use.
+  wipeOnLeave(
+    () => [secret, watchSource],
+    () => {
+      generated.replaceChildren();
+      generated.className = "hidden";
+    },
+  );
+
   const watchOnly = el("section", { className: "card" }, [
     el("div", { className: "card-head" }, [
       sectionLabel("Watch-only"),

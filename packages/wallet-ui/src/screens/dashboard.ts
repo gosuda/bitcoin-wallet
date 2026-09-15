@@ -7,11 +7,14 @@ import { buildPaymentUri, qrPayload } from "../bip21";
 import { suggestBumpRate } from "../feebump";
 import { platform } from "../platform";
 import { navigate } from "../router";
+import { sameWalletGuard, screenGuard } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
   type Balance,
   errorMessage,
+  feeRateError,
+  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type PublicDescriptors,
   type TxDetail,
@@ -193,6 +196,8 @@ export function renderDashboard(): HTMLElement {
     navigate("setup");
     return el("main");
   }
+  const onScreen = screenGuard();
+  const sameWallet = sameWalletGuard();
 
   const alert = banner();
   const heroTotal = el("span", { className: "stat-hero mono", text: "0" });
@@ -233,10 +238,15 @@ export function renderDashboard(): HTMLElement {
     open = null;
   };
 
-  const bumpInline = (txid: string, suggested: number): HTMLElement => {
+  const bumpInline = (
+    txid: string,
+    suggested: number,
+    ownerDetail: HTMLTableRowElement,
+  ): HTMLElement => {
     const rate = textInput({ value: String(suggested), type: "number", mono: true });
     rate.id = `bump-rate-${txid.slice(0, 8)}`;
     rate.min = "1";
+    rate.max = String(MAX_FEE_RATE_SAT_VB);
     rate.step = "0.1";
     rate.classList.add("bump-rate");
     const bumpBtn = button(
@@ -245,20 +255,40 @@ export function renderDashboard(): HTMLElement {
         withBusy(bumpBtn, async () => {
           alert.hide();
           const value = Number(rate.value);
-          if (!Number.isFinite(value) || value < 1) {
-            alert.show("error", "Fee rate must be at least 1 sat/vB.");
+          const rateErr = feeRateError(value);
+          if (rateErr) {
+            alert.show("error", rateErr);
             return;
           }
           try {
             const preview = await api.buildFeeBump(txid, value);
             const result = await api.signAndBroadcast(preview.psbt_id);
-            closeDetail();
+            // The bump already broadcast. If the session has since moved to
+            // a different wallet, this result is not that wallet's to show:
+            // recording it here would leave a stale txid sitting where the
+            // new wallet's Result screen would read it as its own, so only
+            // a still-current wallet gets it recorded at all. From there,
+            // steal the screen only if this row's detail is still the one
+            // open — the user may have opened a different transaction's
+            // detail on this same dashboard while the bump was in flight.
+            if (!sameWallet()) return;
             session.lastResult = result;
-            navigate("result");
+            if (!onScreen()) return;
+            if (open?.detail === ownerDetail) {
+              closeDetail();
+              navigate("result");
+            } else {
+              // The bump already broadcast, but the row that started it is
+              // no longer the open detail — closeDetail/navigate would steal
+              // a screen the user has since moved on from. Confirm it landed
+              // some other way, or a silent success invites a retry into a
+              // double-bump.
+              alert.show("ok", `Fee bump broadcast: ${shortTxid(result.txid)}.`);
+            }
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
             // node's own wording is the most useful thing to show.
-            alert.show("error", errorMessage(e));
+            if (onScreen() && open?.detail === ownerDetail) alert.show("error", errorMessage(e));
           }
         }),
       "primary",
@@ -277,6 +307,7 @@ export function renderDashboard(): HTMLElement {
     d: TxDetail,
     explorer: string | null,
     suggested: number | null,
+    ownerDetail: HTMLTableRowElement,
   ): HTMLElement => {
     const ownInputs = d.inputs.filter((i) => i.ours).length;
     const muted = (text: string) => el("span", { className: "muted", text });
@@ -320,7 +351,7 @@ export function renderDashboard(): HTMLElement {
         ),
       );
     }
-    if (suggested !== null) actions.appendChild(bumpInline(d.txid, suggested));
+    if (suggested !== null) actions.appendChild(bumpInline(d.txid, suggested, ownerDetail));
     return el("div", { className: "tx-detail-box" }, [kv(rows), actions]);
   };
 
@@ -354,12 +385,14 @@ export function renderDashboard(): HTMLElement {
             suggested = suggestBumpRate(null, d.fee_rate_sat_vb);
           }
         }
-        if (open?.detail === detail) cell.replaceChildren(detailBox(d, explorer, suggested));
+        if (onScreen() && open?.detail === detail) {
+          cell.replaceChildren(detailBox(d, explorer, suggested, detail));
+        }
       } catch (e) {
         // Only this row's own failure may close this row. A slow request for a
         // transaction the user has already navigated past would otherwise shut
         // the detail they opened afterwards and show them the wrong error.
-        if (open?.detail === detail) {
+        if (onScreen() && open?.detail === detail) {
           alert.show("error", errorMessage(e));
           closeDetail();
         }
@@ -388,6 +421,7 @@ export function renderDashboard(): HTMLElement {
       api.listUtxos(),
       api.listTransactions(),
     ]);
+    if (!onScreen()) return;
     renderBalance(balance);
     renderUtxos(utxos);
     renderTxs(txs);
@@ -406,14 +440,19 @@ export function renderDashboard(): HTMLElement {
     try {
       if (!silent) alert.hide();
       const balance = await api.sync();
+      // A wallet swap while this was in flight must not stamp the new
+      // wallet's session with a sync that was never for it.
+      if (!onScreen()) return;
       session.lastSyncedAt = new Date();
       autoSyncFailed = false;
       renderBalance(balance);
       const [utxos, txs] = await Promise.all([api.listUtxos(), api.listTransactions()]);
+      if (!onScreen()) return;
       renderUtxos(utxos);
       renderTxs(txs);
       renderSynced();
     } catch (e) {
+      if (!onScreen()) return;
       if (silent) {
         autoSyncFailed = true;
         renderSynced();
@@ -510,11 +549,12 @@ export function renderDashboard(): HTMLElement {
           alert.hide();
           try {
             receiving = await api.newAddress();
+            if (!onScreen()) return;
             addressBox.textContent = receiving;
             addressBox.setAttribute("title", receiving);
             await paintQr();
           } catch (e) {
-            alert.show("error", errorMessage(e));
+            if (onScreen()) alert.show("error", errorMessage(e));
           }
         }),
       "default",
@@ -564,6 +604,7 @@ export function renderDashboard(): HTMLElement {
         alert.hide();
         try {
           const balance = await api.rescan(Number(gap));
+          if (!onScreen()) return;
           session.lastSyncedAt = new Date();
           autoSyncFailed = false;
           renderBalance(balance);
@@ -574,7 +615,7 @@ export function renderDashboard(): HTMLElement {
             `Rescanned with a gap of ${gap}: ${formatSats(headlineSat(balance))} in this wallet.`,
           );
         } catch (e) {
-          alert.show("error", errorMessage(e));
+          if (onScreen()) alert.show("error", errorMessage(e));
         }
       }),
     "default",
@@ -586,13 +627,19 @@ export function renderDashboard(): HTMLElement {
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
   txBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
-  void refreshLocal().catch((e: unknown) => alert.show("error", errorMessage(e)));
+  void refreshLocal().catch((e: unknown) => {
+    if (onScreen()) alert.show("error", errorMessage(e));
+  });
   void paintQr();
   void api
     .publicDescriptors()
-    .then(renderKeys)
+    .then((d) => {
+      if (onScreen()) renderKeys(d);
+    })
     .catch((e: unknown) => {
-      keysBox.replaceChildren(el("p", { className: "empty", text: errorMessage(e) }));
+      if (onScreen()) {
+        keysBox.replaceChildren(el("p", { className: "empty", text: errorMessage(e) }));
+      }
     });
 
   const kind = wallet.is_watch_only ? " · Watch-only" : "";

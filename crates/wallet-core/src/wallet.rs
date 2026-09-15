@@ -8,7 +8,9 @@
 use std::str::FromStr;
 
 use async_lock::Mutex;
-use bdk_wallet::bitcoin::{Address, Amount, FeeRate, Psbt, ScriptBuf, Transaction, Weight};
+use bdk_wallet::bitcoin::{
+    Address, Amount, FeeRate, Psbt, ScriptBuf, Sequence, Transaction, Weight,
+};
 use bdk_wallet::chain::{ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::error::CreateTxError;
@@ -28,6 +30,11 @@ use crate::{Error, Result};
 pub const DEFAULT_FEE_TARGET: u16 = 6;
 /// Floor applied to any fee rate (Go parity: 1 sat/vB).
 pub const MIN_FEE_RATE_SAT_VB: f64 = 1.0;
+/// Ceiling on any fee rate. Past this a rate is almost certainly a mistake —
+/// a misplaced decimal point, sat/vB confused with sat/vkB — rather than an
+/// urgent bump, and it is well short of where `FeeRate` multiplied against a
+/// transaction's weight would overflow a `u64` in the sat/kwu domain.
+pub const MAX_FEE_RATE_SAT_VB: f64 = 10_000.0;
 /// Unused scripts a full scan walks past before deciding a keychain is done.
 pub const DEFAULT_STOP_GAP: u32 = 20;
 /// Ceiling for a caller-chosen gap: past this a scan is minutes of round trips.
@@ -211,8 +218,8 @@ fn script_display(script: &ScriptBuf, net: bdk_wallet::bitcoin::Network) -> Opti
     })
 }
 
-/// Map a builder failure onto the error domain, keeping the one case a UI
-/// can act on — not enough money — structured instead of stringified.
+/// Map a builder failure onto the error domain, keeping every case a UI can
+/// act on differently structured instead of stringified.
 fn build_error(e: CreateTxError) -> Error {
     match e {
         CreateTxError::CoinSelection(InsufficientFunds { needed, available }) => {
@@ -221,7 +228,34 @@ fn build_error(e: CreateTxError) -> Error {
                 available_sat: available.to_sat(),
             }
         }
+        CreateTxError::OutputBelowDustLimit(output) => Error::Dust { output },
+        // sat/kwu → sat/vB by the same factor `fee_rate_from_sat_vb` uses the
+        // other way, so a rate this reports and a rate the UI accepts agree.
+        CreateTxError::FeeRateTooLow { required } => Error::FeeTooLow {
+            required_sat_vb: Some(required.to_sat_per_kwu() as f64 / 250.0),
+            required_sat: None,
+        },
+        CreateTxError::FeeTooLow { required } => Error::FeeTooLow {
+            required_sat_vb: None,
+            required_sat: Some(required.to_sat()),
+        },
+        CreateTxError::NoUtxosSelected => Error::NoUtxos,
         other => Error::BuildTx(other.to_string()),
+    }
+}
+
+/// Every [`bdk_wallet::error::LoadError`] variant means the same thing at
+/// this boundary: the persisted record does not correspond to the wallet
+/// being opened — wrong network, wrong genesis, wrong descriptor, or a
+/// required field missing outright. None of that is actionable detail for
+/// a caller; what matters is that it is [`Error::CorruptState`], not
+/// [`Error::Persist`] (an I/O failure), so the UI can offer to reset rather
+/// than retry.
+fn load_error(_: bdk_wallet::error::LoadError) -> Error {
+    Error::CorruptState {
+        reason: "mismatch",
+        found: None,
+        supported: None,
     }
 }
 
@@ -259,10 +293,23 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// Convert a fractional sat/vB rate into BDK's sat/kwu representation (rounding up).
-pub fn fee_rate_from_sat_vb(sat_per_vb: f64) -> FeeRate {
+/// Convert a fractional sat/vB rate into BDK's sat/kwu representation
+/// (rounding up), refusing anything that is not a plausible fee rate.
+///
+/// A value between 0 and [`MIN_FEE_RATE_SAT_VB`] is raised to the floor —
+/// that is the relay minimum, not a data error. NaN, an infinity, a negative
+/// number, or anything past [`MAX_FEE_RATE_SAT_VB`] is refused instead of
+/// silently clamped: BDK multiplies the rate by a transaction's weight with
+/// no overflow check, so an unchecked huge rate wraps in a release build and
+/// panics in a debug one.
+pub fn fee_rate_from_sat_vb(sat_per_vb: f64) -> Result<FeeRate> {
+    if !sat_per_vb.is_finite() || !(0.0..=MAX_FEE_RATE_SAT_VB).contains(&sat_per_vb) {
+        return Err(Error::InvalidFeeRate(format!(
+            "{sat_per_vb} sat/vB is not between 0 and {MAX_FEE_RATE_SAT_VB}"
+        )));
+    }
     let clamped = sat_per_vb.max(MIN_FEE_RATE_SAT_VB);
-    FeeRate::from_sat_per_kwu((clamped * 250.0).ceil() as u64)
+    Ok(FeeRate::from_sat_per_kwu((clamped * 250.0).ceil() as u64))
 }
 
 impl WalletHandle {
@@ -304,29 +351,38 @@ impl WalletHandle {
 
         let stored = persister.initialize().await?;
         let fresh = stored.is_empty();
+        // BDK's descriptor traits need an owned, `'static` `String`, so each
+        // arm clones out of the `Zeroizing` wrapper here — the clone is no
+        // more exposed than the copy BDK's own `KeyMap` already holds
+        // un-zeroized for the wallet's lifetime, and the original stays
+        // wrapped, zeroized when `descriptors` drops at the end of this match.
         let wallet = match descriptors {
-            Descriptors::Single(descriptor) if fresh => Wallet::create_single(descriptor)
-                .network(net)
-                .create_wallet_no_persist()
-                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            Descriptors::Single(descriptor) if fresh => {
+                Wallet::create_single(descriptor.to_string())
+                    .network(net)
+                    .create_wallet_no_persist()
+                    .map_err(|e| Error::Descriptor(e.to_string()))?
+            }
             Descriptors::Single(descriptor) => Wallet::load()
-                .descriptor(KeychainKind::External, Some(descriptor))
+                .descriptor(KeychainKind::External, Some(descriptor.to_string()))
                 .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
-                .map_err(|e| Error::Persist(e.to_string()))?
+                .map_err(load_error)?
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
-            Descriptors::Hd { external, internal } if fresh => Wallet::create(external, internal)
-                .network(net)
-                .create_wallet_no_persist()
-                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            Descriptors::Hd { external, internal } if fresh => {
+                Wallet::create(external.to_string(), internal.to_string())
+                    .network(net)
+                    .create_wallet_no_persist()
+                    .map_err(|e| Error::Descriptor(e.to_string()))?
+            }
             Descriptors::Hd { external, internal } => Wallet::load()
-                .descriptor(KeychainKind::External, Some(external))
-                .descriptor(KeychainKind::Internal, Some(internal))
+                .descriptor(KeychainKind::External, Some(external.to_string()))
+                .descriptor(KeychainKind::Internal, Some(internal.to_string()))
                 .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
-                .map_err(|e| Error::Persist(e.to_string()))?
+                .map_err(load_error)?
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
         };
 
@@ -638,7 +694,7 @@ impl WalletHandle {
     /// when the txid is not in its history.
     pub async fn transaction(&self, txid: &str) -> Result<Option<TxDetail>> {
         let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::BuildTx(format!("{txid}: {e}")))?;
+            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
         let inner = self.inner.lock().await;
         let Some(d) = inner.wallet.tx_details(txid) else {
             return Ok(None);
@@ -714,6 +770,7 @@ impl WalletHandle {
         if recipients.is_empty() {
             return Err(Error::BuildTx("no recipients".into()));
         }
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let mut outputs = Vec::with_capacity(recipients.len());
         for r in recipients {
             let addr = self.recipient_address(&r.address)?;
@@ -731,7 +788,12 @@ impl WalletHandle {
             let mut builder = inner.wallet.build_tx();
             builder
                 .set_recipients(outputs)
-                .fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+                .fee_rate(rate)
+                // BDK defaults to this already when no CSV descriptor requires
+                // otherwise, which is every address type this wallet offers.
+                // Set explicitly so replaceability is a property of the code,
+                // not of a default that could change upstream.
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -747,6 +809,7 @@ impl WalletHandle {
     /// that number from an assumed size and subtracting is off by a few sats
     /// either way — it then fails to build, or leaves dust behind.
     pub async fn build_drain(&self, address: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let addr = self.recipient_address(address)?;
         let destination = addr.script_pubkey();
         let mut inner = self.inner.lock().await;
@@ -755,7 +818,8 @@ impl WalletHandle {
             builder
                 .drain_wallet()
                 .drain_to(destination.clone())
-                .fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+                .fee_rate(rate)
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -779,15 +843,23 @@ impl WalletHandle {
     /// any other. The backend rejects a bump that does not raise the fee enough
     /// to replace the original.
     pub async fn build_fee_bump(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::BuildTx(format!("{txid}: {e}")))?;
+            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
         let mut inner = self.inner.lock().await;
         let psbt = {
-            let mut builder = inner
-                .wallet
-                .build_fee_bump(txid)
-                .map_err(|e| Error::BuildTx(e.to_string()))?;
-            builder.fee_rate(fee_rate_from_sat_vb(fee_rate_sat_vb));
+            let mut builder = inner.wallet.build_fee_bump(txid).map_err(|e| {
+                use bdk_wallet::error::BuildFeeBumpError as E;
+                match e {
+                    E::TransactionNotFound(_)
+                    | E::TransactionConfirmed(_)
+                    | E::IrreplaceableTransaction(_) => Error::NotReplaceable(e.to_string()),
+                    E::UnknownUtxo(_) | E::FeeRateUnavailable | E::InvalidOutputIndex(_) => {
+                        Error::BuildTx(e.to_string())
+                    }
+                }
+            })?;
+            builder.fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
         Self::persist(&mut inner).await?;
@@ -1502,9 +1574,36 @@ mod tests {
 
     #[test]
     fn fee_rate_conversion_rounds_up() {
-        assert_eq!(fee_rate_from_sat_vb(1.0).to_sat_per_kwu(), 250);
-        assert_eq!(fee_rate_from_sat_vb(0.1).to_sat_per_kwu(), 250);
-        assert_eq!(fee_rate_from_sat_vb(2.5).to_sat_per_kwu(), 625);
+        assert_eq!(fee_rate_from_sat_vb(1.0).unwrap().to_sat_per_kwu(), 250);
+        assert_eq!(fee_rate_from_sat_vb(0.1).unwrap().to_sat_per_kwu(), 250);
+        assert_eq!(fee_rate_from_sat_vb(2.5).unwrap().to_sat_per_kwu(), 625);
+    }
+
+    #[test]
+    fn a_fee_rate_below_the_floor_is_raised_not_refused() {
+        // 0 and small positive values are a caller asking for "as cheap as
+        // possible", not a data error — the floor is the relay minimum.
+        assert!(fee_rate_from_sat_vb(0.0).is_ok());
+        assert!(fee_rate_from_sat_vb(0.01).is_ok());
+    }
+
+    #[test]
+    fn implausible_fee_rates_are_refused_not_wrapped() {
+        for bad in [
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            -1.0,
+            -0.001,
+            MAX_FEE_RATE_SAT_VB + 0.01,
+            1e30,
+            f64::MAX,
+        ] {
+            let err = fee_rate_from_sat_vb(bad).expect_err(&format!("{bad} should be refused"));
+            assert_eq!(err.code(), "invalid_fee_rate");
+        }
+        // The ceiling itself is still a plausible, if aggressive, rate.
+        assert!(fee_rate_from_sat_vb(MAX_FEE_RATE_SAT_VB).is_ok());
     }
 
     /// State persisted through the portable boundary reloads into a new handle
@@ -1612,6 +1711,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_dust_output_is_refused_by_amount_not_lumped_into_build_tx() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let err = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2wpkh),
+                    amount_sat: 1,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "dust");
+        assert!(matches!(err, Error::Dust { .. }), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn a_malformed_txid_is_refused_before_any_lookup() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        let err = handle.transaction("not-a-txid").await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+
+        let err = handle.build_fee_bump("not-a-txid", 2.0).await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+    }
+
+    #[tokio::test]
+    async fn bumping_an_unknown_transaction_is_refused_as_not_replaceable() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let unknown = bdk_wallet::bitcoin::Txid::from_str(&"22".repeat(32)).unwrap();
+        let err = handle
+            .build_fee_bump(&unknown.to_string(), 5.0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
+    }
+
+    #[tokio::test]
     async fn drain_builds_with_no_change_output() {
         let (handle, _) = open(AddressType::P2wpkh).await;
         fund(&handle, 100_000).await;
@@ -1624,6 +1763,58 @@ mod tests {
         assert_eq!(built.total_out_sat + built.fee_sat, 100_000);
         // A real spend, not a preview trick: it signs.
         handle.sign(&built.psbt_base64).await.unwrap();
+    }
+
+    /// BDK signals replaceability by default when nothing overrides it, so
+    /// this held before `set_exact_sequence` too — but it held as a property
+    /// of a default that a future BDK release is free to change, not of this
+    /// code. This pins the promise the fee-bump doc comment makes.
+    #[tokio::test]
+    async fn transfer_and_drain_signal_replaceability() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 200_000).await;
+
+        let transfer = handle
+            .build_transfer(
+                &[Recipient {
+                    address: dest(AddressType::P2wpkh),
+                    amount_sat: 40_000,
+                }],
+                2.0,
+            )
+            .await
+            .unwrap();
+        let transfer_psbt = Psbt::from_str(&transfer.psbt_base64).unwrap();
+        assert!(
+            !transfer_psbt.unsigned_tx.input.is_empty(),
+            "the transfer must actually spend something"
+        );
+        assert!(
+            transfer_psbt
+                .unsigned_tx
+                .input
+                .iter()
+                .all(|i| i.sequence.is_rbf()),
+            "every input of a transfer must signal replaceability"
+        );
+
+        let drain = handle
+            .build_drain(&dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap();
+        let drain_psbt = Psbt::from_str(&drain.psbt_base64).unwrap();
+        assert!(
+            !drain_psbt.unsigned_tx.input.is_empty(),
+            "the drain must actually spend something"
+        );
+        assert!(
+            drain_psbt
+                .unsigned_tx
+                .input
+                .iter()
+                .all(|i| i.sequence.is_rbf()),
+            "every input of a drain must signal replaceability"
+        );
     }
 
     /// Sending to yourself is legitimate — consolidating, or moving to a

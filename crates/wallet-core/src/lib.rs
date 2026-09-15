@@ -23,7 +23,7 @@ pub mod persist;
 pub mod wallet;
 
 pub use backend::{BackendConfig, ChainBackend, FeeEstimate};
-pub use error::{Error, Result};
+pub use error::{Error, ErrorPayload, Result};
 pub use keys::{
     AddressType, GeneratedKey, GeneratedMnemonic, KeyMaterial, address_for_key, generate_key,
     generate_mnemonic, validate_mnemonic,

@@ -29,7 +29,7 @@ import type {
   Utxo,
   WalletInfo,
 } from "./types";
-import { WalletError } from "./types";
+import { MAX_FEE_RATE_SAT_VB, WalletError } from "./types";
 import type { BuiltTx } from "./wasm";
 import {
   explorerTxUrl,
@@ -75,6 +75,33 @@ function releaseWallet(): void {
   wallet?.free();
 }
 
+/** Ordinal of the most recently started `install` call; only the newest may commit. */
+let openAttempt = 0;
+
+/** Whether `attempt` (from `install`) is still the newest one anyone has started. */
+function stillCurrent(attempt: number): boolean {
+  return attempt === openAttempt;
+}
+
+/**
+ * Serializes `openWallet`'s remember step across every open attempt: each
+ * call to `fn` waits for every previously queued one to settle first,
+ * whether that one resolved or threw, so no two attempts' keystore and
+ * remembered-record writes ever interleave. `install`'s own commit needs no
+ * queue - it has nothing left to await between its staleness check and the
+ * write - but the writes here are each a separate round trip, and it is
+ * exactly the gap between them a newer attempt could otherwise land in.
+ */
+let rememberQueue: Promise<unknown> = Promise.resolve();
+function serializeRemember<T>(fn: () => Promise<T>): Promise<T> {
+  const turn = rememberQueue.then(fn, fn);
+  rememberQueue = turn.then(
+    () => undefined,
+    () => undefined,
+  );
+  return turn;
+}
+
 /**
  * Opens the wallet for `secret` against `network`/`addressType`, backed by the
  * IndexedDB record for its wallet id. The secret is used here and dropped.
@@ -82,22 +109,44 @@ function releaseWallet(): void {
  * `passphrase` is the optional BIP39 one. It goes into the wallet id as much as
  * the words do, so the same phrase under two passphrases gets two ids — two
  * IndexedDB records and two keystore entries, never a collision.
+ *
+ * Returns the attempt's own ordinal alongside `info` so a caller that keeps
+ * working after this resolves — `openWallet` persists a remembered secret —
+ * can keep calling `stillCurrent` for as long as it keeps touching shared
+ * state, not just for the commit this function already guarded.
  */
 async function install(
   secret: string,
   network: Network,
   addressType: AddressType,
   passphrase?: string,
-): Promise<WalletInfo> {
+): Promise<{ info: WalletInfo; attempt: number }> {
+  const attempt = ++openAttempt;
   const base = await requireConfig();
   const config: AppConfig = { ...base, network, address_type: addressType };
   const walletId = await walletIdForKey(secret, network, addressType, passphrase);
   const wallet = await WalletApi.open(config, secret, makePersister(walletId), passphrase);
+  const address = await wallet.address();
+
+  // Two opens can race — the same screen firing two of its own buttons
+  // (Key's "Open wallet" and "Follow this wallet"), or a slower render
+  // outliving the navigation that already started a faster one. A
+  // route/wallet guard in the caller only ever catches this after the
+  // fact, once one of them has already written `session` — so the guard
+  // belongs here instead, on the write itself. Everything above this line
+  // can be interleaved by a newer `install` call bumping `openAttempt`;
+  // nothing below it awaits, so once a call reaches this check, whether it
+  // is still the newest one cannot change out from under it before
+  // `session` is written.
+  if (!stillCurrent(attempt)) {
+    wallet.free();
+    throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+  }
 
   releaseWallet();
   session.handle = wallet;
   const info: WalletInfo = {
-    address: await wallet.address(),
+    address,
     network,
     address_type: addressType,
     wallet_id: wallet.id,
@@ -106,7 +155,7 @@ async function install(
     is_watch_only: wallet.isWatchOnly,
   };
   session.wallet = info;
-  return info;
+  return { info, attempt };
 }
 
 /**
@@ -122,16 +171,39 @@ async function openWallet(
   passphrase?: string,
 ): Promise<WalletInfo> {
   const { network } = await requireConfig();
-  const info = await install(secret, network, addressType, passphrase);
+  const { info, attempt } = await install(secret, network, addressType, passphrase);
   if (remember) {
-    await platform().rememberSecret(info.wallet_id, secret, passphrase);
-    const record: RememberedWallet = {
-      wallet_id: info.wallet_id,
-      address: info.address,
-      network: info.network,
-      address_type: info.address_type,
-    };
-    await platform().setRemembered(record);
+    await serializeRemember(async () => {
+      // Checked fresh at the start of this attempt's turn, not before
+      // queuing for one: a newer attempt only has to have started, not
+      // committed, to make this one stale - a check against `session.wallet`
+      // here would still be looking at whatever was active before either of
+      // them, since the newer one has not written it yet either. Nothing
+      // else can be touching the keystore or the remembered record while
+      // this turn holds the queue, so only what happened before the turn
+      // began matters; there is nothing concurrent left to race.
+      if (!stillCurrent(attempt)) {
+        throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+      }
+      await platform().rememberSecret(info.wallet_id, secret, passphrase);
+      if (!stillCurrent(attempt)) {
+        // The entry just written above can only be this attempt's own -
+        // nothing else could have raced to write it while this turn held
+        // the queue - so it is safe to remove outright before conceding.
+        // Left alone, forgetWallet would never find it: it only follows
+        // whatever the remembered record already points to, and
+        // setRemembered below is exactly the call this path skips.
+        await platform().forgetSecret(info.wallet_id);
+        throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+      }
+      const record: RememberedWallet = {
+        wallet_id: info.wallet_id,
+        address: info.address,
+        network: info.network,
+        address_type: info.address_type,
+      };
+      await platform().setRemembered(record);
+    });
   }
   return info;
 }
@@ -147,12 +219,13 @@ async function unlockWallet(): Promise<WalletInfo> {
   if (!record) throw notRemembered();
   const stored = await platform().loadSecret(record.wallet_id);
   if (!stored?.secret) throw notRemembered();
-  return install(
+  const { info } = await install(
     stored.secret,
     record.network,
     record.address_type,
     stored.passphrase ?? undefined,
   );
+  return info;
 }
 
 /** Removes the keystore entry, the local wallet state and the remembered record. */
@@ -198,8 +271,17 @@ function retainPsbt(built: BuiltTx): TxPreview {
 }
 
 function requireRate(feeRateSatVb: number): void {
+  // Same code for the whole invalid class as the core's own
+  // fee_rate_from_sat_vb, so a screen branching on `invalid_fee_rate` sees
+  // it regardless of which of these two conditions actually caught it.
   if (!Number.isFinite(feeRateSatVb) || feeRateSatVb <= 0) {
-    throw new WalletError("build_tx", "fee rate must be a positive number");
+    throw new WalletError("invalid_fee_rate", "fee rate must be a positive number");
+  }
+  if (feeRateSatVb > MAX_FEE_RATE_SAT_VB) {
+    throw new WalletError(
+      "invalid_fee_rate",
+      `fee rate must be at most ${MAX_FEE_RATE_SAT_VB} sat/vB`,
+    );
   }
 }
 

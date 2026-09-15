@@ -29,7 +29,7 @@ use bdk_wallet::miniscript::descriptor::DescriptorType;
 use bdk_wallet::miniscript::{ForEachKey, Segwitv0};
 use bdk_wallet::template::{Bip44, Bip49, Bip84, Bip86};
 use serde::{Deserialize, Serialize};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::network::Network;
 use crate::{Error, Result};
@@ -82,9 +82,16 @@ impl AddressType {
     }
 }
 
-/// Secret key material as supplied by the user. Zeroized on drop; `Debug` is redacted.
-#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
-#[serde(rename_all = "snake_case")]
+/// Secret key material as supplied by the user. Zeroized on drop; `Debug` is
+/// redacted; not `Serialize`/`Deserialize` — see `keystore::StoredKey` for
+/// the one place this needs a wire form. That absence is load-bearing, not
+/// incidental:
+///
+/// ```compile_fail
+/// # let key = wallet_core::KeyMaterial::PrivHex(String::new());
+/// serde_json::to_string(&key).unwrap(); // no Serialize impl — must not compile
+/// ```
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub enum KeyMaterial {
     /// 32-byte secret key as 64 hex characters.
     PrivHex(String),
@@ -400,23 +407,31 @@ pub(crate) fn descriptor_for(
     key: &KeyMaterial,
     network: Network,
     address_type: AddressType,
-) -> Result<String> {
-    let wif = key.to_private_key(network)?.to_wif();
-    Ok(match address_type {
+) -> Result<Zeroizing<String>> {
+    let wif = Zeroizing::new(key.to_private_key(network)?.to_wif());
+    let wif = wif.as_str();
+    Ok(Zeroizing::new(match address_type {
         AddressType::P2pk => format!("pk({wif})"),
         AddressType::P2pkh => format!("pkh({wif})"),
         AddressType::P2wpkh => format!("wpkh({wif})"),
         AddressType::NestedP2wpkh => format!("sh(wpkh({wif}))"),
         AddressType::P2tr => format!("tr({wif})"),
-    })
+    }))
 }
 
-/// The secret descriptor(s) a wallet is opened with.
+/// The descriptor(s) a wallet is opened with. Every variant here can carry a
+/// private key — a single key's own descriptor, or an HD account's — and a
+/// watch-only source is treated the same way rather than given a second,
+/// unprotected type: `Zeroizing` costs nothing extra to apply and one type
+/// is one thing to get right.
 pub(crate) enum Descriptors {
     /// One key on one keychain: change comes back to the same address.
-    Single(String),
+    Single(Zeroizing<String>),
     /// A BIP32 account: receive and change live on separate keychains.
-    Hd { external: String, internal: String },
+    Hd {
+        external: Zeroizing<String>,
+        internal: Zeroizing<String>,
+    },
 }
 
 /// Descriptors for the given key material — one for a single key, a pair for
@@ -492,15 +507,15 @@ fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Des
             }
         };
         return Ok(Descriptors::Hd {
-            external: format!("{open}{bare}/0/*{close}"),
-            internal: format!("{open}{bare}/1/*{close}"),
+            external: Zeroizing::new(format!("{open}{bare}/0/*{close}")),
+            internal: Zeroizing::new(format!("{open}{bare}/1/*{close}")),
         });
     }
     require_addressable(&bare)?;
     if bare.contains("<0;1>") {
         return Ok(Descriptors::Hd {
-            external: bare.replace("<0;1>", "0"),
-            internal: bare.replace("<0;1>", "1"),
+            external: Zeroizing::new(bare.replace("<0;1>", "0")),
+            internal: Zeroizing::new(bare.replace("<0;1>", "1")),
         });
     }
     if bare.contains("/0/*") {
@@ -509,11 +524,11 @@ fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Des
             // `/0/*` per cosigner, and moving only one of them would build an
             // internal keychain mixing a change key with the remaining receive
             // keys — scripts that match no branch of the imported wallet.
-            internal: bare.replace("/0/*", "/1/*"),
-            external: bare,
+            internal: Zeroizing::new(bare.replace("/0/*", "/1/*")),
+            external: Zeroizing::new(bare),
         });
     }
-    Ok(Descriptors::Single(bare))
+    Ok(Descriptors::Single(Zeroizing::new(bare)))
 }
 
 /// Receive address at `index` of a watch-only source.
@@ -595,9 +610,9 @@ fn hd_descriptor_string(
     network: Network,
     address_type: AddressType,
     keychain: KeychainKind,
-) -> Result<String> {
+) -> Result<Zeroizing<String>> {
     let (descriptor, keymap) = hd_wallet_descriptor(key, network, address_type, keychain)?;
-    Ok(descriptor.to_string_with_secret(&keymap))
+    Ok(Zeroizing::new(descriptor.to_string_with_secret(&keymap)))
 }
 
 /// Address at `index` on the external keychain of an HD account.
@@ -761,7 +776,7 @@ mod tests {
             "regtest-p2tr-751e76e8199196d4"
         );
         assert_eq!(
-            descriptor_for(&key, Network::Bitcoin, AddressType::P2wpkh).unwrap(),
+            *descriptor_for(&key, Network::Bitcoin, AddressType::P2wpkh).unwrap(),
             "wpkh(KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn)"
         );
         assert!(matches!(
@@ -811,26 +826,6 @@ mod tests {
         }
     }
 
-    /// `KeyMaterial` is written as JSON into the OS credential store, so its
-    /// tags are a storage format: entries written before HD support must keep
-    /// loading, and the new variant must be readable back.
-    #[test]
-    fn key_material_json_shape_is_stable() {
-        let stored: KeyMaterial =
-            serde_json::from_str(&format!(r#"{{"priv_hex":"{SK1_HEX}"}}"#)).unwrap();
-        assert_eq!(stored.secret(), SK1_HEX);
-        assert!(!stored.is_hd());
-
-        let json = serde_json::to_string(&KeyMaterial::parse(ABANDON)).unwrap();
-        assert_eq!(
-            json,
-            format!(r#"{{"mnemonic":{{"words":"{ABANDON}","passphrase":null}}}}"#)
-        );
-        let back: KeyMaterial = serde_json::from_str(&json).unwrap();
-        assert!(back.is_hd());
-        assert_eq!(back.secret(), ABANDON);
-    }
-
     #[test]
     fn generate_is_valid_and_random() {
         let a = generate_key(Network::Signet, AddressType::P2wpkh).unwrap();
@@ -851,7 +846,7 @@ mod tests {
         let key = KeyMaterial::PrivHex(SK1_HEX.into());
         for t in AddressType::ALL {
             let d = descriptor_for(&key, Network::Signet, t).unwrap();
-            bdk_wallet::Wallet::create_single(d)
+            bdk_wallet::Wallet::create_single(d.to_string())
                 .network(bdk_wallet::bitcoin::Network::Signet)
                 .create_wallet_no_persist()
                 .unwrap_or_else(|e| panic!("{t:?}: {e}"));
@@ -967,11 +962,13 @@ mod tests {
         for passphrase in [None, Some("")] {
             for secret in [SK1_HEX, "cN9...", ABANDON] {
                 let key = KeyMaterial::parse_with_passphrase(secret, passphrase).unwrap();
+                let plain = KeyMaterial::parse(secret);
                 assert_eq!(key.passphrase(), None);
-                assert_eq!(
-                    serde_json::to_string(&key).unwrap(),
-                    serde_json::to_string(&KeyMaterial::parse(secret)).unwrap()
-                );
+                // `secret()` and `passphrase()` are the two halves `Self`'s
+                // own doc comment says round-trip a stored key unchanged —
+                // the property the JSON equality used to stand in for.
+                assert_eq!(key.passphrase(), plain.passphrase());
+                assert_eq!(key.secret(), plain.secret());
             }
         }
         assert_eq!(
@@ -1102,7 +1099,7 @@ mod tests {
             "both keychains resolved to one descriptor"
         );
 
-        let wallet = bdk_wallet::Wallet::create(external, internal)
+        let wallet = bdk_wallet::Wallet::create(external.to_string(), internal.to_string())
             .network(bdk_wallet::bitcoin::Network::Regtest)
             .create_wallet_no_persist()
             .expect("HD descriptors open a BDK wallet");
@@ -1174,8 +1171,8 @@ mod tests {
         );
         match descriptors_for(&bare, Network::Regtest, AddressType::P2wpkh).unwrap() {
             Descriptors::Hd { external, internal } => {
-                assert_eq!(external, format!("wpkh({xpub}/0/*)"));
-                assert_eq!(internal, format!("wpkh({xpub}/1/*)"));
+                assert_eq!(*external, format!("wpkh({xpub}/0/*)"));
+                assert_eq!(*internal, format!("wpkh({xpub}/1/*)"));
             }
             Descriptors::Single(_) => panic!("an xpub is an account"),
         }

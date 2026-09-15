@@ -25,6 +25,11 @@ use std::sync::Mutex;
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+use serde::{Deserialize, Serialize};
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+
 use crate::keys::KeyMaterial;
 use crate::{Error, Result};
 
@@ -140,6 +145,67 @@ mod backend {
     }
 }
 
+/// The wire shape [`KeyMaterial`] used to serialize as, kept private to this
+/// module.
+///
+/// `KeyMaterial` itself does not derive `Serialize`/`Deserialize`: every
+/// variant is either a secret or, for `WatchOnly`, material meant to move
+/// only through this module's own API, and a derive would make
+/// `serde_json::to_string(&key)` compile anywhere in the crate with nothing
+/// marking it as reading out spending material. This mirrors the exact enum
+/// shape the derive used to produce — same variant names, same
+/// `rename_all = "snake_case"`, same fields — so an entry a previous build
+/// wrote to the credential store still loads.
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+#[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
+#[serde(rename_all = "snake_case")]
+enum StoredKey {
+    PrivHex(String),
+    Wif(String),
+    Mnemonic {
+        words: String,
+        passphrase: Option<String>,
+    },
+    WatchOnly(String),
+}
+
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+impl From<&KeyMaterial> for StoredKey {
+    fn from(key: &KeyMaterial) -> Self {
+        match key {
+            KeyMaterial::PrivHex(s) => StoredKey::PrivHex(s.clone()),
+            KeyMaterial::Wif(s) => StoredKey::Wif(s.clone()),
+            KeyMaterial::Mnemonic { words, passphrase } => StoredKey::Mnemonic {
+                words: words.clone(),
+                passphrase: passphrase.clone(),
+            },
+            KeyMaterial::WatchOnly(s) => StoredKey::WatchOnly(s.clone()),
+        }
+    }
+}
+
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+impl From<StoredKey> for KeyMaterial {
+    fn from(stored: StoredKey) -> Self {
+        // `ref` bindings, not a move: `StoredKey` now zeroizes on drop, and
+        // Rust refuses to move a field out of a type that does. `stored`
+        // stays fully intact and gets wiped when it drops at the end of this
+        // call, after these clones have handed the data to the new value.
+        match stored {
+            StoredKey::PrivHex(ref s) => KeyMaterial::PrivHex(s.clone()),
+            StoredKey::Wif(ref s) => KeyMaterial::Wif(s.clone()),
+            StoredKey::Mnemonic {
+                ref words,
+                ref passphrase,
+            } => KeyMaterial::Mnemonic {
+                words: words.clone(),
+                passphrase: passphrase.clone(),
+            },
+            StoredKey::WatchOnly(ref s) => KeyMaterial::WatchOnly(s.clone()),
+        }
+    }
+}
+
 /// OS-credential-store keystore. One entry per wallet id under `service`.
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 pub struct NativeKeystore {
@@ -210,8 +276,10 @@ impl Keystore for NativeKeystore {
     fn load(&self, wallet_id: &str) -> Result<Option<KeyMaterial>> {
         match self.entry(wallet_id)?.get_password() {
             Ok(json) => {
-                let key = serde_json::from_str(&json).map_err(|e| Error::Persist(e.to_string()))?;
-                Ok(Some(key))
+                let json = Zeroizing::new(json);
+                let stored: StoredKey =
+                    serde_json::from_str(&json).map_err(|e| Error::Persist(e.to_string()))?;
+                Ok(Some(stored.into()))
             }
             Err(backend::Error::NoEntry) => Ok(None),
             Err(e) => Err(Error::Persist(e.to_string())),
@@ -219,8 +287,9 @@ impl Keystore for NativeKeystore {
     }
 
     fn store(&self, wallet_id: &str, key: KeyMaterial) -> Result<()> {
-        let json = zeroize::Zeroizing::new(
-            serde_json::to_string(&key).map_err(|e| Error::Persist(e.to_string()))?,
+        let json = Zeroizing::new(
+            serde_json::to_string(&StoredKey::from(&key))
+                .map_err(|e| Error::Persist(e.to_string()))?,
         );
         self.entry(wallet_id)?
             .set_password(&json)
@@ -248,6 +317,49 @@ mod tests {
     #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
     fn probes_do_not_share_a_credential() {
         assert_ne!(probe_entry_name(), probe_entry_name());
+    }
+
+    /// The OS credential store holds JSON built from `StoredKey`, not
+    /// `KeyMaterial` directly, precisely so this shape can be pinned without
+    /// giving every caller of `serde_json::to_string` a `KeyMaterial` it can
+    /// accidentally serialize: entries written before HD support, or by an
+    /// older build, must keep loading, and every current variant must
+    /// round-trip through it.
+    #[test]
+    #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+    fn stored_key_json_shape_is_stable() {
+        const HEX: &str = "0000000000000000000000000000000000000000000000000000000000000001";
+        const WORDS: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+        let stored: StoredKey =
+            serde_json::from_str(&format!(r#"{{"priv_hex":"{HEX}"}}"#)).unwrap();
+        // `ref`: `KeyMaterial` is `ZeroizeOnDrop`, so a value (not a
+        // reference) cannot be destructured by moving its fields out.
+        match KeyMaterial::from(stored) {
+            KeyMaterial::PrivHex(ref s) => assert_eq!(s, HEX),
+            ref other => panic!("unexpected {other:?}"),
+        }
+
+        let json = serde_json::to_string(&StoredKey::from(&KeyMaterial::Mnemonic {
+            words: WORDS.to_owned(),
+            passphrase: None,
+        }))
+        .unwrap();
+        assert_eq!(
+            json,
+            format!(r#"{{"mnemonic":{{"words":"{WORDS}","passphrase":null}}}}"#)
+        );
+        let back: StoredKey = serde_json::from_str(&json).unwrap();
+        match KeyMaterial::from(back) {
+            KeyMaterial::Mnemonic {
+                ref words,
+                ref passphrase,
+            } => {
+                assert_eq!(words, WORDS);
+                assert_eq!(*passphrase, None);
+            }
+            ref other => panic!("unexpected {other:?}"),
+        }
     }
 
     #[test]

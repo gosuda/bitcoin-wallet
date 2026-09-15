@@ -1,4 +1,6 @@
-//! IPC error envelope: `{ code, message }`. Never carries key material.
+//! IPC error envelope: `{ code, message, details? }`. Never carries key
+//! material — `details` only ever holds what `wallet_core::Error::details`
+//! puts there, which is amounts and reasons, not secrets.
 
 use serde::Serialize;
 
@@ -6,6 +8,8 @@ use serde::Serialize;
 pub struct AppError {
     pub code: &'static str,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
 }
 
 impl AppError {
@@ -13,6 +17,7 @@ impl AppError {
         Self {
             code,
             message: message.into(),
+            details: None,
         }
     }
 
@@ -24,8 +29,16 @@ impl AppError {
 impl From<wallet_core::Error> for AppError {
     fn from(e: wallet_core::Error) -> Self {
         // The core owns the code table, so the browser build and this shell
-        // report the same names for the same failures.
-        Self::new(e.code(), e.to_string())
+        // report the same names — and the same structured details — for the
+        // same failures. Going through `ErrorPayload` rather than calling
+        // `e.code()`/`e.to_string()`/`e.details()` separately means this and
+        // the wasm boundary's `core_err` cannot drift on what the shape is.
+        let payload = wallet_core::ErrorPayload::from(&e);
+        Self {
+            code: payload.code,
+            message: payload.message,
+            details: payload.details,
+        }
     }
 }
 

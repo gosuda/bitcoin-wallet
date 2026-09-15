@@ -20,7 +20,11 @@ wallet-core = { path = "../../../crates/wallet-core", default-features = false, 
 serde = { workspace = true }
 serde_json = { workspace = true }
 zeroize = { workspace = true }
-tauri = { version = "2.11", features = [] }
+url = "2"
+# dynamic-acl: the webview's HTTP scope starts empty (see capabilities/*.json)
+# and is granted the configured backend's origin at runtime — see
+# `commands::grant_backend_scope`.
+tauri = { version = "2.11", features = ["dynamic-acl"] }
 tauri-plugin-store = "2.4"
 tauri-plugin-clipboard-manager = "2.3"
 tauri-plugin-opener = "2.5"

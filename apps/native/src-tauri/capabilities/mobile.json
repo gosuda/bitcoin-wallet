@@ -29,17 +29,6 @@
           "url": "https://blockstream.info/*"
         }
       ]
-    },
-    {
-      "identifier": "http:default",
-      "allow": [
-        {
-          "url": "https://*:*"
-        },
-        {
-          "url": "http://*:*"
-        }
-      ]
     }
   ]
 }

@@ -61,9 +61,16 @@ Anything that could lose or expose funds, or make the wallet lie about them:
   lives exactly as long as the tab.
 - **CLI.** `btcw` keeps state in memory for the run and persists nothing.
 
-Key material is held in a type that zeroizes on drop and redacts its `Debug`, and the
-wallet core is compiled without a chain backend into the native shell — the webview
-owns the wallet, the shell owns the keychain.
+The type a wallet is opened and operated with zeroizes on drop, redacts its `Debug`,
+and does not implement `Serialize`/`Deserialize` — a JSON wire form of it exists only
+inside the keystore module that writes to the OS credential store, so nothing else
+in the code base can serialize a key by accident. The BDK descriptor strings built
+from it (the ones that actually carry a WIF or an extended private key) are held the
+same way. The one deliberate exception is the "shown once" result of generating a
+new key or recovery phrase — that type does derive `Serialize` on purpose, since
+crossing the wasm/IPC boundary once to actually display it is the entire point.
+The wallet core is compiled without a chain backend into the native shell — the
+webview owns the wallet, the shell owns the keychain.
 
 ## Known limits
 
@@ -76,6 +83,13 @@ Stated because you should know them, not because they are acceptable:
 - **A compromised endpoint sees your addresses.** Requests go to the configured Esplora
   server with no privacy layer — no Tor, no address rotation across servers. It learns
   which addresses belong together.
+- **The native shell's outbound HTTP scope only grows, within one run.** The webview's
+  proxied `fetch` (desktop, iOS, Android) starts with no origin granted at all; opening
+  a wallet or changing the backend in Setup grants exactly that origin at runtime, in
+  place of the wildcard `https://*:*` this used to be. Tauri's dynamic capability grant
+  has no matching revoke, so an origin stays reachable for the rest of the process even
+  after the backend is pointed elsewhere — narrower than "any host" by a lot, but not the
+  same as "only the current one." A fresh launch starts from nothing again.
 - **Backups are your problem.** Losing a recovery phrase, or a passphrase set on one,
   loses the wallet. "Forget this wallet" deletes the stored key immediately.
 - **Not audited against side channels.** Signing uses `rust-secp256k1`; nothing here
