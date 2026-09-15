@@ -83,21 +83,41 @@ function releaseWallet(): void {
  * the words do, so the same phrase under two passphrases gets two ids — two
  * IndexedDB records and two keystore entries, never a collision.
  */
+/** Ordinal of the most recently started `install` call; only the newest may commit. */
+let openAttempt = 0;
+
 async function install(
   secret: string,
   network: Network,
   addressType: AddressType,
   passphrase?: string,
 ): Promise<WalletInfo> {
+  const attempt = ++openAttempt;
   const base = await requireConfig();
   const config: AppConfig = { ...base, network, address_type: addressType };
   const walletId = await walletIdForKey(secret, network, addressType, passphrase);
   const wallet = await WalletApi.open(config, secret, makePersister(walletId), passphrase);
+  const address = await wallet.address();
+
+  // Two opens can race — the same screen firing two of its own buttons
+  // (Key's "Open wallet" and "Follow this wallet"), or a slower render
+  // outliving the navigation that already started a faster one. A
+  // route/wallet guard in the caller only ever catches this after the
+  // fact, once one of them has already written `session` — so the guard
+  // belongs here instead, on the write itself. Everything above this line
+  // can be interleaved by a newer `install` call bumping `openAttempt`;
+  // nothing below it awaits, so once a call reaches this check, whether it
+  // is still the newest one cannot change out from under it before
+  // `session` is written.
+  if (attempt !== openAttempt) {
+    wallet.free();
+    throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+  }
 
   releaseWallet();
   session.handle = wallet;
   const info: WalletInfo = {
-    address: await wallet.address(),
+    address,
     network,
     address_type: addressType,
     wallet_id: wallet.id,
