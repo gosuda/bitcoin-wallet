@@ -133,9 +133,13 @@ Because of that, `address --new` reveals the address after the last one the sync
 A mnemonic's passphrase is part of the wallet's identity — the same words without it open a
 different wallet, not a locked version of this one. `--key`/`--passphrase` on the command line
 are visible to anyone who can run `ps` on this machine while the process is alive, and land in
-shell history; prefer `--key -` (stdin) or the `BTCW_*` env vars. On failure the process exits
-with a code that names the failure class (`error.rs`'s codes, offset so 1 stays "a CLI-level
-problem, not wallet-core") instead of always 1, so a script can branch on `$?`.
+shell history if typed interactively. `--key -` (stdin) avoids both — the secret is never a
+command-line token at all. The `BTCW_*` env vars avoid only the `ps` exposure: typing
+`export BTCW_KEY=...` at a prompt still writes it to shell history the same as `--key` would,
+so set them from a sourced file that is not itself committed, not by typing the assignment.
+On failure the process exits with a code that names the failure class (`error.rs`'s codes,
+offset so 1 stays "a CLI-level problem, not wallet-core") instead of always 1, so a script can
+branch on `$?`.
 
 ### Tests
 
