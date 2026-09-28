@@ -299,10 +299,14 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       start once this file is on `main` — Dependabot reads it from nowhere else — so the first
       pull request is recorded on this round's
 
-- [ ] **2.4 vitest 3 → 4** · S · `packages/wallet-ui/package.json`, `pnpm-lock.yaml`
+- [x] **2.4 vitest 3 → 4** · S · `packages/wallet-ui/package.json`, `pnpm-lock.yaml`
       why: 3.2.7 is inside CVE-2026-84373; the fix is 4.1.11 — dev-only, but three open alerts ·
-      done when: `pnpm -F @bitcoin-wallet/ui test` passes on 4.x; `pnpm why @vitest/mocker`
-      shows 4.1.x
+      done: 2026-09-28 — `vitest ^4.1.11`; `pnpm why -r @vitest/mocker` went from 3.2.7 to
+      4.1.11 with no other version left in the tree; the lockfile diff stays inside vitest's
+      own graph (chai 5 → 6; `vite-node`, `tinypool`, `tinyspy` gone; vitest now shares the
+      workspace's Vite 7.3.6). All 98 tests pass on v4.1.11 with no test or config change —
+      nothing here used anything on 4.0's removal list. Alerts #42–44 close when this reaches
+      `main`
 
 - [ ] **2.5 One Node configuration** · S · root `biome.json`, `tsconfig.base.json`, root
   `package.json`, the three package configs, `rust.yml`
