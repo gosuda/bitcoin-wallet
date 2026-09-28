@@ -37,3 +37,6 @@ tauri-plugin-http = "2.5"
 tauri-plugin-barcode-scanner = "2.4"
 tauri-plugin-biometric = "2.3"
 tauri-plugin-deep-link = "2.4"
+
+[lints]
+workspace = true

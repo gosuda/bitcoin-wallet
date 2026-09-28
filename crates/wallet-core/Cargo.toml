@@ -72,3 +72,6 @@ futures-util = "0.3"
 
 [dev-dependencies]
 tokio = { workspace = true }
+
+[lints]
+workspace = true

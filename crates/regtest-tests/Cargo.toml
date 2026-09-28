@@ -22,3 +22,6 @@ bdk_testenv = "0.13.1"
 tokio = { workspace = true }
 anyhow = "1"
 async-trait = { workspace = true }
+
+[lints]
+workspace = true

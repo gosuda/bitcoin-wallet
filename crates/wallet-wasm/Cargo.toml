@@ -25,3 +25,6 @@ console_error_panic_hook = "0.1"
 # The Rust toolchain emits bulk-memory ops; wasm-opt must be told to accept them.
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[lints]
+workspace = true

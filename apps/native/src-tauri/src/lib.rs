@@ -32,7 +32,7 @@ pub fn run() {
         .plugin(tauri_plugin_biometric::init())
         .plugin(tauri_plugin_deep_link::init());
 
-    builder
+    let result = builder
         .manage(state::AppState::default())
         .setup(|app| {
             use tauri::Manager;
@@ -68,6 +68,12 @@ pub fn run() {
             commands::load_secret,
             commands::forget_secret,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    // The event loop or the first window never started: nothing can recover
+    // from that, and on a phone a panic — unlike a quiet exit — reaches the
+    // platform's crash reporting.
+    if let Err(e) = result {
+        panic!("error while running tauri application: {e:?}");
+    }
 }

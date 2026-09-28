@@ -5,6 +5,10 @@
 //! This is the funded-send path that public faucets make hard to exercise:
 //! receive real coins, spend them, and read the result back out of the chain.
 
+// Only ever compiled as a test. Saying so lets clippy's test exemption
+// reach the helpers here, not just the #[test] functions.
+#![cfg(test)]
+
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

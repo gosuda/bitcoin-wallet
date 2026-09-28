@@ -337,13 +337,25 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       (`WalletError` grew an own `details: undefined`) and which the preceding commit fixes at
       the declaration; 98/98 pass
 
-- [ ] **2.7 Lints that lock in the record** · S · root `Cargo.toml`, `clippy.toml`, every
+- [x] **2.7 Lints that lock in the record** · S · root `Cargo.toml`, `clippy.toml`, every
   crate manifest
       why: the tree has zero `unwrap` in production code and nothing enforces it; release builds
-      have no overflow checks in a program that multiplies fee rates · done when: workspace
-      lints deny `unwrap_used`, `expect_used`, `todo`, `dbg_macro` (tests exempt), forbid
-      `unsafe_code` if none exists; `overflow-checks = true` in release; clippy clean with no
-      new `#[allow]`
+      have no overflow checks in a program that multiplies fee rates · done: 2026-09-28 —
+      `[workspace.lints]` forbids `unsafe_code` and denies `unwrap_used`, `expect_used`, `todo`
+      and `dbg_macro`; `clippy.toml` exempts tests; all five crates inherit it. `forbid` holds:
+      the tree has no `unsafe`, and the `#[no_mangle]`/`export_name` that wasm-bindgen and
+      Tauri's phone entry point generate are external proc-macro expansions rustc does not
+      lint — the wasm32 and iOS clippy runs pass. The record was one short: an `expect` on
+      Tauri's `run()`, now an explicit panic, since an event loop that never starts is
+      unrecoverable and a panic reaches a phone's crash reporting where an exit would not.
+      clippy's test exemption covers `#[test]` fns and `#[cfg(test)]` modules but not helpers
+      in an integration-test crate, so those four files say `#![cfg(test)]` (true of them
+      anyway) instead of carrying an `#[allow]`; `--list` still finds all six tests.
+      `overflow-checks = true` in release — the release `btcw` compile gets `-C
+      overflow-checks=on`. Clippy clean (native all targets, wasm32 core + wasm, iOS app)
+      with no new `#[allow]`; release CLI builds; core and CLI suites green. The regtest
+      suite runs in CI only now: this Mac moved to macOS 27 on arm64 with no x86_64
+      translation, and the harness's `bitcoind` 25.0 is an x86_64 build
 
 - [ ] **2.8 A tidy tree** · S · `.gitignore`, `bitcoin-rs-blueprint-review.html`,
   `crates/wallet-cli/Cargo.toml`, `README.md` · **decision** on the stray HTML (remove or move)
