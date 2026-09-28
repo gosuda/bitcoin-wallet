@@ -324,10 +324,18 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       `pnpm audit --audit-level=high` — all five pass locally (98/98 tests, no known
       vulnerabilities); the path filter adds the two new root files
 
-- [ ] **2.6 The UI package typechecks its tests** · S · new `packages/wallet-ui/tsconfig.json`,
+- [x] **2.6 The UI package typechecks its tests** · S · new `packages/wallet-ui/tsconfig.json`,
   `package.json`, `test/screen.test.ts`
       why: `test/**` is outside every tsconfig, so a fixture already lacks a required field
-      and nothing notices · done when: `typecheck` fails before the fixture fix and passes after
+      and nothing notices · done: 2026-09-28 — the package's own tsconfig (the shared base,
+      over `src`, `test` and `vitest.config.ts`) and a `typecheck` script with `typescript`
+      as a dev dependency. Before the fixture fix it failed with exactly one error, the one
+      named here (`test/screen.test.ts:7`, TS2741, `is_ranged` missing); after it, clean. The
+      root `pnpm typecheck` now covers all three packages. Giving the package a tsconfig also
+      changed how Vite and vitest compile it — each file takes its nearest tsconfig, and until
+      now there was none, so wallet-ui alone had pre-ES2022 class fields — which a test caught
+      (`WalletError` grew an own `details: undefined`) and which the preceding commit fixes at
+      the declaration; 98/98 pass
 
 - [ ] **2.7 Lints that lock in the record** · S · root `Cargo.toml`, `clippy.toml`, every
   crate manifest
