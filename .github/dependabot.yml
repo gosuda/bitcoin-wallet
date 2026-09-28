@@ -1,0 +1,58 @@
+# Weekly upgrade pull requests for every ecosystem in the repository. Minor and
+# patch bumps are grouped into one pull request per ecosystem, so a week's
+# routine upgrades are reviewed and reverted as a unit; a major bump arrives on
+# its own, since that is where things break. Titles follow the repository's
+# Conventional Commits: `build(deps): ...`, and `ci(deps): ...` for actions.
+#
+# Security updates are a repository setting, not this file.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      cargo-minor-and-patch:
+        update-types: [minor, patch]
+
+  # One pnpm workspace and one lockfile at the root cover all three packages.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  # `/` covers .github/workflows; a composite action has to be named on its own.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/wasm-core
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]
+
+  # The Android project Tauri generated and this repository keeps: the Android
+  # Gradle plugin, Kotlin, and the androidx libraries the shell links.
+  - package-ecosystem: gradle
+    directory: /apps/native/src-tauri/gen/android
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      gradle-minor-and-patch:
+        update-types: [minor, patch]

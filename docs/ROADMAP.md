@@ -287,10 +287,17 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       `not_used` with the RUSTSEC id and reason (admin OK 2026-09-28); open alerts read back
       as #42–44 (vitest, 2.4) and #18 (glib, ships on Linux)
 
-- [ ] **2.3 Dependabot** · S · `.github/dependabot.yml` · **admin** to enable security updates
-      why: nothing proposes upgrades; security updates are disabled · done when: cargo, npm,
-      github-actions and gradle ecosystems, weekly, minor/patch grouped; the first Dependabot PR
-      appears
+- [x] **2.3 Dependabot** · S · `.github/dependabot.yml` · **admin** to enable security updates
+      why: nothing proposes upgrades; security updates are disabled · done: 2026-09-28 —
+      cargo, npm (the one pnpm workspace at the root), github-actions (the workflows and the
+      `wasm-core` composite, which `/` alone does not reach) and gradle (the Android project
+      under `gen/android`, which pins AGP, Kotlin and five androidx libraries), weekly, with
+      minor and patch grouped per ecosystem and majors one at a time; titles follow the
+      repository's Conventional Commits (`build(deps)`, `ci(deps)`). Validated against the
+      published schema (`check-jsonschema --builtin-schema vendor.dependabot`). Security
+      updates switched on (admin OK 2026-09-28) and read back `enabled: true`. Version updates
+      start once this file is on `main` — Dependabot reads it from nowhere else — so the first
+      pull request is recorded on this round's
 
 - [ ] **2.4 vitest 3 → 4** · S · `packages/wallet-ui/package.json`, `pnpm-lock.yaml`
       why: 3.2.7 is inside CVE-2026-84373; the fix is 4.1.11 — dev-only, but three open alerts ·
