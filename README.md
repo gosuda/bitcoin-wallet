@@ -208,7 +208,8 @@ mine with `generatetoaddress`, and the emulator reaches the host at `10.0.2.2`.
 `reference/go/` is the original `btctxbuilder` — a transaction-building library and a
 TUI, frozen. It is where behaviour came from and what parity is checked against; it is
 not built or shipped by anything here, and its own supported-type table does not
-describe the Rust wallet.
+describe the Rust wallet. CodeQL's default setup still scans it, alongside the code that
+does ship.
 
 ```bash
 cd reference/go && make run

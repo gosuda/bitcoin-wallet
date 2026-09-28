@@ -357,12 +357,19 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       suite runs in CI only now: this Mac moved to macOS 27 on arm64 with no x86_64
       translation, and the harness's `bitcoind` 25.0 is an x86_64 build
 
-- [ ] **2.8 A tidy tree** · S · `.gitignore`, `bitcoin-rs-blueprint-review.html`,
+- [x] **2.8 A tidy tree** · S · `.gitignore`, `bitcoin-rs-blueprint-review.html`,
   `crates/wallet-cli/Cargo.toml`, `README.md` · **decision** on the stray HTML (remove or move)
       why: `.gitignore` is still the Go template and misses `*.keystore`, `*.jks`, `.DS_Store`,
       `packages/*/dist`; a review page is tracked at the root; the CLI's crate description
       still mentions the Go TUI; README says nothing scans `reference/go/` while CodeQL does ·
-      done when: each is fixed and a full build leaves `git status` clean
+      done: 2026-09-28 — `.gitignore` drops the Go template and adds the four; the template
+      had not even ignored the Go reference's own build (its `/bin` is root-anchored, and
+      `make build` writes `reference/go/bin/`), so that path is now named. No tracked file
+      matches any new pattern. The review page is removed (decision below; it stays in
+      history at `ece8550`); `btcw --help` now opens with the new description; README says
+      CodeQL still scans `reference/go/`. A full build — the workspace in debug and release,
+      the wasm core, both apps and the Go reference — leaves `git status` showing only these
+      edits
 
 - [ ] **2.9 `main` is protected** · S · `docs/rulesets/main.json` · **admin**
       why: no branch protection, no rulesets — every green check is advisory · done when: a
@@ -520,8 +527,9 @@ one starts when it is picked.
 - 2026-09-14 — vitest is upgraded to 4, not documented as accepted.
 - 2026-09-14 — GitHub settings are changed through `gh`, each after an explicit OK.
 - 2026-09-14 — The phone bundle workflow runs on manual dispatch only.
-- Open: the default fee target (3.6); the number locale (3.9); the stray review page (2.8);
-  the first tag (4.9); Pages (4.10).
+- 2026-09-28 — The stray review page is removed, not moved: it reviews a different project.
+- Open: the default fee target (3.6); the number locale (3.9); the first tag (4.9); Pages
+  (4.10).
 
 ## Not doing
 
