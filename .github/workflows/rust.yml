@@ -4,16 +4,41 @@ on:
   push:
     branches: [main]
     paths:
-      ["Cargo.*", "crates/**", "apps/**", "packages/**", "pnpm-*", ".github/workflows/rust.yml"]
+      - "Cargo.*"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - "crates/**"
+      - "apps/**"
+      - "packages/**"
+      - "package.json"
+      - "pnpm-*"
+      - ".github/**"
   pull_request:
     paths:
-      ["Cargo.*", "crates/**", "apps/**", "packages/**", "pnpm-*", ".github/workflows/rust.yml"]
+      - "Cargo.*"
+      - "rust-toolchain.toml"
+      - ".cargo/**"
+      - "crates/**"
+      - "apps/**"
+      - "packages/**"
+      - "package.json"
+      - "pnpm-*"
+      - ".github/**"
 
 # Every job here only reads the repository and runs builds and tests, so the
 # token needs nothing else. Without this each job inherits the repository
 # default, which can include write scopes.
 permissions:
   contents: read
+
+# A newer push to a pull request makes the older run's answer moot. Without
+# this, superseded runs still waited their turn for a runner: the multi-hour
+# runs of this workflow were all queue time — no job has executed for more
+# than about five minutes. Pushes to main are never cancelled, so every merge
+# keeps its own verdict.
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,6 +47,7 @@ jobs:
   core:
     name: wallet-core (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -34,16 +60,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy -p wallet-core -p wallet-cli --all-targets -- -D warnings
+      # Nothing builds the core with no features at all, so a gate that only
+      # compiles because a default feature happens to pull in its import would
+      # go unnoticed. Feature-less code has no per-OS paths; one runner is enough.
+      - name: wallet-core with no features
+        if: runner.os == 'Linux'
+        run: cargo clippy -p wallet-core --no-default-features -- -D warnings
       - run: cargo test -p wallet-core -p wallet-cli
       - run: cargo build -p wallet-cli --release
 
   regtest:
     name: end-to-end on regtest
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p regtest-tests --all-targets -- -D warnings
       # bdk_testenv downloads bitcoind and electrs (with the Esplora HTTP API)
       # on first build, so no services or Docker are needed here.
       - run: cargo test -p regtest-tests -- --test-threads=1
@@ -51,6 +87,7 @@ jobs:
   audit:
     name: cargo audit
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -62,6 +99,7 @@ jobs:
   wasm:
     name: wallet-core + wallet-wasm (wasm32)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -71,8 +109,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy -p wallet-core --target wasm32-unknown-unknown --no-default-features --features backend-esplora -- -D warnings
       - run: cargo clippy -p wallet-wasm --target wasm32-unknown-unknown -- -D warnings
-      - run: cargo install wasm-pack --locked
-      - run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
+      - uses: ./.github/actions/wasm-core
 
   # Compile-only. It cannot catch a keystore that builds and then fails on the
   # device — that is what the startup self-check in the app is for — but it does
@@ -81,6 +118,7 @@ jobs:
   mobile:
     name: app shell (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -109,15 +147,18 @@ jobs:
         if: matrix.target == 'aarch64-linux-android'
         run: |
           TC="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          echo "CC_aarch64_linux_android=$TC/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
-          echo "AR_aarch64_linux_android=$TC/llvm-ar" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TC/aarch64-linux-android26-clang" >> "$GITHUB_ENV"
+          {
+            echo "CC_aarch64_linux_android=$TC/aarch64-linux-android26-clang"
+            echo "AR_aarch64_linux_android=$TC/llvm-ar"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TC/aarch64-linux-android26-clang"
+          } >> "$GITHUB_ENV"
 
       - run: cargo clippy -p bitcoin-wallet-app --target ${{ matrix.target }} -- -D warnings
 
   apps:
     name: desktop + web apps
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -140,10 +181,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       # Both apps import the wasm core through @bitcoin-wallet/ui, so build it
       # before anything typechecks.
-      - name: Build the wasm core
-        run: |
-          cargo install wasm-pack --locked
-          wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
+      - uses: ./.github/actions/wasm-core
       - run: pnpm install --frozen-lockfile
 
       - name: Check the shared UI package

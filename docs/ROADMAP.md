@@ -247,14 +247,26 @@ or a signed transaction. Nothing visual.
 
 Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it says.
 
-- [ ] **2.1 `rust.yml` says what it does** · S · `.github/workflows/rust.yml`, `release.yml`,
+- [x] **2.1 `rust.yml` says what it does** · S · `.github/workflows/rust.yml`, `release.yml`,
   new `.github/actions/wasm-core`, `docs/RELEASING.md`
       why: the path filter omits `.cargo/**` and `rust-toolchain.toml` (the audit job's own
       config cannot trigger it); no job has a timeout (one run took 2 h 19 m); no concurrency
       control; wasm-pack is compiled from source in seven job legs; `regtest-tests` is never
-      linted; RELEASING.md claims `cargo test --workspace` runs · done when: paths, timeouts and
-      cancel-in-progress set; one composite action installs a prebuilt wasm-pack and builds the
-      core; `regtest-tests` clippy'd; `--no-default-features` checked; the doc matches
+      linted; RELEASING.md claims `cargo test --workspace` runs · done: 2026-09-28 — the slow
+      runs were queue time, not build time: across the two slowest (5 h 16 m and 5 h wall
+      clock) every job executed in 0.4–5.1 min and waited up to 5 h for a runner, because
+      each push to a busy PR started a full matrix nobody cancelled. `concurrency` now
+      cancels a superseded PR run (never a push to `main`); every job has a timeout (30 min,
+      15 for the audit, 60 for the never-run release bundle); the filter adds
+      `rust-toolchain.toml`, `.cargo/**`, the root `package.json` and all of `.github/**`;
+      `.github/actions/wasm-core` installs a prebuilt wasm-pack (`taiki-e/install-action`) and
+      builds the core for the wasm job, the apps job and all four release legs; `regtest-tests`
+      is clippy'd with `--all-targets` and `wallet-core --no-default-features` with
+      `-D warnings`, both clean locally before they were added; RELEASING.md lists what CI
+      runs and says nothing runs `--workspace` (the only crates it would add, the app shell
+      and `wallet-wasm`, have no tests). `actionlint` clean, including a shellcheck note in
+      the NDK step. The prebuilt install time and the cancellation are proved on this
+      round's pull request
 
 - [ ] **2.2 `cargo deny` replaces `cargo audit`** · S · `deny.toml`, `.cargo/audit.toml`
   (removed), `rust.yml` · **admin** for the alert dismissals

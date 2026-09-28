@@ -58,5 +58,11 @@ same commit as the tag so the installer and the tag agree.
 
 ## Before tagging
 
-`cargo test --workspace`, `cargo test -p regtest-tests`, and a manual pass over
-the app. CI covers the first two on every push.
+A manual pass over the app. Everything else is what `.github/workflows/rust.yml`
+already runs on each pull request and push to `main` that touches code:
+formatting, clippy and `cargo test -p wallet-core -p wallet-cli` on Linux, macOS
+and Windows; the regtest suite (`cargo test -p regtest-tests`); the wasm build;
+clippy for the app shell on the desktop, iOS and Android targets; and the
+frontend's lint, typecheck, tests and builds. Nothing runs
+`cargo test --workspace` — it would add the Tauri shell's system libraries and no
+tests the list above does not already cover.
