@@ -15,21 +15,12 @@ on:
       - "biome.json"
       - "tsconfig.base.json"
       - "pnpm-*"
+      - "clippy.toml"
       - ".github/**"
+  # No path filter: main's ruleset (docs/rulesets/main.json) requires these
+  # jobs by name, and a required check that never reports holds a pull request
+  # open for good — a docs-only change could never be merged.
   pull_request:
-    paths:
-      - "Cargo.*"
-      - "rust-toolchain.toml"
-      - "deny.toml"
-      - ".cargo/**"
-      - "crates/**"
-      - "apps/**"
-      - "packages/**"
-      - "package.json"
-      - "biome.json"
-      - "tsconfig.base.json"
-      - "pnpm-*"
-      - ".github/**"
 
 # Every job here only reads the repository and runs builds and tests, so the
 # token needs nothing else. Without this each job inherits the repository
@@ -49,6 +40,8 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
+# Each job's `name` is a required check in docs/rulesets/main.json. Rename or
+# drop one only together with that list, or every pull request waits forever.
 jobs:
   core:
     name: wallet-core (${{ matrix.os }})

@@ -371,10 +371,19 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       the wasm core, both apps and the Go reference — leaves `git status` showing only these
       edits
 
-- [ ] **2.9 `main` is protected** · S · `docs/rulesets/main.json` · **admin**
-      why: no branch protection, no rulesets — every green check is advisory · done when: a
-      ruleset requires a pull request and the `rust` jobs, forbids force-push, allows merge
-      commits; a direct push is refused
+- [x] **2.9 `main` is protected** · S · `docs/rulesets/main.json` · **admin**
+      why: no branch protection, no rulesets — every green check is advisory · done: 2026-09-28
+      — ruleset 24116734 (admin OK 2026-09-28, no bypass): a pull request (no approvals, since
+      one maintainer cannot approve their own), the ten `rust` jobs by name and pinned to
+      GitHub Actions so a hand-posted status cannot stand in, no force-push, no deletion, all
+      three merge methods allowed. The ten names were checked against what `rust.yml` can
+      produce, both ways. Read back from `rules/branches/main` as applied, and `main` reports
+      `protected: true`. A direct push of a probe commit by an admin was refused — `GH013 …
+      Changes must be made through a pull request. 10 of 10 required status checks are
+      expected.` — and `main` did not move. The workflow's `pull_request` trigger lost its
+      path filter, since a required check that never reports would hold a docs-only pull
+      request open forever; the push filter gains `clippy.toml`. `docs/rulesets/README.md`
+      has the apply, update and read-back calls, and why a renamed job must change both files
 
 ## Round 3 — Tests and drift
 
