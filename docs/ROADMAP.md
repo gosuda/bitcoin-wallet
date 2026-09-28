@@ -268,14 +268,24 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       the NDK step. The prebuilt install time and the cancellation are proved on this
       round's pull request
 
-- [ ] **2.2 `cargo deny` replaces `cargo audit`** · S · `deny.toml`, `.cargo/audit.toml`
+- [x] **2.2 `cargo deny` replaces `cargo audit`** · S · `deny.toml`, `.cargo/audit.toml`
   (removed), `rust.yml` · **admin** for the alert dismissals
       why: only advisories are checked today — no licence allow-list, no duplicate or wildcard
       bans, no source restriction; the three rustls-webpki Dependabot alerts are the dev-only
       0.101.7 reached through `minreq` → `bitcoind`/`electrsd` → `bdk_testenv`, already
-      explained in the ignore list but not on GitHub · done when: `cargo deny check` is green
-      locally and in CI with the ignores and their reasons migrated; alerts #39–41 dismissed as
-      not reachable at runtime
+      explained in the ignore list but not on GitHub · done: 2026-09-28 — `deny.toml` checks
+      all four: the five vulnerability ignores migrated with reasons and their GHSA ids (looked
+      up, not guessed: -0104/-0099/-0098 are GHSA-82j2/-xgp8/-965h; the quick-xml pair has
+      none); unmaintained and unsound notices fail for direct dependencies only, which is how
+      the six unmaintained crates cargo audit only warned about (proc-macro-error and five
+      `unic-*`, all through Tauri) and glib's unsoundness stay non-fatal while a direct
+      dependency no longer could; a thirteen-licence allow-list, each one used (cargo deny
+      warns otherwise); wildcard requirements denied, with every crate now `publish = false`
+      so workspace path dependencies pass; crates.io the only source. `cargo deny check`
+      green locally with and without `--all-features` (the action's default), on the same
+      0.20.2 the action ships; SECURITY.md points at `deny.toml`. Alerts #39–41 dismissed as
+      `not_used` with the RUSTSEC id and reason (admin OK 2026-09-28); open alerts read back
+      as #42–44 (vitest, 2.4) and #18 (glib, ships on Linux)
 
 - [ ] **2.3 Dependabot** · S · `.github/dependabot.yml` · **admin** to enable security updates
       why: nothing proposes upgrades; security updates are disabled · done when: cargo, npm,

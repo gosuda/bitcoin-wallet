@@ -2,6 +2,7 @@
 name = "bitcoin-wallet-app"
 version = "0.1.0"
 description = "Bitcoin wallet app shell: desktop, iOS and Android"
+publish = false
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

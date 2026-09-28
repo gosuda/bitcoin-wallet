@@ -2,6 +2,7 @@
 name = "wallet-cli"
 version = "0.1.0"
 description = "Developer CLI exercising wallet-core (Go TUI parity flows)"
+publish = false
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

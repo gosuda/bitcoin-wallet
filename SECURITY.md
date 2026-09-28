@@ -31,7 +31,7 @@ Anything that could lose or expose funds, or make the wallet lie about them:
 - an Esplora endpoint, a `bitcoin:` link, a scanned QR or a pasted descriptor that can
   drive the app into a state the user did not ask for
 - dependency advisories that actually reach shipped code — see the note on
-  `.cargo/audit.toml` below
+  `deny.toml` below
 
 ## What is not
 
@@ -44,10 +44,11 @@ Anything that could lose or expose funds, or make the wallet lie about them:
   source).
 - **Anything requiring an attacker who already has the device unlocked**, or root, or
   the keychain.
-- **Third-party advisories with no path to shipped code.** Six are recorded, each with
-  the reason it cannot reach the wallet, in
-  [`.cargo/audit.toml`](.cargo/audit.toml); everything else fails CI. If you can show a
-  path we missed, that is in scope.
+- **Third-party advisories with no path to shipped code.** The exceptions are in
+  [`deny.toml`](deny.toml), each with the reason it cannot be exploited through the
+  wallet. Any other vulnerability anywhere in the dependency graph fails CI, as does an
+  unmaintained or unsound notice on a crate this workspace depends on directly. If you
+  can show a path we missed, that is in scope.
 
 ## Where the keys are
 

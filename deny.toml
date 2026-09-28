@@ -1,0 +1,68 @@
+# `cargo deny check`: advisories, licences, bans and sources for everything in
+# Cargo.lock — dev and build dependencies included, on every target the lockfile
+# resolves for. CI runs it in .github/workflows/rust.yml.
+
+[advisories]
+# A vulnerability fails the check wherever it sits in the graph. Unmaintained
+# and unsound notices fail only for a crate this workspace depends on directly;
+# the same notice deep in Tauri's tree is upstream's to fix, and failing on it
+# would block every build on something no change here can reach. cargo audit
+# warned on all of these and failed on none, so this is stricter for our own
+# dependencies and unchanged for the rest.
+#
+# Not listed because this scope already passes it: glib 0.18.5's unsoundness
+# (RUSTSEC-2024-0429, GHSA-wrw7-89jp-8q8g), transitive through Tauri's `gtk
+# 0.18` on Linux. Its Dependabot alert (#18) stays open, since it ships.
+unmaintained = "workspace"
+unsound = "workspace"
+ignore = [
+    # rustls-webpki 0.101.7: certificate-validation flaws. Reached only through
+    # `minreq`, a build dependency of `bitcoind`/`electrsd` in the regtest
+    # harness — `bdk_testenv`, a dev-dependency of regtest-tests — i.e. code that
+    # downloads test binaries at build time. The shipped wallet's TLS resolves
+    # rustls-webpki 0.103.x. Pinned by `minreq ^0.101`: nothing to bump until
+    # electrsd moves. Dependabot alerts #39-41 are dismissed for the same reason.
+    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7, dev-only (bdk_testenv via minreq); GHSA-82j2-j2ch-gfr8, alert #41" },
+    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101.7, dev-only (bdk_testenv via minreq); GHSA-xgp8-3hg3-c2mh, alert #40" },
+    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101.7, dev-only (bdk_testenv via minreq); GHSA-965h-392x-2mh5, alert #39" },
+
+    # quick-xml 0.38.4: denial of service on hostile XML. `plist 1.8` (via
+    # Tauri 2.11) requires ^0.38, so the patched release cannot be selected. The
+    # app parses only its own bundle plists, never attacker input. No GHSA.
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38 pinned by Tauri's plist; only the app's own plists are parsed" },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38 pinned by Tauri's plist; only the app's own plists are parsed" },
+]
+
+[licenses]
+# Everything the graph actually needs, and nothing it does not: cargo deny
+# warns about an allowed licence no crate uses, so this list cannot drift wide.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MITNFA",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+[bans]
+# Duplicates come from Tauri's and the Windows crates' own version splits;
+# warning keeps them visible without failing on every upstream split.
+multiple-versions = "warn"
+# A `*` requirement lets any release in; workspace path dependencies are fine,
+# since every crate here is `publish = false`.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+# crates.io only. A git or other-registry dependency is a decision, not an
+# accident, and should arrive with an edit here.
+unknown-registry = "deny"
+unknown-git = "deny"

@@ -2,6 +2,7 @@
 name = "wallet-wasm"
 version = "0.1.0"
 description = "wasm-bindgen bindings for wallet-core (browser and Tauri webview)"
+publish = false
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
