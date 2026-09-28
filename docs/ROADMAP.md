@@ -308,12 +308,21 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       nothing here used anything on 4.0's removal list. Alerts #42–44 close when this reaches
       `main`
 
-- [ ] **2.5 One Node configuration** · S · root `biome.json`, `tsconfig.base.json`, root
+- [x] **2.5 One Node configuration** · S · root `biome.json`, `tsconfig.base.json`, root
   `package.json`, the three package configs, `rust.yml`
       why: three near-identical `biome.json`, two identical tsconfigs, no root `test` script
-      (CI changes directory instead), no `packageManager` or `engines` · done when: the
-      packages extend one root config; `pnpm check && pnpm typecheck && pnpm test` works from
-      the root and CI runs exactly that; `pnpm audit --audit-level=high` in the apps job
+      (CI changes directory instead), no `packageManager` or `engines` · done: 2026-09-28 —
+      one root `biome.json`; each package's is `root: false, extends: "//"` plus its own
+      `files.includes`, and a probe file in each (an `any`, a non-null assertion, single
+      quotes, an over-long line) tripped all three shared rules in all three packages before
+      it was deleted; one `tsconfig.base.json`, and both apps' `tsc --showConfig` output —
+      every option and all 47/48 files — is byte-identical before and after; the root has
+      `test`, `packageManager: pnpm@10.19.0` (which pnpm/action-setup now reads, instead of a
+      second `version: 10`) and `engines.node` set to what the tools actually require (Vite
+      7's `^20.19 || >=22.12`, less the 21 and 23 vitest 4 skips). CI's apps job runs `pnpm
+      check`, `typecheck`, `test` and `build` from the root with no `cd` into a package, then
+      `pnpm audit --audit-level=high` — all five pass locally (98/98 tests, no known
+      vulnerabilities); the path filter adds the two new root files
 
 - [ ] **2.6 The UI package typechecks its tests** · S · new `packages/wallet-ui/tsconfig.json`,
   `package.json`, `test/screen.test.ts`

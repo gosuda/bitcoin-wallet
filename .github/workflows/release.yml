@@ -49,9 +49,8 @@ jobs:
         with:
           targets: wasm32-unknown-unknown${{ matrix.rust-target && format(',{0}', matrix.rust-target) || '' }}
       - uses: Swatinem/rust-cache@v2
+      # The version comes from `packageManager` in the root package.json.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22

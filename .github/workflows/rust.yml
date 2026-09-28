@@ -12,6 +12,8 @@ on:
       - "apps/**"
       - "packages/**"
       - "package.json"
+      - "biome.json"
+      - "tsconfig.base.json"
       - "pnpm-*"
       - ".github/**"
   pull_request:
@@ -24,6 +26,8 @@ on:
       - "apps/**"
       - "packages/**"
       - "package.json"
+      - "biome.json"
+      - "tsconfig.base.json"
       - "pnpm-*"
       - ".github/**"
 
@@ -166,9 +170,8 @@ jobs:
           components: clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      # The version comes from `packageManager` in the root package.json.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -184,25 +187,15 @@ jobs:
       - uses: ./.github/actions/wasm-core
       - run: pnpm install --frozen-lockfile
 
-      - name: Check the shared UI package
-        working-directory: packages/wallet-ui
-        run: |
-          pnpm biome ci .
-          pnpm test
-
-      - name: Native app
-        working-directory: apps/native
-        run: |
-          pnpm biome ci .
-          pnpm tsc --noEmit
-          pnpm vite build
-
-      - name: Web app
-        working-directory: apps/web
-        run: |
-          pnpm biome ci .
-          pnpm tsc --noEmit
-          pnpm vite build
+      # The same commands a contributor runs from the root: every package that
+      # has the script gets it, so a new package is covered without an edit here.
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      # Fails on high and critical advisories only; a moderate one in a dev tool
+      # is Dependabot's to propose, not a reason to stop every build.
+      - run: pnpm audit --audit-level=high
 
       - name: Build the Tauri shell
         run: cargo clippy -p bitcoin-wallet-app --all-targets -- -D warnings
