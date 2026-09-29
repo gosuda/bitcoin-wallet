@@ -115,7 +115,11 @@ vi.mock("../src/persist/indexeddb", () => ({
 }));
 
 import { api } from "../src/api";
+import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
+import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
+import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
+import { renderSetup as renderPhoneSetup } from "../src/mobile/screens/setup";
 import { setPlatform } from "../src/platform";
 import type { Route } from "../src/router";
 import { renderCreate } from "../src/screens/create";
@@ -123,6 +127,7 @@ import { renderDashboard } from "../src/screens/dashboard";
 import { renderKey } from "../src/screens/key";
 import { renderRestore } from "../src/screens/restore";
 import { renderSend } from "../src/screens/send";
+import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
 import type { AppConfig } from "../src/types";
 
@@ -316,6 +321,61 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(buildDrain).toHaveBeenCalledTimes(1);
     expect(screen.querySelector(".banner-visible")).toBeNull();
     expect(buttonNamed(screen, "Confirm & broadcast")).toBeTruthy();
-    expect(screen.textContent).toContain("1,000");
+    expect(screen.textContent).toContain((1000).toLocaleString());
+  });
+});
+
+/** What a screen reader announces a group as: its `aria-labelledby` text, else its `aria-label`. */
+function nameOf(group: Element): string {
+  const ids = group.getAttribute("aria-labelledby");
+  if (ids) {
+    return ids
+      .split(/\s+/)
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
+  return group.getAttribute("aria-label")?.trim() ?? "";
+}
+
+/** Every choice group on `screen`, with the name each one has. */
+function groupNames(screen: HTMLElement): string[] {
+  return [...screen.querySelectorAll("[role=radiogroup]")].map(nameOf);
+}
+
+describe("every choice group has a name (3.9)", () => {
+  it("on the desktop", async () => {
+    at("setup");
+    expect(groupNames(mount(renderSetup()))).toEqual(["Network", "Address type"]);
+    at("restore");
+    expect(groupNames(mount(renderRestore()))).toEqual(["Word count"]);
+
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    const send = mount(renderSend());
+    await settle();
+    expect(groupNames(send)).toEqual(["Amount unit", "Target"]);
+    at("dashboard");
+    const dashboard = mount(renderDashboard());
+    await settle();
+    expect(groupNames(dashboard)).toEqual(["Amount unit", "Address gap"]);
+  });
+
+  it("on the phone", async () => {
+    at("setup");
+    expect(groupNames(mount(renderPhoneSetup()))).toEqual(["Network", "Address type"]);
+    setRestoreMode("phrase");
+    at("restore");
+    expect(groupNames(mount(renderPhoneRestore()))).toEqual(["Word count"]);
+
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    const send = mount(renderPhoneSend());
+    await settle();
+    expect(groupNames(send)).toEqual(["Amount unit", "Fee target"]);
+    at("settings");
+    expect(groupNames(mount(renderPhoneSettings()))).toEqual(["Address gap"]);
+    at("receive");
+    expect(groupNames(mount(renderPhoneReceive()))).toEqual(["Amount unit"]);
   });
 });

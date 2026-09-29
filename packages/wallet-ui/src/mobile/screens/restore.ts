@@ -104,6 +104,7 @@ function phrase(): HTMLElement {
     ],
     "12",
     (v) => build(Number(v) as WordCount),
+    { label: "Word count" },
   );
   build(12);
   // Typed words are secret, and so is the passphrase: out of the DOM the

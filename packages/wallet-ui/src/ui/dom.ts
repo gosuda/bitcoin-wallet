@@ -114,11 +114,23 @@ export async function withBusy<T>(btn: HTMLButtonElement, work: () => Promise<T>
   }
 }
 
+/** The elements a `<label for>` can name. */
+const LABELABLE = new Set(["INPUT", "SELECT", "TEXTAREA", "BUTTON", "METER", "OUTPUT", "PROGRESS"]);
+
 export function field(label: string, control: HTMLElement, hint?: string): HTMLElement {
   const id = control.id || `f-${Math.random().toString(36).slice(2, 8)}`;
   control.id = id;
+  const text = el("label", { className: "field-label", text: label });
+  // `for` names only a form control; a group (a radiogroup `<div>`) is named
+  // by pointing at the label instead. Either way it is the same visible text.
+  if (LABELABLE.has(control.tagName)) {
+    text.htmlFor = id;
+  } else {
+    text.id = `${id}-label`;
+    control.setAttribute("aria-labelledby", text.id);
+  }
   return el("div", { className: "field" }, [
-    el("label", { className: "field-label", text: label, attrs: { for: id } }),
+    text,
     control,
     hint ? el("p", { className: "muted small", text: hint }) : null,
   ]);
@@ -159,13 +171,22 @@ export function checkbox(label: string, hint?: string, name?: string): Checkbox 
   return { node, input };
 }
 
+/**
+ * Native radios, so the browser already gives the group one tab stop and
+ * arrow keys. It still needs a name: `field()` supplies one from its label,
+ * and `opts.label` names a group that stands without one.
+ */
 export function radioGroup<T extends string>(
   name: string,
   options: readonly { value: T; label: string }[],
   selected: T,
   onChange: (value: T) => void,
+  opts: { label?: string } = {},
 ): HTMLElement {
-  const group = el("div", { className: "radio-group", attrs: { role: "radiogroup" } });
+  const group = el("div", {
+    className: "radio-group",
+    attrs: { role: "radiogroup", ...(opts.label ? { "aria-label": opts.label } : {}) },
+  });
   for (const opt of options) {
     const input = el("input", { attrs: { type: "radio", name, value: opt.value } });
     input.checked = opt.value === selected;
@@ -185,7 +206,6 @@ export interface Banner {
   hide(): void;
 }
 
-/** One `role="alert"` banner per screen. */
 let queuedNotice: { kind: BannerKind; message: string } | null = null;
 
 /**
@@ -196,6 +216,7 @@ export function queueNotice(kind: BannerKind, message: string): void {
   queuedNotice = { kind, message };
 }
 
+/** One `role="alert"` banner per screen. */
 export function banner(): Banner {
   const node = el("div", { className: "banner", attrs: { role: "alert" } });
   const alert: Banner = {
@@ -225,22 +246,32 @@ export function kv(rows: readonly [string, Node | string][]): HTMLElement {
   return dl;
 }
 
-const satFormatter = new Intl.NumberFormat("en-US");
+/*
+ * Numbers on screen follow the device's locale, as dates already did. Text
+ * put into an amount field does not: `formatAmount` writes plain digits and
+ * a `.`, which is what the field reads back.
+ */
+const numberFormat = new Intl.NumberFormat();
+const decimalSign =
+  numberFormat.formatToParts(0.5).find((part) => part.type === "decimal")?.value ?? ".";
 
-/** Thousands-separated integer, no unit. */
+/** An integer grouped the way the device writes numbers; no unit. */
 export function formatNumber(n: number): string {
-  return satFormatter.format(n);
+  return numberFormat.format(n);
 }
 
 export function formatSats(sats: number): string {
   return `${formatNumber(sats)} sat`;
 }
 
-/** Whole-sat amount as BTC with 8 decimals (integer math; exact for any sat count). */
+/**
+ * A balance in BTC with all 8 decimals, in the device's separators. Integer
+ * math, so exact for any sat count; balances are never negative.
+ */
 export function formatBtc(sats: number): string {
   const whole = Math.floor(sats / 1e8);
   const frac = String(sats - whole * 1e8).padStart(8, "0");
-  return `${whole}.${frac} BTC`;
+  return `${formatNumber(whole)}${decimalSign}${frac} BTC`;
 }
 
 /** Uppercase card heading (mockup `.label`). */

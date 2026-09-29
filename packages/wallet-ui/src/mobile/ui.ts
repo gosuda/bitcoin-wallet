@@ -132,9 +132,30 @@ export function item(
   return node;
 }
 
+/** Where an arrow key, Home or End moves a choice from `from`; null for any other key. */
+function moveTo(key: string, from: number, count: number): number | null {
+  switch (key) {
+    case "ArrowRight":
+    case "ArrowDown":
+      return (from + 1) % count;
+    case "ArrowLeft":
+    case "ArrowUp":
+      return (from - 1 + count) % count;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return null;
+  }
+}
+
 /**
  * Single-choice chips: one radio group, so a screen reader hears "1 of 3"
- * rather than three unrelated toggles. `tight` fits four on a phone row.
+ * rather than three unrelated toggles. It behaves as one, too, the way native
+ * radios do: a single tab stop on the chosen chip, and the arrow keys (Home
+ * and End as well) move the choice and the focus together. `tight` fits four
+ * on a phone row.
  */
 export function chips<T extends string>(
   options: readonly { value: T; label: string }[],
@@ -151,21 +172,42 @@ export function chips<T extends string>(
     const b = el("button", {
       className: "m-chip",
       text: opt.label,
-      attrs: { type: "button", role: "radio", "aria-checked": String(opt.value === current) },
+      attrs: { type: "button", role: "radio" },
       on: { click: () => select(opt.value) },
     });
     node.appendChild(b);
     return b;
   });
 
+  const paint = (): void => {
+    for (const [i, b] of buttons.entries()) {
+      const chosen = options[i]?.value === current;
+      b.setAttribute("aria-checked", String(chosen));
+      b.tabIndex = chosen ? 0 : -1;
+    }
+    // A choice that matches no chip must not leave the group unreachable.
+    const first = buttons[0];
+    if (first && !buttons.some((b) => b.tabIndex === 0)) first.tabIndex = 0;
+  };
+
+  node.addEventListener("keydown", (ev) => {
+    if (!(ev.target instanceof HTMLButtonElement)) return;
+    const from = buttons.indexOf(ev.target);
+    const to = from < 0 ? null : moveTo(ev.key, from, buttons.length);
+    const next = to === null ? undefined : options[to];
+    if (to === null || next === undefined) return;
+    ev.preventDefault();
+    select(next.value);
+    buttons[to]?.focus();
+  });
+
   function select(value: T): void {
     current = value;
-    for (const [i, other] of buttons.entries()) {
-      other.setAttribute("aria-checked", String(options[i]?.value === current));
-    }
+    paint();
     onChange?.(current);
   }
 
+  paint();
   return { node, value: () => current, select };
 }
 

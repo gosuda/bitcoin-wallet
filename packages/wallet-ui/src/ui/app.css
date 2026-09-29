@@ -1090,3 +1090,21 @@ tr.tx-detail td {
 .field-error:empty {
   display: none;
 }
+
+/*
+ * Motion here is decoration, never the message. With the preference set, a
+ * state change lands at once and the busy spinner holds still: the button it
+ * sits in stays disabled while the work runs, which is the actual signal.
+ * Both shells load this file; mobile.css has no motion of its own.
+ */
+/* biome-ignore-start lint/complexity/noImportantStyles: a reset has to beat every component's own transition, however specific its selector */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: see above */

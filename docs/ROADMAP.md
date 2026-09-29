@@ -560,12 +560,29 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       Key's wipe or the phone Restore's wipe each fails exactly its own test. 133 UI tests.
       Not done: the optional coverage report
 
-- [ ] **3.9 Accessibility semantics** · M · `ui/dom.ts`, `mobile/ui.ts`, callers, both CSS
+- [x] **3.9 Accessibility semantics** · M · `ui/dom.ts`, `mobile/ui.ts`, callers, both CSS
   files · **decision** on the number locale
       why: radiogroups and chip groups have no accessible name; a `<label for>` points at a
       `<div>`; chips are separate tab stops with no arrow keys; no `prefers-reduced-motion`;
-      numbers are formatted `en-US` while dates follow the device · done when: every group is
-      named, arrow keys move selection (tested), motion respects the preference; no new pixels
+      numbers are formatted `en-US` while dates follow the device · done: 2026-09-29 —
+      `field()` now labels a form control with `for` and names anything else (a radiogroup
+      `<div>`) with `aria-labelledby` to the same visible label, so Setup's two groups and
+      Send's target are named by the text beside them. `radioGroup()` takes a name for a
+      group that has no label (the dashboard's rescan gaps: "Address gap"), and the phone's
+      two unnamed chip groups got theirs ("Network", "Word count"). A test renders every
+      screen that has a group, four desktop and five phone, and requires each group to have
+      its exact name. The phone's chips behave as native radios do: one tab stop on the
+      chosen chip, and the arrow keys (Home and End too) move the choice and the focus. Six
+      tests cover it, and removing the key handler fails the two about keys. Desktop groups
+      are native radios, which the browser already runs this way. Reduced motion: one
+      universal reset in `app.css`, which both shells load (`mobile.css` has no motion), with
+      the `!important` lint suppressed for that block alone and the reason given. Numbers
+      follow the device, as decided: `formatNumber`, `formatBtc`'s separators and the error
+      copy use the device locale; amount fields still read and write plain digits with a
+      `.`. The tests that pinned `en-US` now follow the locale too. No new pixels: in the
+      live web app Setup's groups read "Network" and "Address type", the one remaining
+      `label[for]` points at an input, and numbers look as they did on an `en`/`ko` device.
+      144 UI tests
 
 ## Round 4 — Shipping
 
@@ -655,7 +672,9 @@ one starts when it is picked.
 - 2026-09-14 — The phone bundle workflow runs on manual dispatch only.
 - 2026-09-28 — The stray review page is removed, not moved: it reviews a different project.
 - 2026-09-29 — Both shells start Send on a 6-block target (3.6).
-- Open: the number locale (3.9); the first tag (4.9); Pages (4.10).
+- 2026-09-29 — Numbers on screen follow the device's locale, as dates do; amount fields keep
+  plain digits and a `.` (3.9).
+- Open: the first tag (4.9); Pages (4.10).
 
 ## Not doing
 

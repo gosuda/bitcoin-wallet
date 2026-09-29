@@ -202,7 +202,7 @@ export function feeRateError(rate: number): string | null {
   if (!Number.isFinite(rate)) return "Enter a fee rate.";
   if (rate <= 0) return "Fee rate must be more than 0 sat/vB.";
   if (rate > MAX_FEE_RATE_SAT_VB) {
-    return `Fee rate can't be over ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
+    return `Fee rate can't be over ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
   }
   return null;
 }
@@ -300,13 +300,13 @@ function detailedMessage(value: AppError): string | null {
   switch (value.code) {
     case "insufficient_funds":
       if (isFiniteNumber(d?.needed_sat) && isFiniteNumber(d?.available_sat)) {
-        return `Need ${(d.needed_sat - d.available_sat).toLocaleString("en-US")} more sat.`;
+        return `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
       }
       return null;
     case "timeout":
       return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
     case "invalid_fee_rate":
-      return `Enter a fee rate greater than 0, up to ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
+      return `Enter a fee rate greater than 0, up to ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
     case "dust":
       return isFiniteNumber(d?.output)
         ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
@@ -316,7 +316,7 @@ function detailedMessage(value: AppError): string | null {
         return `The fee rate must be at least ${d.required_sat_vb} sat/vB to replace the original.`;
       }
       if (isFiniteNumber(d?.required_sat)) {
-        return `The fee must be at least ${d.required_sat.toLocaleString("en-US")} sat to replace the original.`;
+        return `The fee must be at least ${d.required_sat.toLocaleString()} sat to replace the original.`;
       }
       return null;
     case "not_replaceable":

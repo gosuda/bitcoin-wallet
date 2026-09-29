@@ -30,6 +30,7 @@ export function renderSetup(): HTMLElement {
         url.value = DEFAULT_ESPLORA_URL[value];
       }
     },
+    { label: "Network" },
   );
 
   const url = textInput({

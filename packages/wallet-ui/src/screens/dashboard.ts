@@ -593,6 +593,7 @@ export function renderDashboard(): HTMLElement {
     (v) => {
       gap = v;
     },
+    { label: "Address gap" },
   );
   const rescanBtn = button(
     "Rescan",
