@@ -95,6 +95,13 @@ export async function keystoreAvailable(): Promise<boolean> {
  * readable QR code could end a scan: Android's back key only moved the hidden
  * page, and iOS has no back key at all. Behind the page, the Scan screen stays
  * usable, and leaving it aborts `signal`, which is what stops the camera.
+ *
+ * Only a failure is cancelled on the way out. A read or a cancel has already put
+ * the camera away, and `cancel` stops whatever scan is running: sent after every
+ * scan, the one from a Scan screen that was just replaced (its tab tapped again)
+ * could land after the new screen's scan had started, and stop it. On Android a
+ * cancelled scan never settles at all — the plugin drops the call before it
+ * rejects it — which costs nothing, since the screen waiting on it has gone.
  */
 async function scanQr(signal?: AbortSignal): Promise<string | null> {
   const { scan, Format, cancel, checkPermissions, requestPermissions } = await import(
@@ -116,11 +123,11 @@ async function scanQr(signal?: AbortSignal): Promise<string | null> {
     return result.content;
   } catch (e) {
     if (/cancel/i.test(messageOf(e) ?? "")) return null;
+    // A scan that failed may have left the camera running behind the page.
+    await cancel().catch(() => undefined);
     throw e;
   } finally {
     signal?.removeEventListener("abort", stop);
-    // Leaving the camera running would keep it behind the next screen.
-    await cancel().catch(() => undefined);
   }
 }
 

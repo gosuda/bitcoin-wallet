@@ -343,13 +343,46 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     await settle();
     expect(scanQr).toHaveBeenCalledTimes(1);
     expect(signal?.aborted).toBe(false);
-    expect(root.dataset.scanning).toBe("");
+    expect(root.dataset.scanning).toBeDefined();
 
     leaveTo("dashboard");
 
     expect(signal?.aborted).toBe(true);
     expect(root.dataset.scanning).toBeUndefined();
     await settle();
+    expect(root.dataset.scanning).toBeUndefined();
+  });
+
+  it("a Scan screen replaced by another leaves the new one's camera showing", async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    const scanQr = vi.fn(
+      (given?: AbortSignal) =>
+        new Promise<string | null>((resolve) => {
+          signals.push(given);
+          given?.addEventListener("abort", () => resolve(null), { once: true });
+        }),
+    );
+    setPlatform({ ...platform(), scanQr });
+    const root = document.documentElement;
+    // The shell listens from before any screen, so on a hashchange it renders
+    // the new screen first, and the old screen hears that it has left after.
+    const shell = (): void => void mount(renderPhoneScan());
+    window.addEventListener("hashchange", shell);
+
+    at("scan");
+    mount(renderPhoneScan());
+    await settle();
+    // Tapping the Scan tab while on Scan: same route, one hashchange.
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await settle();
+    window.removeEventListener("hashchange", shell);
+
+    expect(scanQr).toHaveBeenCalledTimes(2);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+    expect(root.dataset.scanning).toBeDefined();
+
+    leaveTo("dashboard");
     expect(root.dataset.scanning).toBeUndefined();
   });
 });
