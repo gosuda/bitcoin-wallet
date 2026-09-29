@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useDeviceLocale } from "./setup-locale";
 
 // `ui/dom.ts` builds its formatters when it loads, as the app does when it
@@ -8,10 +8,6 @@ async function onDevice(locale: string) {
   vi.resetModules();
   return import("../src/ui/dom");
 }
-
-afterEach(() => {
-  useDeviceLocale("de-DE");
-});
 
 describe("numbers follow the device", () => {
   it("groups and separates the way a German device writes them", async () => {
@@ -33,5 +29,11 @@ describe("numbers follow the device", () => {
     const { formatBtc, formatSats } = await onDevice("en-US");
     expect(formatSats(1_000)).toBe("1,000 sat");
     expect(formatBtc(4_650)).toBe("0.00004650 BTC");
+  });
+
+  // Runs after the cases above chose other devices: the harness puts the
+  // German one back after every test, so no choice leaks into the next.
+  it("is back on the German device in a test that chose none", () => {
+    expect((1234.5).toLocaleString()).toBe("1.234,5");
   });
 });

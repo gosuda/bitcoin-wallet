@@ -8,12 +8,22 @@
  * test names no locale; this only changes what "the device's" means.
  */
 
-let device = "de-DE";
+import { afterEach } from "vitest";
 
-/** Make `locale` the device's for the code under test, from the next formatter it builds. */
+const GERMAN = "de-DE";
+let device = GERMAN;
+
+/**
+ * Make `locale` the device's for the code under test, from the next formatter
+ * it builds. It lasts until the end of the test that asks for it.
+ */
 export function useDeviceLocale(locale: string): void {
   device = locale;
 }
+
+afterEach(() => {
+  device = GERMAN;
+});
 
 const BaseNumberFormat = Intl.NumberFormat;
 

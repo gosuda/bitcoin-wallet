@@ -65,8 +65,12 @@ describe("guardRoute", () => {
   // A stored config is read back unchecked: a name no build of this app writes
   // must not reach the core either.
   it.each(SHELLS)("sends a saved type it does not know back to Setup (%s)", (shell) => {
-    const unknown: GuardState = { ...configured, configType: "p2wsh" as AddressType };
-    for (const route of ["key", "create", "restore"] as const) {
+    const unknown: GuardState = {
+      ...configured,
+      configType: "p2wsh" as AddressType,
+      unlockable: true,
+    };
+    for (const route of ["key", "create", "restore", "unlock"] as const) {
       expect(guardRoute(route, unknown, shell), route).toBe("setup");
     }
   });
