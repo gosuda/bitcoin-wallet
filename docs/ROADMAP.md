@@ -396,10 +396,19 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
 
 Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone.
 
-- [ ] **3.1 The error table is tested** · S · `error.rs`, `wallet.rs` tests
+- [x] **3.1 The error table is tested** · S · `error.rs`, `wallet.rs` tests
       why: two of the codes the IPC and wasm contracts rest on are asserted; the rest are not ·
-      done when: every variant's code, details and message; the BDK build-error mapping over
-      constructible variants
+      done: 2026-09-29 — 1.5 had since put every code and details shape in a table; the
+      table now also pins every variant's message (the text a UI falls back to), all three
+      branches of `FeeTooLow`'s, and cannot silently fall behind the enum: a new variant fails
+      to compile in an exhaustive `ordinal()` until it is numbered, then fails
+      `the_table_covers_every_variant` until it has a row (proved by deleting one — the test
+      named the missing ordinal). The BDK mappings are tested directly: every constructible
+      `CreateTxError` a UI can act on (insufficient funds, dust, both "too low" kinds, no
+      UTXOs) and the `build_tx` fallback; the fee-bump mapping, extracted from an inline
+      closure into `bump_error`, over all six `BuildFeeBumpError` variants; and a round trip
+      showing a minimum rate BDK reports is shown in sat/vB that `fee_rate_from_sat_vb`
+      accepts unchanged. Same variant shapes in bdk_wallet 3.1 and 3.2. 75 core tests
 
 - [ ] **3.2 wasm runs in CI** · M · `crates/wallet-wasm`, `crates/wallet-core/src/backend/esplora.rs`,
   `rust.yml`
