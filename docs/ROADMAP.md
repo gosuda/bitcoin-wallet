@@ -265,8 +265,10 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       `-D warnings`, both clean locally before they were added; RELEASING.md lists what CI
       runs and says nothing runs `--workspace` (the only crates it would add, the app shell
       and `wallet-wasm`, have no tests). `actionlint` clean, including a shellcheck note in
-      the NDK step. The prebuilt install time and the cancellation are proved on this
-      round's pull request
+      the NDK step. On this round's pull request the prebuilt wasm-pack (the v0.15.0
+      release tarball) installed in about a second; `cargo install` compiled it from source
+      on every cold cache — a warm one already had it in `~/.cargo/bin` — so the saving is
+      on cache misses
 
 - [x] **2.2 `cargo deny` replaces `cargo audit`** · S · `deny.toml`, `.cargo/audit.toml`
   (removed), `rust.yml` · **admin** for the alert dismissals
@@ -295,9 +297,10 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       minor and patch grouped per ecosystem and majors one at a time; titles follow the
       repository's Conventional Commits (`build(deps)`, `ci(deps)`). Validated against the
       published schema (`check-jsonschema --builtin-schema vendor.dependabot`). Security
-      updates switched on (admin OK 2026-09-28) and read back `enabled: true`. Version updates
-      start once this file is on `main` — Dependabot reads it from nowhere else — so the first
-      pull request is recorded on this round's
+      updates switched on (admin OK 2026-09-28) and read back `enabled: true`. The first
+      Dependabot pull request, #12, opened within minutes: vitest 3.2.7 → 4.1.11, the same fix
+      as 2.4, so it closes once this round is on `main`. Version updates start then too —
+      Dependabot reads this file from `main` only
 
 - [x] **2.4 vitest 3 → 4** · S · `packages/wallet-ui/package.json`, `pnpm-lock.yaml`
       why: 3.2.7 is inside CVE-2026-84373; the fix is 4.1.11 — dev-only, but three open alerts ·
