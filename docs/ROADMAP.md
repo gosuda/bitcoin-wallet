@@ -327,7 +327,9 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
       7's `^20.19 || >=22.12`, less the 21 and 23 vitest 4 skips). CI's apps job runs `pnpm
       check`, `typecheck`, `test` and `build` from the root with no `cd` into a package, then
       `pnpm audit --audit-level=high` — all five pass locally (98/98 tests, no known
-      vulnerabilities); the path filter adds the two new root files
+      vulnerabilities); the path filter adds the two new root files. Raised on 2026-09-29 to
+      `^22.22.2 || ^24.15.0 || >=26.0.0`, the intersection again: vitest 5 dropped Node 20
+      and 25, and jsdom 30 put the 22 and 24 floors where they are now
 
 - [x] **2.6 The UI package typechecks its tests** · S · new `packages/wallet-ui/tsconfig.json`,
   `package.json`, `test/screen.test.ts`
