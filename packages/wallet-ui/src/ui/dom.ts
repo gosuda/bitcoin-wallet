@@ -254,6 +254,8 @@ export function kv(rows: readonly [string, Node | string][]): HTMLElement {
 const numberFormat = new Intl.NumberFormat();
 const decimalSign =
   numberFormat.formatToParts(0.5).find((part) => part.type === "decimal")?.value ?? ".";
+/** The eight digits after a BTC point, in the device's numerals (٠٠٠٠٠٠٠١ in Arabic). */
+const satDigits = new Intl.NumberFormat(undefined, { minimumIntegerDigits: 8, useGrouping: false });
 
 /** An integer grouped the way the device writes numbers; no unit. */
 export function formatNumber(n: number): string {
@@ -270,8 +272,7 @@ export function formatSats(sats: number): string {
  */
 export function formatBtc(sats: number): string {
   const whole = Math.floor(sats / 1e8);
-  const frac = String(sats - whole * 1e8).padStart(8, "0");
-  return `${formatNumber(whole)}${decimalSign}${frac} BTC`;
+  return `${formatNumber(whole)}${decimalSign}${satDigits.format(sats - whole * 1e8)} BTC`;
 }
 
 /** Uppercase card heading (mockup `.label`). */

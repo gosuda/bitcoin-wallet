@@ -21,6 +21,14 @@ describe("numbers follow the device", () => {
     expect(formatBtc(123_456_789)).toBe("1,23456789 BTC");
   });
 
+  // Integer math keeps the value exact; the digits still have to be the
+  // device's, all eight of them after the point.
+  it("writes every digit of a BTC amount in the device's numerals", async () => {
+    const { formatBtc } = await onDevice("ar-EG");
+    expect(formatBtc(1)).toBe("٠٫٠٠٠٠٠٠٠١ BTC");
+    expect(formatBtc(123_456_789)).toBe("١٫٢٣٤٥٦٧٨٩ BTC");
+  });
+
   it("reads on an en-US device exactly as it did before", async () => {
     const { formatBtc, formatSats } = await onDevice("en-US");
     expect(formatSats(1_000)).toBe("1,000 sat");
