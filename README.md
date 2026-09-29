@@ -17,8 +17,9 @@ read it before opening an issue asking for something that is already listed ther
 
 **Open a wallet** three ways: a BIP39 recovery phrase (an HD account, with a
 passphrase if you want one), a single private key (hex or WIF), or an xpub or public
-descriptor to follow a wallet you cannot spend from. On a phone, a wallet can be
-remembered in the OS keychain and reopened with Face ID or the device unlock.
+descriptor to follow a wallet you cannot spend from. The desktop and phone apps can
+remember a wallet in the OS key store; on a phone it then reopens with Face ID or the
+device unlock.
 
 **Receive** on a fresh address each time (single-key wallets have the one address, and
 say so). The QR encodes a `bitcoin:` link, with an amount if you ask for one.
@@ -55,7 +56,8 @@ The maintained implementation. One wallet core, compiled once and reused everywh
 natively for the CLI and tests, and as WASM in the browser and the Tauri webview.
 It uses [BDK](https://bitcoindevkit.org) (`bdk_wallet`, `bdk_esplora`) and runs against
 any Esplora-compatible HTTP API — mempool.space, blockstream.info, electrs,
-[bitcoin-rs](https://github.com/gosuda/bitcoin-rs).
+[bitcoin-rs](https://github.com/gosuda/bitcoin-rs). The browser build reaches only the
+servers that send CORS headers; the desktop and phone apps reach any (see below).
 
 ```
 crates/wallet-core   # wallet logic: keys, sync, balance, build → sign → broadcast (no UI, no database)
@@ -73,15 +75,17 @@ answers with `localStorage` and reports `canRememberWallet: false`, so "Remember
 device" is not offered, no key is written anywhere, and the wallet lives only as long as
 the tab.
 
-**One frontend, two layouts.** The shell picks by viewport, not by build, and both
-layouts import the same screens' logic. Desktop is a single dashboard with the wallet,
+**One frontend, two layouts.** The layout is chosen when the app is built, not by
+viewport: the native entry point reads `TAURI_ENV_PLATFORM` and mounts the phone shell
+for iOS and Android, and the browser build always gets the desktop one. Both layouts
+import the same screens' logic. Desktop is a single dashboard with the wallet,
 receive, history and the panels for rescan and public keys, plus its own Send page.
 The phone is a tab bar — Wallet, Scan, Settings — over full-screen routes: Wallet,
 Receive, Send, Transaction, Export, Settings, and the Setup / Key / Create / Restore /
 Unlock flow before a wallet is open. Both bundles are built from the same source and
 the desktop bundle contains no phone chunks.
 
-**What the phone shell adds.** Four things need a device and are wired through Tauri
+**What the phone shell adds.** Three things need a device and are wired through Tauri
 plugins, each behind a capability in `apps/native/src-tauri/capabilities/mobile.json`:
 
 - **Camera** — the Scan tab reads a QR into the Send form (`barcode-scanner`).
@@ -89,9 +93,12 @@ plugins, each behind a capability in `apps/native/src-tauri/capabilities/mobile.
   (`biometric`); the key itself lives in the iOS Keychain or the Android Keystore.
 - **`bitcoin:` links** — a payment URI from another app opens Send filled in
   (`deep-link`).
-- **Chain requests through Rust** — the webview's `fetch` is replaced so cross-origin
-  http(s) goes out through the native HTTP stack (`http`), which is why any
-  Esplora endpoint works rather than only the ones that happen to send CORS headers.
+
+**Chain requests through Rust.** In both native apps, desktop and phone, the webview's
+`fetch` is replaced so that cross-origin http(s) goes out through the native HTTP stack
+(`http`). That is why any Esplora endpoint works there, not only the ones that happen
+to send CORS headers. Its scope is no static capability: the app grants itself each
+backend origin as that backend is configured, and no other origin.
 
 **Persistence.** The core never picks a database: it stages BDK `ChangeSet`s through a
 `Persister` the platform supplies. Browser and desktop both use the same IndexedDB store
@@ -164,7 +171,8 @@ account with its separate change keychain — so no faucet or Docker is needed.
 
 Installers are built by `.github/workflows/release.yml` — run it by hand to
 check the bundles, or push a `v*` tag to attach them to a draft release. Signing
-is a matter of adding secrets; see [docs/RELEASING.md](docs/RELEASING.md).
+the macOS, Android and iOS builds is a matter of adding secrets; Windows signing is not
+wired yet. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Apps
 
