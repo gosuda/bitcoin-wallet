@@ -29,6 +29,7 @@ pull requests a change arrived in.
 - The phone shows where keyboard focus is on every control: rows and tabs are ringed inside
   their edge, and the primary button in a colour its fill does not hide. Textareas show
   the ring on both shells. (#39)
+- The phone's Send shows the Custom fee rate field only when Custom is chosen. (#39)
 - A wallet remembered on this device can be opened again after Setup: Setup now continues to
   Unlock when the network chosen there is the wallet's own. Unlock refuses a wallet saved on
   another network, which it used to open against the wrong chain's server. (#39)

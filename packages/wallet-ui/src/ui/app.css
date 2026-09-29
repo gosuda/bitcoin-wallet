@@ -1092,6 +1092,18 @@ tr.tx-detail td {
   display: none;
 }
 
+/*
+ * The `hidden` attribute hides an element only through the browser's own
+ * `display: none`, which any class that sets `display` outranks: the phone's
+ * Custom rate row stayed on screen for every fee target that way. Both shells
+ * load this file, so here it wins over every component's layout.
+ */
+/* biome-ignore-start lint/complexity/noImportantStyles: `hidden` has to beat every component's own display, however specific its selector */
+[hidden] {
+  display: none !important;
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: see above */
+
 .ok {
   color: var(--ok);
 }
