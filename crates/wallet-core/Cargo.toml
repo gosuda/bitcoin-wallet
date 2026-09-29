@@ -73,5 +73,10 @@ futures-util = "0.3"
 [dev-dependencies]
 tokio = { workspace = true }
 
+# For the tests that also run in wasm32, which `wasm-pack test --node
+# crates/wallet-core --no-default-features --features backend-esplora` runs.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
 [lints]
 workspace = true

@@ -1065,7 +1065,8 @@ mod tests {
     }
 
     struct ArcBackend(Arc<MockBackend>);
-    #[async_trait::async_trait]
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
     impl ChainBackend for ArcBackend {
         async fn full_scan(
             &self,
@@ -1441,7 +1442,8 @@ mod tests {
         );
 
         struct Failing;
-        #[async_trait::async_trait]
+        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
         impl ChainBackend for Failing {
             async fn full_scan(
                 &self,
@@ -1653,7 +1655,8 @@ mod tests {
         #[derive(Clone, Default)]
         struct SharedPersister(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
 
-        #[async_trait::async_trait]
+        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
         impl crate::persist::Persister for SharedPersister {
             async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
                 Ok(self.0.lock().unwrap().clone())
@@ -2030,7 +2033,8 @@ mod tests {
         #[derive(Clone, Default)]
         struct Recorder(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
 
-        #[async_trait::async_trait]
+        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
         impl crate::persist::Persister for Recorder {
             async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
                 Ok(self.0.lock().unwrap().clone())

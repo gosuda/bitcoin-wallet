@@ -6015,6 +6015,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+ "wasm-bindgen-test",
  "web-time",
  "zeroize",
 ]

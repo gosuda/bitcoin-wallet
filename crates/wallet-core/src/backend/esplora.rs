@@ -161,22 +161,28 @@ impl ChainBackend for EsploraBackend {
     }
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
+// Each target has its own `deadline`, so each test runs on both: under tokio
+// natively, and in Node through `wasm-pack test --node` for wasm32.
+#[cfg(test)]
 mod tests {
     use super::*;
 
     /// The native branch used to be a no-op that returned the future untouched,
-    /// so `SCAN_DEADLINE_SECS` bounded nothing off the browser.
-    #[tokio::test]
-    async fn the_native_deadline_actually_fires() {
+    /// so `SCAN_DEADLINE_SECS` bounded nothing off the browser. In the browser,
+    /// this race is the only bound a hung endpoint meets.
+    #[cfg_attr(not(target_arch = "wasm32"), tokio::test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    async fn the_deadline_actually_fires() {
         let never = std::future::pending::<Result<()>>();
-        let started = std::time::Instant::now();
+        // `std`'s clock panics on wasm32; this one reads `performance.now()`.
+        let started = web_time::Instant::now();
         let error = deadline(1, never).await.unwrap_err();
         assert!(matches!(error, Error::Timeout(1)), "{error:?}");
         assert!(started.elapsed() < std::time::Duration::from_secs(5));
     }
 
-    #[tokio::test]
+    #[cfg_attr(not(target_arch = "wasm32"), tokio::test)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     async fn a_call_inside_the_budget_is_untouched() {
         let ok = async { Ok(7_u8) };
         assert_eq!(deadline(30, ok).await.unwrap(), 7);

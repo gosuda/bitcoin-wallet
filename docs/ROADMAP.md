@@ -415,12 +415,29 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       showing a minimum rate BDK reports is shown in sat/vB that `fee_rate_from_sat_vb`
       accepts unchanged. Same variant shapes in bdk_wallet 3.1 and 3.2. 75 core tests
 
-- [ ] **3.2 wasm runs in CI** · M · `crates/wallet-wasm`, `crates/wallet-core/src/backend/esplora.rs`,
+- [x] **3.2 wasm runs in CI** · M · `crates/wallet-wasm`, `crates/wallet-core/src/backend/esplora.rs`,
   `rust.yml`
       why: 427 lines of bindings are compiled and never executed; the wasm32 deadline race is
-      tested only on native · done when: `wasm-bindgen-test` covers error shape, key
-      generation, mnemonic validation and open/reopen through a JS persister; the deadline test
-      has a wasm32 twin; `wasm-pack test --node` runs in the `wasm` job
+      tested only on native · done: 2026-09-29 — `crates/wallet-wasm/tests/bindings.rs`, 8
+      tests in Node against the real bindings, offline (opening a wallet never contacts its
+      backend). Error shape: every thrown value is a JS `Error` with a string `code` and
+      `message`; `details` is absent when an error has none, and a plain object when it
+      does: an overspend's `needed_sat`/`available_sat`, a malformed record's `reason` with
+      `null` for `found`, a newer build's record naming both versions. The very first run
+      showed `details` arriving as a `Map`, which the UI cannot read; that is fixed in its
+      own commit, just before this one. Keys: a generated key derives the address it came
+      with from both its WIF and its hex, and two keys differ (the entropy is the JS host's);
+      12- and 24-word phrases validate and derive their address, 13 is `invalid_key`, a bad
+      checksum is `invalid_key` with no `details`, and an unknown network or type is
+      `unsupported` with its own message. Open/reopen through a persister written in JS: the
+      id matches `walletIdForKey`, the stored record is the `{"v":1}` envelope, and reopening
+      from it reveals a third address where the same words with an empty store start over.
+      The deadline tests now run on both targets from one body (`tokio::test` natively,
+      `wasm_bindgen_test` in wasm32); the 1 s timeout fires in Node in 1.01 s. For
+      wallet-core's tests to compile for wasm32 at all, four test-only trait impls in
+      `wallet.rs` took the `?Send` form on wasm32 that production code already uses. The
+      `wasm` job lints both crates' tests (`--all-targets`) and runs both suites on Node 22;
+      README and RELEASING list the commands
 
 - [ ] **3.3 Regtest covers what shipped** · M · `crates/regtest-tests/tests/`
       why: drain, transaction detail, watch-only, passphrase wallets and multi-recipient sends

@@ -61,9 +61,11 @@ same commit as the tag so the installer and the tag agree.
 A manual pass over the app. Everything else is what `.github/workflows/rust.yml`
 already runs on each pull request and push to `main` that touches code:
 formatting, clippy and `cargo test -p wallet-core -p wallet-cli` on Linux, macOS
-and Windows; the regtest suite (`cargo test -p regtest-tests`); the wasm build;
-clippy for the app shell on the desktop, iOS and Android targets; and the
-frontend's lint, typecheck, tests and builds. Nothing runs
-`cargo test --workspace`: the only crates it would add, the Tauri shell and
-`wallet-wasm`, have no tests of their own, and it would pull in the shell's system
-libraries for nothing.
+and Windows; the regtest suite (`cargo test -p regtest-tests`); the wasm build,
+and the wasm32 tests in Node (`wasm-pack test --node` for `wallet-wasm` and for
+`wallet-core`'s wasm-only paths); clippy for the app shell on the desktop, iOS and
+Android targets; and the frontend's lint, typecheck, tests and builds. Nothing runs
+`cargo test --workspace`: the only crates it would add are the Tauri shell, which has
+no tests of its own, and `wallet-wasm`, whose tests exist only on wasm32 and run
+through `wasm-pack` instead. It would also pull in the shell's system libraries for
+nothing.

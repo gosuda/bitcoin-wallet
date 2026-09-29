@@ -11,7 +11,9 @@
 #![cfg(target_arch = "wasm32")]
 
 use js_sys::{Function, JSON, Object, Reflect};
-use wallet_wasm::Wallet;
+use wallet_wasm::{
+    Wallet, address_for_key, generate_key, generate_mnemonic, validate_mnemonic, wallet_id_for_key,
+};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -21,6 +23,10 @@ const WORDS: &str =
 
 fn get(target: &JsValue, key: &str) -> JsValue {
     Reflect::get(target, &JsValue::from_str(key)).unwrap()
+}
+
+fn text(target: &JsValue, key: &str) -> String {
+    get(target, key).as_string().expect(key)
 }
 
 /// A thrown binding error as the UI's `isAppError` sees it — a real JS
@@ -102,10 +108,114 @@ async fn an_unreadable_record_says_why_in_its_details() {
 
     assert_eq!(code_of(&err), "corrupt_state");
     let details = details_of(&err);
-    assert_eq!(
-        get(&details, "reason").as_string().as_deref(),
-        Some("malformed")
-    );
+    assert_eq!(text(&details, "reason"), "malformed");
     // A missing value arrives as `null`, as it would from JSON.
     assert!(get(&details, "found").is_null(), "{details:?}");
+}
+
+#[wasm_bindgen_test]
+async fn a_record_from_a_newer_build_names_both_versions() {
+    let err = open(&persister(Some(r#"{"v":2,"changeset":{}}"#)))
+        .await
+        .err()
+        .expect("a newer record opened");
+
+    assert_eq!(code_of(&err), "corrupt_state");
+    let details = details_of(&err);
+    assert_eq!(text(&details, "reason"), "future_version");
+    assert_eq!(get(&details, "found").as_f64(), Some(2.0));
+    assert_eq!(get(&details, "supported").as_f64(), Some(1.0));
+}
+
+#[wasm_bindgen_test]
+fn an_error_without_data_has_no_details_at_all() {
+    let wrong_checksum = WORDS.replace("about", "abandon");
+    let err = validate_mnemonic(&wrong_checksum).unwrap_err();
+
+    assert_eq!(code_of(&err), "invalid_key");
+    let message = text(&err, "message");
+    assert!(
+        message.starts_with("invalid key material: invalid mnemonic"),
+        "{message}"
+    );
+    // Absent, not `undefined` or `null`: the property does not exist.
+    assert!(!Reflect::has(&err, &JsValue::from_str("details")).unwrap());
+}
+
+#[wasm_bindgen_test]
+fn an_unknown_name_is_unsupported() {
+    let err = generate_key("mainnet-ish", "p2wpkh").unwrap_err();
+    assert_eq!(code_of(&err), "unsupported");
+    assert_eq!(text(&err, "message"), "unknown network 'mainnet-ish'");
+
+    let err = generate_key("testnet4", "p2sh").unwrap_err();
+    assert_eq!(code_of(&err), "unsupported");
+    assert_eq!(text(&err, "message"), "unknown address type 'p2sh'");
+}
+
+#[wasm_bindgen_test]
+fn a_generated_key_derives_the_address_it_came_with() {
+    let key = generate_key("testnet4", "p2wpkh").unwrap();
+    let address = text(&key, "address");
+    assert!(address.starts_with("tb1q"), "{address}");
+    for secret in [text(&key, "wif"), text(&key, "priv_hex")] {
+        assert_eq!(
+            address_for_key(&secret, "testnet4", "p2wpkh", None).unwrap(),
+            address
+        );
+    }
+    // The entropy comes from the JS host's `crypto.getRandomValues`.
+    let other = generate_key("testnet4", "p2wpkh").unwrap();
+    assert_ne!(text(&other, "priv_hex"), text(&key, "priv_hex"));
+}
+
+#[wasm_bindgen_test]
+fn a_generated_phrase_validates_and_derives_its_address() {
+    for count in [12_u8, 24] {
+        let phrase = generate_mnemonic("testnet4", "p2wpkh", count).unwrap();
+        let words = text(&phrase, "words");
+        assert_eq!(words.split_whitespace().count(), usize::from(count));
+        validate_mnemonic(&words).unwrap();
+        assert_eq!(
+            address_for_key(&words, "testnet4", "p2wpkh", None).unwrap(),
+            text(&phrase, "address")
+        );
+    }
+    let err = generate_mnemonic("testnet4", "p2wpkh", 13).unwrap_err();
+    assert_eq!(code_of(&err), "invalid_key");
+}
+
+#[wasm_bindgen_test]
+async fn a_wallet_reopens_from_what_its_persister_kept() {
+    let store = persister(None);
+    let wallet = open(&store).await.unwrap();
+    assert_eq!(
+        wallet.id(),
+        wallet_id_for_key(WORDS, "testnet4", "p2wpkh", None).unwrap()
+    );
+    assert_eq!(wallet.network(), "testnet4");
+    assert_eq!(wallet.address_type(), "p2wpkh");
+    assert!(wallet.is_hd() && !wallet.is_watch_only());
+
+    let first = wallet.address().await;
+    assert_eq!(
+        first,
+        address_for_key(WORDS, "testnet4", "p2wpkh", None).unwrap()
+    );
+    let second = wallet.new_address().await.unwrap();
+    assert_ne!(second, first);
+
+    // What reached JS is the versioned envelope, not a bare changeset.
+    let record: serde_json::Value = serde_json::from_str(&text(&store, "record")).unwrap();
+    assert_eq!(record["v"], 1);
+    drop(wallet);
+
+    // Reopened from that record, the wallet knows two addresses are out and
+    // reveals a third. Opened without it, the same words start over.
+    let reopened = open(&store).await.unwrap();
+    let third = reopened.new_address().await.unwrap();
+    assert!(third != first && third != second, "{third}");
+    let fresh = open(&persister(None)).await.unwrap();
+    assert_eq!(fresh.address().await, first);
+    assert_eq!(fresh.new_address().await.unwrap(), second);
 }

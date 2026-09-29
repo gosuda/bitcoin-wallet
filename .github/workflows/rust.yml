@@ -104,9 +104,18 @@ jobs:
           components: clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy -p wallet-core --target wasm32-unknown-unknown --no-default-features --features backend-esplora -- -D warnings
-      - run: cargo clippy -p wallet-wasm --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo clippy -p wallet-core --target wasm32-unknown-unknown --no-default-features --features backend-esplora --all-targets -- -D warnings
+      - run: cargo clippy -p wallet-wasm --target wasm32-unknown-unknown --all-targets -- -D warnings
       - uses: ./.github/actions/wasm-core
+      # Compiling it proves nothing about what JS receives. These run the
+      # bindings and the wasm-only deadline race in Node, with the wasm-pack
+      # the step above installed. Pinned like the apps job, so the image's
+      # default Node changing cannot change a result.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: wasm-pack test --node crates/wallet-wasm
+      - run: wasm-pack test --node crates/wallet-core --no-default-features --features backend-esplora
 
   # Compile-only. It cannot catch a keystore that builds and then fails on the
   # device — that is what the startup self-check in the app is for — but it does
