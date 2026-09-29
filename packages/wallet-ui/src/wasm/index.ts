@@ -6,10 +6,11 @@
  * the app's own types instead of the generated `any`. No wallet operation goes
  * through Tauri.
  *
- * Two shape mismatches are normalized here so the rest of the app never sees
- * them: the core spells the nested-segwit type `np2wpkh` in its free functions
- * (config JSON uses the serde name `nested_p2wpkh`), and `estimate_fee`
- * arrives as a `Map` because `serde-wasm-bindgen` maps Rust maps to JS `Map`s.
+ * Shape mismatches are normalized here so the rest of the app never sees them:
+ * `estimate_fee` arrives as a `Map` because `serde-wasm-bindgen` maps Rust maps
+ * to JS `Map`s, and a Rust `None` inside a result arrives as `undefined` where
+ * the app's types say `null`. Names need no translation: the core accepts and
+ * returns the same address-type names the app uses.
  */
 
 import type {
@@ -62,23 +63,6 @@ export interface BuiltTx {
 export interface Broadcast {
   txid: string;
   persist_error: string | null;
-}
-
-/** `AddressType::id` in the core; only the nested form differs from serde's name. */
-const CORE_ADDRESS_TYPE: Record<AddressType, string> = {
-  p2pk: "p2pk",
-  p2pkh: "p2pkh",
-  p2wpkh: "p2wpkh",
-  nested_p2wpkh: "np2wpkh",
-  p2tr: "p2tr",
-};
-
-function fromCoreAddressType(id: string): AddressType {
-  const found = (Object.keys(CORE_ADDRESS_TYPE) as AddressType[]).find(
-    (t) => CORE_ADDRESS_TYPE[t] === id,
-  );
-  if (!found) throw new Error(`unknown address type '${id}'`);
-  return found;
 }
 
 let ready: Promise<void> | null = null;
@@ -231,7 +215,7 @@ export class WalletApi {
   }
 
   get address_type(): AddressType {
-    return fromCoreAddressType(this.inner.address_type);
+    return this.inner.address_type as AddressType;
   }
 
   /** A BIP32 account (mnemonic) rather than a single key. */
@@ -348,7 +332,7 @@ export async function generateKey(
   addressType: AddressType,
 ): Promise<GeneratedKey> {
   await load();
-  return generate_key(network, CORE_ADDRESS_TYPE[addressType]) as GeneratedKey;
+  return generate_key(network, addressType) as GeneratedKey;
 }
 
 /**
@@ -361,7 +345,7 @@ export async function generateMnemonic(
   wordCount: number,
 ): Promise<GeneratedMnemonic> {
   await load();
-  return generate_mnemonic(network, CORE_ADDRESS_TYPE[addressType], wordCount) as GeneratedMnemonic;
+  return generate_mnemonic(network, addressType, wordCount) as GeneratedMnemonic;
 }
 
 /** Throws with a readable reason when `words` is not a valid BIP39 phrase. */
@@ -382,7 +366,7 @@ export async function addressForKey(
   passphrase?: string,
 ): Promise<string> {
   await load();
-  return address_for_key(secret, network, CORE_ADDRESS_TYPE[addressType], passphrase);
+  return address_for_key(secret, network, addressType, passphrase);
 }
 
 /**
@@ -399,7 +383,7 @@ export async function walletIdForKey(
   passphrase?: string,
 ): Promise<string> {
   await load();
-  return wallet_id_for_key(secret, network, CORE_ADDRESS_TYPE[addressType], passphrase);
+  return wallet_id_for_key(secret, network, addressType, passphrase);
 }
 
 /** Default public Esplora endpoint for a network. */

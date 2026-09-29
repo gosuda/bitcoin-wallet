@@ -72,16 +72,16 @@ fn persister(record: Option<&str>) -> JsValue {
     p.into()
 }
 
-fn config() -> JsValue {
-    JSON::parse(
-        r#"{"network":"testnet4","address_type":"p2wpkh",
-            "backend":{"kind":"esplora","url":"https://example.invalid/api"}}"#,
-    )
+fn config(address_type: &str) -> JsValue {
+    JSON::parse(&format!(
+        r#"{{"network":"testnet4","address_type":"{address_type}",
+            "backend":{{"kind":"esplora","url":"https://example.invalid/api"}}}}"#
+    ))
     .unwrap()
 }
 
 async fn open(persister: &JsValue) -> Result<Wallet, JsValue> {
-    Wallet::open(config(), WORDS, persister.clone(), None).await
+    Wallet::open(config("p2wpkh"), WORDS, persister.clone(), None).await
 }
 
 #[wasm_bindgen_test]
@@ -218,4 +218,31 @@ async fn a_wallet_reopens_from_what_its_persister_kept() {
     let fresh = open(&persister(None)).await.unwrap();
     assert_eq!(fresh.address().await, first);
     assert_eq!(fresh.new_address().await.unwrap(), second);
+}
+
+#[wasm_bindgen_test]
+async fn the_nested_type_has_one_spelling_and_keeps_its_ids() {
+    // The UI's own name goes in, and the same name comes back out.
+    let wallet = Wallet::open(config("nested_p2wpkh"), WORDS, persister(None), None)
+        .await
+        .unwrap();
+    assert_eq!(wallet.address_type(), "nested_p2wpkh");
+    let address = wallet.address().await;
+    assert!(
+        address.starts_with('2'),
+        "a testnet P2SH address: {address}"
+    );
+    assert_eq!(
+        address_for_key(WORDS, "testnet4", "nested_p2wpkh", None).unwrap(),
+        address
+    );
+
+    // A wallet remembered while the UI still translated the name to
+    // `np2wpkh` is stored under the same id, so it still unlocks.
+    let id = wallet_id_for_key(WORDS, "testnet4", "nested_p2wpkh", None).unwrap();
+    assert_eq!(
+        id,
+        wallet_id_for_key(WORDS, "testnet4", "np2wpkh", None).unwrap()
+    );
+    assert_eq!(wallet.id(), id);
 }

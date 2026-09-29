@@ -276,9 +276,10 @@ impl Wallet {
         self.inner.network().id().to_string()
     }
 
+    /// The serde spelling, the same one the config was opened with.
     #[wasm_bindgen(getter)]
     pub fn address_type(&self) -> String {
-        self.inner.address_type().id().to_string()
+        self.inner.address_type().name().to_string()
     }
 
     /// Whether this wallet is a BIP32 account (separate change keychain)

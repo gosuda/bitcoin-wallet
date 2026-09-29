@@ -457,11 +457,20 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       from the passphrased seed, and see none of the words' coins. The "only against the
       mock" above was wrong for that one
 
-- [ ] **3.4 One spelling for the nested type** · S · `keys.rs` (`AddressType::parse`),
+- [x] **3.4 One spelling for the nested type** · S · `keys.rs` (`AddressType::parse`),
   `crates/wallet-wasm/src/lib.rs`, `packages/wallet-ui/src/wasm/index.ts`
       why: core accepts `np2wpkh` and emits `nested_p2wpkh`, so TS keeps a translation table for
-      one variant · done when: `parse` accepts the serde spelling (`id()` untouched — wallet ids
-      embed it), the getter returns it, the table is deleted; a remembered wallet still unlocks
+      one variant · done: 2026-09-29 — `AddressType::parse` also accepts `nested_p2wpkh`, a new
+      `name()` gives the serde spelling (a test checks it against serde itself for every type,
+      and that both `name()` and `id()` parse back), and the wasm `address_type` getter returns
+      it. `wasm/index.ts` lost `CORE_ADDRESS_TYPE` and its reverse lookup: the four free
+      functions take the app's names as they are, and the getter is a cast like its `network`
+      neighbour. `id()` is unchanged and documented as load-bearing. A remembered wallet is
+      found by its id, and that id is pinned twice: exactly in core
+      (`bitcoin-np2wpkh-751e76e8199196d4`), and in Node, where the new spelling yields the same
+      `walletIdForKey` as the old one and opening a `nested_p2wpkh` config gives a `2…`
+      address and that id. 9 binding tests, 76 core tests, 98 UI tests; typecheck and lint
+      clean
 
 - [ ] **3.5 Dead code out** · S · `keys.rs`, `persist.rs`, `network.rs`, `wallet-wasm`,
   `wasm/index.ts`, screens
