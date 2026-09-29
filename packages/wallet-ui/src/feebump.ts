@@ -69,12 +69,34 @@ export function suggestBumpRate(
   estimate: FeeEstimate | null,
   originalRateSatVb?: number | null,
 ): number {
-  const market = estimate ? rateForTarget(estimate, 1) : null;
-  const mustBeatOriginal =
-    originalRateSatVb != null && Number.isFinite(originalRateSatVb) && originalRateSatVb > 0
-      ? originalRateSatVb + REPLACEMENT_MARGIN_SAT_VB
+  return outbid(estimate ? rateForTarget(estimate, 1) : null, originalRateSatVb);
+}
+
+/**
+ * The rate Speed up offers for `target` blocks: what the child and the
+ * transaction it spends are built to pay together.
+ *
+ * A child helps only when the pair pays more than the parent already does on
+ * its own. At or under that rate the core still builds one, at the relay
+ * minimum, and the parent is no nearer a block. So the parent's rate is a
+ * floor here as the original's is for a bump, with the same margin, and a
+ * target whose estimate falls under it is offered the floor instead.
+ */
+export function suggestPackageRate(
+  estimate: FeeEstimate | null,
+  target: number,
+  parentRateSatVb?: number | null,
+): number {
+  return outbid(estimate ? rateForTarget(estimate, target) : null, parentRateSatVb);
+}
+
+/** The market rate, or the one to beat plus the margin when that is higher. */
+function outbid(market: number | null, toBeatSatVb?: number | null): number {
+  const mustBeat =
+    toBeatSatVb != null && Number.isFinite(toBeatSatVb) && toBeatSatVb > 0
+      ? toBeatSatVb + REPLACEMENT_MARGIN_SAT_VB
       : 0;
-  const rate = Math.max(market ?? 1, mustBeatOriginal);
+  const rate = Math.max(market ?? 1, mustBeat);
   // Rounded up to a tenth so the value is typeable, floored at the relay minimum.
   return Math.max(1, Math.ceil(rate * 10) / 10);
 }

@@ -4,7 +4,7 @@ import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { headlineSat, pendingSat } from "../balance";
 import { buildPaymentUri, qrPayload } from "../bip21";
-import { isBumpable, suggestBumpRate } from "../feebump";
+import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../feebump";
 import { platform } from "../platform";
 import { navigate } from "../router";
 import { sameWalletGuard, screenGuard } from "../screen";
@@ -12,12 +12,17 @@ import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
   type Balance,
+  type BroadcastResult,
   errorMessage,
+  FEE_TARGETS,
+  type FeeEstimate,
+  type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type TxDetail,
   type TxOutput,
+  type TxPreview,
   type TxSummary,
   type Utxo,
 } from "../types";
@@ -32,6 +37,7 @@ import {
   formatSats,
   kv,
   mono,
+  radioGroup,
   readout,
   sectionLabel,
   textInput,
@@ -132,6 +138,16 @@ function unitChips(name: string, onChange: (unit: Unit) => void): { node: HTMLEl
 
 type OpenRow = (tx: TxSummary, row: HTMLTableRowElement, chevron: HTMLElement) => void;
 
+/**
+ * What an open row can do besides copy and link: replace our own unconfirmed
+ * send (Bump fee or Cancel, both starting from `rate`), give a payment a
+ * child (Speed up, priced from `estimate`), or nothing.
+ */
+type Offer =
+  | { kind: "replace"; rate: number }
+  | { kind: "child"; estimate: FeeEstimate | null }
+  | { kind: "none" };
+
 function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
   if (txs.length === 0) {
     return el("p", { className: "empty", text: "No transactions yet." });
@@ -228,12 +244,94 @@ export function renderDashboard(): HTMLElement {
   let open: { row: HTMLTableRowElement; detail: HTMLTableRowElement; chevron: HTMLElement } | null =
     null;
 
+  // --- the preview an open row holds -----------------------------------------
+  //
+  // Speed up and Cancel each show a built preview before anything is signed.
+  // One row is open at a time and it offers one or the other, so there is at
+  // most one preview: dropped when it is replaced, when its row closes, when
+  // the history is redrawn under it and when the screen goes. `previewGen`
+  // moves on with every drop, so a build still running then is discarded when
+  // it lands instead of being offered.
+  let heldPreview: TxPreview | null = null;
+  let previewGen = 0;
+
+  const dropPreview = (): void => {
+    previewGen += 1;
+    if (heldPreview) void api.discardTx(heldPreview.psbt_id);
+    heldPreview = null;
+  };
+
+  /**
+   * Builds the preview `ownerDetail`'s row offers, in place of any held
+   * before. `null` when the row, the screen or a newer build moved on first;
+   * a failure is thrown only while this build is still the one that counts.
+   */
+  const holdPreview = async (
+    build: () => Promise<TxPreview>,
+    ownerDetail: HTMLTableRowElement,
+  ): Promise<TxPreview | null> => {
+    dropPreview();
+    const gen = previewGen;
+    const counts = () => gen === previewGen && onScreen() && open?.detail === ownerDetail;
+    let preview: TxPreview;
+    try {
+      preview = await build();
+    } catch (e) {
+      if (counts()) throw e;
+      return null;
+    }
+    if (!counts()) {
+      void api.discardTx(preview.psbt_id);
+      return null;
+    }
+    heldPreview = preview;
+    return preview;
+  };
+
+  /** Hands the held preview over to be signed, which uses it up either way. */
+  const takePreview = (): TxPreview | null => {
+    const preview = heldPreview;
+    heldPreview = null;
+    return preview;
+  };
+
   const closeDetail = () => {
     if (!open) return;
+    dropPreview();
     open.detail.remove();
     open.chevron.classList.remove("tx-chevron-open");
     open.row.setAttribute("aria-expanded", "false");
     open = null;
+  };
+
+  /**
+   * After a broadcast from an open row. It went out; what is left is who
+   * hears of it. If the session has since moved to a different wallet, this
+   * result is not that wallet's to show: recording it here would leave a
+   * stale txid sitting where the new wallet's Result screen would read it as
+   * its own, so only a still-current wallet gets it recorded at all. From
+   * there, steal the screen only if this row's detail is still the one open —
+   * the user may have opened a different transaction's detail on this same
+   * dashboard while the broadcast was in flight.
+   */
+  const broadcastDone = (
+    result: BroadcastResult,
+    ownerDetail: HTMLTableRowElement,
+    what: string,
+  ): void => {
+    if (!sameWallet()) return;
+    session.lastResult = result;
+    if (!onScreen()) return;
+    if (open?.detail === ownerDetail) {
+      closeDetail();
+      navigate("result");
+    } else {
+      // The row that started it is no longer the open detail, and
+      // closeDetail/navigate would steal a screen the user has since moved on
+      // from. Confirm it landed some other way, or a silent success invites a
+      // retry that does it twice.
+      alert.show("ok", `${what} broadcast: ${shortTxid(result.txid)}.`);
+    }
   };
 
   const bumpInline = (
@@ -260,29 +358,7 @@ export function renderDashboard(): HTMLElement {
           }
           try {
             const preview = await api.buildFeeBump(txid, value);
-            const result = await api.signAndBroadcast(preview.psbt_id);
-            // The bump already broadcast. If the session has since moved to
-            // a different wallet, this result is not that wallet's to show:
-            // recording it here would leave a stale txid sitting where the
-            // new wallet's Result screen would read it as its own, so only
-            // a still-current wallet gets it recorded at all. From there,
-            // steal the screen only if this row's detail is still the one
-            // open — the user may have opened a different transaction's
-            // detail on this same dashboard while the bump was in flight.
-            if (!sameWallet()) return;
-            session.lastResult = result;
-            if (!onScreen()) return;
-            if (open?.detail === ownerDetail) {
-              closeDetail();
-              navigate("result");
-            } else {
-              // The bump already broadcast, but the row that started it is
-              // no longer the open detail — closeDetail/navigate would steal
-              // a screen the user has since moved on from. Confirm it landed
-              // some other way, or a silent success invites a retry into a
-              // double-bump.
-              alert.show("ok", `Fee bump broadcast: ${shortTxid(result.txid)}.`);
-            }
+            broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail, "Fee bump");
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
             // node's own wording is the most useful thing to show.
@@ -301,10 +377,165 @@ export function renderDashboard(): HTMLElement {
     ]);
   };
 
+  /**
+   * Cancel: a replacement that pays everything back to this wallet, at a fee
+   * that outbids the original — the core raises it to what BIP125 asks. It
+   * asks first, with the card M11c draws filled in from the preview, and the
+   * bump folds away until it has an answer.
+   */
+  const cancelButton = (
+    txid: string,
+    rate: number,
+    ownerDetail: HTMLTableRowElement,
+    bump: HTMLElement,
+    slot: HTMLElement,
+  ): HTMLButtonElement => {
+    const fold = () => {
+      slot.replaceChildren();
+      bump.classList.remove("hidden");
+    };
+    const confirm = async (): Promise<void> => {
+      const preview = takePreview();
+      if (!preview) {
+        fold();
+        return;
+      }
+      alert.hide();
+      try {
+        broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail, "Cancellation");
+      } catch (e) {
+        if (!onScreen() || open?.detail !== ownerDetail) return;
+        // Signing used the preview up whether or not it went out, so the card
+        // has nothing left to send; asking again builds another.
+        fold();
+        alert.show("error", errorMessage(e));
+      }
+    };
+    const ask = async (): Promise<void> => {
+      alert.hide();
+      try {
+        const preview = await holdPreview(() => api.buildCancel(txid, rate), ownerDetail);
+        if (!preview) return;
+        const yes = button("Cancel transaction", () => withBusy(yes, confirm), "danger", "sm");
+        const keep = () => {
+          dropPreview();
+          fold();
+        };
+        slot.replaceChildren(
+          el("div", { className: "tx-card tx-card-danger" }, [
+            sectionLabel("Cancel"),
+            el("span", {
+              className: "muted",
+              text: `Replace it with a transaction that pays ${formatSats(preview.change_sat)} back to your wallet. Fee ${formatSats(preview.fee_sat)}.`,
+            }),
+            el("div", { className: "actions actions-end" }, [
+              button("Keep it", keep, "quiet", "sm"),
+              yes,
+            ]),
+          ]),
+        );
+        bump.classList.add("hidden");
+        yes.focus();
+      } catch (e) {
+        alert.show("error", errorMessage(e));
+      }
+    };
+    const cancelBtn = button("Cancel", () => withBusy(cancelBtn, ask), "danger", "sm");
+    return cancelBtn;
+  };
+
+  /**
+   * Speed up: a child that spends this payment on to us, with a fee that
+   * brings the two to the chosen rate, so the fee comes out of the payment.
+   * The preview is built as soon as the box shows and again for each target,
+   * and the button sends the one on screen.
+   */
+  const speedUpBox = (
+    d: TxDetail,
+    estimate: FeeEstimate | null,
+    ownerDetail: HTMLTableRowElement,
+  ): HTMLElement => {
+    let target: `${FeeTarget}` = "1";
+    const rateHint = el("span", { className: "hint" });
+    const numbers = el("span", { className: "mono tx-card-numbers" });
+
+    const rebuild = async (): Promise<void> => {
+      const blocks = Number(target);
+      const rate = suggestPackageRate(estimate, blocks, d.fee_rate_sat_vb);
+      let why = "";
+      if (estimate === null) {
+        why = " · estimate unavailable";
+      } else if (rate > suggestPackageRate(estimate, blocks)) {
+        // The estimate alone would offer a rate the transaction pays already.
+        why = ` · raised above the ${(d.fee_rate_sat_vb ?? 0).toFixed(1)} sat/vB it pays alone`;
+      }
+      rateHint.textContent = `${rate.toFixed(1)} sat/vB for the two together${why}`;
+      numbers.textContent = "Working out the fee…";
+      try {
+        const built = await holdPreview(() => api.buildCpfp(d.txid, rate), ownerDetail);
+        if (!built) return;
+        // The child spends our coins from this payment and nothing else, so
+        // they come to what it keeps plus its fee.
+        numbers.textContent = `Fee ${formatSats(built.fee_sat)} · you keep ${formatNumber(built.change_sat)} of the ${formatSats(built.change_sat + built.fee_sat)}`;
+      } catch (e) {
+        numbers.textContent = "";
+        alert.show("error", errorMessage(e));
+      }
+    };
+
+    const send = async (): Promise<void> => {
+      const built = takePreview();
+      // Nothing built to send: the last build failed, or is still running.
+      if (!built) {
+        await rebuild();
+        return;
+      }
+      alert.hide();
+      try {
+        broadcastDone(await api.signAndBroadcast(built.psbt_id), ownerDetail, "Speed-up");
+      } catch (e) {
+        if (!onScreen() || open?.detail !== ownerDetail) return;
+        alert.show("error", errorMessage(e));
+        // Signing used the preview up whether or not it went out; build
+        // another, so what the button would send is on screen again.
+        await rebuild();
+      }
+    };
+
+    const targets = radioGroup(
+      "speedup_target",
+      FEE_TARGETS.map((t) => ({
+        value: `${t}` as `${FeeTarget}`,
+        label: `${t} block${t > 1 ? "s" : ""}`,
+      })),
+      target,
+      (value) => {
+        target = value;
+        alert.hide();
+        void rebuild();
+      },
+      { label: "Fee target" },
+    );
+    const speedBtn = button("Speed up", () => withBusy(speedBtn, send), "primary", "sm");
+    speedBtn.classList.add("push-end");
+    void rebuild();
+    return el("div", { className: "tx-card" }, [
+      el("div", { className: "tx-card-head" }, [
+        sectionLabel("Speed up"),
+        el("span", {
+          className: "hint",
+          text: "Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).",
+        }),
+      ]),
+      el("div", { className: "tx-card-row" }, [targets, rateHint]),
+      el("div", { className: "tx-card-row" }, [numbers, speedBtn]),
+    ]);
+  };
+
   const detailBox = (
     d: TxDetail,
     explorer: string | null,
-    suggested: number | null,
+    offer: Offer,
     ownerDetail: HTMLTableRowElement,
   ): HTMLElement => {
     const ownInputs = d.inputs.filter((i) => i.ours).length;
@@ -349,8 +580,35 @@ export function renderDashboard(): HTMLElement {
         ),
       );
     }
-    if (suggested !== null) actions.appendChild(bumpInline(d.txid, suggested, ownerDetail));
-    return el("div", { className: "tx-detail-box" }, [kv(rows), actions]);
+    const box = el("div", { className: "tx-detail-box" }, [kv(rows), actions]);
+    if (offer.kind === "replace") {
+      const bump = bumpInline(d.txid, offer.rate, ownerDetail);
+      // Cancel's card opens under the actions, and folds the bump away.
+      const slot = el("div", { className: "slot" });
+      bump.appendChild(cancelButton(d.txid, offer.rate, ownerDetail, bump, slot));
+      actions.appendChild(bump);
+      box.appendChild(slot);
+    } else if (offer.kind === "child") {
+      box.appendChild(speedUpBox(d, offer.estimate, ownerDetail));
+    }
+    return box;
+  };
+
+  /**
+   * Nothing can be signed without a key, and nothing confirmed needs speeding
+   * up. Our own unconfirmed send is sped up by replacing it, or taken back; a
+   * child is for what replacement cannot reach, a payment someone else sent
+   * above all.
+   */
+  const offerFor = async (d: TxDetail): Promise<Offer> => {
+    if (wallet.is_watch_only || d.confirmations !== null) return { kind: "none" };
+    if (isBumpable(d)) {
+      // Without an estimate the original's own rate still sets the floor.
+      const estimate = await api.estimateFee().catch(() => null);
+      return { kind: "replace", rate: suggestBumpRate(estimate, d.fee_rate_sat_vb) };
+    }
+    if (!canPayForParent(d, await api.listUtxos())) return { kind: "none" };
+    return { kind: "child", estimate: await api.estimateFee().catch(() => null) };
   };
 
   const openDetail: OpenRow = (tx, row, chevron) => {
@@ -374,17 +632,9 @@ export function renderDashboard(): HTMLElement {
         const d = await api.transaction(tx.txid);
         if (!d) throw new Error("this transaction is not in the wallet's history");
         const explorer = await api.explorerUrl(d.txid);
-        // Only our own unconfirmed sends can be replaced, and only with a key.
-        let suggested: number | null = null;
-        if (isBumpable(d) && !wallet.is_watch_only) {
-          try {
-            suggested = suggestBumpRate(await api.estimateFee(), d.fee_rate_sat_vb);
-          } catch {
-            suggested = suggestBumpRate(null, d.fee_rate_sat_vb);
-          }
-        }
+        const offer = await offerFor(d);
         if (onScreen() && open?.detail === detail) {
-          cell.replaceChildren(detailBox(d, explorer, suggested, detail));
+          cell.replaceChildren(detailBox(d, explorer, offer, detail));
         }
       } catch (e) {
         // Only this row's own failure may close this row. A slow request for a
@@ -399,7 +649,9 @@ export function renderDashboard(): HTMLElement {
   };
 
   const renderTxs = (txs: TxSummary[]) => {
-    // The detail belongs to a row that is about to be replaced.
+    // The detail belongs to a row that is about to be replaced, and so does
+    // any preview it held.
+    dropPreview();
     open = null;
     txCount.textContent = `${txs.length} · newest first · click a row for detail`;
     txBox.replaceChildren(txTable(txs, openDetail));
@@ -630,6 +882,15 @@ export function renderDashboard(): HTMLElement {
     // Rescan and the public keys are in Settings.
     el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);
+
+  // Screens are rebuilt on every navigation, so a preview an open row still
+  // holds when this one goes away is unreachable, stranded in the core's
+  // pending map.
+  const discardOnLeave = (): void => {
+    dropPreview();
+    window.removeEventListener("hashchange", discardOnLeave);
+  };
+  window.addEventListener("hashchange", discardOnLeave);
 
   // Keep the wallet fresh while this screen is open. The router swaps screens
   // without a teardown hook, so the timer retires itself once the node is gone.

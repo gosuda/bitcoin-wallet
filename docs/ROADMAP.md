@@ -965,9 +965,18 @@ items before it change no screen, so they land while that batch is reviewed.
       why: 6.3 has no way to be used · done when: coins can be listed, frozen and chosen for a
       send on the phone and the desktop; jsdom tests
 
-- [ ] **6.14 CPFP and cancel on screen** · M · both shells · after 6.4 and 6.6
-      why: 6.4 has no way to be used · done when: an unconfirmed incoming transaction offers
-      "Speed up", an outgoing one "Cancel", each with a preview; checked on the emulator
+- [x] **6.14 CPFP and cancel on screen** · M · both shells · after 6.4 and 6.6
+      why: 6.4 has no way to be used · done: 2026-09-30 — on both shells, an unconfirmed
+      payment that left us a coin offers Speed up, and our own unconfirmed send keeps Bump fee
+      and adds Cancel. Confirmed transactions and watch-only wallets offer neither. Each is
+      built as a preview first and sent only from its own button. Speed up runs at the
+      estimate for the chosen target, raised past the parent's own rate when that is higher.
+      Cancel asks first, at a rate past the original's that the core raises to the fee BIP125
+      needs. 19 jsdom tests and 3 rate cases cover it. On the Android emulator against public
+      signet, a 1 sat/vB payment to the phone offered Speed up at 2.1 sat/vB for the pair. The
+      child it broadcast (459 sat fee) confirmed with its parent, 2.10 sat/vB for both, per
+      mempool.space. A 10,000 sat send from the phone offered Cancel for 251 sat, paying 29,290
+      back, and the node replaced the send with it
 
 - [ ] **6.15 PSBT import on screen** · M · both shells · after 6.5 and 6.6
       why: 6.5 has no way to be used · done when: a PSBT can be pasted (or scanned, when it fits

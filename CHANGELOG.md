@@ -23,6 +23,9 @@ pull requests a change arrived in.
 - A wallet remembered on this device closes to Unlock after five minutes in the background,
   never in the middle of a sync or a send. Settings changes the time to 1 or 15 minutes, an
   hour, or never. A wallet that is not remembered stays open. (#39)
+- A payment stuck in the mempool can be sped up from its detail, with a transaction that
+  pays for both, and an unconfirmed send of yours can be cancelled, paying everything back
+  to your wallet. Each shows what it will cost before anything is signed. (#39)
 
 ### Fixed
 

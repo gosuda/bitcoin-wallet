@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canPayForParent, isBumpable, suggestBumpRate } from "../src/feebump";
+import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../src/feebump";
 import { rateForTarget, type TxDetail, type TxSummary, type Utxo } from "../src/types";
 
 const tx = (t: Partial<TxSummary>): TxSummary => ({
@@ -114,6 +114,28 @@ describe("suggestBumpRate", () => {
   it("shows what a backend's float noise costs at the floor", () => {
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1.0000000000000002 } })).toBe(1.1);
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1 } })).toBe(1);
+  });
+});
+
+describe("suggestPackageRate", () => {
+  const estimate = { sat_per_vb_by_target: { "1": 12.3, "3": 6, "6": 2 } };
+
+  it("asks the rate for the target chosen", () => {
+    expect(suggestPackageRate(estimate, 1, 1)).toBe(12.3);
+    expect(suggestPackageRate(estimate, 3, 1)).toBe(6);
+  });
+
+  // A pair at or under the parent's own rate leaves the parent where it was:
+  // the child pays only its relay minimum, and nothing is sped up.
+  it("offers more than the parent pays alone when the target's rate does not", () => {
+    expect(suggestPackageRate(estimate, 6, 2)).toBe(3);
+    expect(suggestPackageRate(estimate, 6, 5)).toBe(6);
+  });
+
+  it("starts from the parent's rate with no estimate, and from the target's without that", () => {
+    expect(suggestPackageRate(null, 1, 4)).toBe(5);
+    expect(suggestPackageRate(estimate, 6, null)).toBe(2);
+    expect(suggestPackageRate(null, 6)).toBe(1);
   });
 });
 

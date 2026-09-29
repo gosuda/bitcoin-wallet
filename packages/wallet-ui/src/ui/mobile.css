@@ -600,6 +600,61 @@ button.m-txrow:active {
   gap: var(--space-2);
 }
 
+/* The words under an action card's heading (M11b). */
+.m-card-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* A preview's numbers on an action card (M11b): the key/value grid, phone-sized. */
+.kv.m-kv {
+  gap: var(--space-1) var(--space-4);
+  font-size: 15px;
+}
+
+.kv.m-kv dt {
+  font-size: 15px;
+}
+
+/* Cancel's second step (M11c) is the two-tap confirm, its heading red too. */
+.m-cancel .section-label {
+  color: var(--danger);
+}
+
+/* An action card folded to one row while another is open (M11c); a tap opens it again. */
+.m-fold {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px var(--space-4);
+  font: inherit;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.m-fold:active {
+  background: var(--subtle);
+}
+
+.m-fold .section-label {
+  color: var(--accent-deep);
+}
+
+.m-fold-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.m-fold-chev {
+  display: inline-flex;
+  transform: rotate(90deg);
+  color: var(--faint);
+}
+
 .m-dirdot {
   width: 36px;
   height: 36px;

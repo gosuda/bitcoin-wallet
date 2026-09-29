@@ -786,6 +786,47 @@ tr.tx-detail td {
   text-align: right;
 }
 
+/* An action drawn inside the detail it acts on (3c): Speed up, or Cancel asking first. */
+.tx-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.tx-card .section-label {
+  color: var(--accent-deep);
+}
+
+.tx-card-danger {
+  border-color: var(--danger);
+}
+
+.tx-card-danger .section-label {
+  color: var(--danger);
+}
+
+.tx-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.tx-card-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tx-card-numbers {
+  font-size: 13px;
+}
+
 /* Public keys */
 .pubkeys .kv dd {
   overflow-wrap: anywhere;
