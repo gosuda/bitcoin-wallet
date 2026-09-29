@@ -79,8 +79,10 @@ Stated because you should know them, not because they are acceptable:
 
 - **No third-party audit.** None of this has been reviewed by anyone outside the
   project.
-- **Key material inside BDK is not zeroized.** Our own `KeyMaterial` is; the `KeyMap`
-  BDK holds while a wallet is open is not, and that is upstream.
+- **Signing keys are not zeroized while a wallet is open.** Our own `KeyMaterial` is. The
+  keys an open wallet signs with sit in BDK's signer types, held by wallet-core — BDK's
+  `Wallet` itself is only ever given public descriptors — and those types do not zeroize
+  on drop; that is upstream.
 - **A compromised endpoint sees your addresses.** Requests go to the configured Esplora
   server with no privacy layer — no Tor, no address rotation across servers. It learns
   which addresses belong together.
