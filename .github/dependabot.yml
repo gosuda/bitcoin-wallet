@@ -1,4 +1,4 @@
-# Weekly upgrade pull requests for every ecosystem in the repository. Minor and
+# Weekly upgrade pull requests for the repository's ecosystems. Minor and
 # patch bumps are grouped into one pull request per ecosystem, so a week's
 # routine upgrades are reviewed and reverted as a unit; a major bump arrives on
 # its own, since that is where things break. Titles follow the repository's
@@ -44,15 +44,11 @@ updates:
       actions-minor-and-patch:
         update-types: [minor, patch]
 
-  # The Android project Tauri generated and this repository keeps: the Android
-  # Gradle plugin, Kotlin, and the androidx libraries the shell links.
-  - package-ecosystem: gradle
-    directory: /apps/native/src-tauri/gen/android
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: build
-      include: scope
-    groups:
-      gradle-minor-and-patch:
-        update-types: [minor, patch]
+  # No gradle entry: the Android project under apps/native/src-tauri/gen/android
+  # is Tauri's generated project, and its toolchain is pinned by Tauri's own
+  # Android plugin modules, which build with the same Kotlin. Every upgrade
+  # Dependabot proposed failed a local APK build (2026-09-29): Kotlin 2.4 turns
+  # the plugins' `kotlinOptions` into an error, Gradle 9 breaks the generated
+  # buildSrc, and the newer androidx libraries are compiled with Kotlin 2.1,
+  # which Kotlin 1.9 cannot read. Move these with Tauri's template instead.
+  # Security updates still cover them; that setting is not this file.
