@@ -65,7 +65,7 @@ android-native-keyring-store = { version = "1", optional = true }
 # The browser supplies TLS; reqwest uses `fetch` here.
 bdk_esplora = { version = "0.22.2", default-features = false, features = ["async"], optional = true }
 getrandom = { version = "0.2", features = ["js"] }
-gloo-timers = { version = "0.3", features = ["futures"] }
+gloo-timers = { version = "0.4", features = ["futures"] }
 send_wrapper = { version = "0.6", features = ["futures"] }
 # Only for the deadline race in backend/esplora.rs; already in the graph.
 futures-util = "0.3"
