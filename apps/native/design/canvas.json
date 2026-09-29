@@ -1,284 +1,483 @@
 {
-  "artboards": [
-    {
-      "file": "Setup.dc.html",
-      "title": "1 \u00b7 Setup",
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-29T15:55:00Z"
+  },
+  "title": "Bitcoin Wallet App",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Setup.dc.html": {
       "x": 0,
       "y": 0,
       "w": 960,
-      "h": 640
+      "h": 640,
+      "title": "1 · Setup"
     },
-    {
-      "file": "Key.dc.html",
-      "title": "2 \u00b7 Key",
+    "Key.dc.html": {
       "x": 1040,
       "y": 0,
       "w": 960,
-      "h": 840
+      "h": 840,
+      "title": "2 · Key"
     },
-    {
-      "file": "Main.dc.html",
-      "title": "3 \u00b7 Wallet",
+    "Main.dc.html": {
       "x": 2080,
       "y": 0,
       "w": 960,
-      "h": 1520
+      "h": 1280,
+      "title": "3 · Wallet"
     },
-    {
-      "file": "Send.dc.html",
-      "title": "4 \u00b7 Send + Review",
+    "Send.dc.html": {
       "x": 0,
       "y": 1200,
       "w": 960,
-      "h": 1000
+      "h": 1000,
+      "title": "4 · Send + Review"
     },
-    {
-      "file": "Sent.dc.html",
-      "title": "5 \u00b7 Sent",
+    "Sent.dc.html": {
       "x": 1040,
       "y": 1200,
       "w": 960,
-      "h": 640
+      "h": 640,
+      "title": "5 · Sent"
     },
-    {
-      "file": "Icon.dc.html",
-      "title": "App icon",
+    "Icon.dc.html": {
       "x": 2080,
       "y": 1660,
       "w": 720,
-      "h": 480
+      "h": 480,
+      "title": "App icon"
     },
-    {
-      "file": "Unlock.dc.html",
-      "title": "2b \u00b7 Unlock (returning user)",
+    "Unlock.dc.html": {
       "x": 0,
       "y": 2320,
       "w": 960,
-      "h": 640
+      "h": 640,
+      "title": "2b · Unlock (returning user)"
     },
-    {
-      "file": "Create.dc.html",
-      "title": "2c \u00b7 New wallet (recovery phrase)",
+    "Create.dc.html": {
       "x": 1040,
       "y": 2320,
       "w": 960,
-      "h": 760
+      "h": 760,
+      "title": "2c · New wallet (recovery phrase)"
     },
-    {
-      "file": "Restore.dc.html",
-      "title": "2d \u00b7 Restore wallet",
+    "Restore.dc.html": {
       "x": 2080,
       "y": 2320,
       "w": 960,
-      "h": 700
+      "h": 700,
+      "title": "2d · Restore wallet"
     },
-    {
-      "file": "MSetup.dc.html",
-      "title": "M1 \u00b7 Setup",
+    "MSetup.dc.html": {
       "x": 0,
       "y": 3400,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M1 · Setup"
     },
-    {
-      "file": "MKey.dc.html",
-      "title": "M2 \u00b7 Start a wallet",
+    "MKey.dc.html": {
       "x": 470,
       "y": 3400,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M2 · Start a wallet"
     },
-    {
-      "file": "MCreate.dc.html",
-      "title": "M3 \u00b7 Recovery phrase",
+    "MCreate.dc.html": {
       "x": 940,
       "y": 3400,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M3 · Recovery phrase"
     },
-    {
-      "file": "MRestore.dc.html",
-      "title": "M4 \u00b7 Restore",
+    "MRestore.dc.html": {
       "x": 1410,
       "y": 3400,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M4 · Restore"
     },
-    {
-      "file": "MUnlock.dc.html",
-      "title": "M5 \u00b7 Unlock",
+    "MUnlock.dc.html": {
       "x": 1880,
       "y": 3400,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M5 · Unlock"
     },
-    {
-      "file": "MWallet.dc.html",
-      "title": "M6 \u00b7 Wallet (home)",
+    "MWallet.dc.html": {
       "x": 0,
       "y": 4364,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M6 · Wallet (home)"
     },
-    {
-      "file": "MReceive.dc.html",
-      "title": "M7 \u00b7 Receive",
+    "MReceive.dc.html": {
       "x": 470,
       "y": 4364,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M7 · Receive"
     },
-    {
-      "file": "MSend.dc.html",
-      "title": "M8 \u00b7 Send",
+    "MSend.dc.html": {
       "x": 940,
       "y": 4364,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M8 · Send"
     },
-    {
-      "file": "MScan.dc.html",
-      "title": "M9 \u00b7 Scan",
+    "MScan.dc.html": {
       "x": 1410,
       "y": 4364,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M9 · Scan"
     },
-    {
-      "file": "MSettings.dc.html",
-      "title": "M10 \u00b7 Settings",
+    "MSettings.dc.html": {
       "x": 1880,
       "y": 4364,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M10 · Settings"
     },
-    {
-      "file": "MTx.dc.html",
-      "title": "M11 \u00b7 Transaction",
+    "MTx.dc.html": {
       "x": 0,
       "y": 5328,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M11 · Transaction"
     },
-    {
-      "file": "MExport.dc.html",
-      "title": "M12 \u00b7 Public keys",
+    "MExport.dc.html": {
       "x": 470,
       "y": 5328,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M12 · Public keys"
     },
-    {
-      "file": "MSendMax.dc.html",
-      "title": "M8b \u00b7 Send (Max)",
+    "MSendMax.dc.html": {
       "x": 940,
       "y": 5328,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M8b · Send (Max)"
     },
-    {
-      "file": "MCreateConfirm.dc.html",
-      "title": "M3b \u00b7 Confirm your backup",
+    "MCreateConfirm.dc.html": {
       "x": 1410,
       "y": 5328,
       "w": 390,
-      "h": 844
+      "h": 844,
+      "title": "M3b · Confirm your backup"
+    },
+    "Settings.dc.html": {
+      "x": 0,
+      "y": 6400,
+      "w": 960,
+      "h": 1040,
+      "title": "6 · Settings"
+    },
+    "UnlockPassword.dc.html": {
+      "x": 1040,
+      "y": 6400,
+      "w": 960,
+      "h": 640,
+      "title": "2e · Unlock (browser, app password)"
+    },
+    "KeyRemember.dc.html": {
+      "x": 2080,
+      "y": 6400,
+      "w": 960,
+      "h": 640,
+      "title": "2f · Key (browser, remember)"
+    },
+    "CoinsDesktop.dc.html": {
+      "x": 0,
+      "y": 7600,
+      "w": 960,
+      "h": 640,
+      "title": "3b · Wallet (coins)"
+    },
+    "TxActions.dc.html": {
+      "x": 1040,
+      "y": 7600,
+      "w": 960,
+      "h": 960,
+      "title": "3c · Wallet (speed up, cancel)"
+    },
+    "PsbtDesktop.dc.html": {
+      "x": 2080,
+      "y": 7600,
+      "w": 960,
+      "h": 760,
+      "title": "7 · Import PSBT"
+    },
+    "MUnlockReset.dc.html": {
+      "x": 0,
+      "y": 8800,
+      "w": 390,
+      "h": 844,
+      "title": "M5b · Unlock (history can't be read)"
+    },
+    "MSettings6.dc.html": {
+      "x": 470,
+      "y": 8800,
+      "w": 390,
+      "h": 844,
+      "title": "M10b · Settings (Round 6)"
+    },
+    "MSendMulti.dc.html": {
+      "x": 940,
+      "y": 8800,
+      "w": 390,
+      "h": 844,
+      "title": "M8c · Send to several"
+    },
+    "MCoins.dc.html": {
+      "x": 1410,
+      "y": 8800,
+      "w": 390,
+      "h": 844,
+      "title": "M13 · Coins"
+    },
+    "MPsbt.dc.html": {
+      "x": 1880,
+      "y": 8800,
+      "w": 390,
+      "h": 844,
+      "title": "M14 · Import PSBT"
+    },
+    "MTxIncoming.dc.html": {
+      "x": 0,
+      "y": 9764,
+      "w": 390,
+      "h": 844,
+      "title": "M11b · Transaction (speed up)"
+    },
+    "MTxCancel.dc.html": {
+      "x": 470,
+      "y": 9764,
+      "w": 390,
+      "h": 844,
+      "title": "M11c · Transaction (cancel)"
+    },
+    "MFocus.dc.html": {
+      "x": 940,
+      "y": 9764,
+      "w": 390,
+      "h": 680,
+      "title": "M15 · Focus rings"
     }
+  },
+  "order": [
+    "Main.dc.html",
+    "Setup.dc.html",
+    "Key.dc.html",
+    "Send.dc.html",
+    "Sent.dc.html",
+    "Icon.dc.html",
+    "Unlock.dc.html",
+    "Create.dc.html",
+    "Restore.dc.html",
+    "MSetup.dc.html",
+    "MKey.dc.html",
+    "MCreate.dc.html",
+    "MRestore.dc.html",
+    "MUnlock.dc.html",
+    "MWallet.dc.html",
+    "MReceive.dc.html",
+    "MSend.dc.html",
+    "MScan.dc.html",
+    "MSettings.dc.html",
+    "MTx.dc.html",
+    "MExport.dc.html",
+    "MSendMax.dc.html",
+    "MCreateConfirm.dc.html",
+    "Settings.dc.html",
+    "UnlockPassword.dc.html",
+    "KeyRemember.dc.html",
+    "CoinsDesktop.dc.html",
+    "TxActions.dc.html",
+    "PsbtDesktop.dc.html",
+    "MUnlockReset.dc.html",
+    "MSettings6.dc.html",
+    "MSendMulti.dc.html",
+    "MCoins.dc.html",
+    "MPsbt.dc.html",
+    "MTxIncoming.dc.html",
+    "MTxCancel.dc.html",
+    "MFocus.dc.html"
   ],
-  "annotations": [
-    {
-      "id": "round3-brief",
-      "x": 0,
-      "y": 5100,
+  "notes": {
+    "round3-brief": {
+      "x": 2350,
+      "y": 5328,
       "w": 700,
-      "text": "ROUND 3 \u2014 finishing the wallet. One batch, please review it all at once.\n\nNEW: M11 Transaction (tap any history row; fee bump lives here now, so a stuck send is fixable from a phone) \u00b7 M12 Public keys (xpub + descriptors, for a watch-only copy elsewhere) \u00b7 M8b Send in Max state (Max now asks the core to drain, so the amount shown is exactly what leaves).\n\nUPDATED: M2 Key gains Watch-only \u00b7 M5 Unlock gets the two-step Forget the phone was missing \u00b7 M6 Wallet rows are tappable and show pending sats \u00b7 M7 Receive can request an amount (QR becomes a bitcoin: link) \u00b7 M8 Send shows inline errors and a Custom fee rate \u00b7 M10 Settings rows open Setup (after a 'this closes the wallet' confirm, same block as Forget), plus Rescan and Export.\n\nDesktop: 3 Wallet gets a receive QR + amount, click-to-expand tx detail with the bump inside, a Public keys card and Rescan; 4 Send shows Max state; 2 Key gains Watch-only.\n\nNothing else moved. Same tokens throughout."
+      "text": "ROUND 3 — finishing the wallet. One batch, please review it all at once.\n\nNEW: M11 Transaction (tap any history row; fee bump lives here now, so a stuck send is fixable from a phone) · M12 Public keys (xpub + descriptors, for a watch-only copy elsewhere) · M8b Send in Max state (Max now asks the core to drain, so the amount shown is exactly what leaves).\n\nUPDATED: M2 Key gains Watch-only · M5 Unlock gets the two-step Forget the phone was missing · M6 Wallet rows are tappable and show pending sats · M7 Receive can request an amount (QR becomes a bitcoin: link) · M8 Send shows inline errors and a Custom fee rate · M10 Settings rows open Setup (after a 'this closes the wallet' confirm, same block as Forget), plus Rescan and Export.\n\nDesktop: 3 Wallet gets a receive QR + amount, click-to-expand tx detail with the bump inside, a Public keys card and Rescan; 4 Send shows Max state; 2 Key gains Watch-only.\n\nNothing else moved. Same tokens throughout."
     },
-    {
-      "id": "round3-tx-note",
-      "x": 1410,
+    "round3-tx-note": {
+      "x": 1880,
       "y": 5328,
       "w": 380,
-      "text": "M11 \u2014 what the row knows\n\nEverything comes from the wallet's own view of the tx: fee and rate (null when an input is not ours, then the row just omits them), which outputs are ours (Change), confirmations from the local tip.\n\nBump card appears only for an unconfirmed OUTGOING tx. Rate is prefilled from the 1-block estimate; the node rejects a bump below the replacement minimum and we show its wording."
+      "text": "M11 — what the row knows\n\nEverything comes from the wallet's own view of the tx: fee and rate (null when an input is not ours, then the row just omits them), which outputs are ours (Change), confirmations from the local tip.\n\nBump card appears only for an unconfirmed OUTGOING tx. Rate is prefilled from the 1-block estimate; the node rejects a bump below the replacement minimum and we show its wording."
     },
-    {
-      "id": "round3-export-note",
-      "x": 1410,
-      "y": 5640,
+    "round3-export-note": {
+      "x": 1880,
+      "y": 5690,
       "w": 380,
-      "text": "M12 \u2014 public, not secret\n\nThe xpub and descriptors let another wallet follow this one (balance, history, receiving) without being able to spend. They do reveal the whole address history, hence the lede.\n\nSingle-key wallets show one descriptor and no xpub."
+      "text": "M12 — public, not secret\n\nThe xpub and descriptors let another wallet follow this one (balance, history, receiving) without being able to spend. They do reveal the whole address history, hence the lede.\n\nSingle-key wallets show one descriptor and no xpub."
     },
-    {
-      "id": "round3-max-note",
-      "x": 1410,
-      "y": 5900,
+    "round3-max-note": {
+      "x": 1880,
+      "y": 5990,
       "w": 380,
-      "text": "M8b \u2014 Max is a mode, not a number\n\nTapping Max needs the address first (the exact size depends on it), then asks the core to build a drain: the amount field fills with what actually leaves and Review's Change is 0. Editing the amount drops out of Max. Same on desktop 4."
+      "text": "M8b — Max is a mode, not a number\n\nTapping Max needs the address first (the exact size depends on it), then asks the core to build a drain: the amount field fills with what actually leaves and Review's Change is 0. Editing the amount drops out of Max. Same on desktop 4."
     },
-    {
-      "id": "round3-mobile-updates",
+    "round3-mobile-updates": {
       "x": 2350,
       "y": 4760,
       "w": 400,
-      "text": "Round 3 changes to existing phone boards\n\nM5 Unlock \u2014 the red card is what appears after tapping Forget this wallet (the button sits where the card is). Delete it / Keep it, like Settings already does.\n\nM6 Wallet \u2014 hero is total incl. pending (matches desktop now; the two disagreed). Rows open M11.\n\nM7 Receive \u2014 Copy + New address (Share was never built). Amount is optional.\n\nM8 Send \u2014 errors inline under the field, wording shared with desktop. Custom fee chip reveals a sat/vB field.\n\nM10 Settings \u2014 Network / Esplora / Address type rows open a confirm ('Changing this closes the wallet') then Setup. Unit and Show-phrase rows removed: neither exists."
+      "text": "Round 3 changes to existing phone boards\n\nM5 Unlock — the red card is what appears after tapping Forget this wallet (the button sits where the card is). Delete it / Keep it, like Settings already does.\n\nM6 Wallet — hero is total incl. pending (matches desktop now; the two disagreed). Rows open M11.\n\nM7 Receive — Copy + New address (Share was never built). Amount is optional.\n\nM8 Send — errors inline under the field, wording shared with desktop. Custom fee chip reveals a sat/vB field.\n\nM10 Settings — Network / Esplora / Address type rows open a confirm ('Changing this closes the wallet') then Setup. Unit and Show-phrase rows removed: neither exists."
     },
-    {
-      "id": "round3-desktop-note",
+    "round3-desktop-note": {
       "x": 3120,
       "y": 320,
       "w": 380,
-      "text": "Round 3 on desktop 3 \u00b7 Wallet\n\nReceive card: QR beside the address, optional amount \u2192 bitcoin: link.\n\nTransactions: click a row to expand it in place (first row shown open). Bump fee moved into the expansion.\n\nPublic keys card + Rescan (gap 20 / 100 / 500) at the bottom. Rescan exists because a restored wallet that used more than 20 addresses in a row shows too little until it looks further."
+      "text": "Round 3 on desktop 3 · Wallet\n\nReceive card: QR beside the address, optional amount → bitcoin: link.\n\nTransactions: click a row to expand it in place (first row shown open). Bump fee moved into the expansion.\n\nPublic keys card + Rescan (gap 20 / 100 / 500) at the bottom — moved to 6 · Settings in Round 6. Rescan exists because a restored wallet that used more than 20 addresses in a row shows too little until it looks further."
     },
-    {
-      "id": "hd-note",
+    "hd-note": {
       "x": 3120,
       "y": 2320,
       "w": 400,
       "text": "Roadmap 6 - HD wallet\n\nKey screen becomes a choice: New wallet (BIP39 phrase), Restore wallet, or Advanced: single key (what the app does today).\n\nNew wallet shows the 12 words once, then makes you fill three back in before it will continue. Restore validates each word against the BIP39 list and can take an optional passphrase.\n\nOnce HD, the dashboard's receive address is the next UNUSED one and change goes to a separate internal keychain."
     },
-    {
-      "id": "bump-note",
+    "bump-note": {
       "x": 3120,
       "y": 1180,
       "w": 380,
       "text": "Roadmap 7 + 8\n\nHistory: an unconfirmed OUTGOING row gets a \"Bump fee\" button (BDK signals RBF on everything we build). Confirmed and incoming rows show nothing.\n\nSend: amount takes sat or BTC via the unit chips; \"Max\" fills the spendable balance minus fee. An address that fails validation turns the field red with the reason underneath, and Review stays disabled."
     },
-    {
-      "id": "history-note",
+    "history-note": {
       "x": 3120,
       "y": 0,
       "w": 380,
-      "text": "Roadmap item 4 \u2014 Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row \u2192 explorer (later)."
+      "text": "Roadmap item 4 — Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row → explorer (later)."
     },
-    {
-      "id": "unlock-note",
+    "unlock-note": {
       "x": 1040,
       "y": 2080,
       "w": 420,
-      "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock \u2192 Wallet. \"Use a different key\" \u2192 Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."
+      "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."
     },
-    {
-      "id": "brief",
+    "brief": {
       "x": 0,
       "y": -200,
       "w": 520,
       "text": "Warm-minimal refinement of the current app tokens.\nSame palette (#FAFAF9 / #1A1A1A / accent #C2410C), 4px radius, 34px controls.\nType: IBM Plex Sans + IBM Plex Mono (tabular numerals for sats).\nAddresses/txids are sample values."
     },
-    {
-      "id": "mobile-brief",
+    "mobile-brief": {
       "x": 0,
-      "y": 3140,
-      "w": 620,
-      "text": "MOBILE \u2014 iOS + Android (Tauri). 390x844 frames.\n\nSame palette and type as the desktop boards; everything else re-scaled for a thumb: 48px controls, 16px input text (anything smaller makes iOS zoom the page on focus), 12px card radius, 999px chips. Status bar, tab bar and home indicator are drawn in so the real usable height is visible.\n\nHome is a balance card over a transaction list, with a fixed bottom tab bar \u2014 Wallet / Scan / Settings. Send and Receive are the two buttons under the balance, not tabs, because they are actions rather than places.\n\nThese are ADDITIVE: no desktop screen changes. Labels stay English to match the rest of the app.\n\nThings worth arguing about before I build it:\n- Wallet / Scan / Settings as the three tabs, or drop Scan into the Send screen and make the third tab something else?\n- M6: BTC as the big number with sats underneath, or the reverse?\n- M3: 12 words in two columns fits without scrolling; a 24-word restore will scroll. OK?\n- M9 Scan is the only dark screen. Deliberate (camera), or make it light?"
+      "y": 2975,
+      "w": 1000,
+      "text": "MOBILE — iOS + Android (Tauri). 390x844 frames.\n\nSame palette and type as the desktop boards; everything else re-scaled for a thumb: 48px controls, 16px input text (anything smaller makes iOS zoom the page on focus), 12px card radius, 999px chips. Status bar, tab bar and home indicator are drawn in so the real usable height is visible.\n\nHome is a balance card over a transaction list, with a fixed bottom tab bar — Wallet / Scan / Settings. Send and Receive are the two buttons under the balance, not tabs, because they are actions rather than places.\n\nThese are ADDITIVE: no desktop screen changes. Labels stay English to match the rest of the app.\n\nThings worth arguing about before I build it:\n- Wallet / Scan / Settings as the three tabs, or drop Scan into the Send screen and make the third tab something else?\n- M6: BTC as the big number with sats underneath, or the reverse?\n- M3: 12 words in two columns fits without scrolling; a 24-word restore will scroll. OK?\n- M9 Scan is the only dark screen. Deliberate (camera), or make it light?"
     },
-    {
-      "id": "mobile-native-note",
+    "mobile-native-note": {
       "x": 2350,
       "y": 4364,
       "w": 400,
-      "text": "What each mobile-only affordance costs\n\nM7 Receive QR \u2014 pure JS, no native plugin.\nM9 Scan \u2014 tauri-plugin-barcode-scanner, camera permission string in Info.plist and AndroidManifest.\nM5 Unlock \u2014 tauri-plugin-biometric; it authenticates, it does not hold the key, so the key still sits in iOS Keychain / Android Keystore and Face ID gates the read.\nM8 Send also opens from a bitcoin: deep link (tauri-plugin-deep-link), prefilled.\n\nM10 'Show recovery phrase' is behind the same biometric gate."
+      "text": "What each mobile-only affordance costs\n\nM7 Receive QR — pure JS, no native plugin.\nM9 Scan — tauri-plugin-barcode-scanner, camera permission string in Info.plist and AndroidManifest.\nM5 Unlock — tauri-plugin-biometric; it authenticates, it does not hold the key, so the key still sits in iOS Keychain / Android Keystore and Face ID gates the read.\nM8 Send also opens from a bitcoin: deep link (tauri-plugin-deep-link), prefilled.\n\nM10 'Show recovery phrase' is behind the same biometric gate."
+    },
+    "round6-brief": {
+      "x": 2350,
+      "y": 5880,
+      "w": 690,
+      "text": "ROUND 6 — product. Reviewed on 2026-09-30.\n\nNEW phone: Unlock with reset, Send to several, Coins, Speed up, Cancel, Import PSBT, focus rings, Settings with Lock/Coins/Import.\nNEW desktop: Settings, Unlock and Remember with an app password (browser build), Coins, Speed up/Cancel, Import PSBT.\n\nDecided:\n(1) Reset only when the saved data cannot be read. Data saved by a newer app version asks for an update instead, since a reset would lose what that version keeps.\n(2) Lock after 5 minutes in the background by default. A wallet that is not remembered stays open.\n(3) App password: PBKDF2-SHA256 with 600,000 rounds and AES-GCM, named 'App password'.\n(4) Several recipients: one unit for all rows; scanning fills the last empty row.\n(5) Rescan and Public keys move to Settings; 3 · Wallet keeps neither."
+    },
+    "round6-settings-note": {
+      "x": 3120,
+      "y": 6400,
+      "w": 420,
+      "text": "6 · Settings (6.8, 6.11)\n\nOpened from the gear in the top bar. 3 · Wallet is changed in place for it: the gear is its only change, and 3b, 3c and 7 carry the same gear. Chain rows ask first, then close the wallet and open Setup, as on the phone. Lock after is the phone's setting too. Import PSBT gets a card here, as it gets a row on the phone.\n\nForget is drawn open at its second step. Rescan and Public keys live here only: 3 · Wallet gave them up — choice (5)."
+    },
+    "round6-unlock-pw-note": {
+      "x": 3120,
+      "y": 6780,
+      "w": 420,
+      "text": "2e · Unlock with an app password (6.12, browser build only)\n\nThe browser has no keychain, so a remembered key is encrypted with an 'App password' (WebCrypto, AES-GCM) and kept in IndexedDB. It is not the BIP39 passphrase: that one is part of the wallet, this one only locks the copy in this browser.\n\nA wrong password is its own error, under the field. The desktop app keeps the Keychain (2b) and asks for no password."
+    },
+    "round6-remember-note": {
+      "x": 3120,
+      "y": 7140,
+      "w": 420,
+      "text": "2f · Remember with an app password (6.12)\n\nIn the browser build, ticking Remember on this device reveals App password and Confirm app password; Open wallet waits until they match. Nothing is stored without them. Key derivation and the name are choice (3).\n\nCreate and Restore get the same two fields under their Remember box, right below the BIP39 passphrase — which is why the name must differ."
+    },
+    "round6-coins-desktop-note": {
+      "x": 3120,
+      "y": 7600,
+      "w": 420,
+      "text": "3b · Coins on the desktop (6.13)\n\nThe Unspent outputs card on 3 · Wallet gains a checkbox and a Frozen switch per row. A frozen row is dimmed and cannot be ticked. Send selected opens 4 · Send held to the ticked coins; with none ticked it is hidden and sends choose coins on their own, as today."
+    },
+    "round6-txactions-note": {
+      "x": 3120,
+      "y": 7860,
+      "w": 420,
+      "text": "3c · Speed up and Cancel on the desktop (6.14)\n\nThe rows of 3 · Wallet, which open one at a time; both unconfirmed rows are drawn open here. An unconfirmed incoming row offers Speed up, previewed before signing. An unconfirmed outgoing row keeps Bump fee and adds Cancel, which asks first with the same card as M11c. Confirmed rows offer neither."
+    },
+    "round6-psbt-desktop-note": {
+      "x": 3120,
+      "y": 8140,
+      "w": 420,
+      "text": "7 · Import PSBT (6.15)\n\nFrom Settings. Paste it or load a file; it is described as soon as it parses: inputs (ours or not, signed or not), outputs, fee. Sign signs the inputs this wallet holds keys for. Broadcast stays disabled until the PSBT is finalized."
+    },
+    "round6-unlock-reset-note": {
+      "x": 2350,
+      "y": 8800,
+      "w": 400,
+      "text": "M5b — reset history, keep the key (6.7)\n\nWhen the key opens but this device's saved history cannot be read (corrupt_state), Unlock says so and offers a reset. It deletes only that wallet's history here and opens the wallet again; the next sync downloads it back. The key and the settings stay.\n\nThe lower card is the second step, as with Forget. Key, Restore and Create show the same error with the same reset."
+    },
+    "round6-settings-phone-note": {
+      "x": 2350,
+      "y": 9150,
+      "w": 400,
+      "text": "M10b — Settings, three new rows\n\nLock after (6.11): how long the app may sit in the background before a remembered wallet closes to Unlock, never mid-sync or mid-broadcast. 5 min is the proposed default — choice (2).\n\nCoins (M13) and Import PSBT (M14) open their own screens.\n\nIt no longer fits one screen, so it scrolls: Close wallet, Forget and the wallet id sit below, unchanged."
+    },
+    "round6-send-multi-note": {
+      "x": 2790,
+      "y": 8800,
+      "w": 400,
+      "text": "M8c — Send to several (6.9)\n\nEach recipient is a card: address, scan, amount, and × to remove it (hidden while only one is left). One sat/BTC choice covers every row, and scanning fills the last empty row — choice (4).\n\nMax is not shown: it exists only with a single recipient, as on desktop 4. Review lists every recipient, then fee and total."
+    },
+    "round6-coins-note": {
+      "x": 2790,
+      "y": 9130,
+      "w": 400,
+      "text": "M13 — Coins (6.13)\n\nFrom Settings → Coins. Every unspent output, with its outpoint and confirmations. Tick coins to spend only those; the switch freezes one. A frozen coin is dimmed, cannot be ticked, and stays out of automatic selection, Max and the spendable balance until unfrozen. Freezing is saved with the wallet.\n\nSend selected opens Send held to the ticked coins."
+    },
+    "round6-psbt-note": {
+      "x": 3230,
+      "y": 8800,
+      "w": 400,
+      "text": "M14 — Import PSBT (6.15)\n\nFrom Settings → Import PSBT. Paste it, or scan it when it fits one QR code (animated QR stays under Later). It is described before anything is signed: which inputs are ours, where each output goes, the fee.\n\nSign signs the inputs this wallet holds keys for. Broadcast stays disabled until every input is signed and the PSBT is finalized. A watch-only wallet has no Sign but can broadcast a PSBT signed elsewhere."
+    },
+    "round6-speedup-note": {
+      "x": 2350,
+      "y": 9764,
+      "w": 400,
+      "text": "M11b — Speed up an incoming payment (6.14)\n\nOnly on an unconfirmed INCOMING transaction. It spends the payment on to this wallet with a fee big enough that the two together reach the chosen rate (CPFP). The fee comes out of the payment: 28,886 of the 30,000 sat arrive.\n\nThe action card sits above the Transaction id card (one scroll down), so it shows without scrolling. M11's Bump card can move up the same way."
+    },
+    "round6-cancel-note": {
+      "x": 2790,
+      "y": 9764,
+      "w": 400,
+      "text": "M11c — Cancel an outgoing payment (6.14)\n\nOnly while it is unconfirmed, and only if the original signalled RBF — every transaction this wallet builds does. The replacement pays everything back to this wallet at a fee that meets BIP125's absolute-fee rule, not only the rate. Two steps, like Forget.\n\nBump fee folds away while Cancel is open. If the original confirms first, the cancel is rejected and the payment stands."
+    },
+    "round6-focus-note": {
+      "x": 3230,
+      "y": 9764,
+      "w": 400,
+      "text": "M15 — Focus rings (6.10)\n\nKeyboard focus only (:focus-visible); a tap draws nothing. Rows and tabs take a 2px #C2410C ring inside their edge, since the card and the tab bar would clip one outside. The primary button takes a 2px #1A1A1A ring 2px outside: an orange ring vanishes against the orange fill. Fields and textareas get the ring desktop inputs already have."
     }
-  ],
-  "launch": {
-    "view": "canvas"
-  }
+  },
+  "designSystems": []
 }

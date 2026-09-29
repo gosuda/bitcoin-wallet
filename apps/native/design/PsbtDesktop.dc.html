@@ -36,7 +36,7 @@
     tr:last-child td { border-bottom: none; }
   </style>
 </helmet>
-<div style="width: 960px; min-height: 1000px; background: #FAFAF9; display: flex; flex-direction: column;">
+<div style="width: 960px; min-height: 760px; background: #FAFAF9; display: flex; flex-direction: column;">
 <header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
   <div style="display: flex; align-items: center; gap: 12px;">
     <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
@@ -44,50 +44,53 @@
   </div>
   <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 500; color: #6B6B66;">Setup</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 500; color: #6B6B66;">Key</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 600; color: #1A1A1A;">Wallet</span></div>
   <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B6B66;">
-    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid #E4E3DF; border-radius: 999px; background: #F4F4F2;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #166534;"></span>Signet · mempool.space</span>
+    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid #E4E3DF; border-radius: 999px; background: #F4F4F2;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #166534;"></span>Signet · mempool.space</span><span style="display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; font-weight: 500; color: #1A1A1A;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"></path></svg>Settings</span>
   </div>
 </header>
 <main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
 <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
-  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Send</h1>
-  <p style="margin: 0; font-size: 12px; color: #6B6B66;">From tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc</p>
+  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Import PSBT</h1>
+  <p style="margin: 0; font-size: 12px; color: #6B6B66;">Sign or send a transaction made in another wallet</p>
 </div>
 <section class="card">
   <div style="display: flex; align-items: center; justify-content: space-between;">
-    <span class="label">Recipients</span>
-    <span class="btn btn-sm" style="opacity: 0.45;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg> Add recipient</span>
+    <span class="label">PSBT</span>
+    <span class="hint">Base64. Described as soon as it parses.</span>
   </div>
-  <div style="display: grid; grid-template-columns: 1fr 270px 34px; gap: 8px; align-items: start;">
-    <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Address</span><span class="input mono">tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32</span></div>
-    <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Amount</span><div style="display: flex; gap: 4px;"><span class="input mono" style="flex: 1; justify-content: flex-end;">411,859</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px; border-color: #C2410C; color: #C2410C;">Max</span></div><span class="hint">Everything: 412,000 sat minus the 141 sat fee. Editing the amount leaves Max. Max needs a single recipient.</span></div>
-    <span class="btn btn-quiet" style="width: 34px; padding: 0; margin-top: 22px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"></path><path d="M18 6L6 18"></path></svg></span>
+  <div class="input mono" style="display: block; white-space: normal; word-break: break-all; font-size: 12px; line-height: 1.6; padding: 8px 12px;">cHNidP8BAKYCAAAAAqez4c6ud4mmc9q4x1ecJ7yzkymt0vusyRIhcWM9U/dXAAAAAAD9////GwshIwQ51hnBlIcQvnzsOQnc4csPsk8/qoBfI2oT4poBAAAAAP3///8CQJwAAAAAAAAiUSCkzq7o2w18S9rYe/zTQXxbFRxjMfGAh81cQ6G0z4U91bs5AAAAAAAAFgAUz8tr9Cr+ErDP0GAVRUu5vNYmcSsAAAAAAAEBHzB1AAAAAAAAFgAUqYPmde9MON1yhMd0CGpr7LSuni0AAQEfqGEAAAAAAAAWABSpg+Z170w43XKEx3QIamvstK6eLQAAAA==</div>
+  <div style="display: flex; gap: 8px;">
+    <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"></rect><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"></path></svg> Paste</span>
+    <span class="btn btn-sm">Load file…</span>
   </div>
 </section>
 <section class="card">
-  <span class="label">Fee</span>
-  <div style="display: grid; grid-template-columns: max-content 160px 1fr; gap: 16px; align-items: end;">
-    <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Target</span><div class="seg"><span class="chip"><span class="dot"></span><span>1 block</span></span><span class="chip"><span class="dot"></span><span>3 blocks</span></span><span class="chip on"><span class="dot"></span><span>6 blocks</span></span></div></div>
-    <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Rate (sat/vB)</span><span class="input mono" style="justify-content: flex-end;">1.0</span></div>
-    <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Source</span><span class="hint" style="min-height: 34px; display: flex; align-items: center;">mempool.space estimate for 6 blocks · floor 1 sat/vB</span></div>
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">What it spends and pays</span>
+    <span class="hint">2 inputs, both yours · 2 outputs</span>
   </div>
+  <table>
+    <thead><tr><th style="width: 72px;"></th><th>Outpoint or address</th><th></th><th class="num">Value (sat)</th></tr></thead>
+    <tbody>
+      <tr><td style="color: #6B6B66;">Input 1</td><td class="mono">57f7533d63…cee1b3a7:0</td><td style="white-space: normal;">This wallet · <span style="color: #B45309;">not signed</span></td><td class="num mono">30,000</td></tr>
+      <tr><td style="color: #6B6B66;">Input 2</td><td class="mono">9ae2136a23…23210b1b:1</td><td style="white-space: normal;">This wallet · <span style="color: #B45309;">not signed</span></td><td class="num mono">25,000</td></tr>
+      <tr><td style="color: #6B6B66;">Output 1</td><td class="mono">tb1p5n82a6xmp47yhkkc007d…</td><td style="white-space: normal;">Recipient</td><td class="num mono">40,000</td></tr>
+      <tr><td style="color: #6B6B66;">Output 2</td><td class="mono">tb1qel9khap2lcftpn7svq25…</td><td style="white-space: normal;">Change <span class="hint">· back to this wallet</span></td><td class="num mono">14,779</td></tr>
+      <tr><td style="color: #6B6B66;">Fee</td><td class="mono">1.0 sat/vB · 221 vB</td><td style="white-space: normal;"></td><td class="num mono">221</td></tr>
+    </tbody>
+  </table>
 </section>
-<section class="card" style="border-color: #1A1A1A;">
-  <span class="label">Review</span>
-  <dl class="kv" style="margin: 0; font-size: 14px;">
-    <dt>Total out</dt><dd class="mono">411,859 sat</dd>
-    <dt>Fee</dt><dd class="mono">141 sat <span style="color: #6B6B66;">(141 vB · 1 in)</span></dd>
-    <dt>Change</dt><dd class="mono">0 sat <span style="color: #6B6B66;">— nothing comes back</span></dd>
-    <dt>Total spent</dt><dd class="mono" style="font-weight: 600;">412,000 sat</dd>
-  </dl>
-  <div style="display: flex; justify-content: flex-end; gap: 8px;">
-    <span class="btn">Edit</span>
-    <span class="btn btn-primary">Confirm &amp; broadcast</span>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B45309;"></span>Signed 0 of 2 inputs</span>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="hint">Broadcast waits until every input is signed and the PSBT is finalized.</span>
+    <span class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path></svg> Sign</span>
+    <span class="btn" style="opacity: 0.45;">Broadcast</span>
   </div>
-</section>
+</div>
 </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":1000}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":760}}'>
 class Component extends DCLogic {
   renderVals() { return {}; }
 }

@@ -866,11 +866,16 @@ items before it change no screen, so they land while that batch is reviewed.
       `signPsbt` and `broadcastPsbt` carry it to the screens. The regtest round trip
       `a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_out` runs in CI's regtest job
 
-- [ ] **6.6 The Round 6 screens on the canvas** · M · `apps/native/design/`, a new Design
+- [x] **6.6 The Round 6 screens on the canvas** · M · `apps/native/design/`, a new Design
   canvas · **canvas review**
       why: the canvas these screens were drawn on is gone, and every screen below needs one ·
-      done when: the existing boards and new ones for 6.7–6.15 are on a canvas, with the open
-      choices listed beside them, and the user has reviewed it
+      done: 2026-09-30 — a new canvas, made from Claude's Design type, holds all 37 boards:
+      the 23 existing ones, and 14 new ones for 6.7–6.15 with a note beside each. The five open
+      choices sat in a brief above them. `gen.py` now writes the canvas's own index format and
+      ends each board with the logic block the canvas reads. So the published files are the
+      committed ones, and reading the live canvas back matched all 38 files. The user reviewed
+      it and said to go ahead; the decisions are below. 3 · Wallet gave Public keys and Rescan
+      to Settings, and the brief now records the answers
 
 - [ ] **6.7 Reset local history, keep the key** · M · `api.ts`, `persist/indexeddb.ts`, the
   Unlock, Key, Restore and Create screens · after 6.6
@@ -946,6 +951,20 @@ Listed, not scheduled; each goes to the design canvas first unless marked otherw
 - 2026-09-30 — Round 6 takes three bundles: finish what exists, security, power features.
   Korean localization and the rest wait under "Later".
 - 2026-09-30 — The v0.1.0 draft release, which predates Round 5, is left as it is for now.
+- 2026-09-30 — The Round 6 canvas was reviewed and approved ("go ahead"). No choice was
+  picked by name, so each of the five open choices takes the recommendation it was offered
+  with. Any of them can still be overruled.
+- 2026-09-30 — A reset of local history is offered only for saved data that cannot be read.
+  Data saved by a newer app version asks for an update instead: a reset would lose what that
+  version keeps, such as frozen coins (6.7).
+- 2026-09-30 — A wallet locks after 5 minutes in the background by default. A wallet that is
+  not remembered stays open, since closing it means typing the recovery phrase again (6.11).
+- 2026-09-30 — The browser keystore derives its key with PBKDF2-SHA256 over 600,000 rounds and
+  encrypts with AES-GCM, both from WebCrypto. The password is called the "App password", to
+  keep it apart from the BIP39 passphrase (6.12).
+- 2026-09-30 — Several recipients on the phone share one amount unit, and a scan fills the
+  last empty row (6.9).
+- 2026-09-30 — Rescan and Public keys move from the desktop Wallet page to Settings (6.8).
 
 ## Not doing
 

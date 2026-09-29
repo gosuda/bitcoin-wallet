@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #FAFAF9; color: #1A1A1A; font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+    a { color: #C2410C; } a:hover { color: #A3360A; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B6B66; }
+    .card { background: #FFFFFF; border: 1px solid #E4E3DF; border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; font-weight: 500; font-size: 14px; white-space: nowrap; }
+    .btn-primary { background: #C2410C; border-color: #C2410C; color: #FFFFFF; }
+    .btn-quiet { border-color: transparent; background: transparent; color: #6B6B66; }
+    .btn-danger { color: #B91C1C; border-color: #E4E3DF; }
+    .btn-sm { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+    .input { display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; }
+    .input.placeholder { color: #A19F97; }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; }
+    .chip.on { border-color: #1A1A1A; background: #F4F4F2; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #A19F97; background: #FFFFFF; box-sizing: border-box; }
+    .chip.on .dot { border: 4px solid #C2410C; }
+    .hint { font-size: 12px; color: #6B6B66; }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; align-items: baseline; }
+    .kv dt { color: #6B6B66; font-size: 12px; } .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid #E4E3DF; white-space: nowrap; }
+    th { color: #6B6B66; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    td.num, th.num { text-align: right; }
+    tr:last-child td { border-bottom: none; }
+  </style>
+</helmet>
+<div style="width: 960px; min-height: 1040px; background: #FAFAF9; display: flex; flex-direction: column;">
+<header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
+    <span style="font-weight: 600; font-size: 14px;">Bitcoin Wallet</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 500; color: #6B6B66;">Setup</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 500; color: #6B6B66;">Key</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 600; color: #1A1A1A;">Wallet</span></div>
+  <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B6B66;">
+    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid #E4E3DF; border-radius: 999px; background: #F4F4F2;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #166534;"></span>Signet · mempool.space</span><span style="display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; font-weight: 500; color: #C2410C;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C2410C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"></path></svg>Settings</span>
+  </div>
+</header>
+<main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Settings</h1>
+  <p style="margin: 0; font-size: 12px; color: #6B6B66;">Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b</p>
+</div>
+<section class="card" style="gap: 4px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Chain</span>
+    <span class="hint">Changing any of these closes the wallet and opens Setup. It asks first.</span>
+  </div>
+  <div>
+    <div style="display: grid; grid-template-columns: 200px 1fr max-content; gap: 16px; align-items: center; min-height: 34px; padding: 6px 0; border-bottom: 1px solid #E4E3DF;"><span style="color: #6B6B66;">Network</span><span>Signet</span><span class="btn btn-sm">Change…</span></div>
+    <div style="display: grid; grid-template-columns: 200px 1fr max-content; gap: 16px; align-items: center; min-height: 34px; padding: 6px 0; border-bottom: 1px solid #E4E3DF;"><span style="color: #6B6B66;">Esplora server</span><span><span class="mono">https://mempool.space/signet/api</span></span><span class="btn btn-sm">Change…</span></div>
+    <div style="display: grid; grid-template-columns: 200px 1fr max-content; gap: 16px; align-items: center; min-height: 34px; padding: 6px 0;"><span style="color: #6B6B66;">Address type</span><span>P2WPKH (segwit)</span><span class="btn btn-sm">Change…</span></div>
+  </div>
+</section>
+<section class="card" style="gap: 4px;">
+  <span class="label">Security</span>
+  <div>
+    <div style="display: grid; grid-template-columns: 200px 1fr max-content; gap: 16px; align-items: center; min-height: 34px; padding: 6px 0; border-bottom: 1px solid #E4E3DF;"><span style="color: #6B6B66;">Remembered on this device</span><span>Yes <span class="hint">· in the macOS Keychain</span></span></div>
+    <div style="display: grid; grid-template-columns: 200px 1fr max-content; gap: 16px; align-items: center; min-height: 34px; padding: 6px 0;"><span style="color: #6B6B66;">Lock after</span><span><span class="input" style="width: 220px; box-sizing: border-box; justify-content: space-between;">5 min in background<span style="display: inline-flex; transform: rotate(90deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></span></span></span></div>
+  </div>
+  <span class="hint">After this long in the background a remembered wallet closes to Unlock — never in the middle of a sync or a broadcast.</span>
+</section>
+<section class="card">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">Rescan</span>
+    <span class="hint">Looks further past the last used address — for a restore that shows too little.</span>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"></path><path d="M4 4v4h4"></path><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"></path><path d="M20 20v-4h-4"></path></svg> Rescan</span>
+    <span class="seg"><span class="chip on" style="min-height: 34px; padding: 6px 10px; font-size: 12px;">gap 20</span><span class="chip" style="min-height: 34px; padding: 6px 10px; font-size: 12px;">100</span><span class="chip" style="min-height: 34px; padding: 6px 10px; font-size: 12px;">500</span></span>
+  </div>
+</section>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+  <section class="card">
+    <span class="label">Public keys</span>
+    <span class="hint">Reveal your history, not your funds — for a watch-only copy elsewhere.</span>
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: #C2410C; font-weight: 500;">Export xpub and descriptors <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C2410C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span>
+  </section>
+  <section class="card">
+    <span class="label">PSBT</span>
+    <span class="hint">Sign or send a transaction that another wallet or device made.</span>
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: #C2410C; font-weight: 500;">Import PSBT <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C2410C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span>
+  </section>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span class="btn">Close wallet</span>
+  <span class="btn btn-danger">Forget this wallet</span>
+</div>
+<section class="card" style="border-color: #B91C1C;">
+  <span style="color: #6B6B66;">The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.</span>
+  <div style="display: flex; justify-content: flex-end; gap: 8px;">
+    <span class="btn btn-quiet">Keep it</span>
+    <span class="btn btn-danger">Delete it</span>
+  </div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
