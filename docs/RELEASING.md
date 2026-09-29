@@ -64,5 +64,6 @@ formatting, clippy and `cargo test -p wallet-core -p wallet-cli` on Linux, macOS
 and Windows; the regtest suite (`cargo test -p regtest-tests`); the wasm build;
 clippy for the app shell on the desktop, iOS and Android targets; and the
 frontend's lint, typecheck, tests and builds. Nothing runs
-`cargo test --workspace` — it would add the Tauri shell's system libraries and no
-tests the list above does not already cover.
+`cargo test --workspace`: the only crates it would add, the Tauri shell and
+`wallet-wasm`, have no tests of their own, and it would pull in the shell's system
+libraries for nothing.

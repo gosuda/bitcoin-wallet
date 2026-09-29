@@ -28,7 +28,8 @@ web-time = "1"
 unsafe_code = "forbid"
 
 # Production code has no unwrap/expect/todo/dbg today; these keep it that way.
-# Tests are exempt through clippy.toml.
+# clippy.toml lets tests unwrap and expect. todo and dbg stay denied in tests
+# too: neither belongs in a committed test.
 [workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
