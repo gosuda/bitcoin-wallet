@@ -16,15 +16,6 @@ pub enum Network {
 }
 
 impl Network {
-    /// All networks, in display order.
-    pub const ALL: [Network; 5] = [
-        Network::Bitcoin,
-        Network::Testnet3,
-        Network::Testnet4,
-        Network::Signet,
-        Network::Regtest,
-    ];
-
     /// Stable identifier used in config files and CLI flags.
     pub fn id(self) -> &'static str {
         match self {
@@ -131,7 +122,14 @@ mod tests {
 
     #[test]
     fn id_roundtrip() {
-        for n in Network::ALL {
+        let all = [
+            Network::Bitcoin,
+            Network::Testnet3,
+            Network::Testnet4,
+            Network::Signet,
+            Network::Regtest,
+        ];
+        for n in all {
             assert_eq!(Network::parse(n.id()), Some(n));
             let back: Network = bitcoin::Network::from(n).try_into().unwrap();
             assert_eq!(back, n);

@@ -480,7 +480,6 @@ export function renderDashboard(): HTMLElement {
         try {
           await api.closeWallet();
         } finally {
-          session.wallet = null;
           navigate(session.remembered ? "unlock" : "key");
         }
       }),
@@ -495,7 +494,7 @@ export function renderDashboard(): HTMLElement {
   const addressBox = readout(receiving);
   const qrCanvas = el("canvas", {
     attrs: { role: "img", "aria-label": "QR code of the receiving address" },
-  }) as HTMLCanvasElement;
+  });
   const requestAmount = textInput({ placeholder: "0", mono: true, name: "request_amount" });
   requestAmount.id = "request-amount";
   requestAmount.classList.add("amount-input");

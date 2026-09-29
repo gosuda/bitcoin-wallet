@@ -102,10 +102,9 @@ export function renderKey(): HTMLElement {
           secret.value = "";
           generated.replaceChildren();
           generated.className = "hidden";
-          session.wallet = info;
           if (willRemember) session.remembered = info;
           // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-          // wallet-id check to misfire against `session.wallet` just set above.
+          // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
           if (onScreen()) navigate("dashboard");
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
@@ -168,7 +167,7 @@ export function renderKey(): HTMLElement {
       autocapitalize: "off",
       autocomplete: "off",
     },
-  }) as HTMLTextAreaElement;
+  });
   const watchRemember = rememberCheckbox();
   const followBtn = button(
     "Follow this wallet",
@@ -184,13 +183,12 @@ export function renderKey(): HTMLElement {
         try {
           const info = await api.openWallet(value, cfg.address_type, willRemember);
           watchSource.value = "";
-          session.wallet = info;
           // The wallet is already open here. Reading the record back could
           // fail and put an error over a wallet that opened fine, so take what
           // we know — the same shape the private-key path above uses.
           if (willRemember) session.remembered = info;
           // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-          // wallet-id check to misfire against `session.wallet` just set above.
+          // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
           if (onScreen()) navigate("dashboard");
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));

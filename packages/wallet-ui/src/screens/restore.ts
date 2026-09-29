@@ -196,10 +196,9 @@ export function renderRestore(): HTMLElement {
       );
       for (const box of boxes) box.value = "";
       passphrase.value = "";
-      session.wallet = info;
       if (willRemember) session.remembered = info;
       // `onScreen` is `routeGuard`, not `screenGuard`: it has no wallet-id
-      // check to misfire against `session.wallet` just having been set above.
+      // check to misfire against the `session.wallet` that `api.openWallet` set.
       if (onScreen()) navigate("dashboard");
     } catch (e) {
       if (onScreen()) alert.show("error", errorMessage(e));

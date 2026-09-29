@@ -133,7 +133,7 @@ export function renderWallet(): HTMLElement {
   const sync = el("button", {
     className: "m-sync",
     attrs: { type: "button" },
-  }) as HTMLButtonElement;
+  });
   sync.appendChild(icon("refresh", 13));
   sync.appendChild(el("span", { text: "Sync" }));
 

@@ -93,11 +93,6 @@ impl AddressType {
             _ => None,
         }
     }
-
-    /// Whether ordinary backends can discover funds sent to this script type.
-    pub fn is_indexable(self) -> bool {
-        !matches!(self, AddressType::P2pk)
-    }
 }
 
 /// Secret key material as supplied by the user. Zeroized on drop; `Debug` is

@@ -174,25 +174,6 @@ fn parse_key(secret: &str, passphrase: Option<String>) -> Result<KeyMaterial, Js
     KeyMaterial::parse_with_passphrase(secret, passphrase.as_deref()).map_err(core_err)
 }
 
-/// Address for a secret: hex/WIF gives that key's address, a mnemonic gives
-/// the account's first receive address. `passphrase` is the optional BIP39
-/// passphrase and applies only to a mnemonic.
-#[wasm_bindgen]
-pub fn address_for_key(
-    secret: &str,
-    network: &str,
-    address_type: &str,
-    passphrase: Option<String>,
-) -> Result<String, JsValue> {
-    let key = parse_key(secret, passphrase)?;
-    wallet_core::address_for_key(
-        &key,
-        parse_network(network)?,
-        parse_address_type(address_type)?,
-    )
-    .map_err(core_err)
-}
-
 /// Non-secret wallet identifier for a secret (used as the persistence/keychain key).
 /// Named `walletIdForKey` in JS — `Wallet.id` already owns the `wallet_id` symbol.
 ///
@@ -213,12 +194,6 @@ pub fn wallet_id_for_key(
         parse_address_type(address_type)?,
     )
     .map_err(core_err)
-}
-
-/// Default public Esplora URL for a network.
-#[wasm_bindgen]
-pub fn default_esplora_url(network: &str) -> Result<String, JsValue> {
-    Ok(parse_network(network)?.default_esplora_url().to_string())
 }
 
 /// Block-explorer URL for a txid, on the explorer fronting `backend_url` when
@@ -371,10 +346,6 @@ impl Wallet {
             .map(|(k, v)| (k.to_string(), *v))
             .collect();
         to_js(&serde_json::json!({ "sat_per_vb_by_target": obj }))
-    }
-
-    pub async fn chain_height(&self) -> Result<u32, JsValue> {
-        self.inner.chain_height().await.map_err(core_err)
     }
 
     /// `recipients`: `[{ address, amount_sat }]`. Returns

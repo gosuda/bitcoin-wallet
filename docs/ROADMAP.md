@@ -472,12 +472,25 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       address and that id. 9 binding tests, 76 core tests, 98 UI tests; typecheck and lint
       clean
 
-- [ ] **3.5 Dead code out** · S · `keys.rs`, `persist.rs`, `network.rs`, `wallet-wasm`,
+- [x] **3.5 Dead code out** · S · `keys.rs`, `persist.rs`, `network.rs`, `wallet-wasm`,
   `wasm/index.ts`, screens
       why: `is_indexable`, `MemoryPersister::snapshot`, three wasm exports and their TS
       wrappers have no caller; nine DOM casts repeat what `el()` already types; three desktop
-      screens write session state that `api.openWallet` already writes · done when: gone, and
-      clippy plus typecheck are clean
+      screens write session state that `api.openWallet` already writes · done: 2026-09-29 —
+      gone: `AddressType::is_indexable`, `MemoryPersister::snapshot`, `Network::ALL` (its one
+      user, a test, now lists the networks itself), the wasm exports `address_for_key`,
+      `default_esplora_url` and `Wallet.chain_height` with their TS wrappers (the core
+      functions stay: the CLI and `tests/live.rs` use them). The 3.2 tests that used
+      `address_for_key` as an oracle now check against an opened wallet's first address, and
+      the nested one against BIP49's own test vector. The nine casts are gone; `result.ts`'s
+      is not one of them (it narrows `null` inside a closure). The session writes: all six
+      are gone, not just three. `api.openWallet` (create, key ×2, restore),
+      `api.unlockWallet`, `api.forgetWallet` and `api.closeWallet` each set `session.wallet`
+      themselves, so `api.ts` is now its only writer. The screens' copies had even been able
+      to put an older open back over a newer one in the gap after `openWallet` resolved.
+      Clippy (native, wasm32, all targets), typecheck and biome are clean; 76 core, 9
+      binding and 98 UI tests pass; in the web app a restore reaches the dashboard and Close
+      wallet returns to Key
 
 - [ ] **3.6 Drift closed** · S · `feebump.ts`, `balance.ts`, both shells · **decision** on the
   default fee target (3 or 6 blocks)

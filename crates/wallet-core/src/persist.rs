@@ -96,11 +96,6 @@ impl MemoryPersister {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Snapshot of everything persisted so far (e.g. to hand to another persister).
-    pub fn snapshot(&self) -> &ChangeSet {
-        &self.full
-    }
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]

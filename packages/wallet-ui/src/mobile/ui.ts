@@ -51,7 +51,7 @@ export function iconButton(name: IconName, label: string, onClick: () => void): 
     on: { click: onClick },
   });
   btn.appendChild(icon(name, 24));
-  return btn as HTMLButtonElement;
+  return btn;
 }
 
 export function body(...children: Child[]): HTMLElement {
@@ -97,7 +97,7 @@ export function button(
     className: cls.join(" "),
     attrs: { type: "button", ...(opts.ariaLabel ? { "aria-label": opts.ariaLabel } : {}) },
     on: { click: onClick },
-  }) as HTMLButtonElement;
+  });
   if (opts.icon) btn.appendChild(icon(opts.icon, 19));
   if (label) btn.appendChild(el("span", { text: label }));
   btn.disabled = opts.disabled === true;

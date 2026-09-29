@@ -26,8 +26,7 @@ export function renderUnlock(): HTMLElement {
       withBusy(unlockBtn, async () => {
         alert.hide();
         try {
-          const info = await api.unlockWallet();
-          session.wallet = info;
+          await api.unlockWallet();
           navigate("dashboard");
         } catch (e) {
           alert.show("error", errorMessage(e));
@@ -54,7 +53,6 @@ export function renderUnlock(): HTMLElement {
           try {
             await api.forgetWallet();
             session.remembered = null;
-            session.wallet = null;
             navigate("key");
           } catch (e) {
             alert.show("error", errorMessage(e));

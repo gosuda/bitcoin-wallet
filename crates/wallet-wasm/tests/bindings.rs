@@ -11,9 +11,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use js_sys::{Function, JSON, Object, Reflect};
-use wallet_wasm::{
-    Wallet, address_for_key, generate_key, generate_mnemonic, validate_mnemonic, wallet_id_for_key,
-};
+use wallet_wasm::{Wallet, generate_key, generate_mnemonic, validate_mnemonic, wallet_id_for_key};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -153,16 +151,22 @@ fn an_unknown_name_is_unsupported() {
     assert_eq!(text(&err, "message"), "unknown address type 'p2sh'");
 }
 
+/// The address a wallet opened from `secret` receives at first.
+async fn first_address(secret: &str) -> String {
+    Wallet::open(config("p2wpkh"), secret, persister(None), None)
+        .await
+        .unwrap()
+        .address()
+        .await
+}
+
 #[wasm_bindgen_test]
-fn a_generated_key_derives_the_address_it_came_with() {
+async fn a_generated_key_opens_to_the_address_it_came_with() {
     let key = generate_key("testnet4", "p2wpkh").unwrap();
     let address = text(&key, "address");
     assert!(address.starts_with("tb1q"), "{address}");
     for secret in [text(&key, "wif"), text(&key, "priv_hex")] {
-        assert_eq!(
-            address_for_key(&secret, "testnet4", "p2wpkh", None).unwrap(),
-            address
-        );
+        assert_eq!(first_address(&secret).await, address);
     }
     // The entropy comes from the JS host's `crypto.getRandomValues`.
     let other = generate_key("testnet4", "p2wpkh").unwrap();
@@ -170,16 +174,13 @@ fn a_generated_key_derives_the_address_it_came_with() {
 }
 
 #[wasm_bindgen_test]
-fn a_generated_phrase_validates_and_derives_its_address() {
+async fn a_generated_phrase_validates_and_opens_to_its_address() {
     for count in [12_u8, 24] {
         let phrase = generate_mnemonic("testnet4", "p2wpkh", count).unwrap();
         let words = text(&phrase, "words");
         assert_eq!(words.split_whitespace().count(), usize::from(count));
         validate_mnemonic(&words).unwrap();
-        assert_eq!(
-            address_for_key(&words, "testnet4", "p2wpkh", None).unwrap(),
-            text(&phrase, "address")
-        );
+        assert_eq!(first_address(&words).await, text(&phrase, "address"));
     }
     let err = generate_mnemonic("testnet4", "p2wpkh", 13).unwrap_err();
     assert_eq!(code_of(&err), "invalid_key");
@@ -198,10 +199,6 @@ async fn a_wallet_reopens_from_what_its_persister_kept() {
     assert!(wallet.is_hd() && !wallet.is_watch_only());
 
     let first = wallet.address().await;
-    assert_eq!(
-        first,
-        address_for_key(WORDS, "testnet4", "p2wpkh", None).unwrap()
-    );
     let second = wallet.new_address().await.unwrap();
     assert_ne!(second, first);
 
@@ -227,14 +224,10 @@ async fn the_nested_type_has_one_spelling_and_keeps_its_ids() {
         .await
         .unwrap();
     assert_eq!(wallet.address_type(), "nested_p2wpkh");
-    let address = wallet.address().await;
-    assert!(
-        address.starts_with('2'),
-        "a testnet P2SH address: {address}"
-    );
+    // BIP49 states its test vector on testnet, whose coin type testnet4 shares.
     assert_eq!(
-        address_for_key(WORDS, "testnet4", "nested_p2wpkh", None).unwrap(),
-        address
+        wallet.address().await,
+        "2Mww8dCYPUpKHofjgcXcBCEGmniw9CoaiD2"
     );
 
     // A wallet remembered while the UI still translated the name to

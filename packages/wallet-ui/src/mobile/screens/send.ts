@@ -100,7 +100,7 @@ export function renderSend(): HTMLElement {
     className: "m-chip m-chip-max",
     text: "Max",
     attrs: { type: "button", "aria-pressed": "false" },
-  }) as HTMLButtonElement;
+  });
 
   const leaveDrain = (): void => {
     drainSeq += 1;

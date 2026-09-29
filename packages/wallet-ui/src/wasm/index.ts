@@ -30,8 +30,6 @@ import type {
   Utxo,
 } from "../types";
 import init, {
-  address_for_key,
-  default_esplora_url,
   explorer_tx_url,
   generate_key,
   generate_mnemonic,
@@ -283,10 +281,6 @@ export class WalletApi {
     return toFeeEstimate(await this.inner.estimate_fee());
   }
 
-  chain_height(): Promise<number> {
-    return this.inner.chain_height();
-  }
-
   async build_transfer(recipients: Recipient[], feeRateSatVb: number): Promise<BuiltTx> {
     return (await this.inner.build_transfer(recipients, feeRateSatVb)) as BuiltTx;
   }
@@ -355,21 +349,6 @@ export async function validateMnemonic(words: string): Promise<void> {
 }
 
 /**
- * Address for a secret, without opening a wallet: that key's address for
- * hex/WIF, the account's first receive address for a mnemonic. `passphrase` is
- * the optional BIP39 one and applies only to a mnemonic.
- */
-export async function addressForKey(
-  secret: string,
-  network: Network,
-  addressType: AddressType,
-  passphrase?: string,
-): Promise<string> {
-  await load();
-  return address_for_key(secret, network, addressType, passphrase);
-}
-
-/**
  * Non-secret wallet id: the IndexedDB record key and the OS-keystore entry name.
  *
  * `passphrase` belongs in the id, not beside it — the same words under two
@@ -384,12 +363,6 @@ export async function walletIdForKey(
 ): Promise<string> {
   await load();
   return wallet_id_for_key(secret, network, addressType, passphrase);
-}
-
-/** Default public Esplora endpoint for a network. */
-export async function defaultEsploraUrl(network: Network): Promise<string> {
-  await load();
-  return default_esplora_url(network);
 }
 
 /**
