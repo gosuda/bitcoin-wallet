@@ -1,0 +1,100 @@
+name: mobile bundles
+
+# Assembles the phone apps on demand: an Android debug APK and an iOS Simulator
+# app, neither signed for a store. The rust workflow compiles the shell for
+# every mobile target on each change; this goes the rest of the way to
+# something that installs. Manual only, as decided on 2026-09-14: a phone build
+# is long enough that paying for one on every push would be waste. Signing a
+# release is the release workflow's job (docs/RELEASING.md).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  android:
+    name: Android debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      # The version comes from `packageManager` in the root package.json.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      # The generated Gradle project wants a JDK 17; pin it rather than trust
+      # whatever the image defaults to this month.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: ./.github/actions/wasm-core
+      - run: pnpm install --frozen-lockfile
+      - name: Build the APK
+        working-directory: apps/native
+        # arm64 only: every phone and Apple-silicon emulator this is for runs it,
+        # and each extra ABI is another full Rust build.
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          pnpm tauri android build --debug --apk --target aarch64 --ci
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-debug-apk
+          path: apps/native/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS Simulator app
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios-sim,wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: ./.github/actions/wasm-core
+      - run: pnpm install --frozen-lockfile
+      - name: Build the Simulator app
+        working-directory: apps/native
+        run: pnpm tauri ios build --debug --target aarch64-sim --ci
+      # What the app asks the user for has to be declared in the Info.plist it
+      # ships with, or iOS ends the app the moment it asks. Check the built one,
+      # not the source it is merged from. Xcode leaves a Simulator build in
+      # DerivedData; the Tauri CLI does not copy it anywhere.
+      - name: The built app declares its camera, Face ID and link scheme
+        run: |
+          app=$(find "$HOME/Library/Developer/Xcode/DerivedData" -maxdepth 5 -type d -name '*.app' -path '*/Build/Products/debug-iphonesimulator/*' | head -1)
+          if [ -z "$app" ]; then echo "::error::no Simulator .app was built"; exit 1; fi
+          echo "built: $app"
+          for key in NSCameraUsageDescription NSFaceIDUsageDescription; do
+            plutil -extract "$key" raw "$app/Info.plist" >/dev/null ||
+              { echo "::error::$key is missing from the built Info.plist"; exit 1; }
+          done
+          plutil -extract CFBundleURLTypes xml1 -o - "$app/Info.plist" | grep -q '<string>bitcoin</string>' ||
+            { echo "::error::the built Info.plist does not register the bitcoin: scheme"; exit 1; }
+          ditto -c -k --keepParent "$app" bitcoin-wallet-simulator.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios-simulator-app
+          path: bitcoin-wallet-simulator.zip
+          if-no-files-found: error
+          retention-days: 7

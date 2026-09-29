@@ -615,11 +615,22 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       done when: Keep-a-Changelog seeded from the merged PRs; the tier says "main only until
       the first tag"; the draft and the branch are deleted; description and topics set
 
-- [ ] **4.3 Phone bundles on demand** · M · `.github/workflows/mobile-bundle.yml`
+- [x] **4.3 Phone bundles on demand** · M · `.github/workflows/mobile-bundle.yml`
       why: CI compiles the Rust library for three mobile targets and never assembles an app ·
-      done when: a `workflow_dispatch` builds an Android debug APK on Linux and an iOS Simulator
-      app on macOS without signing, uploads both, asserts the camera and Face ID usage strings
-      in the built `Info.plist`, and the APK installs on an emulator
+      done: 2026-09-29 — `mobile-bundle.yml`, `workflow_dispatch` only, as decided. The Android
+      leg (ubuntu) builds an arm64 debug APK with JDK 17 pinned. The iOS leg (macOS) builds a
+      Simulator app. Neither signs, and each uploads its artifact for 7 days. The iOS leg
+      asserts `NSCameraUsageDescription`, `NSFaceIDUsageDescription` and the `bitcoin:` scheme
+      in the *built* app's Info.plist, found in DerivedData because the Tauri CLI copies a
+      Simulator build nowhere. GitHub only dispatches workflows present on the default branch,
+      so the file was proven from a short-lived probe branch whose copy differed only by a
+      three-line push trigger (branch deleted after). Run 36521331387 was green: both legs
+      took about 8 minutes, producing a 67 MB APK and a 33 MB zipped `.app`. The downloaded APK
+      installed on a fresh API 34 emulator (`versionName` 0.1.0) and opened on Setup. The
+      first runs surfaced two release-path bugs, each fixed in its own commit. The Tauri CLI
+      would not build at all (plugin-http crate 2.7 vs npm 2.6). And no macOS runner could build
+      the wasm core (Apple's clang has no wasm32 backend), which the release workflow's macOS
+      legs would have hit on the first tag
 
 - [ ] **4.4 Android release signing** · S · `gen/android/app/build.gradle.kts`, `release.yml`,
   `docs/RELEASING.md` · **credentials**
