@@ -15,10 +15,11 @@ git push origin v0.1.0
 ```
 
 Bundles produced: `.dmg` (macOS, one per architecture), `.msi`/`.exe`
-(Windows), `.deb`/`.AppImage`/`.rpm` (Linux). With the Android signing
-secrets set, also a signed `.apk` and `.aab` (see [Android](#android)); phone
-builds for testing are the separate `mobile bundles` workflow. The wasm core is built first
-because the frontend imports it.
+(Windows), `.deb`/`.AppImage`/`.rpm` (Linux). With the store keys set as secrets,
+also a signed `.apk` and `.aab` (see [Android](#android)) and an `.ipa` for the
+team's registered devices (see [iOS](#ios)). Phone builds for testing are the
+separate `mobile bundles` workflow. The wasm core is built first because the
+frontend imports it.
 
 ## Signing
 
@@ -82,6 +83,36 @@ To sign a build locally, put the same four values in
 `pnpm tauri android build --apk --aab` from `apps/native`. `app/build.gradle.kts`
 reads that file, or the `ANDROID_KEYSTORE_*` environment the workflow sets, and leaves
 a release build unsigned when neither exists.
+
+### iOS
+
+The `ios` job runs only when `APPLE_API_KEY_P8` exists; without it the job is skipped, not
+failed. With it, the job builds the app for devices and exports it with
+`--export-method release-testing`, an ad hoc `.ipa` that installs on the devices registered
+to the team. It checks the signature with `codesign`, then attaches the `.ipa` to the draft
+release (or keeps it as an artifact on a manual run).
+
+Signing goes through an App Store Connect API key. Xcode uses it to fetch or create the
+distribution certificate and the ad hoc profile, so no certificate is exported or imported
+anywhere.
+
+| Secret | What it is |
+| --- | --- |
+| `APPLE_TEAM_ID` | the team id — the same secret as for macOS |
+| `APPLE_API_ISSUER` | the Issuer ID, shown above the keys table in App Store Connect |
+| `APPLE_API_KEY` | the key's Key ID |
+| `APPLE_API_KEY_P8` | the contents of the `AuthKey_<Key ID>.p8` file that comes with it |
+
+Create the key in App Store Connect under Users and Access → Integrations, with Admin
+access, which Xcode needs to create certificates and profiles. The `.p8` can be downloaded
+only once. Register each test device under Certificates, Identifiers & Profiles → Devices
+before building: an export does not register devices, and the profile covers only the
+ones already registered.
+
+The Tauri CLI can also sign with a certificate and profile passed as `IOS_CERTIFICATE`,
+`IOS_CERTIFICATE_PASSWORD` and `IOS_MOBILE_PROVISION`. The workflow does not use that route:
+in CLI 2.11 it writes the signing settings outside the Xcode project's build settings
+(tauri-apps/tauri#14462).
 
 ## Version numbers
 

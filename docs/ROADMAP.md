@@ -666,11 +666,23 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       panic. The `.aab` carries R8's mapping for Play Console. The run also found three scanner
       bugs that had nothing to do with R8; each is fixed in its own commit
 
-- [ ] **4.6 iOS release configuration** · S · `tauri.conf.json`, `release.yml`,
+- [x] **4.6 iOS release configuration** · S · `tauri.conf.json`, `release.yml`,
   `docs/RELEASING.md` · **credentials**
-      why: the export method is `debugging` and there is no team · done when: the development
-      team comes from the environment, the release workflow's iOS leg exports with
-      `release-testing` when the secrets exist, and the mobile section of RELEASING.md exists
+      why: the export method is `debugging` and there is no team · done: 2026-09-29 —
+      `release.yml` gains an `ios` job, gated like the Android one by the `keys` job, which
+      now also reports whether `APPLE_API_KEY_P8` exists. The job builds for devices with
+      `--export-method release-testing`, which the CLI merges over the checked-in
+      `ExportOptions.plist`. It then checks the signature with `codesign` and attaches the
+      `.ipa` to the draft release, or keeps it as an artifact. The team comes from the
+      environment: the CLI reads `APPLE_DEVELOPMENT_TEAM`, set from the `APPLE_TEAM_ID` secret
+      macOS signing already uses, ahead of `bundle.iOS.developmentTeam`, so `tauri.conf.json`
+      stays without one. Signing goes through an App Store Connect API key, not an exported
+      certificate and profile: CLI 2.11 writes those settings outside the project's build
+      settings (tauri-apps/tauri#14462). All of that was read from the CLI's 2.11.5 source.
+      `RELEASING.md` has the iOS section: the four secrets, the key's Admin access, and
+      registering test devices first. The workflow parses, and its run steps pass shellcheck.
+      Waiting on credentials: an Apple developer team and that API key. Until they exist the
+      job is skipped, not failed
 
 - [ ] **4.7 CodeQL scans what ships** · S · repository setting, `README.md` · **admin**
       why: default setup scans Go and Python — the frozen reference and a design generator ·
