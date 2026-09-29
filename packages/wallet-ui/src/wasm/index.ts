@@ -125,6 +125,18 @@ function optionalString(value: unknown): string | null {
   return value === undefined || value === null ? null : String(value);
 }
 
+/** An unspent output. */
+function toUtxo(raw: unknown): Utxo {
+  const read = reader(raw);
+  return {
+    txid: String(read("txid")),
+    vout: Number(read("vout")),
+    value: Number(read("value")),
+    confirmations: optionalNumber(read("confirmations")),
+    address: String(read("address")),
+  };
+}
+
 /** A history row. */
 function toTxSummary(raw: unknown): TxSummary {
   const read = reader(raw);
@@ -274,7 +286,8 @@ export class WalletApi {
   }
 
   async list_utxos(): Promise<Utxo[]> {
-    return (await this.inner.list_utxos()) as Utxo[];
+    const rows = (await this.inner.list_utxos()) as unknown[];
+    return rows.map(toUtxo);
   }
 
   async list_transactions(): Promise<TxSummary[]> {
