@@ -763,13 +763,21 @@ new feature.
       and never answers, a sync failed after 30 s with "The backend did not answer within
       30 s."
 
-- [ ] **5.2 QR reading without Google Play Services** · S · `gen/android/app/build.gradle.kts`
+- [x] **5.2 QR reading without Google Play Services** · S · `gen/android/app/build.gradle.kts`
   (no canvas)
       why: the scanner plugin decodes with Play Services' ML Kit model, downloaded on first use,
       so a phone without Play Services opens the camera and never reads a code, and a new
-      install reads nothing until the download ends · done when: the bundled model replaces it;
-      the release build's logcat shows no wait for a module; a QR code shown to the emulator's
-      camera opens Send filled in
+      install reads nothing until the download ends · done: 2026-09-29 — the app now depends
+      on `com.google.mlkit:barcode-scanning` 17.3.0, which puts ML Kit's barcode model in the
+      app (`libbarhopper_v3.so`, one per ABI). It sits on top of the Play Services artifact the
+      plugin takes its API from. A dependency substitution was tried first, and it cannot
+      work: the bundled artifact itself depends on that one. The release build ran on an API
+      34 emulator with Google Play Services disabled. Its logcat read "Considering local module
+      com.google.mlkit.dynamite.barcode:10000 and remote module …:0", then "Selected local
+      version", then the decoder starting, with no wait for a download. R8 keeps the module
+      descriptor that ML Kit looks up by name. The arm64 APK grows by 5.9 MB (16.8 → 22.8 MB).
+      No real QR code was decoded: the emulator's virtual camera cannot be aimed at its poster
+      without the emulator's window, and eight headings found nothing
 
 - [ ] **5.3 No P2PK hint on desktop Setup** · S · `packages/wallet-ui/src/screens/setup.ts`
       why: Setup's address type still says "P2PK funds are not discoverable by public indexers",

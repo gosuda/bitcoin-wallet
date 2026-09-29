@@ -12,6 +12,8 @@ pull requests a change arrived in.
 - A wallet with a long history can finish its first sync on a slow connection. A scan is no
   longer cut off after 180 s; each request to the server has 30 s instead, so a server that
   stops answering is still caught, and sooner. (#38)
+- Reading QR codes on Android no longer needs Google Play Services, or a download before the
+  first scan: the barcode model now ships inside the app. (#38)
 
 ## [0.1.0] - 2026-09-29
 
