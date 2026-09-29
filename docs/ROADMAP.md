@@ -723,11 +723,6 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       why: the release workflow's tag path has never run · done when: the tag exists and the
       draft release built from it carries the desktop artifacts
 
-- [ ] **4.10 Web build deployed** · S · `.github/workflows/pages.yml`, `apps/web/vite.config.ts` ·
-  **admin**, and only if wanted
-      why: the browser build is compiled on every push and published nowhere · done when: a
-      Pages URL serves it, and the page says keys are held for the session only
-
 ## Round 5 — Product
 
 Listed, not scheduled. Each goes to the design canvas first unless marked otherwise; the next
@@ -767,7 +762,8 @@ one starts when it is picked.
 - 2026-09-29 — Both shells start Send on a 6-block target (3.6).
 - 2026-09-29 — Numbers on screen follow the device's locale, as dates do; amount fields keep
   plain digits and a `.` (3.9).
-- Open: the first tag (4.9); Pages (4.10).
+- 2026-09-29 — The first tag is `v0.1.0`, cut from the merge of Round 4 (4.9).
+- 2026-09-29 — The browser build is not hosted; 4.10 moved to Not doing.
 
 ## Not doing
 
@@ -784,3 +780,5 @@ one starts when it is picked.
   `tauri.conf.json` on every build; it only applies to a bare `./gradlew` run.
 - `forgetWallet` deleting the keystore entry — by design; the reset in Round 5 is the other path.
 - Coverage thresholds — a report may be added (3.8); no gate.
+- Hosting the browser build on Pages (was 4.10) — a hosted page that handles keys is a target
+  for look-alike copies and for a poisoned deploy, and anyone can build and run it locally.
