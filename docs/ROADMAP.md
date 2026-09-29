@@ -650,10 +650,21 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       Waiting on credentials: the real upload key, set as those four secrets. Until then
       the job is skipped, not failed
 
-- [ ] **4.5 Minification verified** · S · `gen/android/app/proguard-rules.pro` · after 4.4
+- [x] **4.5 Minification verified** · S · `gen/android/app/proguard-rules.pro` · after 4.4
       why: R8 is on for release and the rules file is all comments; the Kotlin keystore shim is
-      reached over JNI · done when: a minified release build opens, remembers, relaunches and
-      unlocks on the emulator with a clean logcat, with keep rules only if that run demanded them
+      reached over JNI · done: 2026-09-29 — the rules file keeps line numbers and nothing else,
+      because the run needed no keep rule. R8's merged configuration shows why:
+      `proguard-android-optimize.txt` keeps every class with a native method under its own
+      name, so `io.crates.keyring.Keyring$Companion` and `initializeNdkContext` survive while
+      the outer class is renamed; wry's generated rules keep the webview glue; and Tauri's and
+      each plugin's consumer rules keep their `@Command` methods. A minified arm64 release APK,
+      signed with the 4.4 throwaway key, replaced the debug app on an API 34 emulator. It
+      restored the BIP39 test phrase with Remember ticked and fetched a fee estimate. After a
+      force-stop it relaunched on Unlock, showing the remembered address, and unlocked into the
+      wallet, with the biometric check running through its plugin. Updating it in place kept
+      the wallet. Logcat had no crash, no missing class or method, no JNI error and no Rust
+      panic. The `.aab` carries R8's mapping for Play Console. The run also found three scanner
+      bugs that had nothing to do with R8; each is fixed in its own commit
 
 - [ ] **4.6 iOS release configuration** · S · `tauri.conf.json`, `release.yml`,
   `docs/RELEASING.md` · **credentials**
