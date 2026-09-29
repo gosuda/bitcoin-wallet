@@ -77,6 +77,32 @@ function releaseWallet(): void {
   wallet?.free();
 }
 
+/**
+ * Syncs, rescans and broadcasts still running. Closing the wallet under one
+ * pulls the handle out from under it: a sync loses what it found, and a
+ * broadcast can reach the network without reaching this device's record. The
+ * background lock waits for them (`whenIdle`); Close wallet, which the user
+ * asks for, does not.
+ */
+const unfinished = new Set<Promise<unknown>>();
+
+/** Runs `work`, counted among the unfinished until it settles. */
+async function holdOpen<T>(work: () => Promise<T>): Promise<T> {
+  const running = work();
+  unfinished.add(running);
+  try {
+    return await running;
+  } finally {
+    unfinished.delete(running);
+  }
+}
+
+/** Resolves once no sync, rescan or broadcast is running: at once when none is. */
+export async function whenIdle(): Promise<void> {
+  // One can start as another ends, so this waits until none is left.
+  while (unfinished.size > 0) await Promise.allSettled(unfinished);
+}
+
 /** Ordinal of the most recently started `install` call; only the newest may commit. */
 let openAttempt = 0;
 
@@ -317,6 +343,12 @@ async function syncWallet(): Promise<Balance> {
   return wallet.balance();
 }
 
+async function rescanWallet(stopGap: number): Promise<Balance> {
+  const wallet = requireWallet();
+  await wallet.rescan(stopGap);
+  return wallet.balance();
+}
+
 /** Holds the unsigned PSBT for `signAndBroadcast` and hands the screen its preview. */
 function retainPsbt(built: BuiltTx): TxPreview {
   const psbtId = `${Date.now().toString(16)}-${(psbtCounter++).toString(16)}`;
@@ -461,13 +493,9 @@ export const api = {
   /** `unlockWallet` for such a wallet, the same way; its key stays in the keystore. */
   resetHistoryAndUnlock: () => unlockWallet(true),
   forgetWallet: () => forgetWallet(),
-  sync: (): Promise<Balance> => syncWallet(),
+  sync: (): Promise<Balance> => holdOpen(syncWallet),
   /** Look `stopGap` unused addresses past the last used one, then re-read the balance. */
-  rescan: async (stopGap: number): Promise<Balance> => {
-    const wallet = requireWallet();
-    await wallet.rescan(stopGap);
-    return wallet.balance();
-  },
+  rescan: (stopGap: number): Promise<Balance> => holdOpen(() => rescanWallet(stopGap)),
   newAddress: (): Promise<string> => newAddress(),
   publicDescriptors: (): Promise<PublicDescriptors> => requireWallet().public_descriptors(),
   transaction: (txid: string): Promise<TxDetail | null> => requireWallet().transaction(txid),
@@ -490,14 +518,14 @@ export const api = {
   buildFeeBump: (txid: string, feeRateSatVb: number) => buildFeeBump(txid, feeRateSatVb),
   buildCancel: (txid: string, feeRateSatVb: number) => buildCancel(txid, feeRateSatVb),
   buildCpfp: (txid: string, packageRateSatVb: number) => buildCpfp(txid, packageRateSatVb),
-  signAndBroadcast: (psbtId: string) => signAndBroadcast(psbtId),
+  signAndBroadcast: (psbtId: string) => holdOpen(() => signAndBroadcast(psbtId)),
   /** Reads a PSBT made elsewhere, pasted as base64 or hex. Signs nothing. */
   importPsbt: async (psbt: string): Promise<PsbtReview> => requireWallet().import_psbt(psbt),
   /** Signs every input of ours; the review says whether it can go out yet. */
   signPsbt: async (psbt: string): Promise<PsbtReview> => requireWallet().sign_psbt(psbt),
   /** Sends an imported PSBT once every input is final. */
-  broadcastPsbt: async (psbt: string): Promise<BroadcastResult> =>
-    broadcastSigned(requireWallet(), psbt),
+  broadcastPsbt: (psbt: string): Promise<BroadcastResult> =>
+    holdOpen(async () => broadcastSigned(requireWallet(), psbt)),
   discardTx: async (psbtId: string): Promise<void> => {
     pending.delete(psbtId);
   },

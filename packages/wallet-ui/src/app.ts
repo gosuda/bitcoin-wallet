@@ -14,6 +14,7 @@ import { renderSetup } from "./screens/setup";
 import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "./types";
+import { startAutolock } from "./ui/autolock";
 import { banner, clear, el, queueNotice } from "./ui/dom";
 import { brandMark, icon } from "./ui/icons";
 
@@ -166,6 +167,9 @@ export async function boot(options: BootOptions = {}): Promise<void> {
       session.remembered = null;
     }
   }
+  // Once, for both shells, before either mounts: Settings shows the saved
+  // lock time from the first screen on.
+  await startAutolock();
   if (options.mount) {
     options.mount();
     return;

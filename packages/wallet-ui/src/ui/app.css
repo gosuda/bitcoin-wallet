@@ -814,6 +814,30 @@ tr.tx-detail td {
   color: var(--muted);
 }
 
+/* A select drawn as the board's input: the browser's own arrow gives way to
+   the app's chevron, turned to point down. */
+.select-box {
+  position: relative;
+  display: inline-flex;
+  width: 220px;
+}
+
+.select-box select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--space-8);
+  cursor: pointer;
+}
+
+.select-box .icon {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%) rotate(90deg);
+  color: var(--muted);
+  pointer-events: none;
+}
+
 .settings-pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

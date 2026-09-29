@@ -7,10 +7,14 @@ import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
   errorMessage,
+  LOCK_AFTER_CHOICES,
+  LOCK_AFTER_LABELS,
+  lockAfterFrom,
   NETWORK_LABELS,
   type PublicDescriptors,
   RESCAN_GAPS,
 } from "../types";
+import { chooseLockAfter, lockAfter } from "../ui/autolock";
 import { copyButton } from "../ui/clipboard";
 import {
   banner,
@@ -33,6 +37,27 @@ function settingRow(label: string, value: Node | string, action?: HTMLElement): 
     el("span", {}, [value]),
     action ?? null,
   ]);
+}
+
+/**
+ * "Lock after" as the board draws it: a select whose own arrow gives way to
+ * the app's chevron, turned down. A choice applies at once and is saved.
+ */
+function lockSelect(onSaveFailed: (e: unknown) => void): HTMLElement {
+  const select = el("select", { attrs: { name: "lock_after", "aria-label": "Lock after" } });
+  for (const choice of LOCK_AFTER_CHOICES) {
+    const label = LOCK_AFTER_LABELS[choice];
+    const option = el("option", {
+      text: choice === "never" ? label : `${label} in background`,
+      attrs: { value: `${choice}` },
+    });
+    option.selected = choice === lockAfter();
+    select.appendChild(option);
+  }
+  select.addEventListener("change", () => {
+    void chooseLockAfter(lockAfterFrom(select.value)).catch(onSaveFailed);
+  });
+  return el("span", { className: "select-box" }, [select, icon("chevron", 14)]);
 }
 
 /**
@@ -78,10 +103,11 @@ export function renderSettings(): HTMLElement {
   };
   const changeButton = (what: string) => button("Change…", change(what), "default", "sm");
 
-  // --- security: where a remembered key is kept ------------------------------
+  // --- security: where a remembered key is kept, and when it locks -----------
   // The keystore holds one wallet; "remembered" is about this one or nothing.
+  const canRemember = platform().canRememberWallet;
   const remembered = session.remembered?.wallet_id === wallet.wallet_id;
-  const rememberedValue = !platform().canRememberWallet
+  const rememberedValue = !canRemember
     ? "Not available here"
     : remembered
       ? el("span", {}, [
@@ -89,6 +115,18 @@ export function renderSettings(): HTMLElement {
           el("span", { className: "hint", text: `· in the ${KEYCHAIN_NAME}` }),
         ])
       : "No";
+  // Only a remembered wallet is ever locked, so without a keystore there is
+  // nothing to choose.
+  const lockValue = canRemember
+    ? lockSelect((e) => {
+        if (onScreen()) {
+          alert.show(
+            "error",
+            `The lock time could not be saved (${errorMessage(e)}). It holds until the app closes.`,
+          );
+        }
+      })
+    : "Not available here";
 
   // --- rescan: for a restore that shows too little ----------------------------
   let gap = `${RESCAN_GAPS[0]}`;
@@ -210,9 +248,7 @@ export function renderSettings(): HTMLElement {
   // Without a working keystore there is no saved key to delete, and a stale
   // record can still say "remembered" on such a build.
   const forgetBtn =
-    remembered && platform().canRememberWallet
-      ? button("Forget this wallet", showForget, "danger")
-      : null;
+    remembered && canRemember ? button("Forget this wallet", showForget, "danger") : null;
 
   const kind = wallet.is_watch_only ? " · Watch-only" : "";
   return el("main", { className: "screen" }, [
@@ -245,7 +281,16 @@ export function renderSettings(): HTMLElement {
     changeSlot,
     el("section", { className: "card card-rows" }, [
       sectionLabel("Security"),
-      el("div", {}, [settingRow("Remembered on this device", rememberedValue)]),
+      el("div", {}, [
+        settingRow("Remembered on this device", rememberedValue),
+        settingRow("Lock after", lockValue),
+      ]),
+      canRemember
+        ? el("span", {
+            className: "hint",
+            text: "After this long in the background a remembered wallet closes to Unlock — never in the middle of a sync or a broadcast.",
+          })
+        : null,
     ]),
     el("section", { className: "card" }, [
       el("div", { className: "card-head" }, [

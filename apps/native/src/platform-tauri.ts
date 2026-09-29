@@ -2,8 +2,9 @@
  * The Tauri shell's half of the platform seam.
  *
  * The native side owns exactly two things: the config store (`get_config` /
- * `set_config`, plus the plugin store that holds the remembered-wallet record)
- * and the OS keystore (`remember_secret` / `load_secret` / `forget_secret`).
+ * `set_config`, plus the plugin store that holds the remembered-wallet record
+ * and the lock time) and the OS keystore (`remember_secret` / `load_secret` /
+ * `forget_secret`).
  * Nothing wallet-shaped crosses the IPC boundary.
  */
 
@@ -11,6 +12,8 @@ import { installChainFetch } from "@bitcoin-wallet/ui/net";
 import type { Platform } from "@bitcoin-wallet/ui/platform";
 import {
   type AppConfig,
+  type LockAfter,
+  lockAfterFrom,
   messageOf,
   type RememberedWallet,
   type StoredSecret,
@@ -46,6 +49,7 @@ export function installNativeFetch(): void {
 
 const STORE_FILE = "config.json";
 const REMEMBERED_KEY = "remembered_wallet";
+const LOCK_AFTER_KEY = "lock_after";
 
 /**
  * Asks the native side whether the OS credential store actually works here.
@@ -153,6 +157,17 @@ export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Plat
       const store = await loadStore(STORE_FILE);
       if (record) await store.set(REMEMBERED_KEY, record);
       else await store.delete(REMEMBERED_KEY);
+      await store.save();
+    },
+
+    async getLockAfter(): Promise<LockAfter> {
+      const store = await loadStore(STORE_FILE);
+      return lockAfterFrom(await store.get(LOCK_AFTER_KEY));
+    },
+
+    async setLockAfter(choice): Promise<void> {
+      const store = await loadStore(STORE_FILE);
+      await store.set(LOCK_AFTER_KEY, choice);
       await store.save();
     },
 

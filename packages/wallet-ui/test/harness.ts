@@ -13,7 +13,7 @@ import { api } from "../src/api";
 import { setPlatform } from "../src/platform";
 import type { Route } from "../src/router";
 import { session } from "../src/session";
-import type { AppConfig } from "../src/types";
+import { type AppConfig, DEFAULT_LOCK_AFTER } from "../src/types";
 import { fake } from "./fakes";
 
 export const CONFIG: AppConfig = {
@@ -77,6 +77,8 @@ export function useScreenHarness(): void {
       setConfig: async () => undefined,
       getRemembered: async () => null,
       setRemembered: async () => undefined,
+      getLockAfter: async () => DEFAULT_LOCK_AFTER,
+      setLockAfter: async () => undefined,
       rememberSecret: async () => undefined,
       loadSecret: async () => null,
       forgetSecret: async () => undefined,

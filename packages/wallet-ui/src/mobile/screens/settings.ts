@@ -8,10 +8,15 @@ import {
   ADDRESS_TYPE_LABELS,
   backendHost,
   errorMessage,
+  LOCK_AFTER_CHOICES,
+  LOCK_AFTER_LABELS,
+  type LockAfter,
+  lockAfterFrom,
   NETWORK_LABELS,
   RESCAN_GAPS,
   type RescanGap,
 } from "../../types";
+import { chooseLockAfter, lockAfter } from "../../ui/autolock";
 import { banner, el, formatNumber } from "../../ui/dom";
 import {
   body,
@@ -28,6 +33,7 @@ import {
 } from "../ui";
 
 type Gap = `${RescanGap}`;
+type Wait = `${LockAfter}`;
 
 export function renderSettings(): HTMLElement {
   const info = session.wallet;
@@ -130,6 +136,35 @@ export function renderSettings(): HTMLElement {
   // from here.
   const remembered = session.remembered?.wallet_id === info.wallet_id;
 
+  // Lock after: chips inline, as Rescan's are. Only a remembered wallet is
+  // ever locked, so without a keystore there is nothing to choose.
+  const lockBlock = platform().canRememberWallet
+    ? el("div", { className: "m-block" }, [
+        el("div", { className: "m-block-head" }, [
+          el("span", { text: "Lock after" }),
+          el("span", { className: "m-item-value", text: "in background" }),
+        ]),
+        chips<Wait>(
+          LOCK_AFTER_CHOICES.map((c) => ({ value: `${c}` as Wait, label: LOCK_AFTER_LABELS[c] })),
+          `${lockAfter()}`,
+          (value) => {
+            void chooseLockAfter(lockAfterFrom(value)).catch((e: unknown) => {
+              if (!onScreen()) return;
+              alert.show(
+                "error",
+                `The lock time could not be saved (${errorMessage(e)}). It holds until the app closes.`,
+              );
+            });
+          },
+          { label: "Lock after" },
+        ).node,
+        el("span", {
+          className: "hint",
+          text: "After this long in the background a remembered wallet closes to Unlock — never in the middle of a sync or a broadcast.",
+        }),
+      ])
+    : item("Lock after", "Not available here");
+
   host.appendChild(header("Settings"));
   host.appendChild(
     body(
@@ -150,6 +185,7 @@ export function renderSettings(): HTMLElement {
           "Remembered on this device",
           platform().canRememberWallet ? (remembered ? "Yes" : "No") : "Not available here",
         ),
+        lockBlock,
       ),
       listCard(
         item("Close wallet", null, async () => {

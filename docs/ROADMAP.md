@@ -935,11 +935,25 @@ items before it change no screen, so they land while that batch is reviewed.
       row (its corners turning with the card), on the Wallet tab and on the Send button, and
       taps drew none
 
-- [ ] **6.11 Lock in the background** · M · new `ui/autolock.ts`, `app.ts` · after 6.6 ·
+- [x] **6.11 Lock in the background** · M · new `ui/autolock.ts`, `app.ts` · after 6.6 ·
   **decision** (how long, and what happens to a wallet that is not remembered)
-      why: an open wallet stays open however long the app sits in the background · done when:
-      after the chosen time hidden, a remembered wallet closes to Unlock, never mid-sync or
-      mid-broadcast; tests drive it with fake timers and visibility events
+      why: an open wallet stays open however long the app sits in the background · done:
+      2026-09-30 — `ui/autolock.ts` starts at boot, once for both shells, and watches the
+      page's visibility. Hidden, it notes the time and sets a timer, which locks at the
+      deadline where timers run, as in a desktop window; on return it checks the clock too,
+      since a phone suspends the page. Past the limit, the remembered wallet on a device that
+      keeps keys closes to Unlock; any other wallet stays open. `whenIdle` in `api.ts` settles
+      once no sync, rescan or broadcast is running, and the lock waits for it. Settings offers
+      1, 5, 15 or 60 minutes or Never, 5 by default: a select in the desktop's Security card,
+      chips beside Remembered on the phone, and "Not available here" where no key can be kept.
+      The platform saves the choice (`lock_after` in the plugin store, or localStorage), and a
+      missing or unknown value reads as 5 minutes. Eighteen jsdom tests drive it with fake
+      timers and visibility events: both ways of locking, a return in time, a wallet not
+      remembered, a sync and a broadcast past the deadline, Never, the saved choice and both
+      Settings rows; one boots the phone shell. Breaking the timer, the check on return, the
+      wait, the remembered check or the saved choice fails at least one of them. On the
+      Android emulator with 1 min chosen, the wallet came back on Unlock after 87 seconds in
+      the background, and stayed open after 27
 
 - [ ] **6.12 A browser keystore** · L · `apps/web/src/platform-browser.ts`, `platform/index.ts`,
   `ui/remember.ts`, desktop Unlock · after 6.6 · **decision** (key derivation, naming)

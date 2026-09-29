@@ -3,17 +3,18 @@
  *
  * A tab has no OS keychain, so this shell deliberately stores no key material:
  * `canRememberWallet` is false and the three secret methods reject. Keys live in
- * memory for the life of the tab and are gone when it closes. Only the two
- * non-secret records — the app config and (for shape parity) the remembered
- * wallet — are kept, in `localStorage` under a versioned key.
+ * memory for the life of the tab and are gone when it closes. Only non-secret
+ * records — the app config and, for shape parity, the remembered wallet and
+ * the lock time — are kept, in `localStorage` under a versioned key.
  */
 
 import type { Platform } from "@bitcoin-wallet/ui/platform";
-import type { AppConfig, RememberedWallet } from "@bitcoin-wallet/ui/types";
+import { type AppConfig, lockAfterFrom, type RememberedWallet } from "@bitcoin-wallet/ui/types";
 
 const PREFIX = "bitcoin-wallet.v1.";
 const CONFIG_KEY = `${PREFIX}config`;
 const REMEMBERED_KEY = `${PREFIX}remembered`;
+const LOCK_AFTER_KEY = `${PREFIX}lock_after`;
 
 /**
  * Reads one JSON record. A missing key, a browser that refuses storage
@@ -53,6 +54,9 @@ export const browserPlatform: Platform = {
 
   getRemembered: async () => read<RememberedWallet>(REMEMBERED_KEY),
   setRemembered: async (record) => write(REMEMBERED_KEY, record),
+
+  getLockAfter: async () => lockAfterFrom(read(LOCK_AFTER_KEY)),
+  setLockAfter: async (choice) => write(LOCK_AFTER_KEY, choice),
 
   rememberSecret: noKeystore,
   loadSecret: noKeystore,

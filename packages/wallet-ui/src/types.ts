@@ -207,6 +207,34 @@ export const RESCAN_GAPS = [20, 100, 500] as const;
 export type RescanGap = (typeof RESCAN_GAPS)[number];
 
 /**
+ * How long the app may sit in the background before a remembered wallet
+ * closes to Unlock, in minutes (6.11). Nothing shorter than a minute: fetching
+ * an address from another app must not close the Send it was fetched for.
+ */
+export const LOCK_AFTER_CHOICES = [1, 5, 15, 60, "never"] as const;
+export type LockAfter = (typeof LOCK_AFTER_CHOICES)[number];
+
+/** Until another is chosen: five minutes, as decided on 2026-09-30. */
+export const DEFAULT_LOCK_AFTER: LockAfter = 5;
+
+export const LOCK_AFTER_LABELS: Record<LockAfter, string> = {
+  1: "1 min",
+  5: "5 min",
+  15: "15 min",
+  60: "1 hour",
+  never: "Never",
+};
+
+/**
+ * The choice `value` names, read back from storage or from a control. Nothing
+ * saved, or anything this build does not offer — edited by hand, or written by
+ * another version — is the default, so a damaged record errs towards locking.
+ */
+export function lockAfterFrom(value: unknown): LockAfter {
+  return LOCK_AFTER_CHOICES.find((c) => c === value || `${c}` === value) ?? DEFAULT_LOCK_AFTER;
+}
+
+/**
  * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):
  * the exact target, else the closest faster one, else the closest slower one.
  */

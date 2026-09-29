@@ -20,6 +20,9 @@ pull requests a change arrived in.
   recipient gives each a card of its own, one sat/BTC choice covers them all, and the review
   lists every recipient before the fee and the total. Scanning from Send opens the camera
   there, so the recipients already filled in stay; a scan fills the last empty row. (#39)
+- A wallet remembered on this device closes to Unlock after five minutes in the background,
+  never in the middle of a sync or a send. Settings changes the time to 1 or 15 minutes, an
+  hour, or never. A wallet that is not remembered stays open. (#39)
 
 ### Fixed
 

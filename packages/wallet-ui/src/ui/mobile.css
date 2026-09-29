@@ -742,6 +742,10 @@ button.m-txrow:active {
   font-size: 16px;
 }
 
+.m-block:last-child {
+  border-bottom: none;
+}
+
 .m-block-head {
   display: flex;
   align-items: center;

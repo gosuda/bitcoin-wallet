@@ -9,7 +9,7 @@
  * `canRememberWallet`.
  */
 
-import type { AppConfig, RememberedWallet, StoredSecret } from "../types";
+import type { AppConfig, LockAfter, RememberedWallet, StoredSecret } from "../types";
 
 export interface Platform {
   /**
@@ -27,6 +27,14 @@ export interface Platform {
   getRemembered(): Promise<RememberedWallet | null>;
   /** Writes the record, or clears it when given `null`. */
   setRemembered(record: RememberedWallet | null): Promise<void>;
+
+  /**
+   * How long the app may sit in the background before a remembered wallet
+   * closes to Unlock. Nothing saved, or a value this build does not offer,
+   * reads as the default (`lockAfterFrom`).
+   */
+  getLockAfter(): Promise<LockAfter>;
+  setLockAfter(choice: LockAfter): Promise<void>;
 
   /** Rejects where `canRememberWallet` is false. */
   rememberSecret(walletId: string, secret: string, passphrase?: string): Promise<void>;
