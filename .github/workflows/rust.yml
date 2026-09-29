@@ -203,6 +203,10 @@ jobs:
       # before anything typechecks.
       - uses: ./.github/actions/wasm-core
       - run: pnpm install --frozen-lockfile
+      # The Tauri CLI will not build when a crate and its npm half differ in
+      # major.minor, and nothing here runs the CLI; Dependabot bumps the two
+      # sides separately, so this is the CLI's own check, made on every change.
+      - run: scripts/check-tauri-pairs.sh
 
       # The same commands a contributor runs from the root: every package that
       # has the script gets it, so a new package is covered without an edit here.
