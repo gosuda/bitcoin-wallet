@@ -15,9 +15,13 @@ export type OpenableAddressType = Exclude<AddressType, "p2pk">;
  * wallet: its descriptor is a bare script with no signing context, and the
  * core refuses to open one rather than let a send reach that. Both shells'
  * route guards send such a config back to Setup, which never offers it.
+ *
+ * A stored config is read back unchecked, so this takes any string and also
+ * refuses a name the app does not know — edited by hand, or written by some
+ * other build — before it can reach the core.
  */
-export function isOpenable(t: AddressType): t is OpenableAddressType {
-  return t !== "p2pk";
+export function isOpenable(t: string): t is OpenableAddressType {
+  return t !== "p2pk" && (ADDRESS_TYPES as readonly string[]).includes(t);
 }
 
 export const OPENABLE_ADDRESS_TYPES = ADDRESS_TYPES.filter(isOpenable);
