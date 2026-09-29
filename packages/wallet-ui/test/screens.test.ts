@@ -1,138 +1,8 @@
 /** @vitest-environment jsdom */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-/*
- * Real screens, rendered in jsdom over the real `api`, `session` and route
- * guards. Only what jsdom cannot provide is replaced: the WebAssembly wrapper
- * (a fake wallet whose `sync` can be held open) and the IndexedDB persister.
- * So what fails here is the screens' own handling of secrets and of work
- * that outlives them.
- */
-
-const fake = vi.hoisted(() => {
-  const ADDRESS = "tb1q4gp4z4utc286kcdpdsj3qwgpefcf9u4mv9a0d5";
-  const built = (total: number) => ({
-    psbt_base64: `psbt-${total}`,
-    fee_sat: 141,
-    vsize: 141,
-    total_out_sat: total,
-    change_sat: 0,
-    input_count: 1,
-  });
-  let syncGate: Promise<void> = Promise.resolve();
-
-  class FakeWallet {
-    static async open(): Promise<FakeWallet> {
-      return new FakeWallet();
-    }
-    get id(): string {
-      return "testnet4-p2wpkh-fake";
-    }
-    get network(): string {
-      return "testnet4";
-    }
-    get address_type(): string {
-      return "p2wpkh";
-    }
-    get isHd(): boolean {
-      return true;
-    }
-    get isRanged(): boolean {
-      return true;
-    }
-    get isWatchOnly(): boolean {
-      return false;
-    }
-    async address(): Promise<string> {
-      return ADDRESS;
-    }
-    async newAddress(): Promise<string> {
-      return ADDRESS;
-    }
-    async sync(): Promise<void> {
-      await syncGate;
-    }
-    async rescan(): Promise<void> {}
-    async public_descriptors() {
-      return { external: "wpkh(fake/0/*)", internal: null, account_xpub: null, fingerprint: null };
-    }
-    async transaction(): Promise<null> {
-      return null;
-    }
-    async balance() {
-      return {
-        confirmed: 50_000,
-        trusted_pending: 0,
-        untrusted_pending: 0,
-        immature: 0,
-        frozen: 0,
-      };
-    }
-    async list_utxos(): Promise<never[]> {
-      return [];
-    }
-    async set_frozen(coin: unknown, frozen: boolean): Promise<void> {
-      coinCalls.push(["set_frozen", coin, frozen]);
-    }
-    async list_transactions(): Promise<never[]> {
-      return [];
-    }
-    async estimate_fee() {
-      return { sat_per_vb_by_target: { "6": 2 } };
-    }
-    async build_transfer(recipients: { amount_sat: number }[]) {
-      return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0));
-    }
-    async build_transfer_from(coins: unknown, recipients: { amount_sat: number }[]) {
-      coinCalls.push(["build_transfer_from", coins]);
-      return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0));
-    }
-    async build_drain() {
-      return built(49_859);
-    }
-    async build_drain_from(coins: unknown) {
-      coinCalls.push(["build_drain_from", coins]);
-      return built(49_859);
-    }
-    free(): void {}
-  }
-  /** Every coin-control call the fake core received, oldest first. */
-  const coinCalls: unknown[][] = [];
-
-  return {
-    ADDRESS,
-    FakeWallet,
-    coinCalls,
-    /** Holds every `sync` open until `release` is called. */
-    holdSync(): () => void {
-      let release = (): void => {};
-      syncGate = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      return release;
-    },
-  };
-});
-
-vi.mock("../src/wasm", () => ({
-  WalletApi: fake.FakeWallet,
-  walletIdForKey: async () => "testnet4-p2wpkh-fake",
-  explorerTxUrl: async () => null,
-  generateKey: async () => {
-    throw new Error("not used here");
-  },
-  generateMnemonic: async () => ({
-    words:
-      "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-    address: fake.ADDRESS,
-  }),
-  validateMnemonic: async () => undefined,
-}));
-
-vi.mock("../src/persist/indexeddb", () => ({
-  makePersister: () => ({ initialize: async () => null, persist: async () => undefined }),
-  deleteWalletState: async () => undefined,
-}));
+vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
+vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
 
 import { api, canUnlockHere } from "../src/api";
 import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
@@ -142,7 +12,6 @@ import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
 import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
 import { renderSetup as renderPhoneSetup } from "../src/mobile/screens/setup";
 import { platform, setPlatform } from "../src/platform";
-import type { Route } from "../src/router";
 import { renderCreate } from "../src/screens/create";
 import { renderDashboard } from "../src/screens/dashboard";
 import { renderKey } from "../src/screens/key";
@@ -150,77 +19,21 @@ import { renderRestore } from "../src/screens/restore";
 import { renderSend } from "../src/screens/send";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
-import { type AppConfig, NETWORK_LABELS, type Network, type RememberedWallet } from "../src/types";
+import { NETWORK_LABELS, type Network, type RememberedWallet } from "../src/types";
+import { fake } from "./fakes";
+import {
+  at,
+  buttonNamed,
+  CONFIG,
+  find,
+  leaveTo,
+  mount,
+  settle,
+  type,
+  useScreenHarness,
+} from "./harness";
 
-// jsdom does no layout, so it has nothing to scroll; the preview asks it to.
-Element.prototype.scrollIntoView = vi.fn();
-
-const CONFIG: AppConfig = {
-  network: "testnet4",
-  address_type: "p2wpkh",
-  backend: { kind: "esplora", url: "https://mempool.space/testnet4/api" },
-};
-
-/** Where the shell would be when it renders a screen: no event, just the URL. */
-function at(route: Route): void {
-  window.history.replaceState(null, "", `#/${route}`);
-}
-
-/** The user moves on: the URL changes and the one `hashchange` fires. */
-function leaveTo(route: Route): void {
-  at(route);
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
-}
-
-function mount(screen: HTMLElement): HTMLElement {
-  document.body.replaceChildren(screen);
-  return screen;
-}
-
-function find<T extends Element>(root: ParentNode, selector: string): T {
-  const found = root.querySelector<T>(selector);
-  if (!found) throw new Error(`nothing matches ${selector}`);
-  return found;
-}
-
-function buttonNamed(root: ParentNode, name: string): HTMLButtonElement {
-  const found = [...root.querySelectorAll("button")].find((b) => b.textContent?.trim() === name);
-  if (!found) throw new Error(`no button named ${name}`);
-  return found;
-}
-
-function type(field: HTMLInputElement | HTMLTextAreaElement, value: string): void {
-  field.value = value;
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-/** Lets every promise already queued settle, the async screen work included. */
-async function settle(): Promise<void> {
-  for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-beforeEach(() => {
-  setPlatform({
-    canRememberWallet: false,
-    getConfig: async () => CONFIG,
-    setConfig: async () => undefined,
-    getRemembered: async () => null,
-    setRemembered: async () => undefined,
-    rememberSecret: async () => undefined,
-    loadSecret: async () => null,
-    forgetSecret: async () => undefined,
-    writeClipboard: async () => undefined,
-    openUrl: async () => undefined,
-  });
-  session.config = CONFIG;
-});
-
-afterEach(async () => {
-  await api.closeWallet();
-  vi.restoreAllMocks();
-  document.body.replaceChildren();
-  at("setup");
-});
+useScreenHarness();
 
 describe("secrets do not outlive their screen (1.3)", () => {
   it("Key clears a typed private key and a pasted descriptor", () => {
@@ -580,7 +393,7 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
 describe("coin control reaches the core (6.3)", () => {
   it("a build with chosen coins takes the coin-control path, and one without does not", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    fake.coinCalls.length = 0;
+    fake.calls.length = 0;
     const coin = { txid: "ab".repeat(32), vout: 1 };
     const pay = [{ address: fake.ADDRESS, amount_sat: 1000 }];
 
@@ -590,7 +403,11 @@ describe("coin control reaches the core (6.3)", () => {
     await api.buildDrain(fake.ADDRESS, 2);
     await api.setFrozen(coin, true);
 
-    expect(fake.coinCalls).toEqual([
+    const coinControl = new Set(["build_transfer_from", "build_drain_from", "set_frozen"]);
+    const coinCalls = fake.calls
+      .filter((c) => coinControl.has(String(c[0])))
+      .map((c) => (c[0] === "set_frozen" ? c : c.slice(0, 2)));
+    expect(coinCalls).toEqual([
       ["build_transfer_from", [coin]],
       ["build_drain_from", [coin]],
       ["set_frozen", coin, true],
