@@ -247,6 +247,20 @@ fn build_error(e: CreateTxError) -> Error {
     }
 }
 
+/// Map a fee-bump refusal onto the error domain: the three ways a transaction
+/// cannot be replaced are one case a UI can explain; the rest are build errors.
+fn bump_error(e: bdk_wallet::error::BuildFeeBumpError) -> Error {
+    use bdk_wallet::error::BuildFeeBumpError as E;
+    match e {
+        E::TransactionNotFound(_) | E::TransactionConfirmed(_) | E::IrreplaceableTransaction(_) => {
+            Error::NotReplaceable(e.to_string())
+        }
+        E::UnknownUtxo(_) | E::FeeRateUnavailable | E::InvalidOutputIndex(_) => {
+            Error::BuildTx(e.to_string())
+        }
+    }
+}
+
 /// Every [`bdk_wallet::error::LoadError`] variant means the same thing at
 /// this boundary: the persisted record does not correspond to the wallet
 /// being opened — wrong network, wrong genesis, wrong descriptor, or a
@@ -880,17 +894,7 @@ impl WalletHandle {
             .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
         let mut inner = self.inner.lock().await;
         let psbt = {
-            let mut builder = inner.wallet.build_fee_bump(txid).map_err(|e| {
-                use bdk_wallet::error::BuildFeeBumpError as E;
-                match e {
-                    E::TransactionNotFound(_)
-                    | E::TransactionConfirmed(_)
-                    | E::IrreplaceableTransaction(_) => Error::NotReplaceable(e.to_string()),
-                    E::UnknownUtxo(_) | E::FeeRateUnavailable | E::InvalidOutputIndex(_) => {
-                        Error::BuildTx(e.to_string())
-                    }
-                }
-            })?;
+            let mut builder = inner.wallet.build_fee_bump(txid).map_err(bump_error)?;
             builder.fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
@@ -1061,7 +1065,8 @@ mod tests {
     }
 
     struct ArcBackend(Arc<MockBackend>);
-    #[async_trait::async_trait]
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
     impl ChainBackend for ArcBackend {
         async fn full_scan(
             &self,
@@ -1437,7 +1442,8 @@ mod tests {
         );
 
         struct Failing;
-        #[async_trait::async_trait]
+        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
         impl ChainBackend for Failing {
             async fn full_scan(
                 &self,
@@ -1649,7 +1655,8 @@ mod tests {
         #[derive(Clone, Default)]
         struct SharedPersister(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
 
-        #[async_trait::async_trait]
+        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
         impl crate::persist::Persister for SharedPersister {
             async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
                 Ok(self.0.lock().unwrap().clone())
@@ -2026,7 +2033,8 @@ mod tests {
         #[derive(Clone, Default)]
         struct Recorder(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
 
-        #[async_trait::async_trait]
+        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
         impl crate::persist::Persister for Recorder {
             async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
                 Ok(self.0.lock().unwrap().clone())
@@ -2176,5 +2184,90 @@ mod tests {
         let err = watch.sign(&built.psbt_base64).await.unwrap_err();
         assert_eq!(err.code(), "unsupported");
         assert!(err.to_string().contains("watch-only"), "{err}");
+    }
+
+    /// Every builder failure a UI can act on arrives as its own code with its
+    /// numbers intact; anything else is `build_tx` carrying BDK's words.
+    #[test]
+    fn build_errors_map_to_their_own_codes_and_details() {
+        let short = build_error(CreateTxError::CoinSelection(InsufficientFunds {
+            needed: Amount::from_sat(10),
+            available: Amount::from_sat(4),
+        }));
+        assert!(matches!(
+            short,
+            Error::InsufficientFunds {
+                needed_sat: 10,
+                available_sat: 4
+            }
+        ));
+        assert!(matches!(
+            build_error(CreateTxError::OutputBelowDustLimit(1)),
+            Error::Dust { output: 1 }
+        ));
+        assert!(matches!(
+            build_error(CreateTxError::FeeTooLow {
+                required: Amount::from_sat(1234)
+            }),
+            Error::FeeTooLow {
+                required_sat_vb: None,
+                required_sat: Some(1234)
+            }
+        ));
+        assert!(matches!(
+            build_error(CreateTxError::NoUtxosSelected),
+            Error::NoUtxos
+        ));
+        let other = build_error(CreateTxError::NoRecipients);
+        assert_eq!(other.code(), "build_tx");
+        assert!(
+            other
+                .to_string()
+                .contains(&CreateTxError::NoRecipients.to_string()),
+            "{other}"
+        );
+    }
+
+    /// A minimum rate BDK reports comes back in sat/vB by the same factor
+    /// `fee_rate_from_sat_vb` goes the other way, so the rate a screen shows
+    /// as "needs at least" is one the same screen then accepts, unchanged.
+    #[test]
+    fn a_reported_minimum_rate_round_trips_through_the_accepted_one() {
+        let required = fee_rate_from_sat_vb(2.5).unwrap();
+        let Error::FeeTooLow {
+            required_sat_vb: Some(shown),
+            required_sat: None,
+        } = build_error(CreateTxError::FeeRateTooLow { required })
+        else {
+            panic!("FeeRateTooLow must map to FeeTooLow with a sat/vB minimum");
+        };
+        assert_eq!(shown, 2.5);
+        assert_eq!(fee_rate_from_sat_vb(shown).unwrap(), required);
+    }
+
+    /// The three ways a transaction cannot be replaced are one case a UI can
+    /// explain; the rest are build errors.
+    #[test]
+    fn bump_errors_split_into_not_replaceable_and_build_tx() {
+        use bdk_wallet::error::BuildFeeBumpError as E;
+        let txid = bdk_wallet::bitcoin::Txid::from_str(&"11".repeat(32)).unwrap();
+        for e in [
+            E::TransactionNotFound(txid),
+            E::TransactionConfirmed(txid),
+            E::IrreplaceableTransaction(txid),
+        ] {
+            let message = e.to_string();
+            let mapped = bump_error(e);
+            assert_eq!(mapped.code(), "not_replaceable", "{message}");
+            assert!(mapped.to_string().contains(&message), "{mapped}");
+        }
+        for e in [
+            E::UnknownUtxo(OutPoint::null()),
+            E::FeeRateUnavailable,
+            E::InvalidOutputIndex(OutPoint::null()),
+        ] {
+            let message = e.to_string();
+            assert_eq!(bump_error(e).code(), "build_tx", "{message}");
+        }
     }
 }

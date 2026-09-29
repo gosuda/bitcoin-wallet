@@ -22,6 +22,11 @@ serde-wasm-bindgen = "0.6"
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 
+# Only wasm32 has anything to test: the crate is empty elsewhere. Run with
+# `wasm-pack test --node crates/wallet-wasm`.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
 # The Rust toolchain emits bulk-memory ops; wasm-opt must be told to accept them.
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]

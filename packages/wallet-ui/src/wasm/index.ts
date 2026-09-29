@@ -6,10 +6,11 @@
  * the app's own types instead of the generated `any`. No wallet operation goes
  * through Tauri.
  *
- * Two shape mismatches are normalized here so the rest of the app never sees
- * them: the core spells the nested-segwit type `np2wpkh` in its free functions
- * (config JSON uses the serde name `nested_p2wpkh`), and `estimate_fee`
- * arrives as a `Map` because `serde-wasm-bindgen` maps Rust maps to JS `Map`s.
+ * Shape mismatches are normalized here so the rest of the app never sees them:
+ * `estimate_fee` arrives as a `Map` because `serde-wasm-bindgen` maps Rust maps
+ * to JS `Map`s, and a Rust `None` inside a result arrives as `undefined` where
+ * the app's types say `null`. Names need no translation: the core accepts and
+ * returns the same address-type names the app uses.
  */
 
 import type {
@@ -23,14 +24,11 @@ import type {
   PublicDescriptors,
   Recipient,
   TxDetail,
-  TxInput,
-  TxOutput,
   TxSummary,
   Utxo,
 } from "../types";
+import { toFeeEstimate, toPublicDescriptors, toTxDetail, toTxSummary, toUtxo } from "./normalize";
 import init, {
-  address_for_key,
-  default_esplora_url,
   explorer_tx_url,
   generate_key,
   generate_mnemonic,
@@ -64,23 +62,6 @@ export interface Broadcast {
   persist_error: string | null;
 }
 
-/** `AddressType::id` in the core; only the nested form differs from serde's name. */
-const CORE_ADDRESS_TYPE: Record<AddressType, string> = {
-  p2pk: "p2pk",
-  p2pkh: "p2pkh",
-  p2wpkh: "p2wpkh",
-  nested_p2wpkh: "np2wpkh",
-  p2tr: "p2tr",
-};
-
-function fromCoreAddressType(id: string): AddressType {
-  const found = (Object.keys(CORE_ADDRESS_TYPE) as AddressType[]).find(
-    (t) => CORE_ADDRESS_TYPE[t] === id,
-  );
-  if (!found) throw new Error(`unknown address type '${id}'`);
-  return found;
-}
-
 let ready: Promise<void> | null = null;
 
 /** Instantiates the module once. Every export below awaits this first. */
@@ -92,108 +73,6 @@ function load(): Promise<void> {
       throw e;
     });
   return ready;
-}
-
-/** `sat_per_vb_by_target` arrives as a nested `Map`; flatten it to a record. */
-function toFeeEstimate(raw: unknown): FeeEstimate {
-  const outer =
-    raw instanceof Map
-      ? raw.get("sat_per_vb_by_target")
-      : (raw as { sat_per_vb_by_target?: unknown }).sat_per_vb_by_target;
-  const entries =
-    outer instanceof Map
-      ? [...outer.entries()]
-      : outer && typeof outer === "object"
-        ? Object.entries(outer)
-        : [];
-  const byTarget: Record<string, number> = {};
-  for (const [target, rate] of entries) byTarget[String(target)] = Number(rate);
-  return { sat_per_vb_by_target: byTarget };
-}
-
-/** Field access over either shape serde-wasm-bindgen may hand back. */
-function reader(raw: unknown): (key: string) => unknown {
-  return (key) => (raw instanceof Map ? raw.get(key) : (raw as Record<string, unknown>)[key]);
-}
-
-/** `None` crosses as `undefined`; the UI contract is `null`. */
-function optionalNumber(value: unknown): number | null {
-  return value === undefined || value === null ? null : Number(value);
-}
-
-function optionalString(value: unknown): string | null {
-  return value === undefined || value === null ? null : String(value);
-}
-
-/** An unspent output. */
-function toUtxo(raw: unknown): Utxo {
-  const read = reader(raw);
-  return {
-    txid: String(read("txid")),
-    vout: Number(read("vout")),
-    value: Number(read("value")),
-    confirmations: optionalNumber(read("confirmations")),
-    address: String(read("address")),
-  };
-}
-
-/** A history row. */
-function toTxSummary(raw: unknown): TxSummary {
-  const read = reader(raw);
-  return {
-    txid: String(read("txid")),
-    net_sat: Number(read("net_sat")),
-    sent_sat: Number(read("sent_sat")),
-    received_sat: Number(read("received_sat")),
-    fee_sat: optionalNumber(read("fee_sat")),
-    confirmations: optionalNumber(read("confirmations")),
-    timestamp: optionalNumber(read("timestamp")),
-  };
-}
-
-function toTxDetail(raw: unknown): TxDetail {
-  const read = reader(raw);
-  const inputs = (read("inputs") as unknown[]).map((i): TxInput => {
-    const r = reader(i);
-    return {
-      txid: String(r("txid")),
-      vout: Number(r("vout")),
-      value_sat: optionalNumber(r("value_sat")),
-      ours: Boolean(r("ours")),
-    };
-  });
-  const outputs = (read("outputs") as unknown[]).map((o): TxOutput => {
-    const r = reader(o);
-    return {
-      address: optionalString(r("address")),
-      value_sat: Number(r("value_sat")),
-      ours: Boolean(r("ours")),
-    };
-  });
-  return {
-    txid: String(read("txid")),
-    net_sat: Number(read("net_sat")),
-    sent_sat: Number(read("sent_sat")),
-    received_sat: Number(read("received_sat")),
-    fee_sat: optionalNumber(read("fee_sat")),
-    fee_rate_sat_vb: optionalNumber(read("fee_rate_sat_vb")),
-    confirmations: optionalNumber(read("confirmations")),
-    block_height: optionalNumber(read("block_height")),
-    timestamp: optionalNumber(read("timestamp")),
-    vsize: Number(read("vsize")),
-    inputs,
-    outputs,
-  };
-}
-
-function toPublicDescriptors(raw: unknown): PublicDescriptors {
-  const read = reader(raw);
-  return {
-    external: String(read("external")),
-    internal: optionalString(read("internal")),
-    account_xpub: optionalString(read("account_xpub")),
-    fingerprint: optionalString(read("fingerprint")),
-  };
 }
 
 /** An open wallet. Every chain operation runs here, in the webview. */
@@ -231,7 +110,7 @@ export class WalletApi {
   }
 
   get address_type(): AddressType {
-    return fromCoreAddressType(this.inner.address_type);
+    return this.inner.address_type as AddressType;
   }
 
   /** A BIP32 account (mnemonic) rather than a single key. */
@@ -299,10 +178,6 @@ export class WalletApi {
     return toFeeEstimate(await this.inner.estimate_fee());
   }
 
-  chain_height(): Promise<number> {
-    return this.inner.chain_height();
-  }
-
   async build_transfer(recipients: Recipient[], feeRateSatVb: number): Promise<BuiltTx> {
     return (await this.inner.build_transfer(recipients, feeRateSatVb)) as BuiltTx;
   }
@@ -348,7 +223,7 @@ export async function generateKey(
   addressType: AddressType,
 ): Promise<GeneratedKey> {
   await load();
-  return generate_key(network, CORE_ADDRESS_TYPE[addressType]) as GeneratedKey;
+  return generate_key(network, addressType) as GeneratedKey;
 }
 
 /**
@@ -361,28 +236,13 @@ export async function generateMnemonic(
   wordCount: number,
 ): Promise<GeneratedMnemonic> {
   await load();
-  return generate_mnemonic(network, CORE_ADDRESS_TYPE[addressType], wordCount) as GeneratedMnemonic;
+  return generate_mnemonic(network, addressType, wordCount) as GeneratedMnemonic;
 }
 
 /** Throws with a readable reason when `words` is not a valid BIP39 phrase. */
 export async function validateMnemonic(words: string): Promise<void> {
   await load();
   validate_mnemonic(words);
-}
-
-/**
- * Address for a secret, without opening a wallet: that key's address for
- * hex/WIF, the account's first receive address for a mnemonic. `passphrase` is
- * the optional BIP39 one and applies only to a mnemonic.
- */
-export async function addressForKey(
-  secret: string,
-  network: Network,
-  addressType: AddressType,
-  passphrase?: string,
-): Promise<string> {
-  await load();
-  return address_for_key(secret, network, CORE_ADDRESS_TYPE[addressType], passphrase);
 }
 
 /**
@@ -399,13 +259,7 @@ export async function walletIdForKey(
   passphrase?: string,
 ): Promise<string> {
   await load();
-  return wallet_id_for_key(secret, network, CORE_ADDRESS_TYPE[addressType], passphrase);
-}
-
-/** Default public Esplora endpoint for a network. */
-export async function defaultEsploraUrl(network: Network): Promise<string> {
-  await load();
-  return default_esplora_url(network);
+  return wallet_id_for_key(secret, network, addressType, passphrase);
 }
 
 /**

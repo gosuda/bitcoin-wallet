@@ -5,8 +5,11 @@ import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
+  DEFAULT_FEE_TARGET,
   errorMessage,
+  FEE_TARGETS,
   type FeeEstimate,
+  type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   rateForTarget,
@@ -27,7 +30,7 @@ export function prefillSend(next: Prefill): void {
   prefill = next;
 }
 
-type FeeChoice = "1" | "3" | "6" | "custom";
+type FeeChoice = `${FeeTarget}` | "custom";
 
 export function renderSend(): HTMLElement {
   const onScreen = screenGuard();
@@ -100,7 +103,7 @@ export function renderSend(): HTMLElement {
     className: "m-chip m-chip-max",
     text: "Max",
     attrs: { type: "button", "aria-pressed": "false" },
-  }) as HTMLButtonElement;
+  });
 
   const leaveDrain = (): void => {
     drainSeq += 1;
@@ -163,12 +166,13 @@ export function renderSend(): HTMLElement {
 
   const fee = chips<FeeChoice>(
     [
-      { value: "1", label: "1 block" },
-      { value: "3", label: "3 blocks" },
-      { value: "6", label: "6 blocks" },
+      ...FEE_TARGETS.map((t) => ({
+        value: `${t}` as FeeChoice,
+        label: `${t} block${t > 1 ? "s" : ""}`,
+      })),
       { value: "custom", label: "Custom" },
     ],
-    "3",
+    `${DEFAULT_FEE_TARGET}`,
     (choice) => {
       customRow.hidden = choice !== "custom";
       if (choice === "custom") rateInput.value = String(rate);

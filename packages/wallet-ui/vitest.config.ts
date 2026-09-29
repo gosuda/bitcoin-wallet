@@ -1,14 +1,16 @@
 import { defineConfig } from "vitest/config";
 
 /**
- * Only the pure modules are covered here: parsing, validation and the
- * arithmetic that decides what a transaction pays. They are the code where a
- * mistake costs money rather than a redraw, and they need no DOM — except the
- * router, which asks for jsdom per file.
+ * Most files cover pure modules, and run in Node: parsing, validation, the
+ * arithmetic that decides what a transaction pays, the route guard and the
+ * shapes the wasm core hands back. A file that needs a DOM asks for jsdom
+ * itself — `screens.test.ts` renders real screens over a faked wasm core.
+ * Every file runs as if on a German device (see `test/setup-locale.ts`).
  */
 export default defineConfig({
   test: {
     include: ["test/**/*.test.ts"],
     environment: "node",
+    setupFiles: ["test/setup-locale.ts"],
   },
 });

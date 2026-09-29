@@ -104,6 +104,7 @@ function phrase(): HTMLElement {
     ],
     "12",
     (v) => build(Number(v) as WordCount),
+    { label: "Word count" },
   );
   build(12);
   // Typed words are secret, and so is the passphrase: out of the DOM the
@@ -224,7 +225,7 @@ function watchOnly(): HTMLElement {
       autocapitalize: "off",
       autocomplete: "off",
     },
-  }) as HTMLTextAreaElement;
+  });
   // Not spendable, but it reveals the wallet's whole history and every
   // future address — the same reason Export warns before it is shared.
   wipeOnLeave(() => [source]);

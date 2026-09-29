@@ -55,6 +55,8 @@ impl AddressType {
         AddressType::P2tr,
     ];
 
+    /// The spelling inside wallet ids ([`wallet_id`]). It must not change, or
+    /// every remembered wallet's id changes with it and its key is not found.
     pub fn id(self) -> &'static str {
         match self {
             AddressType::P2pk => "p2pk",
@@ -65,20 +67,31 @@ impl AddressType {
         }
     }
 
+    /// The serde spelling, which config JSON and the UI use. It differs from
+    /// [`id`](Self::id) only for the nested type.
+    pub fn name(self) -> &'static str {
+        match self {
+            AddressType::P2pk => "p2pk",
+            AddressType::P2pkh => "p2pkh",
+            AddressType::P2wpkh => "p2wpkh",
+            AddressType::NestedP2wpkh => "nested_p2wpkh",
+            AddressType::P2tr => "p2tr",
+        }
+    }
+
+    /// Accepts both [`name`](Self::name) and [`id`](Self::id), plus a few
+    /// common aliases.
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
             "p2pk" => Some(AddressType::P2pk),
             "p2pkh" => Some(AddressType::P2pkh),
             "p2wpkh" => Some(AddressType::P2wpkh),
-            "np2wpkh" | "p2sh-p2wpkh" | "nested" => Some(AddressType::NestedP2wpkh),
+            "nested_p2wpkh" | "np2wpkh" | "p2sh-p2wpkh" | "nested" => {
+                Some(AddressType::NestedP2wpkh)
+            }
             "p2tr" | "taproot" => Some(AddressType::P2tr),
             _ => None,
         }
-    }
-
-    /// Whether ordinary backends can discover funds sent to this script type.
-    pub fn is_indexable(self) -> bool {
-        !matches!(self, AddressType::P2pk)
     }
 }
 
@@ -783,6 +796,25 @@ mod tests {
             descriptors_for(&key, Network::Bitcoin, AddressType::P2wpkh).unwrap(),
             Descriptors::Single(_)
         ));
+    }
+
+    /// The UI speaks serde names and the core used to parse only `id()`, so
+    /// the nested type needed a translation table on the TS side.
+    #[test]
+    fn both_spellings_parse_and_ids_keep_the_old_one() {
+        for t in AddressType::ALL {
+            let serde = serde_json::to_value(t).unwrap();
+            assert_eq!(serde.as_str(), Some(t.name()), "{t:?}");
+            assert_eq!(AddressType::parse(t.name()), Some(t));
+            assert_eq!(AddressType::parse(t.id()), Some(t));
+        }
+        // What a remembered nested wallet is stored under, whichever spelling
+        // the caller used to name its type.
+        let key = KeyMaterial::PrivHex(SK1_HEX.into());
+        assert_eq!(
+            wallet_id(&key, Network::Bitcoin, AddressType::NestedP2wpkh).unwrap(),
+            "bitcoin-np2wpkh-751e76e8199196d4"
+        );
     }
 
     #[test]

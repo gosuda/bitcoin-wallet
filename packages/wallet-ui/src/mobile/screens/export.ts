@@ -26,7 +26,7 @@ export function renderExport(): HTMLElement {
   const paint = async (d: PublicDescriptors): Promise<void> => {
     const sections: HTMLElement[] = [];
     if (d.account_xpub !== null) {
-      const canvas = el("canvas") as HTMLCanvasElement;
+      const canvas = el("canvas");
       const xpub = d.account_xpub;
       const keys = card(
         sectionLabel(

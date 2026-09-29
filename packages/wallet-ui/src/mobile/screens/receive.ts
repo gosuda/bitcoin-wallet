@@ -25,7 +25,7 @@ export function renderReceive(): HTMLElement {
 
   const canvas = el("canvas", {
     attrs: { role: "img", "aria-label": "QR code of the receiving address" },
-  }) as HTMLCanvasElement;
+  });
   const qr = el("div", { className: "m-qr" }, [canvas]);
   const text = el("p", { className: "m-address", text: address });
   const caption = el("span", { className: "m-uri", text: "" });

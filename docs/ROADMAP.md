@@ -110,7 +110,12 @@ or a signed transaction. Nothing visual.
       full workspace typechecks, biome-checks, and `pnpm -r build` succeeds against a real
       `wasm-pack build` of the changed wasm crate (not just clippy); 69 core tests, fmt and
       clippy (native + wasm32) all green. Not done: a live click-through in a running browser —
-      the unit tests exercise the exact same shapes the real path produces
+      the unit tests exercise the exact same shapes the real path produces. They did not:
+      `details` crossed the wasm boundary as a JS `Map`, which `details.needed_sat` cannot
+      read, so every wasm build fell back to the core's own sentence. The first wasm test (3.2)
+      found it on 2026-09-29 and it was fixed in its own commit. The click-through, done then,
+      reads "Need 95,528 more sat." for 100,000 sat from a 4,650 sat testnet4 wallet, where
+      the unfixed build said "insufficient funds: need 100178 sat, have 4650 sat"
 
 - [x] **1.6 Persisted state carries a version** · M · `crates/wallet-core/src/persist.rs`,
   `wallet.rs`, `error.rs`
@@ -396,66 +401,188 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
 
 Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone.
 
-- [ ] **3.1 The error table is tested** · S · `error.rs`, `wallet.rs` tests
+- [x] **3.1 The error table is tested** · S · `error.rs`, `wallet.rs` tests
       why: two of the codes the IPC and wasm contracts rest on are asserted; the rest are not ·
-      done when: every variant's code, details and message; the BDK build-error mapping over
-      constructible variants
+      done: 2026-09-29 — 1.5 had since put every code and details shape in a table; the
+      table now also pins every variant's message (the text a UI falls back to), all three
+      branches of `FeeTooLow`'s, and cannot silently fall behind the enum: a new variant fails
+      to compile in an exhaustive `ordinal()` until it is numbered, then fails
+      `the_table_covers_every_variant` until it has a row (proved by deleting one — the test
+      named the missing ordinal). The BDK mappings are tested directly: every constructible
+      `CreateTxError` a UI can act on (insufficient funds, dust, both "too low" kinds, no
+      UTXOs) and the `build_tx` fallback; the fee-bump mapping, extracted from an inline
+      closure into `bump_error`, over all six `BuildFeeBumpError` variants; and a round trip
+      showing a minimum rate BDK reports is shown in sat/vB that `fee_rate_from_sat_vb`
+      accepts unchanged. Same variant shapes in bdk_wallet 3.1 and 3.2. 75 core tests
 
-- [ ] **3.2 wasm runs in CI** · M · `crates/wallet-wasm`, `crates/wallet-core/src/backend/esplora.rs`,
+- [x] **3.2 wasm runs in CI** · M · `crates/wallet-wasm`, `crates/wallet-core/src/backend/esplora.rs`,
   `rust.yml`
       why: 427 lines of bindings are compiled and never executed; the wasm32 deadline race is
-      tested only on native · done when: `wasm-bindgen-test` covers error shape, key
-      generation, mnemonic validation and open/reopen through a JS persister; the deadline test
-      has a wasm32 twin; `wasm-pack test --node` runs in the `wasm` job
+      tested only on native · done: 2026-09-29 — `crates/wallet-wasm/tests/bindings.rs`, 8
+      tests in Node against the real bindings, offline (opening a wallet never contacts its
+      backend). Error shape: every thrown value is a JS `Error` with a string `code` and
+      `message`; `details` is absent when an error has none, and a plain object when it
+      does: an overspend's `needed_sat`/`available_sat`, a malformed record's `reason` with
+      `null` for `found`, a newer build's record naming both versions. The very first run
+      showed `details` arriving as a `Map`, which the UI cannot read; that is fixed in its
+      own commit, just before this one. Keys: a generated key derives the address it came
+      with from both its WIF and its hex, and two keys differ (the entropy is the JS host's);
+      12- and 24-word phrases validate and derive their address, 13 is `invalid_key`, a bad
+      checksum is `invalid_key` with no `details`, and an unknown network or type is
+      `unsupported` with its own message. Open/reopen through a persister written in JS: the
+      id matches `walletIdForKey`, the stored record is the `{"v":1}` envelope, and reopening
+      from it reveals a third address where the same words with an empty store start over.
+      The deadline tests now run on both targets from one body (`tokio::test` natively,
+      `wasm_bindgen_test` in wasm32); the 1 s timeout fires in Node in 1.01 s. For
+      wallet-core's tests to compile for wasm32 at all, four test-only trait impls in
+      `wallet.rs` took the `?Send` form on wasm32 that production code already uses. The
+      `wasm` job lints both crates' tests (`--all-targets`) and runs both suites on Node 22;
+      README and RELEASING list the commands
 
-- [ ] **3.3 Regtest covers what shipped** · M · `crates/regtest-tests/tests/`
+- [x] **3.3 Regtest covers what shipped** · M · `crates/regtest-tests/tests/`
       why: drain, transaction detail, watch-only, passphrase wallets and multi-recipient sends
-      are proven only against the mock · done when: against a real node — a drain arrives as
-      exactly the reviewed amount with no change; detail shows fee, confirmations and ownership;
-      a watch-only instance mirrors the full wallet; a passphrase yields a distinct wallet; a
-      two-recipient send confirms
+      are proven only against the mock · done: 2026-09-29 — `tests/flows.rs`, three tests
+      against bitcoind + electrs, green in CI on their first run (29 s together). A
+      two-recipient send: each recipient's own wallet (one P2WPKH, one P2TR) holds exactly its
+      30,000 / 45,000 sat, and the sender's `transaction()` detail reads the reviewed fee,
+      `confirmations: 1`, a block height, the net amount, inputs that are ours, both payments
+      as not ours and exactly one change output of the reviewed change. A drain of two coins:
+      both inputs, no change, the destination's own wallet holds exactly `total_out_sat` (the
+      amount Review shows), the drained wallet is empty and its only output is not ours. A
+      watch-only copy opened from the full wallet's external public descriptor (what the
+      Public keys card shows), after a spend with change: the same balance, UTXOs, history and
+      next address as the full wallet; it builds a payment, and `sign` answers `unsupported`.
+      The passphrase case was already proven against a node: `hd.rs` has shown since
+      2026-09-03 that the same words under a passphrase get a different id and BIP84 addresses
+      from the passphrased seed, and see none of the words' coins. The "only against the
+      mock" above was wrong for that one
 
-- [ ] **3.4 One spelling for the nested type** · S · `keys.rs` (`AddressType::parse`),
+- [x] **3.4 One spelling for the nested type** · S · `keys.rs` (`AddressType::parse`),
   `crates/wallet-wasm/src/lib.rs`, `packages/wallet-ui/src/wasm/index.ts`
       why: core accepts `np2wpkh` and emits `nested_p2wpkh`, so TS keeps a translation table for
-      one variant · done when: `parse` accepts the serde spelling (`id()` untouched — wallet ids
-      embed it), the getter returns it, the table is deleted; a remembered wallet still unlocks
+      one variant · done: 2026-09-29 — `AddressType::parse` also accepts `nested_p2wpkh`, a new
+      `name()` gives the serde spelling (a test checks it against serde itself for every type,
+      and that both `name()` and `id()` parse back), and the wasm `address_type` getter returns
+      it. `wasm/index.ts` lost `CORE_ADDRESS_TYPE` and its reverse lookup: the four free
+      functions take the app's names as they are, and the getter is a cast like its `network`
+      neighbour. `id()` is unchanged and documented as load-bearing. A remembered wallet is
+      found by its id, and that id is pinned twice: exactly in core
+      (`bitcoin-np2wpkh-751e76e8199196d4`), and in Node, where the new spelling yields the same
+      `walletIdForKey` as the old one and opening a `nested_p2wpkh` config gives a `2…`
+      address and that id. 9 binding tests, 76 core tests, 98 UI tests; typecheck and lint
+      clean
 
-- [ ] **3.5 Dead code out** · S · `keys.rs`, `persist.rs`, `network.rs`, `wallet-wasm`,
+- [x] **3.5 Dead code out** · S · `keys.rs`, `persist.rs`, `network.rs`, `wallet-wasm`,
   `wasm/index.ts`, screens
       why: `is_indexable`, `MemoryPersister::snapshot`, three wasm exports and their TS
       wrappers have no caller; nine DOM casts repeat what `el()` already types; three desktop
-      screens write session state that `api.openWallet` already writes · done when: gone, and
-      clippy plus typecheck are clean
+      screens write session state that `api.openWallet` already writes · done: 2026-09-29 —
+      gone: `AddressType::is_indexable`, `MemoryPersister::snapshot`, `Network::ALL` (its one
+      user, a test, now lists the networks itself), the wasm exports `address_for_key`,
+      `default_esplora_url` and `Wallet.chain_height` with their TS wrappers (the core
+      functions stay: the CLI and `tests/live.rs` use them). The 3.2 tests that used
+      `address_for_key` as an oracle now check against an opened wallet's first address, and
+      the nested one against BIP49's own test vector. The nine casts are gone; `result.ts`'s
+      is not one of them (it narrows `null` inside a closure). The session writes: all six
+      are gone, not just three. `api.openWallet` (create, key ×2, restore),
+      `api.unlockWallet`, `api.forgetWallet` and `api.closeWallet` each set `session.wallet`
+      themselves, so `api.ts` is now its only writer. The screens' copies had even been able
+      to put an older open back over a newer one in the gap after `openWallet` resolved.
+      Clippy (native, wasm32, all targets), typecheck and biome are clean; 76 core, 9
+      binding and 98 UI tests pass; in the web app a restore reaches the dashboard and Close
+      wallet returns to Key
 
-- [ ] **3.6 Drift closed** · S · `feebump.ts`, `balance.ts`, both shells · **decision** on the
+- [x] **3.6 Drift closed** · S · `feebump.ts`, `balance.ts`, both shells · **decision** on the
   default fee target (3 or 6 blocks)
       why: `isBumpable` is exported, tested and re-implemented inline by both shells;
       `spendableSat` is unused; rescan presets are duplicated; the shells default to different
       fee targets; desktop Send hides why an address is wrong; mobile Result keeps a stale
-      result; mobile Key gates watch-only on a type that cannot be opened · done when: one
-      source for each rule, both shells import it, tests pass
+      result; mobile Key gates watch-only on a type that cannot be opened · done: 2026-09-29 —
+      each rule now has one home, and both shells import it. `isBumpable` takes any
+      `{confirmations, net_sat}`, and both detail views call it in place of their inline
+      copies (a test covers a detail). `spendableSat` is deleted. `types.ts` holds
+      `FEE_TARGETS`, `DEFAULT_FEE_TARGET` (6, decided), `RESCAN_GAPS` (the first is the
+      core's `DEFAULT_STOP_GAP`, 20) and `isOpenable`, and both Sends and both rescans build
+      from them. Desktop Send shows `addressError`'s reason. Mobile Result's "Back to wallet"
+      spends the result as desktop's does. The p2pk gate was more than mobile's: a config
+      saved by an older build can still name p2pk, and both Key screens tailored their offer
+      to it while still offering paths the core refuses. Both route guards now send an
+      unopenable config to Setup, both Setups start from P2WPKH when the stored type is not
+      one they offer, and both gates are gone, along with desktop's stale "or use a single
+      key below". In the web app: a planted p2pk config asked for `#/key` and got Setup with
+      P2WPKH checked, and Continue stored `p2wpkh`; Send starts on 6 blocks; the rescan chips
+      read "gap 20", 100, 500; a mainnet address in a testnet4 wallet reads "Not a Testnet4
+      address — this one is for Bitcoin mainnet." The phone shell's changes are
+      typechecked, not clicked: the web app does not mount it. 98 UI tests pass
 
-- [ ] **3.7 Nothing fails silently** · S · `app.ts`, `apps/native/src/main.ts`,
+- [x] **3.7 Nothing fails silently** · S · `app.ts`, `apps/native/src/main.ts`,
   `apps/web/src/main.ts`, mobile `screens/scan.ts`, `ui/clipboard.ts`
       why: a settings store that cannot be read looks like a first run; a deep-link wiring
       failure vanishes; a web boot failure leaves a blank page; every clipboard failure reads as
-      "nothing to paste" · done when: each path logs and, where a user can act, says so with the
-      existing banner
+      "nothing to paste" · done: 2026-09-29 — every path logs with `console.error`, and the
+      ones a user can act on use the existing banner. Boot, which runs before any screen
+      exists, queues its news (`queueNotice` in `ui/dom.ts`) for the first banner a screen
+      creates. Checked in the web app with the real modules: a settings read made to throw
+      "store locked" opens Setup saying "The saved settings could not be read (store locked).
+      Choose them again."; a remembered-wallet read made to throw says the saved wallet could
+      not be read and to open it again with its phrase or key. Both entry points now end in
+      `showBootFailure`, which puts the error in the page (the native one too, whose start
+      could fail the same way): called with an error, the page shows "The wallet could not
+      start: …" in the error banner, not a blank window. A deep-link wiring failure is only
+      logged; the app works without it. The phone's paste tells a refused permission
+      ("Allow it and try again") from a clipboard this build cannot read, and a pasted
+      non-address no longer calls itself a QR code. A failed copy still says "Failed" and
+      now logs why. A jsdom test covers the queued notice (shown once, by the next banner);
+      100 UI tests
 
-- [ ] **3.8 The routing and normalizing rules are tested** · M · `app.ts`, `mobile/shell.ts`,
+- [x] **3.8 The routing and normalizing rules are tested** · M · `app.ts`, `mobile/shell.ts`,
   `wasm/index.ts` → `wasm/normalize.ts`, `test/`
       why: the route guard tables, the `Map`-versus-object normalizers and `rateForTarget` are
-      the rules the screens trust, and none has a direct test; no test renders a screen · done
-      when: a pure `guardRoute()` with tests; normalizers importable without wasm and tested; a
-      jsdom harness with the wasm module mocked proves 1.3 and 1.7
+      the rules the screens trust, and none has a direct test; no test renders a screen · done:
+      2026-09-29 — the two guard tables are now one pure `guardRoute(route, state, shell)` in
+      `guards.ts`, which both shells call with their session read into a `GuardState`. Its 17
+      tests include one that runs every one of 72 states, every route and both shells, and
+      requires the answer to be a route the guard itself lets through. That test found a
+      two-hop redirect: a key screen without usable settings went to Setup, and Setup under
+      an open wallet then went on to the wallet, so the shell navigated twice. The guard now
+      follows chained rules to the end, and throws on a cycle, which that test shows cannot
+      happen. The redirects read the same in the live web app. The normalizers moved
+      unchanged to `wasm/normalize.ts`, which imports no wasm, and 8 tests feed them what
+      serde-wasm-bindgen really sends (nested `Map`s, `undefined` for `None`).
+      `rateForTarget` already had 5 direct tests in `feebump.test.ts`, since 2026-09-09; the
+      "none" above was wrong for it. `screens.test.ts` renders real screens in jsdom over the
+      real `api`, `session` and guards, and replaces only the wasm wrapper and the IndexedDB
+      persister. For 1.3, desktop Key, Restore and Create and all three modes of the phone's
+      Restore drop what was typed when the route changes. For 1.7, a sync released after
+      Close wallet stamps no sync time; leaving Send after Max discards the drain, whose
+      PSBT then answers `unknown_psbt`; and a return to Send builds a fresh transfer. Each
+      claim was mutation-checked: removing the dashboard's guard, Send's leave cleanup,
+      Key's wipe or the phone Restore's wipe each fails exactly its own test. 133 UI tests.
+      Not done: the optional coverage report
 
-- [ ] **3.9 Accessibility semantics** · M · `ui/dom.ts`, `mobile/ui.ts`, callers, both CSS
+- [x] **3.9 Accessibility semantics** · M · `ui/dom.ts`, `mobile/ui.ts`, callers, both CSS
   files · **decision** on the number locale
       why: radiogroups and chip groups have no accessible name; a `<label for>` points at a
       `<div>`; chips are separate tab stops with no arrow keys; no `prefers-reduced-motion`;
-      numbers are formatted `en-US` while dates follow the device · done when: every group is
-      named, arrow keys move selection (tested), motion respects the preference; no new pixels
+      numbers are formatted `en-US` while dates follow the device · done: 2026-09-29 —
+      `field()` now labels a form control with `for` and names anything else (a radiogroup
+      `<div>`) with `aria-labelledby` to the same visible label, so Setup's two groups and
+      Send's target are named by the text beside them. `radioGroup()` takes a name for a
+      group that has no label (the dashboard's rescan gaps: "Address gap"), and the phone's
+      two unnamed chip groups got theirs ("Network", "Word count"). A test renders every
+      screen that has a group, four desktop and five phone, and requires each group to have
+      its exact name. The phone's chips behave as native radios do: one tab stop on the
+      chosen chip, and the arrow keys (Home and End too) move the choice and the focus. Six
+      tests cover it, and removing the key handler fails the two about keys. Desktop groups
+      are native radios, which the browser already runs this way. Reduced motion: one
+      universal reset in `app.css`, which both shells load (`mobile.css` has no motion), with
+      the `!important` lint suppressed for that block alone and the reason given. Numbers
+      follow the device, as decided: `formatNumber`, `formatBtc`'s separators and the error
+      copy use the device locale; amount fields still read and write plain digits with a
+      `.`. The tests that pinned `en-US` now follow the locale too. No new pixels: in the
+      live web app Setup's groups read "Network" and "Address type", the one remaining
+      `label[for]` points at an input, and numbers look as they did on an `en`/`ko` device.
+      144 UI tests
 
 ## Round 4 — Shipping
 
@@ -544,8 +671,10 @@ one starts when it is picked.
 - 2026-09-14 — GitHub settings are changed through `gh`, each after an explicit OK.
 - 2026-09-14 — The phone bundle workflow runs on manual dispatch only.
 - 2026-09-28 — The stray review page is removed, not moved: it reviews a different project.
-- Open: the default fee target (3.6); the number locale (3.9); the first tag (4.9); Pages
-  (4.10).
+- 2026-09-29 — Both shells start Send on a 6-block target (3.6).
+- 2026-09-29 — Numbers on screen follow the device's locale, as dates do; amount fields keep
+  plain digits and a `.` (3.9).
+- Open: the first tag (4.9); Pages (4.10).
 
 ## Not doing
 

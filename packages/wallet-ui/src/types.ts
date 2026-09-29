@@ -4,17 +4,27 @@ export type Network = (typeof NETWORKS)[number];
 export const ADDRESS_TYPES = ["p2pkh", "p2wpkh", "nested_p2wpkh", "p2tr", "p2pk"] as const;
 export type AddressType = (typeof ADDRESS_TYPES)[number];
 
+/** An address type a wallet can be opened on. */
+export type OpenableAddressType = Exclude<AddressType, "p2pk">;
+
 /**
- * The types a wallet can be opened on.
+ * Whether a wallet can be opened on `t`.
  *
  * `p2pk` stays in the union because the core still derives and prints such a
  * key, and a config stored before this may name it — but it cannot back a
  * wallet: its descriptor is a bare script with no signing context, and the
- * core refuses to open one rather than let a send reach that.
+ * core refuses to open one rather than let a send reach that. Both shells'
+ * route guards send such a config back to Setup, which never offers it.
+ *
+ * A stored config is read back unchecked, so this takes any string and also
+ * refuses a name the app does not know — edited by hand, or written by some
+ * other build — before it can reach the core.
  */
-export const OPENABLE_ADDRESS_TYPES = ADDRESS_TYPES.filter(
-  (t): t is Exclude<AddressType, "p2pk"> => t !== "p2pk",
-);
+export function isOpenable(t: string): t is OpenableAddressType {
+  return t !== "p2pk" && (ADDRESS_TYPES as readonly string[]).includes(t);
+}
+
+export const OPENABLE_ADDRESS_TYPES = ADDRESS_TYPES.filter(isOpenable);
 
 /** Mirrors `wallet_core::BackendConfig` (serde-tagged on `kind`). */
 export interface BackendConfig {
@@ -146,6 +156,17 @@ export interface TxDetail {
   outputs: TxOutput[];
 }
 
+/** The confirmation targets Send offers, in blocks. */
+export const FEE_TARGETS = [1, 3, 6] as const;
+export type FeeTarget = (typeof FEE_TARGETS)[number];
+
+/** What Send starts on in both shells: about an hour, at a rate that rarely overpays. */
+export const DEFAULT_FEE_TARGET: FeeTarget = 6;
+
+/** The address gaps a rescan offers; the first is the core's own default. */
+export const RESCAN_GAPS = [20, 100, 500] as const;
+export type RescanGap = (typeof RESCAN_GAPS)[number];
+
 /**
  * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):
  * the exact target, else the closest faster one, else the closest slower one.
@@ -185,7 +206,7 @@ export function feeRateError(rate: number): string | null {
   if (!Number.isFinite(rate)) return "Enter a fee rate.";
   if (rate <= 0) return "Fee rate must be more than 0 sat/vB.";
   if (rate > MAX_FEE_RATE_SAT_VB) {
-    return `Fee rate can't be over ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
+    return `Fee rate can't be over ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
   }
   return null;
 }
@@ -283,13 +304,13 @@ function detailedMessage(value: AppError): string | null {
   switch (value.code) {
     case "insufficient_funds":
       if (isFiniteNumber(d?.needed_sat) && isFiniteNumber(d?.available_sat)) {
-        return `Need ${(d.needed_sat - d.available_sat).toLocaleString("en-US")} more sat.`;
+        return `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
       }
       return null;
     case "timeout":
       return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
     case "invalid_fee_rate":
-      return `Enter a fee rate greater than 0, up to ${MAX_FEE_RATE_SAT_VB.toLocaleString("en-US")} sat/vB.`;
+      return `Enter a fee rate greater than 0, up to ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
     case "dust":
       return isFiniteNumber(d?.output)
         ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
@@ -299,7 +320,7 @@ function detailedMessage(value: AppError): string | null {
         return `The fee rate must be at least ${d.required_sat_vb} sat/vB to replace the original.`;
       }
       if (isFiniteNumber(d?.required_sat)) {
-        return `The fee must be at least ${d.required_sat.toLocaleString("en-US")} sat to replace the original.`;
+        return `The fee must be at least ${d.required_sat.toLocaleString()} sat to replace the original.`;
       }
       return null;
     case "not_replaceable":

@@ -149,6 +149,9 @@ branch on `$?`.
 ```bash
 cargo test -p wallet-core          # unit tests, no network
 cargo test -p regtest-tests        # end-to-end against a real bitcoind + Esplora
+wasm-pack test --node crates/wallet-wasm   # the JS bindings, run in Node
+wasm-pack test --node crates/wallet-core --no-default-features --features backend-esplora
+                                   # the paths only wasm32 has (the deadline race)
 pnpm --filter @bitcoin-wallet/ui test   # the frontend's pure modules, under vitest
 ```
 

@@ -1,6 +1,7 @@
 import "./ui/tokens.css";
 import "./ui/app.css";
 import { api } from "./api";
+import { guardRoute, KEY_ROUTES } from "./guards";
 import { platform } from "./platform";
 import { currentRoute, navigate, type Route } from "./router";
 import { renderCreate } from "./screens/create";
@@ -12,14 +13,11 @@ import { renderSend } from "./screens/send";
 import { renderSetup } from "./screens/setup";
 import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
-import { backendHost, NETWORK_LABELS } from "./types";
-import { clear, el } from "./ui/dom";
+import { backendHost, errorMessage, NETWORK_LABELS } from "./types";
+import { banner, clear, el, queueNotice } from "./ui/dom";
 import { brandMark, icon } from "./ui/icons";
 
 const STEPS = ["Setup", "Key", "Wallet"] as const;
-
-/** Every way of getting a key sits on step 1. */
-const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>(["key", "create", "restore", "unlock"]);
 
 function stepIndex(route: Route): number {
   if (route === "setup") return 0;
@@ -67,15 +65,6 @@ function topbar(route: Route): HTMLElement {
   ]);
 }
 
-/** Destinations only the phone shell has; desktop sends them to the wallet. */
-const MOBILE_ONLY: ReadonlySet<Route> = new Set<Route>([
-  "receive",
-  "scan",
-  "settings",
-  "tx",
-  "export",
-]);
-
 const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   setup: renderSetup,
   key: renderKey,
@@ -87,20 +76,19 @@ const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   result: renderResult,
 };
 
-/** Route guards: wallet screens need an open wallet, key screen needs config. */
+/** The rules live in `guards.ts`; this is where the desktop reads its state. */
 function guard(route: Route): Route {
-  if (MOBILE_ONLY.has(route)) return session.wallet ? "dashboard" : "setup";
-  // Setup rewrites the network under a live wallet handle; close it first.
-  if (route === "setup" && session.wallet) return "dashboard";
-  if ((route === "dashboard" || route === "send") && !session.wallet) return "setup";
-  // A watch-only wallet has nothing to sign with; the screen is not offered.
-  if (route === "send" && session.wallet?.is_watch_only) return "dashboard";
-  if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
-  if (KEY_ROUTES.has(route) && !session.config) return "setup";
-  // Unlock exists only where a key can outlive the session; in a browser there
-  // is nothing to unlock, so the route is unreachable rather than empty.
-  if (route === "unlock" && (!platform().canRememberWallet || !session.remembered)) return "key";
-  return route;
+  return guardRoute(
+    route,
+    {
+      wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
+      configType: session.config?.address_type ?? null,
+      unlockable: platform().canRememberWallet && session.remembered !== null,
+      hasResult: session.lastResult !== null,
+      hasTxid: false,
+    },
+    "desktop",
+  );
 }
 
 function render(): void {
@@ -135,15 +123,27 @@ export interface BootOptions {
  * on nothing knows whether it is running in a Tauri window or a browser tab.
  */
 export async function boot(options: BootOptions = {}): Promise<void> {
+  // A store that cannot be read is not a first run, though it lands on the
+  // same screen: that screen says why, rather than pass for a fresh start.
   try {
     session.config = await api.getConfig();
-  } catch {
+  } catch (e) {
+    console.error("could not read the saved settings:", e);
+    queueNotice(
+      "error",
+      `The saved settings could not be read (${errorMessage(e)}). Choose them again.`,
+    );
     session.config = null;
   }
   if (session.config) {
     try {
       session.remembered = await api.getRemembered();
-    } catch {
+    } catch (e) {
+      console.error("could not read the remembered wallet:", e);
+      queueNotice(
+        "error",
+        `The wallet saved on this device could not be read (${errorMessage(e)}). Open it again with its recovery phrase or key.`,
+      );
       session.remembered = null;
     }
   }
@@ -154,4 +154,15 @@ export async function boot(options: BootOptions = {}): Promise<void> {
   window.addEventListener("hashchange", render);
   if (session.remembered && currentRoute() === "setup") navigate("unlock");
   else render();
+}
+
+/**
+ * For an entry point whose start failed before any screen could come up:
+ * says so in the page, which would otherwise stay blank, and logs the cause.
+ */
+export function showBootFailure(e: unknown): void {
+  console.error("the wallet could not start:", e);
+  const alert = banner();
+  alert.show("error", `The wallet could not start: ${errorMessage(e)}`);
+  (document.getElementById("app") ?? document.body).replaceChildren(alert.node);
 }

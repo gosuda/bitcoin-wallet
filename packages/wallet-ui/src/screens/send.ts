@@ -1,4 +1,4 @@
-import { addressLooksValid } from "../address";
+import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
@@ -6,8 +6,11 @@ import { screenGuard } from "../screen";
 import { session } from "../session";
 import {
   backendHost,
+  DEFAULT_FEE_TARGET,
   errorMessage,
+  FEE_TARGETS,
   type FeeEstimate,
+  type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
@@ -29,8 +32,6 @@ import {
   withBusy,
 } from "../ui/dom";
 
-const FEE_TARGETS = [1, 3, 6] as const;
-
 interface RecipientRow {
   node: HTMLElement;
   address: HTMLInputElement;
@@ -48,7 +49,8 @@ interface RecipientRow {
   touched: { address: boolean; amount: boolean };
 }
 
-type FeeTarget = `${(typeof FEE_TARGETS)[number]}`;
+/** A target as the radio group carries it. */
+type TargetChoice = `${FeeTarget}`;
 
 const FLOOR_NOTE = "floor 1 sat/vB";
 const MAX_HINT = "Max sends everything: the whole balance minus the fee, to this one recipient.";
@@ -119,11 +121,11 @@ export function renderSend(): HTMLElement {
     return Number.isFinite(rate) && rate >= 1 ? rate : 1;
   };
 
-  let targetBlocks: FeeTarget = "6";
+  let targetBlocks: TargetChoice = `${DEFAULT_FEE_TARGET}`;
   const target = radioGroup(
     "fee_target",
     FEE_TARGETS.map((t) => ({
-      value: `${t}` as FeeTarget,
+      value: `${t}` as TargetChoice,
       label: `${t} block${t > 1 ? "s" : ""}`,
     })),
     targetBlocks,
@@ -188,14 +190,12 @@ export function renderSend(): HTMLElement {
   };
 
   const renderRowErrors = (row: RecipientRow) => {
-    const address = row.address.value.trim();
-    // An empty field is incomplete, not wrong: Review stays off without a shout.
-    const badAddress =
-      row.touched.address && address !== "" && !addressLooksValid(address, wallet.network);
+    // Says what is wrong — an address for another network is named as one —
+    // and nothing for an empty field, which is incomplete rather than wrong.
     setError(
       row.addressError,
       row.address,
-      badAddress ? `Not a valid ${networkName} address.` : null,
+      row.touched.address ? addressError(row.address.value, wallet.network) : null,
     );
     const amount = parseAmount(row.amount.value, row.unit);
     setError(row.amountError, row.amount, row.touched.amount ? amount.error : null);

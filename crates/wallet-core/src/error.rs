@@ -172,20 +172,60 @@ pub type Result<T> = std::result::Result<T, Error>;
 mod tests {
     use super::*;
 
-    /// One instance of each variant, paired with its code and — for the
-    /// variants that carry structured data — the exact set of keys
-    /// `details()` must produce. A table, not a chain of asserts, so a new
-    /// variant only needs one new row here.
+    /// One instance of each variant with its code, the exact set of keys
+    /// `details()` must produce (for the variants that carry structured
+    /// data), and the message people see. A table, not a chain of asserts,
+    /// so a new variant only needs one new row here.
     #[allow(clippy::type_complexity)]
-    fn samples() -> Vec<(Error, &'static str, Option<&'static [&'static str]>)> {
+    fn samples() -> Vec<(
+        Error,
+        &'static str,
+        Option<&'static [&'static str]>,
+        &'static str,
+    )> {
         vec![
-            (Error::InvalidKey("x".into()), "invalid_key", None),
-            (Error::InvalidAddress("x".into()), "invalid_address", None),
-            (Error::Descriptor("x".into()), "descriptor", None),
-            (Error::Persist("x".into()), "persist", None),
-            (Error::Backend("x".into()), "backend", None),
-            (Error::Timeout(30), "timeout", Some(["secs"].as_slice())),
-            (Error::BuildTx("x".into()), "build_tx", None),
+            (
+                Error::InvalidKey("x".into()),
+                "invalid_key",
+                None,
+                "invalid key material: x",
+            ),
+            (
+                Error::InvalidAddress("x".into()),
+                "invalid_address",
+                None,
+                "invalid address: x",
+            ),
+            (
+                Error::Descriptor("x".into()),
+                "descriptor",
+                None,
+                "descriptor error: x",
+            ),
+            (
+                Error::Persist("x".into()),
+                "persist",
+                None,
+                "persistence error: x",
+            ),
+            (
+                Error::Backend("x".into()),
+                "backend",
+                None,
+                "backend error: x",
+            ),
+            (
+                Error::Timeout(30),
+                "timeout",
+                Some(["secs"].as_slice()),
+                "the backend did not answer within 30 s",
+            ),
+            (
+                Error::BuildTx("x".into()),
+                "build_tx",
+                None,
+                "transaction build error: x",
+            ),
             (
                 Error::InsufficientFunds {
                     needed_sat: 10,
@@ -193,15 +233,27 @@ mod tests {
                 },
                 "insufficient_funds",
                 Some(["needed_sat", "available_sat"].as_slice()),
+                "insufficient funds: need 10 sat, have 5 sat",
             ),
-            (Error::InvalidFeeRate("x".into()), "invalid_fee_rate", None),
-            (Error::Sign("x".into()), "sign", None),
-            (Error::Psbt("x".into()), "psbt", None),
-            (Error::Unsupported("x".into()), "unsupported", None),
+            (
+                Error::InvalidFeeRate("x".into()),
+                "invalid_fee_rate",
+                None,
+                "invalid fee rate: x",
+            ),
+            (Error::Sign("x".into()), "sign", None, "signing error: x"),
+            (Error::Psbt("x".into()), "psbt", None, "psbt error: x"),
+            (
+                Error::Unsupported("x".into()),
+                "unsupported",
+                None,
+                "unsupported: x",
+            ),
             (
                 Error::Dust { output: 0 },
                 "dust",
                 Some(["output"].as_slice()),
+                "output 0 is below the dust limit",
             ),
             (
                 Error::FeeTooLow {
@@ -210,10 +262,26 @@ mod tests {
                 },
                 "fee_too_low",
                 Some(["required_sat_vb", "required_sat"].as_slice()),
+                "fee too low to replace the original: needs at least 2 sat/vB",
             ),
-            (Error::NoUtxos, "no_utxos", None),
-            (Error::InvalidTxid("x".into()), "invalid_txid", None),
-            (Error::NotReplaceable("x".into()), "not_replaceable", None),
+            (
+                Error::NoUtxos,
+                "no_utxos",
+                None,
+                "no coins were selected to fund this transaction",
+            ),
+            (
+                Error::InvalidTxid("x".into()),
+                "invalid_txid",
+                None,
+                "invalid transaction id: x",
+            ),
+            (
+                Error::NotReplaceable("x".into()),
+                "not_replaceable",
+                None,
+                "transaction cannot be replaced: x",
+            ),
             (
                 Error::CorruptState {
                     reason: "future_version",
@@ -222,14 +290,50 @@ mod tests {
                 },
                 "corrupt_state",
                 Some(["reason", "found", "supported"].as_slice()),
+                "saved wallet data could not be read: future_version",
             ),
         ]
     }
 
+    /// Adding a variant fails to compile here until it has an ordinal. Give
+    /// it the next one, raise `VARIANTS` beside it, and add its row to
+    /// `samples` — `the_table_covers_every_variant` fails until all three agree.
+    fn ordinal(e: &Error) -> usize {
+        match e {
+            Error::InvalidKey(_) => 0,
+            Error::InvalidAddress(_) => 1,
+            Error::Descriptor(_) => 2,
+            Error::Persist(_) => 3,
+            Error::Backend(_) => 4,
+            Error::Timeout(_) => 5,
+            Error::BuildTx(_) => 6,
+            Error::InsufficientFunds { .. } => 7,
+            Error::InvalidFeeRate(_) => 8,
+            Error::Sign(_) => 9,
+            Error::Psbt(_) => 10,
+            Error::Unsupported(_) => 11,
+            Error::Dust { .. } => 12,
+            Error::FeeTooLow { .. } => 13,
+            Error::NoUtxos => 14,
+            Error::InvalidTxid(_) => 15,
+            Error::NotReplaceable(_) => 16,
+            Error::CorruptState { .. } => 17,
+        }
+    }
+    const VARIANTS: usize = 18;
+
     #[test]
-    fn every_variant_has_its_code_and_the_expected_details_shape() {
-        for (err, code, keys) in samples() {
+    fn the_table_covers_every_variant() {
+        let mut seen: Vec<usize> = samples().iter().map(|(e, ..)| ordinal(e)).collect();
+        seen.sort_unstable();
+        assert_eq!(seen, (0..VARIANTS).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn every_variant_has_its_code_message_and_details_shape() {
+        for (err, code, keys, message) in samples() {
             assert_eq!(err.code(), code);
+            assert_eq!(err.to_string(), message, "{code}: message");
             match (err.details(), keys) {
                 (Some(Value::Object(map)), Some(expected)) => {
                     for k in expected {
@@ -249,9 +353,31 @@ mod tests {
         }
     }
 
+    /// `FeeTooLow` builds its message from whichever of its two fields is
+    /// set; the table above shows one branch, these are the other two.
+    #[test]
+    fn fee_too_low_names_whichever_minimum_it_has() {
+        let absolute = Error::FeeTooLow {
+            required_sat_vb: None,
+            required_sat: Some(1234),
+        };
+        assert_eq!(
+            absolute.to_string(),
+            "fee too low to replace the original: needs at least 1234 sat"
+        );
+        let neither = Error::FeeTooLow {
+            required_sat_vb: None,
+            required_sat: None,
+        };
+        assert_eq!(
+            neither.to_string(),
+            "fee too low to replace the original: no minimum given"
+        );
+    }
+
     #[test]
     fn every_code_is_unique() {
-        let codes: Vec<&str> = samples().into_iter().map(|(_, code, _)| code).collect();
+        let codes: Vec<&str> = samples().into_iter().map(|(_, code, ..)| code).collect();
         let mut sorted = codes.clone();
         sorted.sort_unstable();
         sorted.dedup();

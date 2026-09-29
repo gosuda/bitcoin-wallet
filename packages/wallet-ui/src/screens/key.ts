@@ -102,10 +102,9 @@ export function renderKey(): HTMLElement {
           secret.value = "";
           generated.replaceChildren();
           generated.className = "hidden";
-          session.wallet = info;
           if (willRemember) session.remembered = info;
           // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-          // wallet-id check to misfire against `session.wallet` just set above.
+          // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
           if (onScreen()) navigate("dashboard");
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
@@ -120,17 +119,14 @@ export function renderKey(): HTMLElement {
     if (ev.key === "Enter") openBtn.click();
   });
 
-  // P2PK has no BIP32 account layout, so no phrase can describe one: offering
-  // the phrase screens here would only dead-end in the core's refusal.
-  const hdCapable = cfg.address_type !== "p2pk";
+  // Every type this screen can be reached with has an account layout: a config
+  // naming P2PK, which has none, is sent back to Setup by the route guard.
   const newWalletBtn = button("New wallet", () => navigate("create"), "primary", "md", {
     name: "plus",
   });
   const restoreBtn = button("Restore wallet", () => navigate("restore"), "default", "md", {
     name: "key",
   });
-  newWalletBtn.disabled = !hdCapable;
-  restoreBtn.disabled = !hdCapable;
 
   // The single-key path is intact, just folded away: a recovery phrase is the
   // default, and one raw key is the escape hatch.
@@ -150,7 +146,7 @@ export function renderKey(): HTMLElement {
       generated,
     ]),
   ]);
-  advanced.open = advancedOpen || !hdCapable;
+  advanced.open = advancedOpen;
   advanced.addEventListener("toggle", () => {
     advancedOpen = advanced.open;
   });
@@ -168,7 +164,7 @@ export function renderKey(): HTMLElement {
       autocapitalize: "off",
       autocomplete: "off",
     },
-  }) as HTMLTextAreaElement;
+  });
   const watchRemember = rememberCheckbox();
   const followBtn = button(
     "Follow this wallet",
@@ -184,13 +180,12 @@ export function renderKey(): HTMLElement {
         try {
           const info = await api.openWallet(value, cfg.address_type, willRemember);
           watchSource.value = "";
-          session.wallet = info;
           // The wallet is already open here. Reading the record back could
           // fail and put an error over a wallet that opened fine, so take what
           // we know — the same shape the private-key path above uses.
           if (willRemember) session.remembered = info;
           // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-          // wallet-id check to misfire against `session.wallet` just set above.
+          // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
           if (onScreen()) navigate("dashboard");
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
@@ -249,9 +244,7 @@ export function renderKey(): HTMLElement {
       ]),
       el("p", {
         className: "hint",
-        text: hdCapable
-          ? "A recovery phrase backs up every address this wallet will ever use. Restoring one brings its history back."
-          : "P2PK has no BIP32 account layout, so it cannot be backed up by a recovery phrase. Choose another address type in Setup, or use a single key below.",
+        text: "A recovery phrase backs up every address this wallet will ever use. Restoring one brings its history back.",
       }),
       platform().canRememberWallet ? null : el("p", { className: "hint", text: NO_KEYSTORE_HINT }),
     ]),

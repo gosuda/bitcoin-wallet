@@ -7,6 +7,7 @@
  * wallet you have already opened is not a wizard.
  */
 
+import { guardRoute } from "../guards";
 import { platform } from "../platform";
 import { currentRoute, navigate, type Route } from "../router";
 import { session } from "../session";
@@ -50,36 +51,19 @@ const TABS: readonly { route: Route; label: string; icon: IconName }[] = [
   { route: "settings", label: "Settings", icon: "gear" },
 ];
 
-const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>(["key", "create", "restore", "unlock"]);
-const NEEDS_WALLET: ReadonlySet<Route> = new Set<Route>([
-  "dashboard",
-  "send",
-  "receive",
-  "scan",
-  "settings",
-  "tx",
-  "export",
-]);
-
-/**
- * Same rules as the desktop shell, extended to the routes only this shell has.
- * Settings and Scan need an open wallet for the same reason the dashboard
- * does: there is nothing to configure or scan into otherwise.
- */
+/** The rules live in `guards.ts`, shared with the desktop; this reads the state. */
 function guard(route: Route): Route {
-  if (NEEDS_WALLET.has(route) && !session.wallet) return "setup";
-  // Setup rewrites the network under a live wallet handle; Settings is where
-  // that change is made, through a close.
-  if (route === "setup" && session.wallet) return "settings";
-  // A watch-only wallet has nothing to sign with; the screen is not offered.
-  if (route === "send" && session.wallet?.is_watch_only) return "dashboard";
-  // The transaction screen is reached from a row, never typed; without one
-  // stashed there is nothing to show.
-  if (route === "tx" && !currentTxid()) return "dashboard";
-  if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
-  if (KEY_ROUTES.has(route) && !session.config) return "setup";
-  if (route === "unlock" && (!platform().canRememberWallet || !session.remembered)) return "key";
-  return route;
+  return guardRoute(
+    route,
+    {
+      wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
+      configType: session.config?.address_type ?? null,
+      unlockable: platform().canRememberWallet && session.remembered !== null,
+      hasResult: session.lastResult !== null,
+      hasTxid: currentTxid() !== null,
+    },
+    "phone",
+  );
 }
 
 /** The tabs this build can honour: Scan needs a camera to point at anything. */

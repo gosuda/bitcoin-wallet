@@ -12,6 +12,7 @@
 use std::rc::Rc;
 
 use js_sys::{Function, Promise, Reflect};
+use serde::Serialize;
 use wallet_core::bdk_wallet::ChangeSet;
 use wallet_core::bdk_wallet::chain::Merge;
 use wallet_core::persist::{Persister, changeset_from_json, changeset_to_json};
@@ -39,8 +40,13 @@ fn core_err(e: wallet_core::Error) -> JsValue {
     // what a wire error looks like.
     let payload = wallet_core::ErrorPayload::from(&e);
     let err = js_error(payload.code, &payload.message);
+    // JSON-compatible, so `details` is the value `JSON.parse` gives the Tauri
+    // side: a plain object, with `null` for a missing value. The default
+    // serializer makes an ES `Map` of a JSON object, and the UI's
+    // `details.needed_sat` reads `undefined` from a `Map`.
     if let Some(details) = payload.details
-        && let Ok(js_details) = serde_wasm_bindgen::to_value(&details)
+        && let Ok(js_details) =
+            details.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
     {
         let _ = Reflect::set(&err, &JsValue::from_str("details"), &js_details);
     }
@@ -168,25 +174,6 @@ fn parse_key(secret: &str, passphrase: Option<String>) -> Result<KeyMaterial, Js
     KeyMaterial::parse_with_passphrase(secret, passphrase.as_deref()).map_err(core_err)
 }
 
-/// Address for a secret: hex/WIF gives that key's address, a mnemonic gives
-/// the account's first receive address. `passphrase` is the optional BIP39
-/// passphrase and applies only to a mnemonic.
-#[wasm_bindgen]
-pub fn address_for_key(
-    secret: &str,
-    network: &str,
-    address_type: &str,
-    passphrase: Option<String>,
-) -> Result<String, JsValue> {
-    let key = parse_key(secret, passphrase)?;
-    wallet_core::address_for_key(
-        &key,
-        parse_network(network)?,
-        parse_address_type(address_type)?,
-    )
-    .map_err(core_err)
-}
-
 /// Non-secret wallet identifier for a secret (used as the persistence/keychain key).
 /// Named `walletIdForKey` in JS — `Wallet.id` already owns the `wallet_id` symbol.
 ///
@@ -207,12 +194,6 @@ pub fn wallet_id_for_key(
         parse_address_type(address_type)?,
     )
     .map_err(core_err)
-}
-
-/// Default public Esplora URL for a network.
-#[wasm_bindgen]
-pub fn default_esplora_url(network: &str) -> Result<String, JsValue> {
-    Ok(parse_network(network)?.default_esplora_url().to_string())
 }
 
 /// Block-explorer URL for a txid, on the explorer fronting `backend_url` when
@@ -270,9 +251,10 @@ impl Wallet {
         self.inner.network().id().to_string()
     }
 
+    /// The serde spelling, the same one the config was opened with.
     #[wasm_bindgen(getter)]
     pub fn address_type(&self) -> String {
-        self.inner.address_type().id().to_string()
+        self.inner.address_type().name().to_string()
     }
 
     /// Whether this wallet is a BIP32 account (separate change keychain)
@@ -364,10 +346,6 @@ impl Wallet {
             .map(|(k, v)| (k.to_string(), *v))
             .collect();
         to_js(&serde_json::json!({ "sat_per_vb_by_target": obj }))
-    }
-
-    pub async fn chain_height(&self) -> Result<u32, JsValue> {
-        self.inner.chain_height().await.map_err(core_err)
     }
 
     /// `recipients`: `[{ address, amount_sat }]`. Returns

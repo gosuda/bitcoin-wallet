@@ -17,8 +17,3 @@ export function headlineSat(b: Balance): number {
 export function pendingSat(b: Balance): number {
   return b.trusted_pending + b.untrusted_pending;
 }
-
-/** What a send can use right now (BDK "trusted spendable"). */
-export function spendableSat(b: Balance): number {
-  return b.confirmed + b.trusted_pending;
-}
