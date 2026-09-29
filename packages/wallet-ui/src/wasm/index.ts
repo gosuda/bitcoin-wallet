@@ -222,6 +222,16 @@ export class WalletApi {
     return (await this.inner.build_fee_bump(txid, feeRateSatVb)) as BuiltTx;
   }
 
+  /** A replacement paying all of an unconfirmed send back to us. */
+  async build_cancel(txid: string, feeRateSatVb: number): Promise<BuiltTx> {
+    return (await this.inner.build_cancel(txid, feeRateSatVb)) as BuiltTx;
+  }
+
+  /** A child spending our output of `txid`, so the pair pays the package rate. */
+  async build_cpfp(txid: string, packageRateSatVb: number): Promise<BuiltTx> {
+    return (await this.inner.build_cpfp(txid, packageRateSatVb)) as BuiltTx;
+  }
+
   sign(psbtBase64: string): Promise<string> {
     return this.inner.sign(psbtBase64);
   }

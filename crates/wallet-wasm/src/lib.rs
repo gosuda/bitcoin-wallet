@@ -448,6 +448,37 @@ impl Wallet {
         )
     }
 
+    /// Take back an unconfirmed send of ours: the same coins, all of it back
+    /// to us, at a fee that pays at least `fee_rate_sat_vb` and outbids the
+    /// original's fee by its own size at 1 sat/vB. Same shape as
+    /// `build_transfer`.
+    pub async fn build_cancel(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<JsValue, JsValue> {
+        to_js(
+            &self
+                .inner
+                .build_cancel(txid, fee_rate_sat_vb)
+                .await
+                .map_err(core_err)?,
+        )
+    }
+
+    /// Speed up an unconfirmed transaction with a child spending our output
+    /// of it, so the two together pay `package_rate_sat_vb`. Same shape as
+    /// `build_transfer`.
+    pub async fn build_cpfp(
+        &self,
+        txid: &str,
+        package_rate_sat_vb: f64,
+    ) -> Result<JsValue, JsValue> {
+        to_js(
+            &self
+                .inner
+                .build_cpfp(txid, package_rate_sat_vb)
+                .await
+                .map_err(core_err)?,
+        )
+    }
+
     /// Sign + finalize a PSBT (base64) produced by `build_transfer`.
     pub async fn sign(&self, psbt_base64: &str) -> Result<String, JsValue> {
         self.inner.sign(psbt_base64).await.map_err(core_err)

@@ -1,19 +1,33 @@
 /**
- * Replace-by-fee, as far as a screen needs to know it.
+ * Speeding a transaction up, or taking it back, as far as a screen needs to
+ * know it.
  *
  * Every transaction the core builds signals replaceability, so the only
- * questions here are which rows can be bumped and what rate to start from.
+ * questions here are which rows can be replaced or given a child, and what
+ * rate to start from.
  */
 
-import { type FeeEstimate, rateForTarget, type TxSummary } from "./types";
+import { type FeeEstimate, rateForTarget, type TxSummary, type Utxo } from "./types";
 
 /**
- * Only our own unconfirmed sends can be replaced; everything else is settled.
- * Takes a list row or a detail alike. Whether this wallet can sign the
- * replacement is the caller's other question.
+ * Only our own unconfirmed sends can be replaced, sped up or cancelled;
+ * everything else is settled. Takes a list row or a detail alike. Whether
+ * this wallet can sign the replacement is the caller's other question.
  */
 export function isBumpable(tx: Pick<TxSummary, "confirmations" | "net_sat">): boolean {
   return tx.confirmations === null && tx.net_sat < 0;
+}
+
+/**
+ * Whether a child can speed this transaction up: it is unconfirmed and left
+ * an unspent, unfrozen coin of ours to spend. A payment someone else sent
+ * qualifies too, which is the case replacement cannot reach.
+ */
+export function canPayForParent(
+  tx: Pick<TxSummary, "txid" | "confirmations">,
+  coins: readonly Utxo[],
+): boolean {
+  return tx.confirmations === null && coins.some((c) => c.txid === tx.txid && !c.frozen);
 }
 
 /**

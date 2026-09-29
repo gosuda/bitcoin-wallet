@@ -10,7 +10,8 @@ use std::str::FromStr;
 use async_lock::Mutex;
 use bdk_wallet::bitcoin::key::Secp256k1;
 use bdk_wallet::bitcoin::{
-    Address, Amount, FeeRate, NetworkKind, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, Weight,
+    Address, Amount, FeeRate, NetworkKind, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, Txid,
+    Weight,
 };
 use bdk_wallet::chain::{CanonicalizationParams, ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
@@ -98,10 +99,12 @@ pub struct CoinId {
 
 impl CoinId {
     fn outpoint(&self) -> Result<OutPoint> {
-        let txid = bdk_wallet::bitcoin::Txid::from_str(&self.txid)
-            .map_err(|e| Error::InvalidTxid(format!("{}: {e}", self.txid)))?;
-        Ok(OutPoint::new(txid, self.vout))
+        Ok(OutPoint::new(parse_txid(&self.txid)?, self.vout))
     }
+}
+
+fn parse_txid(txid: &str) -> Result<Txid> {
+    Txid::from_str(txid).map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))
 }
 
 /// One wallet-relevant transaction, as shown in history.
@@ -363,6 +366,12 @@ pub fn fee_rate_from_sat_vb(sat_per_vb: f64) -> Result<FeeRate> {
     }
     let clamped = sat_per_vb.max(MIN_FEE_RATE_SAT_VB);
     Ok(FeeRate::from_sat_per_kwu((clamped * 250.0).ceil() as u64))
+}
+
+/// What `vsize` virtual bytes cost at `rate`, rounded up to a whole sat.
+fn fee_at(rate: FeeRate, vsize: u64) -> u64 {
+    // 4 weight units to the virtual byte, 1000 to the kwu.
+    (rate.to_sat_per_kwu() * vsize * 4).div_ceil(1000)
 }
 
 impl WalletHandle {
@@ -827,8 +836,7 @@ impl WalletHandle {
     /// Everything the wallet knows about one of its transactions, or `None`
     /// when the txid is not in its history.
     pub async fn transaction(&self, txid: &str) -> Result<Option<TxDetail>> {
-        let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
+        let txid = parse_txid(txid)?;
         let inner = self.inner.lock().await;
         let Some(d) = inner.wallet.tx_details(txid) else {
             return Ok(None);
@@ -1045,14 +1053,146 @@ impl WalletHandle {
     /// to replace the original.
     pub async fn build_fee_bump(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
         let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
-        let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
+        let txid = parse_txid(txid)?;
         let mut inner = self.inner.lock().await;
         let psbt = {
             let mut builder = inner.wallet.build_fee_bump(txid).map_err(bump_error)?;
             builder.fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
+        Self::persist(&mut inner).await?;
+        Self::summarize(&inner, psbt, Paid::Rebuilt)
+    }
+
+    /// Take back an unconfirmed send: a replacement that spends the same
+    /// coins and pays all of it, less the fee, to an address of ours.
+    ///
+    /// BDK checks a replacement's rate against the original's, or its
+    /// absolute fee, never both. A cancel is smaller than what it replaces,
+    /// having one output, so a higher rate alone can still mean a lower fee,
+    /// which nodes refuse (BIP125 rule 3). The fee here is the larger of
+    /// `fee_rate_sat_vb` over the replacement's size and the original's fee
+    /// plus the incremental relay fee over that size (rule 4).
+    pub async fn build_cancel(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
+        let txid = parse_txid(txid)?;
+        let mut inner = self.inner.lock().await;
+        let original = inner
+            .wallet
+            .get_tx(txid)
+            .ok_or_else(|| Error::NotReplaceable(format!("{txid} is not in this wallet")))?
+            .tx_node
+            .tx;
+        let graph = inner.wallet.tx_graph();
+        let all_ours = original.input.iter().all(|i| {
+            graph
+                .get_txout(i.previous_output)
+                .is_some_and(|o| inner.wallet.is_mine(o.script_pubkey.clone()))
+        });
+        if !all_ours {
+            return Err(Error::NotReplaceable(format!(
+                "{txid} spends coins this wallet does not hold, so it cannot take it back"
+            )));
+        }
+        let original_fee = inner
+            .wallet
+            .calculate_fee(&original)
+            .map_err(|e| Error::BuildTx(e.to_string()))?;
+        let own = inner
+            .wallet
+            .next_unused_address(KeychainKind::Internal)
+            .script_pubkey();
+        let build = |wallet: &mut Wallet, fee: Option<Amount>| -> Result<Psbt> {
+            let mut builder = wallet.build_fee_bump(txid).map_err(bump_error)?;
+            builder
+                .set_recipients(Vec::new())
+                .drain_to(own.clone())
+                .manually_selected_only()
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
+            match fee {
+                Some(fee) => builder.fee_absolute(fee),
+                // BDK's own floor: at least the original's rate plus 1 sat/vB.
+                None => builder.fee_rate(rate),
+            };
+            builder.finish().map_err(build_error)
+        };
+        // Built once at the rate to learn its size, then again at the fee.
+        let probe = build(&mut inner.wallet, None)?;
+        let vsize = Self::signed_vsize(&inner, &probe.unsigned_tx)?;
+        let fee =
+            fee_at(rate, vsize).max(original_fee.to_sat() + fee_at(FeeRate::BROADCAST_MIN, vsize));
+        let psbt = build(&mut inner.wallet, Some(Amount::from_sat(fee)))?;
+        Self::persist(&mut inner).await?;
+        Self::summarize(&inner, psbt, Paid::Rebuilt)
+    }
+
+    /// Speed up an unconfirmed transaction by spending an output of ours
+    /// from it: child pays for parent. Miners weigh the two together, so the
+    /// child's fee is set for the pair to pay `package_rate_sat_vb`:
+    /// (parent fee + child fee) / (parent size + child size), never less than
+    /// the relay minimum for the child itself.
+    ///
+    /// Works on any unconfirmed transaction with an unspent, unfrozen output
+    /// of ours, incoming or not. The child spends those outputs and nothing
+    /// else, back to an address of ours; when they cannot cover its fee the
+    /// build fails as short of funds. Only the parent is counted: an
+    /// unconfirmed ancestor of the parent's is not.
+    pub async fn build_cpfp(&self, txid: &str, package_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(package_rate_sat_vb)?;
+        let txid = parse_txid(txid)?;
+        let mut inner = self.inner.lock().await;
+        let parent = inner
+            .wallet
+            .get_tx(txid)
+            .ok_or_else(|| Error::NotReplaceable(format!("{txid} is not in this wallet")))?;
+        if parent.chain_position.is_confirmed() {
+            return Err(Error::NotReplaceable(format!(
+                "{txid} is already confirmed"
+            )));
+        }
+        let parent = parent.tx_node.tx;
+        // Esplora reports every input's previous output, so this is known
+        // for a payment from someone else too.
+        let parent_fee = inner.wallet.calculate_fee(&parent).map_err(|_| {
+            Error::BuildTx(format!(
+                "the fee {txid} pays is not known, so no child can be priced against it"
+            ))
+        })?;
+        let ours: Vec<OutPoint> = (0..parent.output.len() as u32)
+            .map(|vout| OutPoint::new(txid, vout))
+            .filter(|&o| inner.wallet.get_utxo(o).is_some() && !inner.wallet.is_outpoint_locked(o))
+            .collect();
+        if ours.is_empty() {
+            return Err(Error::BuildTx(format!(
+                "{txid} has no unspent, unfrozen output of this wallet to spend"
+            )));
+        }
+        let own = inner
+            .wallet
+            .next_unused_address(KeychainKind::Internal)
+            .script_pubkey();
+        let build = |wallet: &mut Wallet, fee: Option<Amount>| -> Result<Psbt> {
+            let mut builder = wallet.build_tx();
+            builder
+                .add_utxos(&ours)
+                .map_err(|e| Error::UnknownCoin(e.to_string()))?
+                .manually_selected_only()
+                .drain_to(own.clone())
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
+            match fee {
+                Some(fee) => builder.fee_absolute(fee),
+                None => builder.fee_rate(rate),
+            };
+            builder.finish().map_err(build_error)
+        };
+        // Built once at the rate to learn its size, then again at the fee.
+        let probe = build(&mut inner.wallet, None)?;
+        let child_vsize = Self::signed_vsize(&inner, &probe.unsigned_tx)?;
+        let package_fee = fee_at(rate, parent.vsize() as u64 + child_vsize);
+        let fee = package_fee
+            .saturating_sub(parent_fee.to_sat())
+            .max(fee_at(FeeRate::BROADCAST_MIN, child_vsize));
+        let psbt = build(&mut inner.wallet, Some(Amount::from_sat(fee)))?;
         Self::persist(&mut inner).await?;
         Self::summarize(&inner, psbt, Paid::Rebuilt)
     }
@@ -2185,6 +2325,166 @@ mod tests {
         let err = handle.set_frozen(&garbled, true).await.unwrap_err();
         assert_eq!(err.code(), "invalid_txid");
         assert_eq!(handle.balance().await.frozen, 0);
+    }
+
+    /// An unconfirmed payment of `sats` to us from someone else's coin,
+    /// paying `fee`. The fee is known because the spent output is, as it is
+    /// after an Esplora sync, which reports every input's previous output.
+    /// Its input differs from `fund`'s, so the two do not conflict.
+    async fn receive_paying_fee(handle: &WalletHandle, sats: u64, fee: u64) -> (String, u64) {
+        let mut inner = handle.inner.lock().await;
+        let mut tx = funding_tx(receiving_script(&inner.wallet), sats);
+        tx.input[0].previous_output = OutPoint {
+            txid: Txid::from_str(&"33".repeat(32)).unwrap(),
+            vout: 0,
+        };
+        let mut stranger = vec![0x00, 0x14];
+        stranger.extend([0x55; 20]);
+        inner.wallet.insert_txout(
+            tx.input[0].previous_output,
+            TxOut {
+                value: Amount::from_sat(sats + fee),
+                script_pubkey: ScriptBuf::from_bytes(stranger),
+            },
+        );
+        let (txid, vsize) = (tx.compute_txid().to_string(), tx.vsize() as u64);
+        inner.wallet.apply_unconfirmed_txs([(tx, 1)]);
+        WalletHandle::persist(&mut inner).await.unwrap();
+        (txid, vsize)
+    }
+
+    /// The fee over the size, both as the review reports them.
+    fn rate(fee_sat: u64, vsize: u64) -> f64 {
+        fee_sat as f64 / vsize as f64
+    }
+
+    /// A payment stuck at a low fee is sped up by a child spending our output
+    /// of it: the pair pays the chosen rate, and the child touches nothing
+    /// else of ours.
+    #[tokio::test]
+    async fn a_child_brings_its_parent_up_to_the_package_rate() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 500_000).await;
+        let (parent, parent_vsize) = receive_paying_fee(&handle, 100_000, 100).await;
+
+        let child = handle.build_cpfp(&parent, 10.0).await.unwrap();
+        assert_eq!(spent(&child), vec![(parent.clone(), 0)]);
+        assert_eq!(child.total_out_sat, 0, "nothing leaves the wallet");
+        assert_eq!(child.change_sat + child.fee_sat, 100_000);
+        let package = rate(100 + child.fee_sat, parent_vsize + child.vsize);
+        assert!(
+            (10.0..10.05).contains(&package),
+            "package rate {package}, child fee {}",
+            child.fee_sat
+        );
+        assert!(
+            rate(child.fee_sat, child.vsize) > 10.0,
+            "the child pays for the parent's shortfall too"
+        );
+        handle.sign(&child.psbt_base64).await.unwrap();
+
+        // Asked for less than the parent already pays, the child pays only
+        // the relay minimum for itself.
+        let modest = handle.build_cpfp(&parent, 1.0).await.unwrap();
+        assert_eq!(modest.fee_sat, modest.vsize);
+    }
+
+    #[tokio::test]
+    async fn a_child_needs_a_known_fee_and_an_output_of_ours() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        // `fund`'s input is nowhere to be seen, so its fee cannot be known.
+        fund(&handle, 100_000).await;
+        let unpriced = handle.list_utxos().await[0].txid.clone();
+        let err = handle.build_cpfp(&unpriced, 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "build_tx");
+        assert!(err.to_string().contains("not known"), "{err}");
+
+        let (parent, _) = receive_paying_fee(&handle, 50_000, 100).await;
+        let coin = CoinId {
+            txid: parent.clone(),
+            vout: 0,
+        };
+        handle.set_frozen(&coin, true).await.unwrap();
+        let err = handle.build_cpfp(&parent, 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "build_tx");
+        assert!(err.to_string().contains("unfrozen"), "{err}");
+
+        let err = handle.build_cpfp(&"22".repeat(32), 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
+        let err = handle.build_cpfp("zz", 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+    }
+
+    /// Our own send, broadcast at `rate_sat_vb`: its txid, fee and inputs.
+    async fn sent_at(handle: &WalletHandle, rate_sat_vb: f64) -> (String, u64, Vec<(String, u32)>) {
+        let built = handle
+            .build_transfer(&pay(40_000), rate_sat_vb)
+            .await
+            .unwrap();
+        let signed = handle.sign(&built.psbt_base64).await.unwrap();
+        let sent = handle.broadcast(&signed).await.unwrap();
+        (sent.txid, built.fee_sat, spent(&built))
+    }
+
+    /// A cancel spends what the send spent and pays all of it back to us.
+    /// Asked for a rate just past the original's, its smaller size alone
+    /// would make the fee fall below the original's, which nodes refuse; the
+    /// fee is raised to the original's plus 1 sat/vB of its own size instead.
+    #[tokio::test]
+    async fn a_cancel_pays_everything_back_at_a_fee_nodes_accept() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let (txid, original_fee, inputs) = sent_at(&handle, 20.0).await;
+
+        // BDK's floor is the original's effective rate plus 1 sat/vB, a
+        // little over 21 here: 22 is just past it.
+        let cancel = handle.build_cancel(&txid, 22.0).await.unwrap();
+        assert_eq!(
+            spent(&cancel),
+            inputs,
+            "the same coins, so the two conflict"
+        );
+        assert_eq!(cancel.total_out_sat, 0, "nothing leaves the wallet");
+        assert_eq!(cancel.change_sat + cancel.fee_sat, 100_000);
+        assert!(
+            22 * cancel.vsize < original_fee,
+            "the case in point: the rate alone would lower the fee"
+        );
+        assert_eq!(
+            cancel.fee_sat,
+            original_fee + cancel.vsize,
+            "BIP125 rules 3 and 4"
+        );
+        handle.sign(&cancel.psbt_base64).await.unwrap();
+
+        // Where the rate asks for more, the rate decides.
+        let generous = handle.build_cancel(&txid, 60.0).await.unwrap();
+        assert!(rate(generous.fee_sat, generous.vsize) >= 60.0);
+        assert!(generous.fee_sat > original_fee + generous.vsize);
+    }
+
+    #[tokio::test]
+    async fn only_our_own_unconfirmed_send_can_be_cancelled() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let (txid, ..) = sent_at(&handle, 5.0).await;
+
+        // BDK's own floor for a replacement: the original's rate plus 1 sat/vB.
+        let err = handle.build_cancel(&txid, 5.5).await.unwrap_err();
+        assert_eq!(err.code(), "fee_too_low");
+
+        let (incoming, _) = receive_paying_fee(&handle, 50_000, 100).await;
+        let err = handle.build_cancel(&incoming, 10.0).await.unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
+        assert!(err.to_string().contains("does not hold"), "{err}");
+
+        let err = handle
+            .build_cancel(&"22".repeat(32), 10.0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
+        let err = handle.build_cancel("zz", 10.0).await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
     }
 
     #[tokio::test]

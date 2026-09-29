@@ -831,13 +831,22 @@ items before it change no screen, so they land while that batch is reviewed.
       tests cover it. The regtest case `chosen_coins_move_and_a_frozen_one_stays` runs in CI's
       regtest job, since this Mac cannot run bitcoind
 
-- [ ] **6.4 CPFP and cancel in the core** · M · `wallet.rs`, `wallet-wasm`, `api.ts`,
+- [x] **6.4 CPFP and cancel in the core** · M · `wallet.rs`, `wallet-wasm`, `api.ts`,
   `feebump.ts`
-      why: only an outgoing transaction can be sped up, and nothing can take one back · done
-      when: a child spending our output of an unconfirmed parent reaches a chosen package
-      rate; a cancel replaces an unconfirmed outgoing transaction with one paying everything
-      back to us at a fee that meets BIP125 rule 3 (absolute fee, not only rate); both previewed
-      before signing like any send; core tests and regtest cover them
+      why: only an outgoing transaction can be sped up, and nothing can take one back · done:
+      2026-09-30 — `build_cpfp` spends our unspent, unfrozen outputs of an unconfirmed
+      transaction back to us, with a fee that brings the pair to the chosen rate and never
+      leaves the child under the relay minimum. It works for incoming payments too: their fee
+      is known from the previous outputs Esplora reports. `build_cancel` replaces an
+      unconfirmed send with one paying everything back to us. BDK checks a replacement's rate
+      or its fee, never both, so the cancel pays the larger of the rate over its own size and
+      the original's fee plus 1 sat/vB of that size (BIP125 rules 3 and 4). Both come back as
+      an ordinary preview (`api.buildCpfp`, `api.buildCancel`), signed and broadcast like any
+      send, and `canPayForParent` says when a child can help. Four core tests: the pair lands
+      within 0.05 sat/vB of the target, and a cancel at 22 sat/vB of a 20 sat/vB send pays the
+      original's fee plus its own size, where the rate alone would have paid less. The regtest
+      cases `a_child_pays_for_a_payment_someone_else_sent` and `a_cancel_takes_a_send_back`
+      run in CI's regtest job
 
 - [ ] **6.5 PSBT import in the core** · L · `wallet.rs`, `wallet-wasm`, `api.ts`
       why: a transaction made elsewhere cannot be signed or sent here, and a watch-only wallet

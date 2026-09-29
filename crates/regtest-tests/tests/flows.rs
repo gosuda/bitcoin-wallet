@@ -1,7 +1,8 @@
 //! The flows the app ships beyond a plain send, against a real node:
 //! a two-recipient send and the detail view of it, a drain, a watch-only copy
-//! of a wallet, and coin control. `send.rs` covers the plain send, fee bump
-//! and reopen; `hd.rs` the account layout and a passphrase's separate wallet.
+//! of a wallet, coin control, a child paying for its parent, and a cancel.
+//! `send.rs` covers the plain send, fee bump and reopen; `hd.rs` the account
+//! layout and a passphrase's separate wallet.
 
 // Only ever compiled as a test. Saying so lets clippy's test exemption
 // reach the helpers here, not just the #[test] functions.
@@ -389,6 +390,110 @@ async fn chosen_coins_move_and_a_frozen_one_stays() -> anyhow::Result<()> {
     wallet.set_frozen(&big, false).await?;
     let balance = wallet.balance().await;
     assert_eq!((balance.frozen, balance.confirmed), (0, FUNDING_SAT));
+
+    Ok(())
+}
+
+/// A payment someone else sent, still unconfirmed, is sped up by a child
+/// that spends our output of it. The node takes the child, the pair pays at
+/// least the rate asked for, and both confirm together. The payer's fee is
+/// known only because Esplora reports the inputs they spent: this is that
+/// path, not a test double of it.
+#[tokio::test]
+async fn a_child_pays_for_a_payment_someone_else_sent() -> anyhow::Result<()> {
+    const PACKAGE_RATE: f64 = 50.0;
+    let (env, url) = start()?;
+    let wallet = new_hd_wallet(&url).await?;
+    fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    wallet.sync().await?;
+    let parent = wallet
+        .list_transactions()
+        .await
+        .into_iter()
+        .next()
+        .expect("the payment is in the history");
+    let parent = wallet
+        .transaction(&parent.txid)
+        .await?
+        .expect("the payment has a detail");
+    assert_eq!(parent.confirmations, None);
+    let parent_fee = parent
+        .fee_sat
+        .expect("Esplora reports the payer's inputs, so their fee is known");
+    assert!(
+        parent.fee_rate_sat_vb.is_some_and(|r| r < PACKAGE_RATE),
+        "the node pays well below the rate asked for: {:?}",
+        parent.fee_rate_sat_vb
+    );
+
+    let built = wallet.build_cpfp(&parent.txid, PACKAGE_RATE).await?;
+    assert_eq!(built.total_out_sat, 0, "nothing leaves the wallet");
+    let child_txid = send(&env, &wallet, &built).await?;
+    let child = wallet
+        .transaction(&child_txid)
+        .await?
+        .expect("the child is in the history");
+    let child_fee = child.fee_sat.expect("the child spends only our coin");
+    let package = (parent_fee + child_fee) as f64 / (parent.vsize + child.vsize) as f64;
+    assert!(package >= PACKAGE_RATE, "package rate {package}");
+
+    confirm(&env)?;
+    wallet.sync().await?;
+    for txid in [&parent.txid, &child_txid] {
+        let detail = wallet.transaction(txid).await?.expect("still in history");
+        assert_eq!(detail.confirmations, Some(1), "{txid} confirmed");
+    }
+    assert_eq!(wallet.balance().await.confirmed, FUNDING_SAT - child_fee);
+
+    Ok(())
+}
+
+/// An unconfirmed send is taken back. Asked for a rate just past the
+/// original's, the replacement's fee still has to outbid the original's in
+/// sats (BIP125 rule 3), which BDK does not check and the node does: it takes
+/// the replacement, and the recipient ends up with nothing.
+#[tokio::test]
+async fn a_cancel_takes_a_send_back() -> anyhow::Result<()> {
+    const SEND_SAT: u64 = 40_000;
+    let (env, url) = start()?;
+    let wallet = new_hd_wallet(&url).await?;
+    fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    confirm(&env)?;
+    wallet.sync().await?;
+
+    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let original = wallet
+        .build_transfer(
+            &[Recipient {
+                address: destination.address().await,
+                amount_sat: SEND_SAT,
+            }],
+            20.0,
+        )
+        .await?;
+    let first = send(&env, &wallet, &original).await?;
+
+    let cancel = wallet.build_cancel(&first, 22.0).await?;
+    assert_eq!(cancel.total_out_sat, 0, "nothing leaves the wallet");
+    assert!(
+        cancel.fee_sat >= original.fee_sat + cancel.vsize,
+        "{} over {} replaced",
+        cancel.fee_sat,
+        original.fee_sat
+    );
+    let replacement = send(&env, &wallet, &cancel).await?;
+    assert_ne!(replacement, first);
+
+    confirm(&env)?;
+    wallet.sync().await?;
+    destination.sync().await?;
+    assert_eq!(destination.balance().await.total(), 0, "nothing arrived");
+    assert_eq!(
+        wallet.balance().await.confirmed,
+        FUNDING_SAT - cancel.fee_sat
+    );
+    let history = wallet.list_transactions().await;
+    assert!(history.iter().all(|t| t.txid != first), "the send is gone");
 
     Ok(())
 }

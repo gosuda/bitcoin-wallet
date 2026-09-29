@@ -354,6 +354,24 @@ async function buildFeeBump(txid: string, feeRateSatVb: number): Promise<TxPrevi
   return retainPsbt(await requireWallet().build_fee_bump(txid, feeRateSatVb));
 }
 
+/**
+ * Takes back an unconfirmed send: a replacement paying all of it, less the
+ * fee, to us. Its preview has `total_out_sat` 0 and everything in `change_sat`.
+ */
+async function buildCancel(txid: string, feeRateSatVb: number): Promise<TxPreview> {
+  requireRate(feeRateSatVb);
+  return retainPsbt(await requireWallet().build_cancel(txid, feeRateSatVb));
+}
+
+/**
+ * Speeds up an unconfirmed transaction, incoming ones included, with a child
+ * that spends our output of it: the two together pay `packageRateSatVb`.
+ */
+async function buildCpfp(txid: string, packageRateSatVb: number): Promise<TxPreview> {
+  requireRate(packageRateSatVb);
+  return retainPsbt(await requireWallet().build_cpfp(txid, packageRateSatVb));
+}
+
 async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
   const wallet = requireWallet();
   const psbt = pending.get(psbtId);
@@ -416,6 +434,8 @@ export const api = {
   buildDrain: (address: string, feeRateSatVb: number, coins?: readonly CoinId[]) =>
     buildDrain(address, feeRateSatVb, coins),
   buildFeeBump: (txid: string, feeRateSatVb: number) => buildFeeBump(txid, feeRateSatVb),
+  buildCancel: (txid: string, feeRateSatVb: number) => buildCancel(txid, feeRateSatVb),
+  buildCpfp: (txid: string, packageRateSatVb: number) => buildCpfp(txid, packageRateSatVb),
   signAndBroadcast: (psbtId: string) => signAndBroadcast(psbtId),
   discardTx: async (psbtId: string): Promise<void> => {
     pending.delete(psbtId);

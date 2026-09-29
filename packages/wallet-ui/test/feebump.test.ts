@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isBumpable, suggestBumpRate } from "../src/feebump";
-import { rateForTarget, type TxDetail, type TxSummary } from "../src/types";
+import { canPayForParent, isBumpable, suggestBumpRate } from "../src/feebump";
+import { rateForTarget, type TxDetail, type TxSummary, type Utxo } from "../src/types";
 
 const tx = (t: Partial<TxSummary>): TxSummary => ({
   txid: "a".repeat(64),
@@ -37,6 +37,31 @@ describe("isBumpable", () => {
       net_sat: -1000,
     };
     expect(isBumpable(detail)).toBe(true);
+  });
+});
+
+describe("canPayForParent", () => {
+  const coin = (c: Partial<Utxo>): Utxo => ({
+    txid: "a".repeat(64),
+    vout: 0,
+    value: 50_000,
+    confirmations: null,
+    address: "tb1q",
+    frozen: false,
+    ...c,
+  });
+
+  // The case replacement cannot reach: someone else's payment, stuck.
+  it("takes an unconfirmed payment that left us a coin, incoming or not", () => {
+    expect(canPayForParent(tx({ net_sat: 50_000 }), [coin({})])).toBe(true);
+    expect(canPayForParent(tx({ net_sat: -1000 }), [coin({})])).toBe(true);
+  });
+
+  it("refuses a mined transaction, one that left us nothing, and a frozen coin", () => {
+    expect(canPayForParent(tx({ confirmations: 1 }), [coin({ confirmations: 1 })])).toBe(false);
+    expect(canPayForParent(tx({}), [coin({ txid: "b".repeat(64) })])).toBe(false);
+    expect(canPayForParent(tx({}), [])).toBe(false);
+    expect(canPayForParent(tx({}), [coin({ frozen: true })])).toBe(false);
   });
 });
 
