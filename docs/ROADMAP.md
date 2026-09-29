@@ -738,6 +738,15 @@ one starts when it is picked.
 - Labels and contacts (BIP21 `label` is parsed, then dropped)
 - CPFP; cancel-by-replacement; PSBT import; auto-lock on background; fiat display; a theme
   toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the signing key first)
+- A first sync that can finish on a slow link. The first sync is one full scan inside the
+  180 s scan budget, and a scan that runs out keeps nothing, so a wallet whose history takes
+  longer to fetch starts over every time and never syncs. The BIP39 test phrase on signet did
+  this over the emulator's ~265 ms link (4.5). Keeping what each pass found, or a longer
+  budget with progress, needs a decision first.
+- QR reading without Google Play Services. The Android scanner plugin uses Play Services'
+  ML Kit model (`play-services-mlkit-barcode-scanning`), downloaded on first use, so on a
+  phone without Play Services the camera opens and never reads a code. Bundling the model
+  means changing the plugin (no canvas)
 
 ## Decisions
 
