@@ -3,6 +3,10 @@
 # only way coins come into being there. A coinbase can be spent once 100
 # blocks sit on top of it, hence the default of 101.
 #
+# `generatetoaddress` mines here although this is a signet, not regtest: the
+# rig's challenge is OP_TRUE (signetchallenge=51 in bitcoin.conf), so a block
+# needs no signature, only proof of work at signet's low starting difficulty.
+#
 #   docs/signet-rig/mine.sh <address> [blocks]
 set -euo pipefail
 address=${1:?usage: mine.sh <address> [blocks]}
