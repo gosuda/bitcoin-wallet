@@ -84,17 +84,32 @@ jobs:
       # One workspace, one lockfile: install from the repo root.
       - run: pnpm install --frozen-lockfile
 
-      - uses: tauri-apps/tauri-action@v1
+      # Signing and notarisation happen only when these secrets exist; without
+      # them the bundles are unsigned (see docs/RELEASING.md). A secret that does
+      # not exist still arrives as an empty variable, and Tauri signs whenever
+      # APPLE_CERTIFICATE is set at all — so it failed importing an empty
+      # certificate. Each variable is therefore exported only when it has a value.
+      - name: Export the Apple signing secrets that exist
+        if: runner.os == 'macOS'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Signing and notarisation only happen when these secrets exist; the
-          # build still succeeds unsigned without them (see docs/RELEASING.md).
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            value="${!name}"
+            [ -n "$value" ] || continue
+            delimiter="EOF_$(openssl rand -hex 8)"
+            printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "$value" "$delimiter" >> "$GITHUB_ENV"
+          done
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/native
           # Only a tag publishes; a manual run just proves the bundles build.
