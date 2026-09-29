@@ -104,6 +104,26 @@ body {
   background: var(--ok);
 }
 
+/* The gear that opens Settings; lit on Settings itself. */
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--space-1);
+  font-weight: 500;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.topbar-link svg {
+  color: var(--muted);
+}
+
+.topbar-link[aria-current="page"],
+.topbar-link[aria-current="page"] svg {
+  color: var(--accent);
+}
+
 /* Screen layout */
 
 .screen {
@@ -228,6 +248,7 @@ p {
 input:focus-visible,
 select:focus-visible,
 button:focus-visible,
+a:focus-visible,
 .radio:focus-within,
 .unit-chip:focus-within {
   outline: 2px solid var(--accent);
@@ -765,6 +786,64 @@ tr.tx-detail td {
 /* Public keys */
 .pubkeys .kv dd {
   overflow-wrap: anywhere;
+}
+
+/* Settings: cards of rows, each a setting, its value and what to do about it */
+.card-rows {
+  gap: var(--space-1);
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 200px 1fr max-content;
+  gap: var(--space-4);
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-key {
+  color: var(--muted);
+}
+
+.settings-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+/* An action that reads as a link, where it leads on rather than commits. */
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.danger-card {
+  border-color: var(--danger);
+}
+
+/* A place a confirm appears in; empty, it must not add a gap of its own. */
+.slot:empty {
+  display: none;
 }
 
 /* Max is a mode: lit while the amount is the whole balance. */

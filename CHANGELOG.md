@@ -12,6 +12,10 @@ pull requests a change arrived in.
 - `btcw rescan` looks further past the last used address, `btcw tx <txid>` shows one
   transaction in full, and `btcw send --max` sends everything to one address with no change
   left over. (#39)
+- The desktop app has a Settings page, opened from the gear in the top bar. It changes the
+  network, server or address type (asking first, since that closes the wallet), rescans,
+  shows the public keys, and closes or forgets the wallet. Rescan and the public keys moved
+  there from the Wallet page. (#39)
 
 ### Fixed
 

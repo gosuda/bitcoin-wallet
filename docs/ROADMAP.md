@@ -883,10 +883,17 @@ items before it change no screen, so they land while that batch is reviewed.
       Unlock the only way out also deletes the key · done when: the error offers a reset that
       deletes only that wallet's local history and opens it again; jsdom tests cover each screen
 
-- [ ] **6.8 Desktop Settings** · M · new `screens/settings.ts`, `guards.ts`, `app.ts` · after 6.6
+- [x] **6.8 Desktop Settings** · M · new `screens/settings.ts`, `guards.ts`, `app.ts` · after 6.6
       why: changing network, server or address type on the desktop means Close wallet, then
-      Key, then Back · done when: a Settings screen offers what the phone's does; guard tests
-      follow
+      Key, then Back · done: 2026-09-30 — a gear in the top bar of the Wallet page opens
+      Settings, and is lit there. It offers what the phone's Settings does. Network, server
+      and address type each ask first, then close the wallet and open Setup. It also has
+      where a remembered key is kept, Rescan with its gap, the public keys (shown when asked,
+      with their copy buttons), Close wallet, and Forget with its second step. Rescan and
+      Public keys left the Wallet page, as decided on the canvas. On both shells the guard now
+      sends Setup under an open wallet to Settings. Six jsdom tests cover the screen, and one
+      boots the whole desktop shell for the top bar; the guard tests follow. The browser
+      build was checked against the board
 
 - [ ] **6.9 Several recipients on the phone** · M · `mobile/screens/send.ts` · after 6.6
       why: the phone sends to one address; the api and desktop take several · done when: rows

@@ -75,9 +75,15 @@ describe("guardRoute", () => {
     }
   });
 
-  it("closes the wallet before Setup: from the dashboard on desktop, Settings on a phone", () => {
-    expect(guardRoute("setup", open, "desktop")).toBe("dashboard");
-    expect(guardRoute("setup", open, "phone")).toBe("settings");
+  // Settings asks, closes the wallet and then opens Setup, on both shells.
+  it.each(SHELLS)("sends Setup under an open wallet to Settings (%s)", (shell) => {
+    expect(guardRoute("setup", open, shell)).toBe("settings");
+  });
+
+  it.each(SHELLS)("opens Settings with a wallet, and never without one (%s)", (shell) => {
+    expect(guardRoute("settings", open, shell)).toBe("settings");
+    expect(guardRoute("settings", watching, shell)).toBe("settings");
+    expect(guardRoute("settings", configured, shell)).toBe("setup");
   });
 
   it.each(SHELLS)("never offers Send to a wallet that only watches (%s)", (shell) => {

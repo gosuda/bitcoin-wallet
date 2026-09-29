@@ -16,8 +16,6 @@ import {
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
-  type PublicDescriptors,
-  RESCAN_GAPS,
   type TxDetail,
   type TxOutput,
   type TxSummary,
@@ -34,7 +32,6 @@ import {
   formatSats,
   kv,
   mono,
-  radioGroup,
   readout,
   sectionLabel,
   textInput,
@@ -564,63 +561,6 @@ export function renderDashboard(): HTMLElement {
     addressActions.appendChild(newAddressBtn);
   }
 
-  // --- public keys: enough to watch this wallet elsewhere ------------------
-  const keysBox = el("div", {}, [el("p", { className: "empty", text: "Loading…" })]);
-  const renderKeys = (d: PublicDescriptors) => {
-    const rows: [string, Node][] = [];
-    if (d.account_xpub !== null) rows.push(["Account xpub", mono(d.account_xpub, "small")]);
-    rows.push([d.internal === null ? "Descriptor" : "Receive", mono(d.external, "small")]);
-    if (d.internal !== null) rows.push(["Change", mono(d.internal, "small")]);
-    const actions = el("div", { className: "actions" });
-    if (d.account_xpub !== null) {
-      const xpub = d.account_xpub;
-      actions.appendChild(copyButton(() => xpub, "Copy xpub", "sm"));
-    }
-    const both = d.internal === null ? d.external : `${d.external}\n${d.internal}`;
-    actions.appendChild(
-      copyButton(() => both, d.internal === null ? "Copy descriptor" : "Copy descriptors", "sm"),
-    );
-    keysBox.replaceChildren(kv(rows), actions);
-  };
-
-  // --- rescan: for a restore that shows too little --------------------------
-  let gap = `${RESCAN_GAPS[0]}`;
-  const gapChips = radioGroup(
-    "rescan_gap",
-    // Only the first chip says what the numbers are.
-    RESCAN_GAPS.map((g, i) => ({ value: `${g}`, label: i === 0 ? `gap ${g}` : `${g}` })),
-    gap,
-    (v) => {
-      gap = v;
-    },
-    { label: "Address gap" },
-  );
-  const rescanBtn = button(
-    "Rescan",
-    () =>
-      withBusy(rescanBtn, async () => {
-        alert.hide();
-        try {
-          const balance = await api.rescan(Number(gap));
-          if (!onScreen()) return;
-          session.lastSyncedAt = new Date();
-          autoSyncFailed = false;
-          renderBalance(balance);
-          await refreshLocal();
-          renderSynced();
-          alert.show(
-            "ok",
-            `Rescanned with a gap of ${gap}: ${formatSats(headlineSat(balance))} in this wallet.`,
-          );
-        } catch (e) {
-          if (onScreen()) alert.show("error", errorMessage(e));
-        }
-      }),
-    "default",
-    "md",
-    { name: "refresh" },
-  );
-
   renderBalance({ confirmed: 0, trusted_pending: 0, untrusted_pending: 0, immature: 0, frozen: 0 });
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
@@ -629,16 +569,6 @@ export function renderDashboard(): HTMLElement {
     if (onScreen()) alert.show("error", errorMessage(e));
   });
   void paintQr();
-  void api
-    .publicDescriptors()
-    .then((d) => {
-      if (onScreen()) renderKeys(d);
-    })
-    .catch((e: unknown) => {
-      if (onScreen()) {
-        keysBox.replaceChildren(el("p", { className: "empty", text: errorMessage(e) }));
-      }
-    });
 
   const kind = wallet.is_watch_only ? " · Watch-only" : "";
   const screen = el("main", { className: "screen" }, [
@@ -697,27 +627,8 @@ export function renderDashboard(): HTMLElement {
       el("div", { className: "card-head" }, [sectionLabel("Transactions"), txCount]),
       txBox,
     ]),
-    el("section", { className: "card pubkeys" }, [
-      el("div", { className: "card-head" }, [
-        sectionLabel("Public keys"),
-        el("span", {
-          className: "hint",
-          text: "Reveal your history, not your funds — for a watch-only copy elsewhere.",
-        }),
-      ]),
-      keysBox,
-    ]),
-    el("div", { className: "actions actions-split" }, [
-      el("div", { className: "actions" }, [
-        rescanBtn,
-        gapChips,
-        el("span", {
-          className: "hint",
-          text: "Looks further past the last used address — for a restore that shows too little.",
-        }),
-      ]),
-      closeBtn,
-    ]),
+    // Rescan and the public keys are in Settings.
+    el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);
 
   // Keep the wallet fresh while this screen is open. The router swaps screens

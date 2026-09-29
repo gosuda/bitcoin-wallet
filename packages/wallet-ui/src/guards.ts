@@ -35,18 +35,12 @@ export const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>([
 ]);
 
 /** Destinations only the phone shell has; the desktop sends them to the wallet. */
-export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
-  "receive",
-  "scan",
-  "settings",
-  "tx",
-  "export",
-]);
+export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>(["receive", "scan", "tx", "export"]);
 
 /** Screens with nothing to show, configure or scan into without an open wallet. */
 const NEEDS_WALLET: Record<Shell, ReadonlySet<Route>> = {
-  desktop: new Set<Route>(["dashboard", "send"]),
-  phone: new Set<Route>(["dashboard", "send", ...PHONE_ONLY]),
+  desktop: new Set<Route>(["dashboard", "send", "settings"]),
+  phone: new Set<Route>(["dashboard", "send", "settings", ...PHONE_ONLY]),
 };
 
 /**
@@ -70,9 +64,9 @@ export function guardRoute(route: Route, s: GuardState, shell: Shell): Route {
 function step(route: Route, s: GuardState, shell: Shell): Route {
   if (shell === "desktop" && PHONE_ONLY.has(route)) return s.wallet ? "dashboard" : "setup";
   if (NEEDS_WALLET[shell].has(route) && !s.wallet) return "setup";
-  // Setup rewrites the network under a live wallet handle. The desktop closes
-  // the wallet from the dashboard; the phone does it from Settings.
-  if (route === "setup" && s.wallet) return shell === "desktop" ? "dashboard" : "settings";
+  // Setup rewrites the network under a live wallet handle, so it is reached
+  // from Settings, which asks and closes the wallet first.
+  if (route === "setup" && s.wallet) return "settings";
   // A watch-only wallet has nothing to sign with; the screen is not offered.
   if (route === "send" && s.wallet?.watchOnly) return "dashboard";
   // The transaction screen is reached from a row, never typed; without one

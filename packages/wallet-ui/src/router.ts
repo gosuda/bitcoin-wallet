@@ -7,11 +7,11 @@ export const ROUTES = [
   "dashboard",
   "send",
   "result",
+  "settings",
   // Mobile-only destinations. Harmless on desktop, which simply never links
   // to them; the shell decides which routes it can render.
   "receive",
   "scan",
-  "settings",
   "tx",
   "export",
 ] as const;

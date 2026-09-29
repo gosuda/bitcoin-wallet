@@ -9,6 +9,7 @@ import { renderKey } from "./screens/key";
 import { renderRestore } from "./screens/restore";
 import { renderResult } from "./screens/result";
 import { renderSend } from "./screens/send";
+import { renderSettings } from "./screens/settings";
 import { renderSetup } from "./screens/setup";
 import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
@@ -43,6 +44,9 @@ function stepIndicator(active: number): HTMLElement {
   return nav;
 }
 
+/** The wallet's own pages, which link to Settings from the top bar. */
+const SETTINGS_LINKED: ReadonlySet<Route> = new Set<Route>(["dashboard", "settings"]);
+
 function topbar(route: Route): HTMLElement {
   const meta = el("div", { className: "topbar-meta" });
   const cfg = session.config;
@@ -52,6 +56,21 @@ function topbar(route: Route): HTMLElement {
         el("span", { className: "pill-dot" }),
         `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`,
       ]),
+    );
+  }
+  if (session.wallet && SETTINGS_LINKED.has(route)) {
+    meta.appendChild(
+      el(
+        "a",
+        {
+          className: "topbar-link",
+          attrs: {
+            href: "#/settings",
+            ...(route === "settings" ? { "aria-current": "page" } : {}),
+          },
+        },
+        [icon("gear", 16), "Settings"],
+      ),
     );
   }
   return el("header", { className: "topbar" }, [
@@ -73,6 +92,7 @@ const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   dashboard: renderDashboard,
   send: renderSend,
   result: renderResult,
+  settings: renderSettings,
 };
 
 /** The rules live in `guards.ts`; this is where the desktop reads its state. */

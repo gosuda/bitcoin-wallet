@@ -17,6 +17,7 @@ import { renderDashboard } from "../src/screens/dashboard";
 import { renderKey } from "../src/screens/key";
 import { renderRestore } from "../src/screens/restore";
 import { renderSend } from "../src/screens/send";
+import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
 import { NETWORK_LABELS, type Network, type RememberedWallet } from "../src/types";
@@ -263,7 +264,9 @@ describe("every choice group has a name (3.9)", () => {
     at("dashboard");
     const dashboard = mount(renderDashboard());
     await settle();
-    expect(groupNames(dashboard)).toEqual(["Amount unit", "Address gap"]);
+    expect(groupNames(dashboard)).toEqual(["Amount unit"]);
+    at("settings");
+    expect(groupNames(mount(renderSettings()))).toEqual(["Address gap"]);
   });
 
   it("on the phone", async () => {
