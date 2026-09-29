@@ -791,12 +791,17 @@ Branch `round-6-product`. Picked on 2026-09-30: finish what exists, security, an
 features. Every screen goes to the design canvas first, in one batch (6.6). The core and CLI
 items before it change no screen, so they land while that batch is reviewed.
 
-- [ ] **6.1 CLI `rescan`, `send --max`, `tx <txid>`** · S · `crates/wallet-cli/src/main.rs`
+- [x] **6.1 CLI `rescan`, `send --max`, `tx <txid>`** · S · `crates/wallet-cli/src/main.rs`
   (no canvas)
       why: the core has `rescan(stop_gap)`, `build_drain` and `transaction(txid)`, and the CLI
-      reaches none of them · done when: each runs against signet from this Mac; `send --max
-      --dry-run` prints a PSBT that spends everything with no change output; the CLI's tests
-      cover the new argument rules and exit codes
+      reaches none of them · done: 2026-09-30 — `btcw rescan`, `btcw tx <txid>` and `btcw send
+      --max --to ADDRESS` reach them. From this Mac on signet, with the BIP39 test phrase:
+      `rescan --gap 30` found 281 transactions and 1,313,215 sat; `tx` printed a received
+      transaction (block 324051, 53,457 sat to the wallet); `send --max --dry-run` signed a
+      5-input PSBT sending 1,312,642 sat with a 573 sat fee, the whole balance, and
+      `change_sat` 0. `--max` takes exactly one `--to` and no amount. The CLI's tests cover
+      those rules, how the new commands parse, and a rescan gap out of range exiting with the
+      core's code (21)
 
 - [ ] **6.2 A remembered wallet is reachable after Setup** · S · `guards.ts`, `api.ts`, both
   Setup screens (no canvas: routing only)

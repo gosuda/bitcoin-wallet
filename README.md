@@ -129,7 +129,10 @@ $btcw balance -n signet                            # Esplora (mempool.space by d
 $btcw balance -n signet -u https://blockstream.info/signet/api
 $btcw send -n signet --to tb1q...:10000 --dry-run  # build + sign, print PSBT
 $btcw send -n signet --to tb1q...:10000            # broadcast; fee = 6-block estimate, floor 1 sat/vB
+$btcw send -n signet --max --to tb1q... --dry-run  # everything to one address, no change output
 $btcw history -n signet                            # transactions, newest first
+$btcw tx -n signet <txid>                          # one transaction: amounts, fee, inputs, outputs
+$btcw rescan -n signet --gap 100                   # look further past the last used address
 $btcw bump -n signet --txid <txid> -f 8            # re-send an unconfirmed tx at a higher fee
 ```
 
