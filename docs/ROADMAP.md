@@ -899,10 +899,16 @@ items before it change no screen, so they land while that batch is reviewed.
       why: the phone sends to one address; the api and desktop take several · done when: rows
       can be added and removed, Max only with one row, the review lists each; jsdom tests
 
-- [ ] **6.10 Focus rings on the phone** · S · `ui/mobile.css`, `ui/app.css` · after 6.6
+- [x] **6.10 Focus rings on the phone** · S · `ui/mobile.css`, `ui/app.css` · after 6.6
       why: rows, tabs and the primary button have no visible focus, and textareas none on either
-      shell · done when: every control shows a ring on keyboard focus, checked on the emulator
-      with a keyboard
+      shell · done: 2026-09-30 — on keyboard focus only (`:focus-visible`), a phone row or tab
+      takes the accent ring inside its edge, so the card and the tab bar cannot clip it. The
+      primary button takes a ring in the text colour 2px outside its accent fill (the Scan
+      screen's light text colour on that dark screen). Textareas now take the ring every other
+      field has, on both shells. A test reads both stylesheets, so a control that loses its
+      ring fails. On the Android emulator with a keyboard, Tab put the drawn ring on a Settings
+      row (its corners turning with the card), on the Wallet tab and on the Send button, and
+      taps drew none
 
 - [ ] **6.11 Lock in the background** · M · new `ui/autolock.ts`, `app.ts` · after 6.6 ·
   **decision** (how long, and what happens to a wallet that is not remembered)

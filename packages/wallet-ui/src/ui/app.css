@@ -245,8 +245,11 @@ p {
   gap: 6px;
 }
 
+/* The focus ring both shells share. The phone draws its own for rows, tabs
+   and the primary button, in mobile.css. */
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 button:focus-visible,
 a:focus-visible,
 .radio:focus-within,

@@ -822,3 +822,68 @@ html[data-scanning] .m-scanner {
   justify-content: center;
   color: var(--accent);
 }
+
+/* Focus ------------------------------------------------------------------- */
+
+/**
+ * Rings for keyboard focus: every rule here is `:focus-visible`, so a tap on a
+ * row, tab or button draws nothing. Fields, textareas, chips and the other
+ * buttons keep the ring app.css gives both shells, 2px of accent 1px outside,
+ * since each has room around it; a field shows it on a tap too, because
+ * browsers count a focused text field as keyboard focus. Rows, tabs and the
+ * primary button take the rings drawn on the M15 board instead.
+ */
+
+/* A row runs edge to edge in its card, so a ring outside it would sit on the
+   card's border and across the rows beside it. It goes inside. A button that
+   ends a flush card as its last row (Show all) is a row here too. */
+.m-item:focus-visible,
+button.m-txrow:focus-visible,
+.m-card-flush > .m-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Where a row meets the card's rounded corner its ring turns with it, since a
+   square one would poke out past the card's edge. The row sits inside the
+   card's 1px border, hence 1px less than the card's radius. */
+.m-card-flush > :first-child:focus-visible {
+  border-top-left-radius: calc(var(--radius-lg) - 1px);
+  border-top-right-radius: calc(var(--radius-lg) - 1px);
+}
+
+.m-card-flush > :last-child:focus-visible {
+  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+}
+
+/* A tab's ring floats inside the tab: one drawn outside would run over the
+   bar's top edge, and the screen's edge would cut it off the first and last
+   tab. The board sets it 4px in all round on a taller tab; on this 56px one
+   that would put it against the top of the gear icon, so it comes 2px in at
+   the top and bottom. */
+.m-tab:focus-visible {
+  position: relative;
+  outline: none;
+}
+
+.m-tab:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 2px 4px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* An accent ring vanishes against the primary button's accent fill, so this
+   one is in the text colour and stands 2px off. */
+.m-btn-primary:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* The Scan screen is dark in either theme, and the light theme's text colour
+   would vanish against it. */
+.m-scanner .m-btn-primary:focus-visible {
+  outline-color: var(--scan-fg);
+}
