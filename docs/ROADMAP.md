@@ -787,23 +787,107 @@ new feature.
 
 ## Round 6 — Product
 
-Listed, not scheduled. Each goes to the design canvas first unless marked otherwise; the next
-one starts when it is picked.
+Branch `round-6-product`. Picked on 2026-09-30: finish what exists, security, and power
+features. Every screen goes to the design canvas first, in one batch (6.6). The core and CLI
+items before it change no screen, so they land while that batch is reviewed.
 
-- "Reset local history, keep the key" on the Unlock, Key and Restore error banners — the
-  action that consumes 1.6's `corrupt_state`
+- [ ] **6.1 CLI `rescan`, `send --max`, `tx <txid>`** · S · `crates/wallet-cli/src/main.rs`
+  (no canvas)
+      why: the core has `rescan(stop_gap)`, `build_drain` and `transaction(txid)`, and the CLI
+      reaches none of them · done when: each runs against signet from this Mac; `send --max
+      --dry-run` prints a PSBT that spends everything with no change output; the CLI's tests
+      cover the new argument rules and exit codes
+
+- [ ] **6.2 A remembered wallet is reachable after Setup** · S · `guards.ts`, `api.ts`, both
+  Setup screens (no canvas: routing only)
+      why: Setup always continues to Key and Key never links to Unlock, so a remembered wallet
+      is reachable only by restarting the app; and Unlock pairs the remembered wallet's
+      network with the current config's server · done when: Setup continues to Unlock when a
+      wallet is remembered for the chosen network; Unlock never opens a wallet against another
+      network's server; guard and api tests cover both
+
+- [ ] **6.3 Coin control in the core** · M · `wallet.rs`, `wallet-wasm`, `wasm/index.ts`,
+  `api.ts`
+      why: sends choose coins on their own, and no coin can be kept out of them · done when:
+      freeze and unfreeze persist (BDK's `lock_outpoint`, saved in the ChangeSet); frozen coins
+      stay out of automatic selection, of Max and of the spendable balance; a send can be held
+      to chosen coins (`add_utxos` + `manually_selected_only`); core tests and regtest cover it
+
+- [ ] **6.4 CPFP and cancel in the core** · M · `wallet.rs`, `wallet-wasm`, `api.ts`,
+  `feebump.ts`
+      why: only an outgoing transaction can be sped up, and nothing can take one back · done
+      when: a child spending our output of an unconfirmed parent reaches a chosen package
+      rate; a cancel replaces an unconfirmed outgoing transaction with one paying everything
+      back to us at a fee that meets BIP125 rule 3 (absolute fee, not only rate); both previewed
+      before signing like any send; core tests and regtest cover them
+
+- [ ] **6.5 PSBT import in the core** · L · `wallet.rs`, `wallet-wasm`, `api.ts`
+      why: a transaction made elsewhere cannot be signed or sent here, and a watch-only wallet
+      cannot send what another device signed · done when: an imported PSBT is described
+      (inputs ours or not, outputs, fee), our inputs are filled in and signed where we hold the
+      key, and broadcast refuses anything not fully finalized — which today's `extract_tx`
+      does not check; core tests and regtest cover a two-wallet round trip
+
+- [ ] **6.6 The Round 6 screens on the canvas** · M · `apps/native/design/`, a new Design
+  canvas · **canvas review**
+      why: the canvas these screens were drawn on is gone, and every screen below needs one ·
+      done when: the existing boards and new ones for 6.7–6.15 are on a canvas, with the open
+      choices listed beside them, and the user has reviewed it
+
+- [ ] **6.7 Reset local history, keep the key** · M · `api.ts`, `persist/indexeddb.ts`, the
+  Unlock, Key, Restore and Create screens · after 6.6
+      why: a wallet whose saved state cannot be read shows `corrupt_state` and a dead end; on
+      Unlock the only way out also deletes the key · done when: the error offers a reset that
+      deletes only that wallet's local history and opens it again; jsdom tests cover each screen
+
+- [ ] **6.8 Desktop Settings** · M · new `screens/settings.ts`, `guards.ts`, `app.ts` · after 6.6
+      why: changing network, server or address type on the desktop means Close wallet, then
+      Key, then Back · done when: a Settings screen offers what the phone's does; guard tests
+      follow
+
+- [ ] **6.9 Several recipients on the phone** · M · `mobile/screens/send.ts` · after 6.6
+      why: the phone sends to one address; the api and desktop take several · done when: rows
+      can be added and removed, Max only with one row, the review lists each; jsdom tests
+
+- [ ] **6.10 Focus rings on the phone** · S · `ui/mobile.css`, `ui/app.css` · after 6.6
+      why: rows, tabs and the primary button have no visible focus, and textareas none on either
+      shell · done when: every control shows a ring on keyboard focus, checked on the emulator
+      with a keyboard
+
+- [ ] **6.11 Lock in the background** · M · new `ui/autolock.ts`, `app.ts` · after 6.6 ·
+  **decision** (how long, and what happens to a wallet that is not remembered)
+      why: an open wallet stays open however long the app sits in the background · done when:
+      after the chosen time hidden, a remembered wallet closes to Unlock, never mid-sync or
+      mid-broadcast; tests drive it with fake timers and visibility events
+
+- [ ] **6.12 A browser keystore** · L · `apps/web/src/platform-browser.ts`, `platform/index.ts`,
+  `ui/remember.ts`, desktop Unlock · after 6.6 · **decision** (key derivation, naming)
+      why: the browser build cannot remember a wallet at all · done when: a remembered secret is
+      encrypted with a password (WebCrypto, AES-GCM) and kept in IndexedDB, a wrong password is
+      its own error, and tests cover the round trip
+
+- [ ] **6.13 Coin control on screen** · M · both shells · after 6.3 and 6.6
+      why: 6.3 has no way to be used · done when: coins can be listed, frozen and chosen for a
+      send on the phone and the desktop; jsdom tests
+
+- [ ] **6.14 CPFP and cancel on screen** · M · both shells · after 6.4 and 6.6
+      why: 6.4 has no way to be used · done when: an unconfirmed incoming transaction offers
+      "Speed up", an outgoing one "Cancel", each with a preview; checked on the emulator
+
+- [ ] **6.15 PSBT import on screen** · M · both shells · after 6.5 and 6.6
+      why: 6.5 has no way to be used · done when: a PSBT can be pasted (or scanned, when it fits
+      one code), is described, signed and broadcast; checked on the emulator
+
+## Later — not picked
+
+Listed, not scheduled; each goes to the design canvas first unless marked otherwise.
+
+- Localization, Korean first, with a locale-aware number formatter
+- Labels and contacts (BIP21 `label` is parsed, then dropped)
 - The phone shell in the browser build on narrow, coarse-pointer viewports (no canvas — the
   boards exist)
-- A desktop Settings screen (today: Close wallet, then Key → Back)
-- Multi-recipient send on the phone
-- UTXO list and coin control on the phone
-- Focus rings in the phone stylesheet
-- CLI `rescan`, `send --max`, `tx <txid>` (no canvas)
-- Localization, Korean first, with a locale-aware number formatter
-- A browser keystore (WebCrypto with a password) so the web build can remember a wallet
-- Labels and contacts (BIP21 `label` is parsed, then dropped)
-- CPFP; cancel-by-replacement; PSBT import; auto-lock on background; fiat display; a theme
-  toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the signing key first)
+- Fiat display; a theme toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the
+  signing key first); animated QR (BC-UR) for PSBTs too large for one code
 
 ## Decisions
 
@@ -821,6 +905,9 @@ one starts when it is picked.
   Rust while dropping Go and Python (4.7).
 - 2026-09-29 — Bugs come first: the three found around the first tag are Round 5, and the
   product list moves to Round 6.
+- 2026-09-30 — Round 6 takes three bundles: finish what exists, security, power features.
+  Korean localization and the rest wait under "Later".
+- 2026-09-30 — The v0.1.0 draft release, which predates Round 5, is left as it is for now.
 
 ## Not doing
 
