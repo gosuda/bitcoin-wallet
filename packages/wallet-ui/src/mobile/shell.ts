@@ -7,6 +7,7 @@
  * wallet you have already opened is not a wizard.
  */
 
+import { canUnlockHere } from "../api";
 import { guardRoute } from "../guards";
 import { platform } from "../platform";
 import { currentRoute, navigate, type Route } from "../router";
@@ -58,7 +59,7 @@ function guard(route: Route): Route {
     {
       wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
       configType: session.config?.address_type ?? null,
-      unlockable: platform().canRememberWallet && session.remembered !== null,
+      unlockable: canUnlockHere(),
       hasResult: session.lastResult !== null,
       hasTxid: currentTxid() !== null,
     },
@@ -105,6 +106,6 @@ function render(): void {
 
 export function mount(): void {
   window.addEventListener("hashchange", render);
-  if (session.remembered && currentRoute() === "setup") navigate("unlock");
+  if (canUnlockHere() && currentRoute() === "setup") navigate("unlock");
   else render();
 }

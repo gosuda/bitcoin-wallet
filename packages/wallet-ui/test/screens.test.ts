@@ -114,7 +114,7 @@ vi.mock("../src/persist/indexeddb", () => ({
   deleteWalletState: async () => undefined,
 }));
 
-import { api } from "../src/api";
+import { api, canUnlockHere } from "../src/api";
 import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
 import { renderScan as renderPhoneScan } from "../src/mobile/screens/scan";
@@ -130,7 +130,7 @@ import { renderRestore } from "../src/screens/restore";
 import { renderSend } from "../src/screens/send";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
-import type { AppConfig } from "../src/types";
+import { type AppConfig, NETWORK_LABELS, type Network, type RememberedWallet } from "../src/types";
 
 // jsdom does no layout, so it has nothing to scroll; the preview asks it to.
 Element.prototype.scrollIntoView = vi.fn();
@@ -449,5 +449,110 @@ describe("every choice group has a name (3.9)", () => {
     expect(groupNames(mount(renderPhoneSettings()))).toEqual(["Address gap"]);
     at("receive");
     expect(groupNames(mount(renderPhoneReceive()))).toEqual(["Amount unit"]);
+  });
+});
+
+describe("a remembered wallet is reachable after Setup (6.2)", () => {
+  const SAVED: RememberedWallet = {
+    wallet_id: "testnet4-p2wpkh-fake",
+    address: fake.ADDRESS,
+    network: "testnet4",
+    address_type: "p2wpkh",
+  };
+
+  /** A device that keeps keys, with SAVED remembered on it; returns the key loader. */
+  function rememberSaved() {
+    const loadSecret = vi.fn(async () => ({ secret: "abandon abandon abandon", passphrase: null }));
+    setPlatform({
+      ...platform(),
+      canRememberWallet: true,
+      getRemembered: async () => SAVED,
+      loadSecret,
+    });
+    session.remembered = SAVED;
+    return loadSecret;
+  }
+
+  afterEach(() => {
+    session.remembered = null;
+  });
+
+  const SHELL_SETUPS = [
+    {
+      shell: "desktop",
+      render: renderSetup,
+      choose: (screen: HTMLElement, network: Network) =>
+        find<HTMLInputElement>(screen, `input[type=radio][value=${network}]`).click(),
+    },
+    {
+      shell: "phone",
+      render: renderPhoneSetup,
+      choose: (screen: HTMLElement, network: Network) =>
+        buttonNamed(
+          find(screen, "[role=radiogroup][aria-label=Network]"),
+          NETWORK_LABELS[network],
+        ).click(),
+    },
+  ] as const;
+
+  /** Chooses a network on Setup, presses Continue, and says where it went. */
+  async function continueOn(
+    setup: (typeof SHELL_SETUPS)[number],
+    network: Network,
+  ): Promise<string> {
+    at("setup");
+    const screen = mount(setup.render());
+    setup.choose(screen, network);
+    buttonNamed(screen, "Continue").click();
+    await settle();
+    return window.location.hash;
+  }
+
+  it.each(SHELL_SETUPS)(
+    "$shell Setup continues to Unlock on the wallet's own network",
+    async (setup) => {
+      rememberSaved();
+      expect(await continueOn(setup, "testnet4")).toBe("#/unlock");
+    },
+  );
+
+  it.each(SHELL_SETUPS)("$shell Setup continues to Key on any other network", async (setup) => {
+    rememberSaved();
+    expect(await continueOn(setup, "signet")).toBe("#/key");
+  });
+
+  it("Unlock is open only for a wallet saved on the chosen network, on a device that keeps keys", () => {
+    expect(canUnlockHere()).toBe(false);
+    rememberSaved();
+    expect(canUnlockHere()).toBe(true);
+    session.config = { ...CONFIG, network: "signet" };
+    expect(canUnlockHere()).toBe(false);
+    session.config = CONFIG;
+    setPlatform({ ...platform(), canRememberWallet: false });
+    expect(canUnlockHere()).toBe(false);
+  });
+
+  it("Unlock refuses a wallet saved on another network before it reads the key", async () => {
+    const loadSecret = rememberSaved();
+    session.config = {
+      ...CONFIG,
+      network: "signet",
+      backend: { kind: "esplora", url: "https://mempool.space/signet/api" },
+    };
+    await expect(api.unlockWallet()).rejects.toMatchObject({
+      code: "wrong_network",
+      message:
+        "The wallet saved on this device is on Testnet4. Choose Testnet4 in Setup to open it.",
+    });
+    expect(loadSecret).not.toHaveBeenCalled();
+    expect(session.wallet).toBeNull();
+  });
+
+  it("Unlock opens a wallet saved on the chosen network", async () => {
+    const loadSecret = rememberSaved();
+    const info = await api.unlockWallet();
+    expect(loadSecret).toHaveBeenCalledWith(SAVED.wallet_id);
+    expect(info.network).toBe("testnet4");
+    expect(session.wallet?.network).toBe("testnet4");
   });
 });

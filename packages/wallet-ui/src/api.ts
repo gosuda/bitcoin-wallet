@@ -29,7 +29,7 @@ import type {
   Utxo,
   WalletInfo,
 } from "./types";
-import { MAX_FEE_RATE_SAT_VB, WalletError } from "./types";
+import { MAX_FEE_RATE_SAT_VB, NETWORK_LABELS, WalletError } from "./types";
 import type { BuiltTx } from "./wasm";
 import {
   explorerTxUrl,
@@ -209,6 +209,19 @@ async function openWallet(
 }
 
 /**
+ * Whether Unlock can open the remembered wallet now: this device keeps keys,
+ * one is remembered, and it is on the network the settings name. The settings
+ * hold one server, so a wallet remembered on another network would otherwise
+ * be opened against a server for the wrong chain.
+ */
+export function canUnlockHere(): boolean {
+  const record = session.remembered;
+  return (
+    platform().canRememberWallet && record !== null && record.network === session.config?.network
+  );
+}
+
+/**
  * Opens the remembered wallet with the key loaded from the OS keystore. The
  * stored entry carries the passphrase too, so unlocking never asks for one.
  */
@@ -217,6 +230,16 @@ async function unlockWallet(): Promise<WalletInfo> {
     new WalletError("not_remembered", "no wallet is saved on this device");
   const record = await platform().getRemembered();
   if (!record) throw notRemembered();
+  // `install` keeps the settings' server and swaps only the network in, so a
+  // wallet from another network would sync against the wrong chain.
+  const config = await requireConfig();
+  if (record.network !== config.network) {
+    const saved = NETWORK_LABELS[record.network];
+    throw new WalletError(
+      "wrong_network",
+      `The wallet saved on this device is on ${saved}. Choose ${saved} in Setup to open it.`,
+    );
+  }
   const stored = await platform().loadSecret(record.wallet_id);
   if (!stored?.secret) throw notRemembered();
   const { info } = await install(

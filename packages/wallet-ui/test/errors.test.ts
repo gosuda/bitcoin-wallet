@@ -35,6 +35,7 @@ const ALL_CODES = [
   "no_wallet",
   "no_config",
   "not_remembered",
+  "wrong_network",
   "unknown_psbt",
   "internal",
   "config",

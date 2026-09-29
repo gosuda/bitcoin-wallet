@@ -1,4 +1,4 @@
-import { api } from "../../api";
+import { api, canUnlockHere } from "../../api";
 import { navigate } from "../../router";
 import { session } from "../../session";
 import {
@@ -68,7 +68,7 @@ export function renderSetup(): HTMLElement {
         };
         await api.setConfig(config);
         session.config = config;
-        navigate("key");
+        navigate(canUnlockHere() ? "unlock" : "key");
       } catch (e) {
         alert.show("error", errorMessage(e));
       }

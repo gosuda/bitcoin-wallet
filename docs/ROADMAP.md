@@ -803,13 +803,18 @@ items before it change no screen, so they land while that batch is reviewed.
       those rules, how the new commands parse, and a rescan gap out of range exiting with the
       core's code (21)
 
-- [ ] **6.2 A remembered wallet is reachable after Setup** · S · `guards.ts`, `api.ts`, both
+- [x] **6.2 A remembered wallet is reachable after Setup** · S · `guards.ts`, `api.ts`, both
   Setup screens (no canvas: routing only)
       why: Setup always continues to Key and Key never links to Unlock, so a remembered wallet
       is reachable only by restarting the app; and Unlock pairs the remembered wallet's
-      network with the current config's server · done when: Setup continues to Unlock when a
-      wallet is remembered for the chosen network; Unlock never opens a wallet against another
-      network's server; guard and api tests cover both
+      network with the current config's server · done: 2026-09-30 — both Setups continue to
+      Unlock when this device keeps a wallet for the network chosen there, and to Key
+      otherwise. Boot and both shells' guards ask the same question (`canUnlockHere`), so
+      Unlock is closed for a wallet saved on another network. Unlock itself refuses one before
+      it reads the key: "The wallet saved on this device is on Testnet4. Choose Testnet4 in
+      Setup to open it." (`wrong_network`). Seven jsdom tests cover both Setups, the guard's
+      input, the refusal and a matching unlock; breaking the routing, the network check or
+      the refusal fails four of them
 
 - [ ] **6.3 Coin control in the core** · M · `wallet.rs`, `wallet-wasm`, `wasm/index.ts`,
   `api.ts`
