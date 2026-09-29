@@ -69,7 +69,7 @@ jobs:
       # One workspace, one lockfile: install from the repo root.
       - run: pnpm install --frozen-lockfile
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signing and notarisation only happen when these secrets exist; the
