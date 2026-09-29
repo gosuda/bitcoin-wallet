@@ -439,12 +439,23 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       `wasm` job lints both crates' tests (`--all-targets`) and runs both suites on Node 22;
       README and RELEASING list the commands
 
-- [ ] **3.3 Regtest covers what shipped** · M · `crates/regtest-tests/tests/`
+- [x] **3.3 Regtest covers what shipped** · M · `crates/regtest-tests/tests/`
       why: drain, transaction detail, watch-only, passphrase wallets and multi-recipient sends
-      are proven only against the mock · done when: against a real node — a drain arrives as
-      exactly the reviewed amount with no change; detail shows fee, confirmations and ownership;
-      a watch-only instance mirrors the full wallet; a passphrase yields a distinct wallet; a
-      two-recipient send confirms
+      are proven only against the mock · done: 2026-09-29 — `tests/flows.rs`, three tests
+      against bitcoind + electrs, green in CI on their first run (29 s together). A
+      two-recipient send: each recipient's own wallet (one P2WPKH, one P2TR) holds exactly its
+      30,000 / 45,000 sat, and the sender's `transaction()` detail reads the reviewed fee,
+      `confirmations: 1`, a block height, the net amount, inputs that are ours, both payments
+      as not ours and exactly one change output of the reviewed change. A drain of two coins:
+      both inputs, no change, the destination's own wallet holds exactly `total_out_sat` (the
+      amount Review shows), the drained wallet is empty and its only output is not ours. A
+      watch-only copy opened from the full wallet's external public descriptor (what the
+      Public keys card shows), after a spend with change: the same balance, UTXOs, history and
+      next address as the full wallet; it builds a payment, and `sign` answers `unsupported`.
+      The passphrase case was already proven against a node: `hd.rs` has shown since
+      2026-09-03 that the same words under a passphrase get a different id and BIP84 addresses
+      from the passphrased seed, and see none of the words' coins. The "only against the
+      mock" above was wrong for that one
 
 - [ ] **3.4 One spelling for the nested type** · S · `keys.rs` (`AddressType::parse`),
   `crates/wallet-wasm/src/lib.rs`, `packages/wallet-ui/src/wasm/index.ts`
