@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/app.ts",
     "./platform": "./src/platform/index.ts",
+    "./net": "./src/net.ts",
     "./types": "./src/types.ts",
     "./bip21": "./src/bip21.ts",
     "./mobile-send": "./src/mobile/screens/send.ts",

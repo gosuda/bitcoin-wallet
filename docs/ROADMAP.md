@@ -134,7 +134,7 @@ or a signed transaction. Nothing visual.
       `found`/`supported` values, five shapes of garbage all refused as `malformed`); the
       regtest `state_survives_reopen_from_persister` green; 73 core tests, fmt and clippy
       (native + wasm32) all green. Not done: the reset-UI action that consumes `corrupt_state`
-      — Round 5, it needs a button.
+      — Round 6, it needs a button.
 
 - [x] **1.7 Desktop screens own their async results** · M · desktop `screens/dashboard.ts`,
   `screens/send.ts`, `screens/create.ts`, `screens/restore.ts`, `screens/key.ts`; mobile
@@ -737,7 +737,55 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       Mac architecture, an `.msi` and a `-setup.exe` for Windows, and a `.deb`, an `.AppImage`
       and an `.rpm` for Linux. Publishing it is left to the user
 
-## Round 5 — Product
+## Round 5 — Bugs first
+
+Branch `round-5-bugs-first`. What the checks around the first tag turned up, fixed before any
+new feature.
+
+- [x] **5.1 A first sync that can finish on a slow link** · M ·
+  `crates/wallet-core/src/backend/esplora.rs`, `packages/wallet-ui/src/net.ts`, both shells
+      why: the first sync is one full scan inside a 180 s budget, and a scan that runs out keeps
+      nothing, so a wallet whose history takes longer to fetch starts over every time and never
+      syncs; the BIP39 test phrase on signet did this over the emulator's ~265 ms link (4.5) ·
+      done: 2026-09-29 — a scan no longer has a budget of its own; each request has one. A
+      scan's length follows the history. After the scripts, BDK fetches one block hash per
+      confirmation height, one after another and with no progress signal, so no fixed window
+      fits every wallet. A first attempt that cut a scan off after two quiet minutes failed on
+      exactly that tail. Natively, reqwest already bounds each request. On wasm32,
+      `esplora-client` drops its timeout, so the shells' `fetch` now bounds each chain request
+      at 30 s (`net.ts`, used by the desktop, phone and browser shells). It rejects with the
+      value reqwest's wasm client reads as its own timeout, so the error stays the typed "did
+      not answer within 30 s". It also hands reqwest's cancellation to Tauri's HTTP plugin,
+      which never saw it before. `test/net.test.ts` has four tests, and taking away the limit
+      or the abort forwarding fails them. On an API 34 emulator with the release build, the
+      test phrase (281 transactions over 170 block heights) finished its first sync in about
+      200 s, where the old build failed at 180 s every time. Pointed at a server that accepts
+      and never answers, a sync failed after 30 s with "The backend did not answer within
+      30 s."
+
+- [x] **5.2 QR reading without Google Play Services** · S · `gen/android/app/build.gradle.kts`
+  (no canvas)
+      why: the scanner plugin decodes with Play Services' ML Kit model, downloaded on first use,
+      so a phone without Play Services opens the camera and never reads a code, and a new
+      install reads nothing until the download ends · done: 2026-09-29 — the app now depends
+      on `com.google.mlkit:barcode-scanning` 17.3.0, which puts ML Kit's barcode model in the
+      app (`libbarhopper_v3.so`, one per ABI). It sits on top of the Play Services artifact the
+      plugin takes its API from. A dependency substitution was tried first, and it cannot
+      work: the bundled artifact itself depends on that one. The release build ran on an API
+      34 emulator with Google Play Services disabled. Its logcat read "Considering local module
+      com.google.mlkit.dynamite.barcode:10000 and remote module …:0", then "Selected local
+      version", then the decoder starting, with no wait for a download. R8 keeps the module
+      descriptor that ML Kit looks up by name. The arm64 APK grows by 5.9 MB (16.8 → 22.8 MB).
+      No real QR code was decoded: the emulator's virtual camera cannot be aimed at its poster
+      without the emulator's window, and eight headings found nothing
+
+- [x] **5.3 No P2PK hint on desktop Setup** · S · `packages/wallet-ui/src/screens/setup.ts`
+      why: Setup's address type still says "P2PK funds are not discoverable by public indexers",
+      though P2PK has not been a choice there since #7 · done: 2026-09-29 — the hint is gone.
+      A jsdom test renders desktop Setup and finds no P2PK in it, matching the word on its own
+      because the P2PKH choice starts the same way. With the hint put back, the test fails
+
+## Round 6 — Product
 
 Listed, not scheduled. Each goes to the design canvas first unless marked otherwise; the next
 one starts when it is picked.
@@ -756,15 +804,6 @@ one starts when it is picked.
 - Labels and contacts (BIP21 `label` is parsed, then dropped)
 - CPFP; cancel-by-replacement; PSBT import; auto-lock on background; fiat display; a theme
   toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the signing key first)
-- A first sync that can finish on a slow link. The first sync is one full scan inside the
-  180 s scan budget, and a scan that runs out keeps nothing, so a wallet whose history takes
-  longer to fetch starts over every time and never syncs. The BIP39 test phrase on signet did
-  this over the emulator's ~265 ms link (4.5). Keeping what each pass found, or a longer
-  budget with progress, needs a decision first.
-- QR reading without Google Play Services. The Android scanner plugin uses Play Services'
-  ML Kit model (`play-services-mlkit-barcode-scanning`), downloaded on first use, so on a
-  phone without Play Services the camera opens and never reads a code. Bundling the model
-  means changing the plugin (no canvas)
 
 ## Decisions
 
@@ -780,6 +819,8 @@ one starts when it is picked.
 - 2026-09-29 — The browser build is not hosted; 4.10 moved to Not doing.
 - 2026-09-29 — CodeQL runs from `codeql.yml`, not the default setup, whose API cannot keep
   Rust while dropping Go and Python (4.7).
+- 2026-09-29 — Bugs come first: the three found around the first tag are Round 5, and the
+  product list moves to Round 6.
 
 ## Not doing
 
@@ -794,7 +835,7 @@ one starts when it is picked.
 - "The iOS entitlements file is empty" — correct for a signed app; signing adds the identifier.
 - The gradle `versionName "1.0"` default — the Tauri CLI rewrites `tauri.properties` from
   `tauri.conf.json` on every build; it only applies to a bare `./gradlew` run.
-- `forgetWallet` deleting the keystore entry — by design; the reset in Round 5 is the other path.
+- `forgetWallet` deleting the keystore entry — by design; the reset in Round 6 is the other path.
 - Coverage thresholds — a report may be added (3.8); no gate.
 - Hosting the browser build on Pages (was 4.10) — a hosted page that handles keys is a target
   for look-alike copies and for a poisoned deploy, and anyone can build and run it locally.

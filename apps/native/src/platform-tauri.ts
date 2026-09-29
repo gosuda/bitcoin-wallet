@@ -7,6 +7,7 @@
  * Nothing wallet-shaped crosses the IPC boundary.
  */
 
+import { installChainFetch } from "@bitcoin-wallet/ui/net";
 import type { Platform } from "@bitcoin-wallet/ui/platform";
 import {
   type AppConfig,
@@ -32,31 +33,15 @@ import { load as loadStore } from "@tauri-apps/plugin-store";
  * leave this origin are handed to the HTTP plugin, which performs them in Rust.
  *
  * Only cross-origin http(s) is diverted. App assets, the dev server and
- * anything relative stay on the webview's own `fetch`.
+ * anything relative stay on the webview's own `fetch`. Each diverted request is
+ * also cut off after 30 s, since the core cannot bound one itself here — see
+ * `@bitcoin-wallet/ui/net`.
  *
  * The browser build has no such escape and still needs the header from the
  * server, which is why the wallet cannot simply assume every endpoint works.
  */
 export function installNativeFetch(): void {
-  const webFetch = globalThis.fetch.bind(globalThis);
-
-  const leavesThisOrigin = (url: string): boolean => {
-    try {
-      const target = new URL(url, globalThis.location.href);
-      return (
-        (target.protocol === "https:" || target.protocol === "http:") &&
-        target.origin !== globalThis.location.origin
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const url =
-      input instanceof Request ? input.url : input instanceof URL ? input.href : String(input);
-    return leavesThisOrigin(url) ? nativeFetch(input, init) : webFetch(input, init);
-  };
+  installChainFetch(nativeFetch);
 }
 
 const STORE_FILE = "config.json";

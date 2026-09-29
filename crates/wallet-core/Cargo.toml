@@ -34,7 +34,7 @@ zeroize = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 bdk_esplora = { version = "0.22.2", default-features = false, features = ["async-https-rustls", "tokio"], optional = true }
-# Only for the scan deadline in backend/esplora.rs, so it rides on that
+# Only for the call deadline in backend/esplora.rs, so it rides on that
 # feature rather than every native build: the Tauri shell takes this crate for
 # the keystore alone and has no reason to link a timer. bdk_esplora already
 # pulls tokio in wherever the backend is on; this asks for its timer as well.

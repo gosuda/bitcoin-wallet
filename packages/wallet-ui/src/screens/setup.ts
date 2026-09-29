@@ -100,7 +100,7 @@ export function renderSetup(): HTMLElement {
         url,
         "Any Esplora-compatible API — mempool.space, blockstream.info, electrs, bitcoin-rs.",
       ),
-      field("Address type", typeGroup, "P2PK funds are not discoverable by public indexers."),
+      field("Address type", typeGroup),
     ]),
     el("div", { className: "actions actions-end" }, [next]),
   ]);

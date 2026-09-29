@@ -405,6 +405,16 @@ function groupNames(screen: HTMLElement): string[] {
   return [...screen.querySelectorAll("[role=radiogroup]")].map(nameOf);
 }
 
+describe("Setup names only what it offers (5.3)", () => {
+  it("the desktop says nothing of P2PK, which cannot be chosen", () => {
+    at("setup");
+    const screen = mount(renderSetup());
+    // Word-bounded, since the P2PKH label that is offered starts the same way.
+    expect(screen.textContent).not.toMatch(/\bP2PK\b/i);
+    expect(screen.textContent).toContain("P2PKH");
+  });
+});
+
 describe("every choice group has a name (3.9)", () => {
   it("on the desktop", async () => {
     at("setup");

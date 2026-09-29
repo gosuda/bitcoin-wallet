@@ -90,6 +90,14 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
+    // The QR scanner plugin decodes with ML Kit's unbundled model, which Google
+    // Play Services downloads on first use: a phone without Play Services opens
+    // the camera and never reads a code, and a new install reads nothing until the
+    // download ends. This adds the model itself, with a native library per ABI, on
+    // top of the same API, and ML Kit loads it from the app when Play Services
+    // offers none. Dependabot does not watch these Gradle files, so the version is
+    // bumped by hand.
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
