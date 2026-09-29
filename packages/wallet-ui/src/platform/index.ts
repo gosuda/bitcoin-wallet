@@ -41,11 +41,16 @@ export interface Platform {
   /**
    * Reads a QR code with the camera, or resolves `null` if the user cancels.
    *
+   * The camera is drawn behind the webview, so the screen that calls this has
+   * to be see-through while it runs. Aborting `signal` stops the camera and
+   * resolves `null` — the way out when the user leaves that screen, since the
+   * camera itself offers none.
+   *
    * Optional because only a phone has one. Screens must check for it rather
    * than assume: the browser and desktop shells leave it undefined, and the
    * Scan tab is hidden where it is missing.
    */
-  scanQr?(): Promise<string | null>;
+  scanQr?(signal?: AbortSignal): Promise<string | null>;
 
   /**
    * Asks the OS to confirm the user is present, rejecting if it cannot.

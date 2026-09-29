@@ -89,8 +89,14 @@ export async function keystoreAvailable(): Promise<boolean> {
  * The camera permission is asked for here because on Android the plugin's
  * `scan` never asks: without the permission it fails at once, so the first
  * scan on a new install could never open the camera.
+ *
+ * `windowed` puts the camera behind the webview. Without it the plugin lays the
+ * camera over the whole app with no control of its own, so nothing short of a
+ * readable QR code could end a scan: Android's back key only moved the hidden
+ * page, and iOS has no back key at all. Behind the page, the Scan screen stays
+ * usable, and leaving it aborts `signal`, which is what stops the camera.
  */
-async function scanQr(): Promise<string | null> {
+async function scanQr(signal?: AbortSignal): Promise<string | null> {
   const { scan, Format, cancel, checkPermissions, requestPermissions } = await import(
     "@tauri-apps/plugin-barcode-scanner"
   );
@@ -101,14 +107,19 @@ async function scanQr(): Promise<string | null> {
       "Camera access was refused. Allow it in Settings and try again, or paste the address.",
     );
   }
+  // The permission prompt can outlast the screen that asked for it.
+  if (signal?.aborted) return null;
+  const stop = (): void => void cancel().catch(() => undefined);
+  signal?.addEventListener("abort", stop, { once: true });
   try {
-    const result = await scan({ windowed: false, formats: [Format.QRCode] });
+    const result = await scan({ windowed: true, formats: [Format.QRCode] });
     return result.content;
   } catch (e) {
     if (/cancel/i.test(messageOf(e) ?? "")) return null;
     throw e;
   } finally {
-    // Leaving the camera running would keep the preview over the next screen.
+    signal?.removeEventListener("abort", stop);
+    // Leaving the camera running would keep it behind the next screen.
     await cancel().catch(() => undefined);
   }
 }

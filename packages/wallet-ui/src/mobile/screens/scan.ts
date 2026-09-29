@@ -11,11 +11,26 @@ import { prefillSend } from "./send";
  * The camera preview is rendered by the OS behind the webview, not by us, so
  * this screen is a reticle over a transparent page plus the two ways a scan can
  * end: a payment we understood, or something we did not.
+ *
+ * The page is only see-through while the camera runs (`data-scanning` on the
+ * root element); the rest of the time this screen is the dark layer drawn for
+ * it, in either theme.
  */
 export function renderScan(): HTMLElement {
   const onScreen = screenGuard();
   const alert = banner();
-  const host = el("main");
+  const host = el("main", { className: "m-scanner" });
+  const root = document.documentElement;
+
+  // The camera offers no way out of its own, so leaving this screen — a tab,
+  // or Android's back key — is what stops it.
+  const leaving = new AbortController();
+  const leave = (): void => {
+    leaving.abort();
+    delete root.dataset.scanning;
+    window.removeEventListener("hashchange", leave);
+  };
+  window.addEventListener("hashchange", leave);
 
   const reticle = el("div", { className: "m-reticle" }, [
     el("span"),
@@ -54,10 +69,11 @@ export function renderScan(): HTMLElement {
    */
   let scanning = false;
   const runScan = async (): Promise<void> => {
-    if (!scan || scanning) return;
+    if (!scan || scanning || leaving.signal.aborted) return;
     scanning = true;
+    root.dataset.scanning = "";
     try {
-      const text = await scan();
+      const text = await scan(leaving.signal);
       if (!onScreen()) return;
       // Null is a cancel, not a failure: say nothing and stay put.
       if (text !== null) accept(text, "scan");
@@ -65,6 +81,7 @@ export function renderScan(): HTMLElement {
       if (onScreen()) alert.show("error", errorMessage(e));
     } finally {
       scanning = false;
+      delete root.dataset.scanning;
     }
   };
 

@@ -117,10 +117,11 @@ vi.mock("../src/persist/indexeddb", () => ({
 import { api } from "../src/api";
 import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
+import { renderScan as renderPhoneScan } from "../src/mobile/screens/scan";
 import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
 import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
 import { renderSetup as renderPhoneSetup } from "../src/mobile/screens/setup";
-import { setPlatform } from "../src/platform";
+import { platform, setPlatform } from "../src/platform";
 import type { Route } from "../src/router";
 import { renderCreate } from "../src/screens/create";
 import { renderDashboard } from "../src/screens/dashboard";
@@ -322,6 +323,34 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(screen.querySelector(".banner-visible")).toBeNull();
     expect(buttonNamed(screen, "Confirm & broadcast")).toBeTruthy();
     expect(screen.textContent).toContain((1000).toLocaleString());
+  });
+
+  it("leaving Scan stops the camera it opened, and the page is solid again", async () => {
+    // A camera that runs until it is told to stop, as the real one does.
+    let signal: AbortSignal | undefined;
+    const scanQr = vi.fn(
+      (given?: AbortSignal) =>
+        new Promise<string | null>((resolve) => {
+          signal = given;
+          given?.addEventListener("abort", () => resolve(null), { once: true });
+        }),
+    );
+    setPlatform({ ...platform(), scanQr });
+    const root = document.documentElement;
+
+    at("scan");
+    mount(renderPhoneScan());
+    await settle();
+    expect(scanQr).toHaveBeenCalledTimes(1);
+    expect(signal?.aborted).toBe(false);
+    expect(root.dataset.scanning).toBe("");
+
+    leaveTo("dashboard");
+
+    expect(signal?.aborted).toBe(true);
+    expect(root.dataset.scanning).toBeUndefined();
+    await settle();
+    expect(root.dataset.scanning).toBeUndefined();
   });
 });
 
