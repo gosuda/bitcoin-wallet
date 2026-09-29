@@ -535,12 +535,30 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       now logs why. A jsdom test covers the queued notice (shown once, by the next banner);
       100 UI tests
 
-- [ ] **3.8 The routing and normalizing rules are tested** · M · `app.ts`, `mobile/shell.ts`,
+- [x] **3.8 The routing and normalizing rules are tested** · M · `app.ts`, `mobile/shell.ts`,
   `wasm/index.ts` → `wasm/normalize.ts`, `test/`
       why: the route guard tables, the `Map`-versus-object normalizers and `rateForTarget` are
-      the rules the screens trust, and none has a direct test; no test renders a screen · done
-      when: a pure `guardRoute()` with tests; normalizers importable without wasm and tested; a
-      jsdom harness with the wasm module mocked proves 1.3 and 1.7
+      the rules the screens trust, and none has a direct test; no test renders a screen · done:
+      2026-09-29 — the two guard tables are now one pure `guardRoute(route, state, shell)` in
+      `guards.ts`, which both shells call with their session read into a `GuardState`. Its 17
+      tests include one that runs every one of 72 states, every route and both shells, and
+      requires the answer to be a route the guard itself lets through. That test found a
+      two-hop redirect: a key screen without usable settings went to Setup, and Setup under
+      an open wallet then went on to the wallet, so the shell navigated twice. The guard now
+      follows chained rules to the end, and throws on a cycle, which that test shows cannot
+      happen. The redirects read the same in the live web app. The normalizers moved
+      unchanged to `wasm/normalize.ts`, which imports no wasm, and 8 tests feed them what
+      serde-wasm-bindgen really sends (nested `Map`s, `undefined` for `None`).
+      `rateForTarget` already had 5 direct tests in `feebump.test.ts`, since 2026-09-09; the
+      "none" above was wrong for it. `screens.test.ts` renders real screens in jsdom over the
+      real `api`, `session` and guards, and replaces only the wasm wrapper and the IndexedDB
+      persister. For 1.3, desktop Key, Restore and Create and all three modes of the phone's
+      Restore drop what was typed when the route changes. For 1.7, a sync released after
+      Close wallet stamps no sync time; leaving Send after Max discards the drain, whose
+      PSBT then answers `unknown_psbt`; and a return to Send builds a fresh transfer. Each
+      claim was mutation-checked: removing the dashboard's guard, Send's leave cleanup,
+      Key's wipe or the phone Restore's wipe each fails exactly its own test. 133 UI tests.
+      Not done: the optional coverage report
 
 - [ ] **3.9 Accessibility semantics** · M · `ui/dom.ts`, `mobile/ui.ts`, callers, both CSS
   files · **decision** on the number locale

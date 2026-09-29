@@ -1,6 +1,7 @@
 import "./ui/tokens.css";
 import "./ui/app.css";
 import { api } from "./api";
+import { guardRoute, KEY_ROUTES } from "./guards";
 import { platform } from "./platform";
 import { currentRoute, navigate, type Route } from "./router";
 import { renderCreate } from "./screens/create";
@@ -12,14 +13,11 @@ import { renderSend } from "./screens/send";
 import { renderSetup } from "./screens/setup";
 import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
-import { backendHost, errorMessage, isOpenable, NETWORK_LABELS } from "./types";
+import { backendHost, errorMessage, NETWORK_LABELS } from "./types";
 import { banner, clear, el, queueNotice } from "./ui/dom";
 import { brandMark, icon } from "./ui/icons";
 
 const STEPS = ["Setup", "Key", "Wallet"] as const;
-
-/** Every way of getting a key sits on step 1. */
-const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>(["key", "create", "restore", "unlock"]);
 
 function stepIndex(route: Route): number {
   if (route === "setup") return 0;
@@ -67,15 +65,6 @@ function topbar(route: Route): HTMLElement {
   ]);
 }
 
-/** Destinations only the phone shell has; desktop sends them to the wallet. */
-const MOBILE_ONLY: ReadonlySet<Route> = new Set<Route>([
-  "receive",
-  "scan",
-  "settings",
-  "tx",
-  "export",
-]);
-
 const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   setup: renderSetup,
   key: renderKey,
@@ -87,24 +76,19 @@ const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   result: renderResult,
 };
 
-/** Route guards: wallet screens need an open wallet, key screen needs config. */
+/** The rules live in `guards.ts`; this is where the desktop reads its state. */
 function guard(route: Route): Route {
-  if (MOBILE_ONLY.has(route)) return session.wallet ? "dashboard" : "setup";
-  // Setup rewrites the network under a live wallet handle; close it first.
-  if (route === "setup" && session.wallet) return "dashboard";
-  if ((route === "dashboard" || route === "send") && !session.wallet) return "setup";
-  // A watch-only wallet has nothing to sign with; the screen is not offered.
-  if (route === "send" && session.wallet?.is_watch_only) return "dashboard";
-  if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
-  // A config saved before P2PK stopped being openable can still name it, and
-  // Setup, which never offers it, is where a type is chosen again.
-  if (KEY_ROUTES.has(route) && (!session.config || !isOpenable(session.config.address_type))) {
-    return "setup";
-  }
-  // Unlock exists only where a key can outlive the session; in a browser there
-  // is nothing to unlock, so the route is unreachable rather than empty.
-  if (route === "unlock" && (!platform().canRememberWallet || !session.remembered)) return "key";
-  return route;
+  return guardRoute(
+    route,
+    {
+      wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
+      configType: session.config?.address_type ?? null,
+      unlockable: platform().canRememberWallet && session.remembered !== null,
+      hasResult: session.lastResult !== null,
+      hasTxid: false,
+    },
+    "desktop",
+  );
 }
 
 function render(): void {
