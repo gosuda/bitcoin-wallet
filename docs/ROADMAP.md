@@ -693,9 +693,18 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       Waiting on credentials: an Apple developer team and that API key. Until they exist the
       job is skipped, not failed
 
-- [ ] **4.7 CodeQL scans what ships** · S · repository setting, `README.md` · **admin**
+- [x] **4.7 CodeQL scans what ships** · S · repository setting, `README.md` · **admin**
       why: default setup scans Go and Python — the frozen reference and a design generator ·
-      done when: languages are actions, JavaScript/TypeScript and Rust; README matches
+      done: 2026-09-29 — the default setup's API cannot do this. Its PATCH accepts no `rust`
+      (only actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby and
+      swift, on both API versions), so dropping Go and Python there would drop Rust too. With
+      the OK given, `.github/workflows/codeql.yml` scans actions, javascript-typescript and rust
+      from source (`build-mode: none`) on pull requests, on pushes to `main` and weekly, and the
+      default setup is off (`not-configured`, read back). A probe branch that added itself to the
+      push trigger ran it once (36528289927). Actions checked 17 rules and JavaScript/TypeScript
+      87, with no results. Rust checked 26 in 8½ minutes and matched the three CLI alerts
+      already dismissed (#15–#17), which stay dismissed. The README says the Go reference is not
+      scanned
 
 - [x] **4.8 `justfile` and contributor documents** · S · `justfile`, `README.md`,
   `CONTRIBUTING.md`, `apps/native/design/README.md`, `docs/signet-rig/`
@@ -764,6 +773,8 @@ one starts when it is picked.
   plain digits and a `.` (3.9).
 - 2026-09-29 — The first tag is `v0.1.0`, cut from the merge of Round 4 (4.9).
 - 2026-09-29 — The browser build is not hosted; 4.10 moved to Not doing.
+- 2026-09-29 — CodeQL runs from `codeql.yml`, not the default setup, whose API cannot keep
+  Rust while dropping Go and Python (4.7).
 
 ## Not doing
 

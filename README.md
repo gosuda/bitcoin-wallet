@@ -220,8 +220,8 @@ has the whole recipe.
 `reference/go/` is the original `btctxbuilder` — a transaction-building library and a
 TUI, frozen. It is where behaviour came from and what parity is checked against; it is
 not built or shipped by anything here, and its own supported-type table does not
-describe the Rust wallet. CodeQL's default setup still scans it, alongside the code that
-does ship.
+describe the Rust wallet. CodeQL does not scan it: `.github/workflows/codeql.yml` covers
+the workflows, the TypeScript and the Rust that ship.
 
 ```bash
 cd reference/go && make run
