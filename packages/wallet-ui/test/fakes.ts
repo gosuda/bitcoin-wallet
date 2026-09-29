@@ -44,8 +44,11 @@ interface FakeState {
   estimate: Record<string, number>;
   /** What `import_psbt` and `sign_psbt` answer with. */
   psbtReview: PsbtReview | null;
-  /** When set, `open` fails as the core does on a record it cannot read. */
-  corrupt: boolean;
+  /**
+   * When set, `open` fails as the core does on a saved record it cannot use,
+   * for the reason given; deleting the record clears it.
+   */
+  corrupt: "malformed" | "mismatch" | "future_version" | null;
 }
 
 function freshState(): FakeState {
@@ -63,7 +66,7 @@ function freshState(): FakeState {
     watchOnly: false,
     estimate: { "6": 2 },
     psbtReview: null,
-    corrupt: false,
+    corrupt: null,
   };
 }
 
@@ -75,11 +78,14 @@ let syncGate: Promise<void> = Promise.resolve();
 class FakeWallet {
   static async open(): Promise<FakeWallet> {
     calls.push(["open"]);
-    if (state.corrupt) {
-      throw new WalletError("corrupt_state", "saved wallet data could not be read: malformed", {
-        reason: "malformed",
-        found: null,
-        supported: null,
+    const reason = state.corrupt;
+    if (reason !== null) {
+      // The core's own shape: `found` and `supported` only for a newer format.
+      const future = reason === "future_version";
+      throw new WalletError("corrupt_state", `saved wallet data could not be read: ${reason}`, {
+        reason,
+        found: future ? 2 : null,
+        supported: future ? 1 : null,
       });
     }
     return new FakeWallet();
@@ -233,6 +239,6 @@ export const persistModule = {
   /** Deleting the saved record is what clears a record the core cannot read. */
   deleteWalletState: async (walletId: string) => {
     calls.push(["deleteWalletState", walletId]);
-    state.corrupt = false;
+    state.corrupt = null;
   },
 };
