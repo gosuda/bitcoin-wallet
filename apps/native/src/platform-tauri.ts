@@ -85,9 +85,22 @@ export async function keystoreAvailable(): Promise<boolean> {
  * cancel is reported by the plugin as an error rather than a value — hence the
  * message check rather than a plain rethrow. That error is a plain
  * `{ message }` object, not an `Error`, so it is read with `messageOf`.
+ *
+ * The camera permission is asked for here because on Android the plugin's
+ * `scan` never asks: without the permission it fails at once, so the first
+ * scan on a new install could never open the camera.
  */
 async function scanQr(): Promise<string | null> {
-  const { scan, Format, cancel } = await import("@tauri-apps/plugin-barcode-scanner");
+  const { scan, Format, cancel, checkPermissions, requestPermissions } = await import(
+    "@tauri-apps/plugin-barcode-scanner"
+  );
+  let camera = await checkPermissions();
+  if (camera !== "granted") camera = await requestPermissions();
+  if (camera !== "granted") {
+    throw new Error(
+      "Camera access was refused. Allow it in Settings and try again, or paste the address.",
+    );
+  }
   try {
     const result = await scan({ windowed: false, formats: [Format.QRCode] });
     return result.content;

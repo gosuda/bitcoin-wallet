@@ -116,7 +116,7 @@ export function renderScan(): HTMLElement {
     ),
   );
 
-  // Opening the camera straight away is what a scan tab is for; the plugin
+  // Opening the camera straight away is what a scan tab is for; the platform
   // asks for permission the first time, so a refusal surfaces as an error
   // rather than a dead screen.
   void runScan();
