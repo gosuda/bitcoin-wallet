@@ -632,11 +632,23 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       the wasm core (Apple's clang has no wasm32 backend), which the release workflow's macOS
       legs would have hit on the first tag
 
-- [ ] **4.4 Android release signing** · S · `gen/android/app/build.gradle.kts`, `release.yml`,
+- [x] **4.4 Android release signing** · S · `gen/android/app/build.gradle.kts`, `release.yml`,
   `docs/RELEASING.md` · **credentials**
-      why: no `signingConfigs`, so a release APK cannot be signed from this project · done when:
-      a release config reads a gitignored `keystore.properties` or environment; the release
-      workflow's Android leg runs when the secrets exist; `apksigner verify` on a local build
+      why: no `signingConfigs`, so a release APK cannot be signed from this project · done:
+      2026-09-29 — `app/build.gradle.kts` gains `signingConfigs.release`, read from a gitignored
+      `gen/android/keystore.properties` or from the `ANDROID_KEYSTORE_*` environment. The
+      release build type uses it only when one of them exists. It was proven with a throwaway
+      key, valid for one day. Signed once through the properties file and once through the
+      environment, the arm64 release APK passed `apksigner verify --print-certs` both times
+      (APK Signature Scheme v2), naming "CN=Throwaway test key, O=not for release". With
+      neither, the build is `app-universal-release-unsigned.apk`, which does not verify, as
+      before. `release.yml` gains a `keys` job that reports which signing secrets exist, since
+      a job's `if` cannot read secrets. An `android` job that needs it builds all four ABIs
+      as a signed `.apk` and `.aab`, checks the APK with `apksigner`, and attaches both to
+      the draft release on a tag or keeps them as artifacts on a manual run. `RELEASING.md` has
+      the Android section: the four secrets, making the Play upload key, and the local recipe.
+      Waiting on credentials: the real upload key, set as those four secrets. Until then
+      the job is skipped, not failed
 
 - [ ] **4.5 Minification verified** · S · `gen/android/app/proguard-rules.pro` · after 4.4
       why: R8 is on for release and the rules file is all comments; the Kotlin keystore shim is

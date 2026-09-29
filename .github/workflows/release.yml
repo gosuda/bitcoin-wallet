@@ -117,3 +117,88 @@ jobs:
             target/*/release/bundle/**
           if-no-files-found: warn
           retention-days: 7
+
+  # Which store signing keys the repository holds. A phone leg below runs only
+  # when its key exists — without one there is nothing it could publish — and a
+  # job's `if` cannot read secrets directly, hence this job.
+  keys:
+    name: which signing keys exist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      android: ${{ steps.check.outputs.android }}
+    steps:
+      - id: check
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "android=${ANDROID_KEYSTORE_BASE64:+true}" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android (signed)
+    needs: [version, keys, bundle]
+    if: needs.keys.outputs.android == 'true'
+    runs-on: ubuntu-24.04
+    # All four ABIs, each a full release build of the Rust library.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android,wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: ./.github/actions/wasm-core
+      - run: pnpm install --frozen-lockfile
+
+      # The keystore exists only in this job's temporary directory; the Gradle
+      # build reads it through ANDROID_KEYSTORE_* (app/build.gradle.kts).
+      - name: Build the signed APK and app bundle
+        working-directory: apps/native
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          pnpm tauri android build --apk --aab --ci
+
+      - name: Check the APK carries the upload key's signature
+        run: |
+          apksigner=""
+          for tools in "$ANDROID_HOME"/build-tools/*/; do apksigner="${tools}apksigner"; done
+          for apk in apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk; do
+            "$apksigner" verify --print-certs "$apk"
+          done
+
+      - name: Attach to the draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload "$TAG" --clobber \
+            apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk \
+            apps/native/src-tauri/gen/android/app/build/outputs/bundle/*/*.aab
+
+      - name: Keep them for a manual run
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-release
+          path: |
+            apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
+            apps/native/src-tauri/gen/android/app/build/outputs/bundle/*/*.aab
+          if-no-files-found: error
+          retention-days: 7

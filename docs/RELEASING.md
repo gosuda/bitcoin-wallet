@@ -1,4 +1,4 @@
-# Releasing the desktop app
+# Releasing the apps
 
 `.github/workflows/release.yml` builds the installers. It runs in two modes:
 
@@ -15,7 +15,9 @@ git push origin v0.1.0
 ```
 
 Bundles produced: `.dmg` (macOS, one per architecture), `.msi`/`.exe`
-(Windows), `.deb`/`.AppImage`/`.rpm` (Linux). The wasm core is built first
+(Windows), `.deb`/`.AppImage`/`.rpm` (Linux). With the Android signing
+secrets set, also a signed `.apk` and `.aab` (see [Android](#android)); phone
+builds for testing are the separate `mobile bundles` workflow. The wasm core is built first
 because the frontend imports it.
 
 ## Signing
@@ -50,6 +52,36 @@ Not wired up. Tauri signs with `signtool` when
 `bundle.windows.certificateThumbprint` is set in `tauri.conf.json` and the
 certificate is installed on the runner — add that when a code-signing
 certificate exists.
+
+### Android
+
+The `android` job runs only when `ANDROID_KEYSTORE_BASE64` exists; without it the job is
+skipped, not failed. With it, the job builds a signed `.apk` and `.aab` for all four ABIs,
+checks the APK's signature with `apksigner`, and attaches both to the draft release (or
+keeps them as artifacts on a manual run).
+
+| Secret | What it is |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | base64 of the upload keystore |
+| `ANDROID_KEYSTORE_PASSWORD` | the keystore's password |
+| `ANDROID_KEY_ALIAS` | the key's alias inside it |
+| `ANDROID_KEY_PASSWORD` | the key's own password |
+
+For Google Play this is the **upload** key; Play App Signing keeps the key that signs
+what users install. Make one once and keep it somewhere safer than this repository:
+
+```bash
+keytool -genkeypair -v -keystore upload.keystore -alias upload \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -i upload.keystore | pbcopy   # paste into ANDROID_KEYSTORE_BASE64
+```
+
+To sign a build locally, put the same four values in
+`apps/native/src-tauri/gen/android/keystore.properties` (gitignored) as `storeFile`
+(an absolute path), `storePassword`, `keyAlias` and `keyPassword`, then
+`pnpm tauri android build --apk --aab` from `apps/native`. `app/build.gradle.kts`
+reads that file, or the `ANDROID_KEYSTORE_*` environment the workflow sets, and leaves
+a release build unsigned when neither exists.
 
 ## Version numbers
 
