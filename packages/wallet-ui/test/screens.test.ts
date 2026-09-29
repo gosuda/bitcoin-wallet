@@ -60,10 +60,19 @@ const fake = vi.hoisted(() => {
       return null;
     }
     async balance() {
-      return { confirmed: 50_000, trusted_pending: 0, untrusted_pending: 0, immature: 0 };
+      return {
+        confirmed: 50_000,
+        trusted_pending: 0,
+        untrusted_pending: 0,
+        immature: 0,
+        frozen: 0,
+      };
     }
     async list_utxos(): Promise<never[]> {
       return [];
+    }
+    async set_frozen(coin: unknown, frozen: boolean): Promise<void> {
+      coinCalls.push(["set_frozen", coin, frozen]);
     }
     async list_transactions(): Promise<never[]> {
       return [];
@@ -74,15 +83,26 @@ const fake = vi.hoisted(() => {
     async build_transfer(recipients: { amount_sat: number }[]) {
       return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0));
     }
+    async build_transfer_from(coins: unknown, recipients: { amount_sat: number }[]) {
+      coinCalls.push(["build_transfer_from", coins]);
+      return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0));
+    }
     async build_drain() {
+      return built(49_859);
+    }
+    async build_drain_from(coins: unknown) {
+      coinCalls.push(["build_drain_from", coins]);
       return built(49_859);
     }
     free(): void {}
   }
+  /** Every coin-control call the fake core received, oldest first. */
+  const coinCalls: unknown[][] = [];
 
   return {
     ADDRESS,
     FakeWallet,
+    coinCalls,
     /** Holds every `sync` open until `release` is called. */
     holdSync(): () => void {
       let release = (): void => {};
@@ -554,5 +574,26 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
     expect(loadSecret).toHaveBeenCalledWith(SAVED.wallet_id);
     expect(info.network).toBe("testnet4");
     expect(session.wallet?.network).toBe("testnet4");
+  });
+});
+
+describe("coin control reaches the core (6.3)", () => {
+  it("a build with chosen coins takes the coin-control path, and one without does not", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    fake.coinCalls.length = 0;
+    const coin = { txid: "ab".repeat(32), vout: 1 };
+    const pay = [{ address: fake.ADDRESS, amount_sat: 1000 }];
+
+    await api.buildTransfer(pay, 2, [coin]);
+    await api.buildDrain(fake.ADDRESS, 2, [coin]);
+    await api.buildTransfer(pay, 2);
+    await api.buildDrain(fake.ADDRESS, 2);
+    await api.setFrozen(coin, true);
+
+    expect(fake.coinCalls).toEqual([
+      ["build_transfer_from", [coin]],
+      ["build_drain_from", [coin]],
+      ["set_frozen", coin, true],
+    ]);
   });
 });

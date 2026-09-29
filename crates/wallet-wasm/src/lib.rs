@@ -16,7 +16,9 @@ use serde::Serialize;
 use wallet_core::bdk_wallet::ChangeSet;
 use wallet_core::bdk_wallet::chain::Merge;
 use wallet_core::persist::{Persister, changeset_from_json, changeset_to_json};
-use wallet_core::{AddressType, KeyMaterial, Network, Recipient, WalletConfig, WalletHandle};
+use wallet_core::{
+    AddressType, CoinId, KeyMaterial, Network, Recipient, WalletConfig, WalletHandle,
+};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
@@ -320,14 +322,25 @@ impl Wallet {
         }
     }
 
-    /// `{ confirmed, trusted_pending, untrusted_pending, immature }` in sats.
+    /// `{ confirmed, trusted_pending, untrusted_pending, immature, frozen }`
+    /// in sats. Frozen coins are counted in `frozen` and in nothing else.
     pub async fn balance(&self) -> Result<JsValue, JsValue> {
         to_js(&self.inner.balance().await)
     }
 
-    /// `[{ txid, vout, value, confirmations, address }]`, largest first.
+    /// `[{ txid, vout, value, confirmations, address, frozen }]`, largest first.
     pub async fn list_utxos(&self) -> Result<JsValue, JsValue> {
         to_js(&self.inner.list_utxos().await)
+    }
+
+    /// Freeze one coin, or unfreeze it. A frozen coin stays out of every
+    /// send until unfrozen; the choice is saved with the wallet.
+    pub async fn set_frozen(&self, txid: &str, vout: u32, frozen: bool) -> Result<(), JsValue> {
+        let coin = CoinId {
+            txid: txid.to_owned(),
+            vout,
+        };
+        self.inner.set_frozen(&coin, frozen).await.map_err(core_err)
     }
 
     /// `[{ txid, net_sat, sent_sat, received_sat, fee_sat, confirmations, timestamp }]`,
@@ -365,6 +378,25 @@ impl Wallet {
         to_js(&built)
     }
 
+    /// `build_transfer` funded by `coins` (`[{ txid, vout }]`) and nothing
+    /// else: every chosen coin is spent, and what is left comes back as change.
+    pub async fn build_transfer_from(
+        &self,
+        coins: JsValue,
+        recipients: JsValue,
+        fee_rate_sat_vb: f64,
+    ) -> Result<JsValue, JsValue> {
+        let coins: Vec<CoinId> = serde_wasm_bindgen::from_value(coins).map_err(other_err)?;
+        let recipients: Vec<Recipient> =
+            serde_wasm_bindgen::from_value(recipients).map_err(other_err)?;
+        let built = self
+            .inner
+            .build_transfer_from(&coins, &recipients, fee_rate_sat_vb)
+            .await
+            .map_err(core_err)?;
+        to_js(&built)
+    }
+
     /// Empty the wallet into `address`. Same shape as `build_transfer`;
     /// `total_out_sat` is exactly what arrives, since there is no change.
     pub async fn build_drain(
@@ -376,6 +408,24 @@ impl Wallet {
             &self
                 .inner
                 .build_drain(address, fee_rate_sat_vb)
+                .await
+                .map_err(core_err)?,
+        )
+    }
+
+    /// `build_drain` of `coins` (`[{ txid, vout }]`) alone: all of them, less
+    /// the fee, to `address`.
+    pub async fn build_drain_from(
+        &self,
+        coins: JsValue,
+        address: &str,
+        fee_rate_sat_vb: f64,
+    ) -> Result<JsValue, JsValue> {
+        let coins: Vec<CoinId> = serde_wasm_bindgen::from_value(coins).map_err(other_err)?;
+        to_js(
+            &self
+                .inner
+                .build_drain_from(&coins, address, fee_rate_sat_vb)
                 .await
                 .map_err(core_err)?,
         )

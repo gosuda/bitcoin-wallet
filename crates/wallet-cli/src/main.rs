@@ -195,7 +195,7 @@ impl CliError {
     /// Stable across runs, so a script can branch on `$?` instead of
     /// matching stderr text. 1 is a CLI-level failure with no code of its
     /// own; every `wallet_core::Error` variant gets its own number, in the
-    /// order [`Error::code`] itself documents them.
+    /// order the variants were added, so a number once given never changes.
     fn exit_code(&self) -> u8 {
         let CliError::Core(e) = self else {
             return 1;
@@ -219,6 +219,7 @@ impl CliError {
             Error::InvalidTxid(_) => 25,
             Error::NotReplaceable(_) => 26,
             Error::CorruptState { .. } => 27,
+            Error::UnknownCoin(_) => 28,
         }
     }
 }
@@ -570,6 +571,7 @@ mod tests {
                 found: None,
                 supported: None,
             },
+            Error::UnknownCoin("x".into()),
         ]
     }
 

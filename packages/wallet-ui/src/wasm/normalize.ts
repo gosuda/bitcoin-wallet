@@ -57,6 +57,7 @@ export function toUtxo(raw: unknown): Utxo {
     value: Number(read("value")),
     confirmations: optionalNumber(read("confirmations")),
     address: String(read("address")),
+    frozen: read("frozen") === true,
   };
 }
 

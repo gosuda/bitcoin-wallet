@@ -29,6 +29,7 @@ const ALL_CODES = [
   "dust",
   "fee_too_low",
   "no_utxos",
+  "unknown_coin",
   "invalid_txid",
   "not_replaceable",
   "corrupt_state",

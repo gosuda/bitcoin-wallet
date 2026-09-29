@@ -816,12 +816,20 @@ items before it change no screen, so they land while that batch is reviewed.
       input, the refusal and a matching unlock; breaking the routing, the network check or
       the refusal fails four of them
 
-- [ ] **6.3 Coin control in the core** · M · `wallet.rs`, `wallet-wasm`, `wasm/index.ts`,
+- [x] **6.3 Coin control in the core** · M · `wallet.rs`, `wallet-wasm`, `wasm/index.ts`,
   `api.ts`
-      why: sends choose coins on their own, and no coin can be kept out of them · done when:
-      freeze and unfreeze persist (BDK's `lock_outpoint`, saved in the ChangeSet); frozen coins
-      stay out of automatic selection, of Max and of the spendable balance; a send can be held
-      to chosen coins (`add_utxos` + `manually_selected_only`); core tests and regtest cover it
+      why: sends choose coins on their own, and no coin can be kept out of them · done:
+      2026-09-30 — `set_frozen` locks and unlocks a coin with BDK's `lock_outpoint`, saved in
+      the ChangeSet: a handle reopened from the same store sees the freeze, and then sees it
+      lifted. BDK's selection already leaves locked coins out of automatic sends and Max, but
+      its `balance()` counts them. So the balance now has a `frozen` part of its own: out of
+      spendable, still in the total. `build_transfer_from` and `build_drain_from` spend exactly
+      the chosen coins (`add_utxos` + `manually_selected_only`) and refuse a frozen one. A
+      chosen coin that is spent or not ours fails with the new `unknown_coin` (CLI exit 28).
+      The wasm bindings, the TS wrapper and `api` carry it all (`setFrozen`, and `coins` on
+      both builds), and `Utxo` and `Balance` say what is frozen. Four core tests and two UI
+      tests cover it. The regtest case `chosen_coins_move_and_a_frozen_one_stays` runs in CI's
+      regtest job, since this Mac cannot run bitcoind
 
 - [ ] **6.4 CPFP and cancel in the core** · M · `wallet.rs`, `wallet-wasm`, `api.ts`,
   `feebump.ts`

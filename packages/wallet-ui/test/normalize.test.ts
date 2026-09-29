@@ -46,7 +46,15 @@ describe("toUtxo", () => {
       value: 1000,
       confirmations: null,
       address: "tb1q",
+      frozen: false,
     });
+  });
+
+  it("reads a frozen coin as frozen and nothing else as frozen", () => {
+    const row = { txid: "ab", vout: 1, value: 1000, confirmations: 1, address: "tb1q" };
+    expect(toUtxo({ ...row, frozen: true }).frozen).toBe(true);
+    expect(toUtxo({ ...row, frozen: false }).frozen).toBe(false);
+    expect(toUtxo(row).frozen).toBe(false);
   });
 
   it("keeps a real count, and reads a Map row the same way", () => {

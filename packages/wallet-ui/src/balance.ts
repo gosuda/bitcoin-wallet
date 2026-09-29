@@ -8,9 +8,9 @@
 
 import type { Balance } from "./types";
 
-/** Everything the wallet is tracking, pending and immature included. */
+/** Everything the wallet is tracking, pending, immature and frozen included. */
 export function headlineSat(b: Balance): number {
-  return b.confirmed + b.trusted_pending + b.untrusted_pending + b.immature;
+  return b.confirmed + b.trusted_pending + b.untrusted_pending + b.immature + b.frozen;
 }
 
 /** What is still waiting on a confirmation. */

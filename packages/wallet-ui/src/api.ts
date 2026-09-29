@@ -16,6 +16,7 @@ import type {
   AppConfig,
   Balance,
   BroadcastResult,
+  CoinId,
   FeeEstimate,
   GeneratedKey,
   GeneratedMnemonic,
@@ -308,15 +309,40 @@ function requireRate(feeRateSatVb: number): void {
   }
 }
 
-async function buildTransfer(recipients: Recipient[], feeRateSatVb: number): Promise<TxPreview> {
+/**
+ * A payment. With `coins`, it is funded by those coins and no others, and
+ * every one of them is spent.
+ */
+async function buildTransfer(
+  recipients: Recipient[],
+  feeRateSatVb: number,
+  coins?: readonly CoinId[],
+): Promise<TxPreview> {
   requireRate(feeRateSatVb);
-  return retainPsbt(await requireWallet().build_transfer(recipients, feeRateSatVb));
+  const wallet = requireWallet();
+  return retainPsbt(
+    await (coins
+      ? wallet.build_transfer_from(coins, recipients, feeRateSatVb)
+      : wallet.build_transfer(recipients, feeRateSatVb)),
+  );
 }
 
-/** Everything to one address. The preview's `total_out_sat` is what arrives. */
-async function buildDrain(address: string, feeRateSatVb: number): Promise<TxPreview> {
+/**
+ * Everything to one address — or, with `coins`, all of those coins. The
+ * preview's `total_out_sat` is what arrives.
+ */
+async function buildDrain(
+  address: string,
+  feeRateSatVb: number,
+  coins?: readonly CoinId[],
+): Promise<TxPreview> {
   requireRate(feeRateSatVb);
-  return retainPsbt(await requireWallet().build_drain(address, feeRateSatVb));
+  const wallet = requireWallet();
+  return retainPsbt(
+    await (coins
+      ? wallet.build_drain_from(coins, address, feeRateSatVb)
+      : wallet.build_drain(address, feeRateSatVb)),
+  );
 }
 
 /**
@@ -380,11 +406,15 @@ export const api = {
   },
   getBalance: async (): Promise<Balance> => requireWallet().balance(),
   listUtxos: async (): Promise<Utxo[]> => requireWallet().list_utxos(),
+  /** A frozen coin stays out of every send, and of the spendable balance, until unfrozen. */
+  setFrozen: async (coin: CoinId, frozen: boolean): Promise<void> =>
+    requireWallet().set_frozen(coin, frozen),
   listTransactions: async (): Promise<TxSummary[]> => requireWallet().list_transactions(),
   estimateFee: async (): Promise<FeeEstimate> => requireWallet().estimate_fee(),
-  buildTransfer: (recipients: Recipient[], feeRateSatVb: number) =>
-    buildTransfer(recipients, feeRateSatVb),
-  buildDrain: (address: string, feeRateSatVb: number) => buildDrain(address, feeRateSatVb),
+  buildTransfer: (recipients: Recipient[], feeRateSatVb: number, coins?: readonly CoinId[]) =>
+    buildTransfer(recipients, feeRateSatVb, coins),
+  buildDrain: (address: string, feeRateSatVb: number, coins?: readonly CoinId[]) =>
+    buildDrain(address, feeRateSatVb, coins),
   buildFeeBump: (txid: string, feeRateSatVb: number) => buildFeeBump(txid, feeRateSatVb),
   signAndBroadcast: (psbtId: string) => signAndBroadcast(psbtId),
   discardTx: async (psbtId: string): Promise<void> => {

@@ -1,7 +1,7 @@
 //! The flows the app ships beyond a plain send, against a real node:
-//! a two-recipient send and the detail view of it, a drain, and a
-//! watch-only copy of a wallet. `send.rs` covers the plain send, fee bump and
-//! reopen; `hd.rs` the account layout and a passphrase's separate wallet.
+//! a two-recipient send and the detail view of it, a drain, a watch-only copy
+//! of a wallet, and coin control. `send.rs` covers the plain send, fee bump
+//! and reopen; `hd.rs` the account layout and a passphrase's separate wallet.
 
 // Only ever compiled as a test. Saying so lets clippy's test exemption
 // reach the helpers here, not just the #[test] functions.
@@ -13,7 +13,7 @@ use std::time::Duration;
 use bdk_testenv::TestEnv;
 use wallet_core::bitcoin::{Address, Amount, Txid};
 use wallet_core::{
-    AddressType, BackendConfig, BuiltTx, KeyMaterial, MemoryPersister, Network, Recipient,
+    AddressType, BackendConfig, BuiltTx, CoinId, KeyMaterial, MemoryPersister, Network, Recipient,
     WalletConfig, WalletHandle,
 };
 
@@ -294,6 +294,101 @@ async fn a_watch_only_copy_mirrors_the_full_wallet() -> anyhow::Result<()> {
         .await?;
     let refused = watcher.sign(&unsigned.psbt_base64).await.unwrap_err();
     assert_eq!(refused.code(), "unsupported");
+
+    Ok(())
+}
+
+/// The wallet's coin worth exactly `value_sat`.
+async fn coin_worth(wallet: &WalletHandle, value_sat: u64) -> CoinId {
+    let utxo = wallet
+        .list_utxos()
+        .await
+        .into_iter()
+        .find(|u| u.value == value_sat)
+        .unwrap_or_else(|| panic!("no coin of {value_sat} sat"));
+    CoinId {
+        txid: utxo.txid,
+        vout: utxo.vout,
+    }
+}
+
+/// Coin control on a real chain: a send held to one chosen coin spends that
+/// coin alone, a frozen coin stays where it is through a Max, and once
+/// unfrozen it is spendable again.
+#[tokio::test]
+async fn chosen_coins_move_and_a_frozen_one_stays() -> anyhow::Result<()> {
+    const SECOND_FUNDING_SAT: u64 = 75_000;
+    const THIRD_FUNDING_SAT: u64 = 50_000;
+    const SEND_SAT: u64 = 20_000;
+    let (env, url) = start()?;
+    let wallet = new_hd_wallet(&url).await?;
+    fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    fund(&env, &wallet.new_address().await?, SECOND_FUNDING_SAT)?;
+    fund(&env, &wallet.new_address().await?, THIRD_FUNDING_SAT)?;
+    confirm(&env)?;
+    wallet.sync().await?;
+    assert_eq!(wallet.list_utxos().await.len(), 3);
+
+    let big = coin_worth(&wallet, FUNDING_SAT).await;
+    wallet.set_frozen(&big, true).await?;
+    let balance = wallet.balance().await;
+    assert_eq!(balance.frozen, FUNDING_SAT);
+    assert_eq!(balance.spendable(), SECOND_FUNDING_SAT + THIRD_FUNDING_SAT);
+
+    // --- a send held to the smallest coin, though either other would do
+    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let small = coin_worth(&wallet, THIRD_FUNDING_SAT).await;
+    let built = wallet
+        .build_transfer_from(
+            std::slice::from_ref(&small),
+            &[Recipient {
+                address: destination.address().await,
+                amount_sat: SEND_SAT,
+            }],
+            2.0,
+        )
+        .await?;
+    let txid = send(&env, &wallet, &built).await?;
+    confirm(&env)?;
+    wallet.sync().await?;
+    let detail = wallet
+        .transaction(&txid)
+        .await?
+        .expect("the send is in the wallet's history");
+    let spent: Vec<(String, u32)> = detail
+        .inputs
+        .iter()
+        .map(|i| (i.txid.clone(), i.vout))
+        .collect();
+    assert_eq!(spent, vec![(small.txid.clone(), small.vout)]);
+
+    // --- Max: everything but the frozen coin
+    let max = wallet
+        .build_drain(&destination.address().await, 2.0)
+        .await?;
+    assert_eq!(max.input_count, 2, "the second funding and the change");
+    send(&env, &wallet, &max).await?;
+    confirm(&env)?;
+    wallet.sync().await?;
+    let left = wallet.list_utxos().await;
+    assert_eq!(left.len(), 1, "{left:?}");
+    assert_eq!(
+        (&left[0].txid, left[0].vout, left[0].frozen),
+        (&big.txid, big.vout, true)
+    );
+    let balance = wallet.balance().await;
+    assert_eq!((balance.frozen, balance.spendable()), (FUNDING_SAT, 0));
+
+    destination.sync().await?;
+    assert_eq!(
+        destination.balance().await.confirmed,
+        SEND_SAT + max.total_out_sat
+    );
+
+    // --- unfrozen, it counts again
+    wallet.set_frozen(&big, false).await?;
+    let balance = wallet.balance().await;
+    assert_eq!((balance.frozen, balance.confirmed), (0, FUNDING_SAT));
 
     Ok(())
 }

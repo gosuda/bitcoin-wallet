@@ -34,7 +34,7 @@ pub use keystore::{Keystore, MemoryKeystore};
 pub use network::Network;
 pub use persist::{MemoryPersister, Persister};
 pub use wallet::{
-    Balance, Broadcast, BuiltTx, PublicDescriptors, Recipient, TxDetail, TxInput, TxOutput,
+    Balance, Broadcast, BuiltTx, CoinId, PublicDescriptors, Recipient, TxDetail, TxInput, TxOutput,
     TxSummary, Utxo, WalletConfig, WalletHandle,
 };
 

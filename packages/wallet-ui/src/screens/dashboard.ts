@@ -621,7 +621,7 @@ export function renderDashboard(): HTMLElement {
     { name: "refresh" },
   );
 
-  renderBalance({ confirmed: 0, trusted_pending: 0, untrusted_pending: 0, immature: 0 });
+  renderBalance({ confirmed: 0, trusted_pending: 0, untrusted_pending: 0, immature: 0, frozen: 0 });
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
   txBox.appendChild(el("p", { className: "empty", text: "Loading…" }));

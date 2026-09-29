@@ -62,12 +62,16 @@ pub enum Error {
         required_sat_vb: Option<f64>,
         required_sat: Option<u64>,
     },
-    /// `manually_selected_only` was requested with nothing selected. Not
-    /// reachable through this wallet's own UI today, kept apart from
+    /// A send held to chosen coins was given none. Kept apart from
     /// [`Error::BuildTx`] for the same reason every other build failure this
     /// module can name precisely is.
     #[error("no coins were selected to fund this transaction")]
     NoUtxos,
+    /// A coin the caller named is not an unspent output of this wallet: spent
+    /// since the coin list was read, or never ours. Kept apart from
+    /// [`Error::BuildTx`] because the fix is to read the coins again.
+    #[error("not an unspent coin of this wallet: {0}")]
+    UnknownCoin(String),
     /// A txid string did not parse. Kept apart from [`Error::BuildTx`]
     /// because the fix is a different txid, not a different transaction.
     #[error("invalid transaction id: {0}")]
@@ -110,6 +114,7 @@ impl Error {
             Error::Dust { .. } => "dust",
             Error::FeeTooLow { .. } => "fee_too_low",
             Error::NoUtxos => "no_utxos",
+            Error::UnknownCoin(_) => "unknown_coin",
             Error::InvalidTxid(_) => "invalid_txid",
             Error::NotReplaceable(_) => "not_replaceable",
             Error::CorruptState { .. } => "corrupt_state",
@@ -271,6 +276,12 @@ mod tests {
                 "no coins were selected to fund this transaction",
             ),
             (
+                Error::UnknownCoin("x".into()),
+                "unknown_coin",
+                None,
+                "not an unspent coin of this wallet: x",
+            ),
+            (
                 Error::InvalidTxid("x".into()),
                 "invalid_txid",
                 None,
@@ -318,9 +329,10 @@ mod tests {
             Error::InvalidTxid(_) => 15,
             Error::NotReplaceable(_) => 16,
             Error::CorruptState { .. } => 17,
+            Error::UnknownCoin(_) => 18,
         }
     }
-    const VARIANTS: usize = 18;
+    const VARIANTS: usize = 19;
 
     #[test]
     fn the_table_covers_every_variant() {

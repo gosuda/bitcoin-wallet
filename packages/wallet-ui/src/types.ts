@@ -84,14 +84,22 @@ export interface Balance {
   trusted_pending: number;
   untrusted_pending: number;
   immature: number;
+  /** Frozen coins, whatever their state; counted here and in none of the four above. */
+  frozen: number;
 }
 
-export interface Utxo {
+/** One coin, named the way `Utxo` names it. */
+export interface CoinId {
   txid: string;
   vout: number;
+}
+
+export interface Utxo extends CoinId {
   value: number;
   confirmations: number | null;
   address: string;
+  /** Kept out of every send until unfrozen. */
+  frozen: boolean;
 }
 
 /** One wallet-relevant transaction, newest first from `list_transactions`. */

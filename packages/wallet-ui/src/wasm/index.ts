@@ -17,6 +17,7 @@ import type {
   AddressType,
   AppConfig,
   Balance,
+  CoinId,
   FeeEstimate,
   GeneratedKey,
   GeneratedMnemonic,
@@ -169,6 +170,11 @@ export class WalletApi {
     return rows.map(toUtxo);
   }
 
+  /** Freeze a coin or unfreeze it; the choice is saved with the wallet. */
+  set_frozen(coin: CoinId, frozen: boolean): Promise<void> {
+    return this.inner.set_frozen(coin.txid, coin.vout, frozen);
+  }
+
   async list_transactions(): Promise<TxSummary[]> {
     const rows = (await this.inner.list_transactions()) as unknown[];
     return rows.map(toTxSummary);
@@ -182,12 +188,30 @@ export class WalletApi {
     return (await this.inner.build_transfer(recipients, feeRateSatVb)) as BuiltTx;
   }
 
+  /** `build_transfer` funded by `coins` alone; every one of them is spent. */
+  async build_transfer_from(
+    coins: readonly CoinId[],
+    recipients: Recipient[],
+    feeRateSatVb: number,
+  ): Promise<BuiltTx> {
+    return (await this.inner.build_transfer_from(coins, recipients, feeRateSatVb)) as BuiltTx;
+  }
+
   /**
    * Everything the wallet has, to one address, minus the fee. `total_out_sat`
    * is exactly what arrives: there is no change output to absorb a rounding.
    */
   async build_drain(address: string, feeRateSatVb: number): Promise<BuiltTx> {
     return (await this.inner.build_drain(address, feeRateSatVb)) as BuiltTx;
+  }
+
+  /** `build_drain` of `coins` alone: all of them, less the fee, to one address. */
+  async build_drain_from(
+    coins: readonly CoinId[],
+    address: string,
+    feeRateSatVb: number,
+  ): Promise<BuiltTx> {
+    return (await this.inner.build_drain_from(coins, address, feeRateSatVb)) as BuiltTx;
   }
 
   /**
