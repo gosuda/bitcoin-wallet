@@ -122,11 +122,13 @@ shell's `package.json`. Every other copy — the four `package.json` files and t
 checked-in Xcode project's `Info.plist` and `project.yml` — is held in line by
 `scripts/check-version.sh`, which CI runs on every change.
 
-To release a new version, bump it in a pull request, then tag the merge:
+To release a new version, bump it in a pull request, then tag the merge. In the same
+pull request, move `CHANGELOG.md`'s Unreleased entries under a heading for the new
+version and its date, and point the links at the bottom at the new tag.
 
 ```bash
 just bump 0.2.0      # or scripts/bump-version.sh 0.2.0: rewrites every copy, then checks
-# … pull request, merged …
+# … CHANGELOG.md, pull request, merged …
 git tag v0.2.0 && git push origin v0.2.0
 ```
 

@@ -1,0 +1,53 @@
+# Changelog
+
+Notable changes to the wallet, newest first. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Numbers in brackets are the
+pull requests a change arrived in.
+
+## [Unreleased]
+
+## [0.1.0] - 2026-09-29
+
+The first version.
+
+### Added
+
+- **Apps.** A desktop app for macOS, Windows and Linux; an app for iOS 14 and Android 8.0
+  (API 26) and later, with a layout of its own; a browser build that holds the key for
+  the tab only; and `btcw`, a command-line wallet. (#3, #6, #7)
+- **Wallets.** BIP39 recovery phrases of 12 or 24 words, with an optional passphrase and
+  a backup check when a wallet is created; single keys, as hex or WIF; and watch-only
+  wallets from an xpub or a public descriptor. The address types are P2PKH, P2SH-P2WPKH,
+  P2WPKH and P2TR (key path), derived along BIP44, 49, 84 and 86. (#3, #5, #7)
+- **Networks.** Bitcoin, testnet4, signet, testnet3 and regtest. The phone offers the
+  first three. (#3, #7)
+- **Chain data** from an Esplora server of your choice. The desktop and phone apps make
+  those requests from Rust, so a server that sends no CORS headers still works there; the
+  browser build needs them. (#3, #7)
+- **Send.** Several recipients at once (one on the phone); a fee from a 1-, 3- or 6-block
+  estimate or a rate of your own; a review of amount, fee, change and size before
+  anything is signed; and Max, which spends everything with no change output. Every
+  transaction signals replace-by-fee, and one that is stuck can be bumped from the app or
+  with `btcw bump`. (#3, #5, #7)
+- **Receive.** A fresh address for each request from an HD wallet, as a QR code with an
+  optional BIP21 amount. (#5, #7)
+- **History.** Transactions with a detail view and an explorer link, a UTXO table on the
+  desktop, rescans with a gap of 20, 100 or 500 addresses, and an export of the public
+  descriptors and account xpub. (#3, #5, #7)
+- **Remember on this device.** The key can be kept in the OS key store — the macOS
+  Keychain, Windows Credential Manager, the Secret Service, the iOS Keychain or the
+  Android Keystore — and the phone asks for biometrics before reading it back, where the
+  device has them. The option is not offered where the key store fails its self-check.
+  (#5, #7)
+- **On the phone,** QR codes read with the camera, and `bitcoin:` links that open Send
+  already filled in. (#7, #36)
+- **Accessibility.** Named choice groups that move with the arrow keys, less motion when
+  the system asks for it, and numbers and dates in the device's own format. (#35)
+- **For developers.** A regtest suite against a real `bitcoind` and `electrs`; a
+  `justfile` for the common tasks; and a release workflow that builds every desktop
+  installer from a `v*` tag, and signs the macOS, Android and iOS builds once their keys
+  are set as repository secrets. (#5, #6, #7, #35, #36)
+
+[Unreleased]: https://github.com/gosuda/bitcoin-wallet/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/gosuda/bitcoin-wallet/releases/tag/v0.1.0

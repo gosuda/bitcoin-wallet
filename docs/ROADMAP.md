@@ -608,12 +608,21 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       `v0.1.1` against 0.1.0 fails. `RELEASING.md` describes it all; the push path filter
       gains `scripts/**` and `justfile`
 
-- [ ] **4.2 A changelog and honest tiers** · S · `CHANGELOG.md`, `SECURITY.md` · **admin** for
+- [x] **4.2 A changelog and honest tiers** · S · `CHANGELOG.md`, `SECURITY.md` · **admin** for
   the stale objects
       why: no changelog; SECURITY.md promises support for tagged releases that do not exist; a
       2024 draft release with a 92 MB asset and a branch from a closed PR are still on GitHub ·
-      done when: Keep-a-Changelog seeded from the merged PRs; the tier says "main only until
-      the first tag"; the draft and the branch are deleted; description and topics set
+      done: 2026-09-29 — `CHANGELOG.md` follows Keep a Changelog. Its first section, 0.1.0,
+      says what the first version holds, with the pull request each part came from (#3–#36).
+      It was drawn from the merged PR bodies and checked against the code; the fixes made
+      before any release are left out, since nobody ran a version that had them.
+      `RELEASING.md` adds the changelog step to a version bump. SECURITY.md says `main` is the
+      only supported version until the first release is tagged. With the OK given, through
+      `gh`, and read back: the 2024 draft release (id 186891304, one 92.7 MB asset named
+      "kava") is deleted, and so is the branch `fix/remediation-cb472262-242d4e` from PR #9;
+      the repository now reads "Bitcoin wallet for desktop, iOS, Android and the browser, on
+      one Rust (BDK) core", with the topics bitcoin, bitcoin-wallet, rust, bdk, tauri, wasm and
+      esplora
 
 - [x] **4.3 Phone bundles on demand** · M · `.github/workflows/mobile-bundle.yml`
       why: CI compiles the Rust library for three mobile targets and never assembles an app ·

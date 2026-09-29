@@ -104,6 +104,6 @@ Stated because you should know them, not because they are acceptable:
 
 | Version | Supported |
 |---|---|
-| `main` | ✅ |
-| tagged releases | latest only |
+| `main` | ✅ — the only supported version until the first release is tagged |
+| tagged releases | none yet; once there are, the latest only |
 | `reference/go/` | ❌ frozen |
