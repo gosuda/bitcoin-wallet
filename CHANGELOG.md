@@ -7,8 +7,17 @@ pull requests a change arrived in.
 
 ## [Unreleased]
 
+### Added
+
+- `btcw rescan` looks further past the last used address, `btcw tx <txid>` shows one
+  transaction in full, and `btcw send --max` sends everything to one address with no change
+  left over. (#39)
+
 ### Fixed
 
+- A wallet remembered on this device can be opened again after Setup: Setup now continues to
+  Unlock when the network chosen there is the wallet's own. Unlock refuses a wallet saved on
+  another network, which it used to open against the wrong chain's server. (#39)
 - A wallet with a long history can finish its first sync on a slow connection. A scan is no
   longer cut off after 180 s; each request to the server has 30 s instead, so a server that
   stops answering is still caught, and sooner. (#38)
