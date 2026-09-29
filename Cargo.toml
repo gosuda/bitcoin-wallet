@@ -3,6 +3,10 @@ resolver = "3"
 members = ["crates/*", "apps/native/src-tauri"]
 
 [workspace.package]
+# The one place the version is written. The crates inherit it; everything else
+# that states it is a copy scripts/check-version.sh holds in line, and
+# `just bump X.Y.Z` (scripts/bump-version.sh) rewrites them all together.
+version = "0.1.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/gosuda/bitcoin-wallet"

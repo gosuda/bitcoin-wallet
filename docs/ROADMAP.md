@@ -588,11 +588,25 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
 
 Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go with them.
 
-- [ ] **4.1 One version** · S · root `Cargo.toml`, crate manifests, `tauri.conf.json`,
+- [x] **4.1 One version** · S · root `Cargo.toml`, crate manifests, `tauri.conf.json`,
   `scripts/check-version.sh`, `justfile`
-      why: `0.1.0` is typed by hand in ten manifests and two Apple files · done when: the
-      workspace version is the source, a check script asserts the rest and runs in CI, `just
-      bump X.Y.Z` edits them all, and `release.yml` refuses a tag that disagrees
+      why: `0.1.0` is typed by hand in ten manifests and two Apple files · done: 2026-09-29 —
+      `[workspace.package] version` is the one place it is written. All five crates say
+      `version.workspace = true` (cargo metadata reads 0.1.0 for each). `tauri.conf.json` now
+      points at `../package.json`: tauri-build reads that file, shown by the build failing
+      ("must be a semver string") when the pointer names a missing one.
+      `scripts/check-version.sh` asserts every other copy (the four `package.json`, both
+      `CFBundle*` keys in the checked-in `Info.plist` and `project.yml`) and that no crate
+      states its own. Five mutations, one per kind of copy, each fail with an error naming
+      the file. It runs in the Linux `core` leg, next to a `just --list` that proves the
+      `justfile` parses (`just` is not on this Mac, so the recipes stay one-line calls into
+      scripts). `just bump X.Y.Z` runs `scripts/bump-version.sh`: in a throwaway clone,
+      bumping to 0.2.0 changed exactly the version lines of seven files plus the five
+      workspace entries in `Cargo.lock`, then passed its own check, and `v1.2.3` or `1.2` is
+      refused. `release.yml` has a `version` job that every bundle leg needs. On a tag it
+      runs the check with the tag (the tag goes in through `env`, not interpolation), and
+      `v0.1.1` against 0.1.0 fails. `RELEASING.md` describes it all; the push path filter
+      gains `scripts/**` and `justfile`
 
 - [ ] **4.2 A changelog and honest tiers** · S · `CHANGELOG.md`, `SECURITY.md` · **admin** for
   the stale objects

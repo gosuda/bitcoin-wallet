@@ -1,6 +1,6 @@
 [package]
 name = "bitcoin-wallet-app"
-version = "0.1.0"
+version.workspace = true
 description = "Bitcoin wallet app shell: desktop, iOS and Android"
 publish = false
 edition.workspace = true

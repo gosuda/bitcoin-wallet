@@ -53,8 +53,22 @@ certificate exists.
 
 ## Version numbers
 
-The version comes from `apps/native/src-tauri/tauri.conf.json`. Bump it in the
-same commit as the tag so the installer and the tag agree.
+The version is written once, as `version` under `[workspace.package]` in the
+root `Cargo.toml`. The crates inherit it, and `tauri.conf.json` reads it from the
+shell's `package.json`. Every other copy — the four `package.json` files and the
+checked-in Xcode project's `Info.plist` and `project.yml` — is held in line by
+`scripts/check-version.sh`, which CI runs on every change.
+
+To release a new version, bump it in a pull request, then tag the merge:
+
+```bash
+just bump 0.2.0      # or scripts/bump-version.sh 0.2.0: rewrites every copy, then checks
+# … pull request, merged …
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The release workflow checks the tag against the workspace before it builds
+anything, and stops on a mismatch.
 
 ## Before tagging
 

@@ -1,6 +1,6 @@
 [package]
 name = "regtest-tests"
-version = "0.1.0"
+version.workspace = true
 description = "End-to-end tests for wallet-core against a real bitcoind + Esplora on regtest"
 publish = false
 edition.workspace = true

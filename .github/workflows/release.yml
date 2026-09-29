@@ -14,8 +14,23 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # A tag names the version it releases. One that disagrees with the workspace
+  # would publish installers numbered differently from their tag, so nothing
+  # is built until the two match. A manual run just checks the copies agree.
+  version:
+    name: version matches the tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the version, and the tag when there is one
+        env:
+          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+        run: scripts/check-version.sh ${TAG:+"$TAG"}
+
   bundle:
     name: ${{ matrix.name }}
+    needs: version
     runs-on: ${{ matrix.os }}
     # Never run yet, so there is no measured duration to set this from; a
     # release build (thin LTO, one codegen unit, notarisation) is the slowest

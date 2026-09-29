@@ -16,6 +16,8 @@ on:
       - "tsconfig.base.json"
       - "pnpm-*"
       - "clippy.toml"
+      - "scripts/**"
+      - "justfile"
       - ".github/**"
   # No path filter: main's ruleset (docs/rulesets/main.json) requires these
   # jobs by name, and a required check that never reports holds a pull request
@@ -65,6 +67,19 @@ jobs:
       - name: wallet-core with no features
         if: runner.os == 'Linux'
         run: cargo clippy -p wallet-core --no-default-features -- -D warnings
+      # The version is written once, in Cargo.toml; every other copy has to
+      # agree, and the justfile that bumps them has to parse. Neither has
+      # anything per-OS about it.
+      - name: Every copy of the version agrees
+        if: runner.os == 'Linux'
+        run: scripts/check-version.sh
+      - uses: taiki-e/install-action@v2
+        if: runner.os == 'Linux'
+        with:
+          tool: just
+      - name: The justfile parses
+        if: runner.os == 'Linux'
+        run: just --list
       - run: cargo test -p wallet-core -p wallet-cli
       - run: cargo build -p wallet-cli --release
 
