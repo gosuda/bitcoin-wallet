@@ -134,7 +134,7 @@ or a signed transaction. Nothing visual.
       `found`/`supported` values, five shapes of garbage all refused as `malformed`); the
       regtest `state_survives_reopen_from_persister` green; 73 core tests, fmt and clippy
       (native + wasm32) all green. Not done: the reset-UI action that consumes `corrupt_state`
-      — Round 5, it needs a button.
+      — Round 6, it needs a button.
 
 - [x] **1.7 Desktop screens own their async results** · M · desktop `screens/dashboard.ts`,
   `screens/send.ts`, `screens/create.ts`, `screens/restore.ts`, `screens/key.ts`; mobile
@@ -737,7 +737,34 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       Mac architecture, an `.msi` and a `-setup.exe` for Windows, and a `.deb`, an `.AppImage`
       and an `.rpm` for Linux. Publishing it is left to the user
 
-## Round 5 — Product
+## Round 5 — Bugs first
+
+Branch `round-5-bugs-first`. What the checks around the first tag turned up, fixed before any
+new feature.
+
+- [ ] **5.1 A first sync that can finish on a slow link** · M ·
+  `crates/wallet-core/src/backend/`, `wallet.rs`
+      why: the first sync is one full scan inside a 180 s budget, and a scan that runs out keeps
+      nothing, so a wallet whose history takes longer to fetch starts over every time and never
+      syncs; the BIP39 test phrase on signet did this over the emulator's ~265 ms link (4.5) ·
+      done when: a scan is cut off only after two minutes without progress, not two minutes in
+      all; tests on both targets show a scan that keeps moving outliving the window and a
+      stalled one cut off; the test phrase's first sync finishes on the emulator
+
+- [ ] **5.2 QR reading without Google Play Services** · S · `gen/android/app/build.gradle.kts`
+  (no canvas)
+      why: the scanner plugin decodes with Play Services' ML Kit model, downloaded on first use,
+      so a phone without Play Services opens the camera and never reads a code, and a new
+      install reads nothing until the download ends · done when: the bundled model replaces it;
+      the release build's logcat shows no wait for a module; a QR code shown to the emulator's
+      camera opens Send filled in
+
+- [ ] **5.3 No P2PK hint on desktop Setup** · S · `packages/wallet-ui/src/screens/setup.ts`
+      why: Setup's address type still says "P2PK funds are not discoverable by public indexers",
+      though P2PK has not been a choice there since #7 · done when: the hint is gone, and a test
+      says Setup names no P2PK
+
+## Round 6 — Product
 
 Listed, not scheduled. Each goes to the design canvas first unless marked otherwise; the next
 one starts when it is picked.
@@ -756,15 +783,6 @@ one starts when it is picked.
 - Labels and contacts (BIP21 `label` is parsed, then dropped)
 - CPFP; cancel-by-replacement; PSBT import; auto-lock on background; fiat display; a theme
   toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the signing key first)
-- A first sync that can finish on a slow link. The first sync is one full scan inside the
-  180 s scan budget, and a scan that runs out keeps nothing, so a wallet whose history takes
-  longer to fetch starts over every time and never syncs. The BIP39 test phrase on signet did
-  this over the emulator's ~265 ms link (4.5). Keeping what each pass found, or a longer
-  budget with progress, needs a decision first.
-- QR reading without Google Play Services. The Android scanner plugin uses Play Services'
-  ML Kit model (`play-services-mlkit-barcode-scanning`), downloaded on first use, so on a
-  phone without Play Services the camera opens and never reads a code. Bundling the model
-  means changing the plugin (no canvas)
 
 ## Decisions
 
@@ -780,6 +798,8 @@ one starts when it is picked.
 - 2026-09-29 — The browser build is not hosted; 4.10 moved to Not doing.
 - 2026-09-29 — CodeQL runs from `codeql.yml`, not the default setup, whose API cannot keep
   Rust while dropping Go and Python (4.7).
+- 2026-09-29 — Bugs come first: the three found around the first tag are Round 5, and the
+  product list moves to Round 6.
 
 ## Not doing
 
@@ -794,7 +814,7 @@ one starts when it is picked.
 - "The iOS entitlements file is empty" — correct for a signed app; signing adds the identifier.
 - The gradle `versionName "1.0"` default — the Tauri CLI rewrites `tauri.properties` from
   `tauri.conf.json` on every build; it only applies to a bare `./gradlew` run.
-- `forgetWallet` deleting the keystore entry — by design; the reset in Round 5 is the other path.
+- `forgetWallet` deleting the keystore entry — by design; the reset in Round 6 is the other path.
 - Coverage thresholds — a report may be added (3.8); no gate.
 - Hosting the browser build on Pages (was 4.10) — a hosted page that handles keys is a target
   for look-alike copies and for a poisoned deploy, and anyone can build and run it locally.
