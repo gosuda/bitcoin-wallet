@@ -12,6 +12,7 @@
 use std::rc::Rc;
 
 use js_sys::{Function, Promise, Reflect};
+use serde::Serialize;
 use wallet_core::bdk_wallet::ChangeSet;
 use wallet_core::bdk_wallet::chain::Merge;
 use wallet_core::persist::{Persister, changeset_from_json, changeset_to_json};
@@ -39,8 +40,13 @@ fn core_err(e: wallet_core::Error) -> JsValue {
     // what a wire error looks like.
     let payload = wallet_core::ErrorPayload::from(&e);
     let err = js_error(payload.code, &payload.message);
+    // JSON-compatible, so `details` is the value `JSON.parse` gives the Tauri
+    // side: a plain object, with `null` for a missing value. The default
+    // serializer makes an ES `Map` of a JSON object, and the UI's
+    // `details.needed_sat` reads `undefined` from a `Map`.
     if let Some(details) = payload.details
-        && let Ok(js_details) = serde_wasm_bindgen::to_value(&details)
+        && let Ok(js_details) =
+            details.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
     {
         let _ = Reflect::set(&err, &JsValue::from_str("details"), &js_details);
     }

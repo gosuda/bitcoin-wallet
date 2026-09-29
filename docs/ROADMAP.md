@@ -110,7 +110,12 @@ or a signed transaction. Nothing visual.
       full workspace typechecks, biome-checks, and `pnpm -r build` succeeds against a real
       `wasm-pack build` of the changed wasm crate (not just clippy); 69 core tests, fmt and
       clippy (native + wasm32) all green. Not done: a live click-through in a running browser —
-      the unit tests exercise the exact same shapes the real path produces
+      the unit tests exercise the exact same shapes the real path produces. They did not:
+      `details` crossed the wasm boundary as a JS `Map`, which `details.needed_sat` cannot
+      read, so every wasm build fell back to the core's own sentence. The first wasm test (3.2)
+      found it on 2026-09-29 and it was fixed in its own commit. The click-through, done then,
+      reads "Need 95,528 more sat." for 100,000 sat from a 4,650 sat testnet4 wallet, where
+      the unfixed build said "insufficient funds: need 100178 sat, have 4650 sat"
 
 - [x] **1.6 Persisted state carries a version** · M · `crates/wallet-core/src/persist.rs`,
   `wallet.rs`, `error.rs`
