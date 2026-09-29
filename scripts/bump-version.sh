@@ -7,8 +7,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 next=${1:-}
-if [[ ! "$next" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "usage: $0 X.Y.Z (plain semver, no leading v)" >&2
+if [[ ! "$next" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+  echo "usage: $0 X.Y.Z (plain semver: no leading v, no leading zeroes)" >&2
   exit 2
 fi
 
