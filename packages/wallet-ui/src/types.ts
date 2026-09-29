@@ -164,6 +164,37 @@ export interface TxDetail {
   outputs: TxOutput[];
 }
 
+export interface PsbtInput {
+  txid: string;
+  vout: number;
+  /** From our own history for an input of ours; what the PSBT claims for anyone else's. */
+  value_sat: number | null;
+  /** Going by this wallet's own history, never by what the PSBT claims. */
+  ours: boolean;
+  /** Carries its final script: nothing is left to sign on it. */
+  finalized: boolean;
+}
+
+/** What a PSBT made elsewhere would do, as far as this wallet can tell. */
+export interface PsbtReview {
+  /** The PSBT with this wallet's part added; pass it on or broadcast it. */
+  psbt_base64: string;
+  /** Known once every input is final; signing can still change it before that. */
+  txid: string | null;
+  inputs: PsbtInput[];
+  outputs: TxOutput[];
+  /** `null` unless every input's value is known. */
+  fee_sat: number | null;
+  /** Exact once final, an upper bound while every input is ours, else `null`. */
+  vsize: number | null;
+  /** Our outputs less our inputs. */
+  net_sat: number;
+  /** Every input is final, so it can be broadcast. */
+  finalized: boolean;
+  /** An input of ours is still unsigned, and this wallet holds keys. */
+  signable: boolean;
+}
+
 /** The confirmation targets Send offers, in blocks. */
 export const FEE_TARGETS = [1, 3, 6] as const;
 export type FeeTarget = (typeof FEE_TARGETS)[number];

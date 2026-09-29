@@ -848,12 +848,23 @@ items before it change no screen, so they land while that batch is reviewed.
       cases `a_child_pays_for_a_payment_someone_else_sent` and `a_cancel_takes_a_send_back`
       run in CI's regtest job
 
-- [ ] **6.5 PSBT import in the core** · L · `wallet.rs`, `wallet-wasm`, `api.ts`
+- [x] **6.5 PSBT import in the core** · L · `wallet.rs`, `wallet-wasm`, `api.ts`
       why: a transaction made elsewhere cannot be signed or sent here, and a watch-only wallet
-      cannot send what another device signed · done when: an imported PSBT is described
-      (inputs ours or not, outputs, fee), our inputs are filled in and signed where we hold the
-      key, and broadcast refuses anything not fully finalized — which today's `extract_tx`
-      does not check; core tests and regtest cover a two-wallet round trip
+      cannot send what another device signed · done: 2026-09-30 — `import_psbt` reads a PSBT
+      in base64 or hex. It writes this wallet's own record of every coin of ours being spent
+      over whatever the PSBT claims, and finalizes signatures made elsewhere that our
+      descriptors can complete. Then it describes the result: each input ours or not (by our
+      own history) and final or not, the outputs, the fee, the size once known, and the net
+      effect on this wallet. It also says whether the PSBT can go out and whether this wallet
+      can still sign. `sign_psbt` signs our inputs and leaves anyone else's alone.
+      `extract_tx`, and with it `broadcast`, now refuses a PSBT with any input not final.
+      Before, `Psbt::extract_tx` handed the backend a transaction with an empty signature. A
+      review carries a txid only once final, since a legacy or nested segwit signature changes
+      it. Six core tests: a watch-only copy's PSBT signed by the keys and sent by the copy, for
+      all four address types; partial signatures finalized on import; someone else's input
+      left unsigned; an unsigned PSBT refused; hex read like base64. `api.importPsbt`,
+      `signPsbt` and `broadcastPsbt` carry it to the screens. The regtest round trip
+      `a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_out` runs in CI's regtest job
 
 - [ ] **6.6 The Round 6 screens on the canvas** · M · `apps/native/design/`, a new Design
   canvas · **canvas review**

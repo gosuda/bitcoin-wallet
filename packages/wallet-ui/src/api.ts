@@ -21,6 +21,7 @@ import type {
   GeneratedKey,
   GeneratedMnemonic,
   Network,
+  PsbtReview,
   PublicDescriptors,
   Recipient,
   RememberedWallet,
@@ -379,7 +380,11 @@ async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
     throw new WalletError("unknown_psbt", "transaction preview expired; build it again");
   }
   pending.delete(psbtId);
-  const signed = await wallet.sign(psbt);
+  return broadcastSigned(wallet, await wallet.sign(psbt));
+}
+
+/** Sends a final PSBT; the core refuses one with an input still unsigned. */
+async function broadcastSigned(wallet: WalletApi, signed: string): Promise<BroadcastResult> {
   // Network acceptance and local persistence are reported separately by the
   // core: a persist failure must not be shown as a failed send.
   const out = await wallet.broadcast(signed);
@@ -437,6 +442,13 @@ export const api = {
   buildCancel: (txid: string, feeRateSatVb: number) => buildCancel(txid, feeRateSatVb),
   buildCpfp: (txid: string, packageRateSatVb: number) => buildCpfp(txid, packageRateSatVb),
   signAndBroadcast: (psbtId: string) => signAndBroadcast(psbtId),
+  /** Reads a PSBT made elsewhere, pasted as base64 or hex. Signs nothing. */
+  importPsbt: async (psbt: string): Promise<PsbtReview> => requireWallet().import_psbt(psbt),
+  /** Signs every input of ours; the review says whether it can go out yet. */
+  signPsbt: async (psbt: string): Promise<PsbtReview> => requireWallet().sign_psbt(psbt),
+  /** Sends an imported PSBT once every input is final. */
+  broadcastPsbt: async (psbt: string): Promise<BroadcastResult> =>
+    broadcastSigned(requireWallet(), psbt),
   discardTx: async (psbtId: string): Promise<void> => {
     pending.delete(psbtId);
   },

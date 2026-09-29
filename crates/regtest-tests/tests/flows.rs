@@ -1,8 +1,9 @@
 //! The flows the app ships beyond a plain send, against a real node:
 //! a two-recipient send and the detail view of it, a drain, a watch-only copy
-//! of a wallet, coin control, a child paying for its parent, and a cancel.
-//! `send.rs` covers the plain send, fee bump and reopen; `hd.rs` the account
-//! layout and a passphrase's separate wallet.
+//! of a wallet, coin control, a child paying for its parent, a cancel, and a
+//! PSBT signed by one wallet for another. `send.rs` covers the plain send, fee
+//! bump and reopen; `hd.rs` the account layout and a passphrase's separate
+//! wallet.
 
 // Only ever compiled as a test. Saying so lets clippy's test exemption
 // reach the helpers here, not just the #[test] functions.
@@ -494,6 +495,61 @@ async fn a_cancel_takes_a_send_back() -> anyhow::Result<()> {
     );
     let history = wallet.list_transactions().await;
     assert!(history.iter().all(|t| t.txid != first), "the send is gone");
+
+    Ok(())
+}
+
+/// PSBT import, end to end: a watch-only copy makes a payment, the wallet
+/// holding the keys signs it from the PSBT alone, and the copy broadcasts
+/// what came back. The node judges the signatures.
+#[tokio::test]
+async fn a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_out() -> anyhow::Result<()> {
+    const SEND_SAT: u64 = 40_000;
+    let (env, url) = start()?;
+    let keys = new_hd_wallet(&url).await?;
+    fund(&env, &keys.address().await, FUNDING_SAT)?;
+    confirm(&env)?;
+    keys.sync().await?;
+    let descriptor = keys.public_descriptors().await.external;
+    let watcher = open(&url, &KeyMaterial::parse(&descriptor)).await?;
+    assert!(watcher.is_watch_only());
+    watcher.sync().await?;
+
+    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let unsigned = watcher
+        .build_transfer(
+            &[Recipient {
+                address: destination.address().await,
+                amount_sat: SEND_SAT,
+            }],
+            2.0,
+        )
+        .await?;
+    let refused = watcher.broadcast(&unsigned.psbt_base64).await.unwrap_err();
+    assert_eq!(
+        refused.code(),
+        "psbt",
+        "an unsigned PSBT never reaches the node"
+    );
+
+    let review = keys.import_psbt(&unsigned.psbt_base64).await?;
+    assert!(review.signable && !review.finalized);
+    let signed = keys.sign_psbt(&review.psbt_base64).await?;
+    assert!(signed.finalized);
+
+    let back = watcher.import_psbt(&signed.psbt_base64).await?;
+    let sent = watcher.broadcast(&back.psbt_base64).await?;
+    assert_eq!(Some(sent.txid.clone()), back.txid);
+    env.wait_until_electrum_sees_txid(Txid::from_str(&sent.txid)?, TIMEOUT)?;
+    confirm(&env)?;
+
+    destination.sync().await?;
+    assert_eq!(destination.balance().await.confirmed, SEND_SAT);
+    keys.sync().await?;
+    assert_eq!(
+        keys.balance().await.confirmed,
+        FUNDING_SAT - SEND_SAT - unsigned.fee_sat
+    );
 
     Ok(())
 }

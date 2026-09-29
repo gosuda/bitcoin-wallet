@@ -479,6 +479,19 @@ impl Wallet {
         )
     }
 
+    /// Read a PSBT made elsewhere (base64 or hex): this wallet's record of
+    /// its own coins goes in, signatures it can complete are finalized, and
+    /// the result comes back described. Signs nothing.
+    pub async fn import_psbt(&self, psbt: &str) -> Result<JsValue, JsValue> {
+        to_js(&self.inner.import_psbt(psbt).await.map_err(core_err)?)
+    }
+
+    /// Sign every input of ours in a PSBT made elsewhere. Same shape as
+    /// `import_psbt`; `finalized` says whether it can be broadcast yet.
+    pub async fn sign_psbt(&self, psbt: &str) -> Result<JsValue, JsValue> {
+        to_js(&self.inner.sign_psbt(psbt).await.map_err(core_err)?)
+    }
+
     /// Sign + finalize a PSBT (base64) produced by `build_transfer`.
     pub async fn sign(&self, psbt_base64: &str) -> Result<String, JsValue> {
         self.inner.sign(psbt_base64).await.map_err(core_err)

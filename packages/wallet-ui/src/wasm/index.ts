@@ -22,13 +22,21 @@ import type {
   GeneratedKey,
   GeneratedMnemonic,
   Network,
+  PsbtReview,
   PublicDescriptors,
   Recipient,
   TxDetail,
   TxSummary,
   Utxo,
 } from "../types";
-import { toFeeEstimate, toPublicDescriptors, toTxDetail, toTxSummary, toUtxo } from "./normalize";
+import {
+  toFeeEstimate,
+  toPsbtReview,
+  toPublicDescriptors,
+  toTxDetail,
+  toTxSummary,
+  toUtxo,
+} from "./normalize";
 import init, {
   explorer_tx_url,
   generate_key,
@@ -234,6 +242,16 @@ export class WalletApi {
 
   sign(psbtBase64: string): Promise<string> {
     return this.inner.sign(psbtBase64);
+  }
+
+  /** Reads a PSBT made elsewhere (base64 or hex). Signs nothing. */
+  async import_psbt(psbt: string): Promise<PsbtReview> {
+    return toPsbtReview(await this.inner.import_psbt(psbt));
+  }
+
+  /** Signs every input of ours in a PSBT made elsewhere, and finalizes what it can. */
+  async sign_psbt(psbt: string): Promise<PsbtReview> {
+    return toPsbtReview(await this.inner.sign_psbt(psbt));
   }
 
   async broadcast(signedPsbtBase64: string): Promise<Broadcast> {

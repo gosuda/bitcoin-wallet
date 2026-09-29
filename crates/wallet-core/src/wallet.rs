@@ -8,10 +8,11 @@
 use std::str::FromStr;
 
 use async_lock::Mutex;
+use bdk_wallet::bitcoin::hex::FromHex;
 use bdk_wallet::bitcoin::key::Secp256k1;
 use bdk_wallet::bitcoin::{
     Address, Amount, FeeRate, NetworkKind, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, Txid,
-    Weight,
+    Weight, WitnessVersion,
 };
 use bdk_wallet::chain::{CanonicalizationParams, ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
@@ -105,6 +106,52 @@ impl CoinId {
 
 fn parse_txid(txid: &str) -> Result<Txid> {
     Txid::from_str(txid).map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))
+}
+
+/// A PSBT in base64, or in hex as some tools write it.
+fn parse_psbt(text: &str) -> Result<Psbt> {
+    let text = text.trim();
+    // "psbt" and 0xff, the magic every PSBT starts with.
+    if text
+        .get(..10)
+        .is_some_and(|magic| magic.eq_ignore_ascii_case("70736274ff"))
+    {
+        let bytes = Vec::<u8>::from_hex(text).map_err(|e| Error::Psbt(e.to_string()))?;
+        return Psbt::deserialize(&bytes).map_err(|e| Error::Psbt(e.to_string()));
+    }
+    Psbt::from_str(text).map_err(|e| Error::Psbt(e.to_string()))
+}
+
+/// Puts this wallet's own record of each coin of ours a PSBT spends into it,
+/// over whatever the PSBT said: the output for a segwit spend, the whole
+/// previous transaction for all but taproot, as BDK's own builder does.
+/// What a signature of ours commits to then comes from our history, not
+/// from whoever made the PSBT.
+fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
+    let graph = wallet.tx_graph();
+    for (txin, input) in psbt.unsigned_tx.input.iter().zip(psbt.inputs.iter_mut()) {
+        let prev = txin.previous_output;
+        let Some(prev_tx) = graph.get_tx(prev.txid) else {
+            continue;
+        };
+        let Some(txout) = prev_tx.output.get(prev.vout as usize) else {
+            continue;
+        };
+        let Some(&(keychain, _)) = wallet.spk_index().index_of_spk(txout.script_pubkey.clone())
+        else {
+            continue;
+        };
+        let segwit = wallet
+            .public_descriptor(keychain)
+            .desc_type()
+            .segwit_version();
+        if segwit.is_some() {
+            input.witness_utxo = Some(txout.clone());
+        }
+        if segwit != Some(WitnessVersion::V1) {
+            input.non_witness_utxo = Some(prev_tx.as_ref().clone());
+        }
+    }
 }
 
 /// One wallet-relevant transaction, as shown in history.
@@ -212,6 +259,45 @@ pub struct TxDetail {
     pub vsize: u64,
     pub inputs: Vec<TxInput>,
     pub outputs: Vec<TxOutput>,
+}
+
+/// One input of a PSBT under review.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PsbtInput {
+    pub txid: String,
+    pub vout: u32,
+    /// From this wallet's own history for an input of ours; for anyone
+    /// else's, what the PSBT claims, or `None` where it says nothing.
+    pub value_sat: Option<u64>,
+    /// Spends a coin of this wallet's, going by its own history rather than
+    /// by anything the PSBT claims.
+    pub ours: bool,
+    /// Carries its final script: nothing is left to sign on it.
+    pub finalized: bool,
+}
+
+/// What a PSBT made elsewhere would do, as far as this wallet can tell.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PsbtReview {
+    /// The PSBT with this wallet's part added: its record of the coins of
+    /// ours being spent, and every signature it made or could finalize.
+    pub psbt_base64: String,
+    /// Known once every input is final. Before that it can still change: a
+    /// legacy or nested segwit input's signature is part of it.
+    pub txid: Option<String>,
+    pub inputs: Vec<PsbtInput>,
+    pub outputs: Vec<TxOutput>,
+    /// Inputs less outputs; `None` unless every input's value is known.
+    pub fee_sat: Option<u64>,
+    /// Exact once every input is final, an upper bound while every input is
+    /// ours, `None` otherwise.
+    pub vsize: Option<u64>,
+    /// What it does to this wallet: its outputs of ours less its inputs of ours.
+    pub net_sat: i64,
+    /// Every input is final, so it can be broadcast.
+    pub finalized: bool,
+    /// An input of ours is still unsigned, and this wallet holds keys.
+    pub signable: bool,
 }
 
 /// What a build aimed to pay, as the builder knows it.
@@ -1265,14 +1351,19 @@ impl WalletHandle {
         Ok((tx.weight() + satisfaction * tx.input.len() as u64 + segwit).to_vbytes_ceil())
     }
 
-    /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
-    pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
+    fn require_keys(&self) -> Result<()> {
         if self.watch_only {
             return Err(Error::Unsupported(
                 "a watch-only wallet cannot sign: it holds no private keys".into(),
             ));
         }
-        let mut psbt = Psbt::from_str(psbt_base64).map_err(|e| Error::Psbt(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
+    pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
+        self.require_keys()?;
+        let mut psbt = parse_psbt(psbt_base64)?;
         let inner = self.inner.lock().await;
         // External keychain first, then change — the order the deprecated
         // wallet-owned `Wallet::sign` used internally.
@@ -1289,9 +1380,128 @@ impl WalletHandle {
         Ok(psbt.to_string())
     }
 
-    /// Extract the transaction from a finalized PSBT.
+    /// Read a PSBT made elsewhere: by another wallet, a coordinator, or this
+    /// wallet's own watch-only copy.
+    ///
+    /// This wallet's record of the coins of ours it spends goes in, and every
+    /// signature already on it that our descriptors can complete is
+    /// finalized, so a watch-only wallet can broadcast what the device that
+    /// holds the keys signed. Nothing is signed here.
+    pub async fn import_psbt(&self, psbt: &str) -> Result<PsbtReview> {
+        let mut psbt = parse_psbt(psbt)?;
+        let inner = self.inner.lock().await;
+        fill_ours(&inner.wallet, &mut psbt);
+        inner
+            .wallet
+            .finalize_psbt(&mut psbt, SignOptions::default())
+            .map_err(|e| Error::Psbt(e.to_string()))?;
+        self.review(&inner, psbt)
+    }
+
+    /// Sign every input of ours in a PSBT made elsewhere, and finalize what
+    /// can be. Inputs that are not ours are left to their owners, so the
+    /// result may be final or still waiting on someone else: the review says
+    /// which.
+    pub async fn sign_psbt(&self, psbt: &str) -> Result<PsbtReview> {
+        self.require_keys()?;
+        let mut psbt = parse_psbt(psbt)?;
+        let inner = self.inner.lock().await;
+        fill_ours(&inner.wallet, &mut psbt);
+        let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
+        // What our signatures commit to was just filled in from this wallet's
+        // own history. So a PSBT that lacks someone else's previous
+        // transaction need not stop us signing ours.
+        let options = SignOptions {
+            trust_witness_utxo: true,
+            ..SignOptions::default()
+        };
+        inner
+            .wallet
+            .sign_with_signers(&mut psbt, &signers, options)
+            .map_err(|e| Error::Sign(e.to_string()))?;
+        self.review(&inner, psbt)
+    }
+
+    fn review(&self, inner: &Inner, psbt: Psbt) -> Result<PsbtReview> {
+        let wallet = &inner.wallet;
+        let graph = wallet.tx_graph();
+        let net = bdk_wallet::bitcoin::Network::from(self.network);
+        // Ours by our own history, valued by it too.
+        let own_values: Vec<Option<u64>> = psbt
+            .unsigned_tx
+            .input
+            .iter()
+            .map(|i| {
+                graph
+                    .get_txout(i.previous_output)
+                    .filter(|o| wallet.is_mine(o.script_pubkey.clone()))
+                    .map(|o| o.value.to_sat())
+            })
+            .collect();
+        let inputs: Vec<PsbtInput> = psbt
+            .unsigned_tx
+            .input
+            .iter()
+            .zip(&psbt.inputs)
+            .zip(&own_values)
+            .enumerate()
+            .map(|(n, ((txin, input), own))| PsbtInput {
+                txid: txin.previous_output.txid.to_string(),
+                vout: txin.previous_output.vout,
+                value_sat: own.or_else(|| psbt.spend_utxo(n).ok().map(|o| o.value.to_sat())),
+                ours: own.is_some(),
+                finalized: input.final_script_sig.is_some() || input.final_script_witness.is_some(),
+            })
+            .collect();
+        let outputs: Vec<TxOutput> = psbt
+            .unsigned_tx
+            .output
+            .iter()
+            .map(|o| TxOutput {
+                address: script_display(&o.script_pubkey, net),
+                value_sat: o.value.to_sat(),
+                ours: wallet.is_mine(o.script_pubkey.clone()),
+            })
+            .collect();
+        let spent: u64 = own_values.iter().flatten().sum();
+        let received: u64 = outputs.iter().filter(|o| o.ours).map(|o| o.value_sat).sum();
+        let finalized = !inputs.is_empty() && inputs.iter().all(|i| i.finalized);
+        let tx = finalized.then(|| psbt.clone().extract_tx_unchecked_fee_rate());
+        let vsize = match &tx {
+            Some(tx) => Some(tx.vsize() as u64),
+            None if inputs.iter().all(|i| i.ours) => {
+                Some(Self::signed_vsize(inner, &psbt.unsigned_tx)?)
+            }
+            None => None,
+        };
+        Ok(PsbtReview {
+            txid: tx.map(|tx| tx.compute_txid().to_string()),
+            fee_sat: psbt.fee().ok().map(|f| f.to_sat()),
+            vsize,
+            net_sat: received as i64 - spent as i64,
+            finalized,
+            signable: !self.watch_only && inputs.iter().any(|i| i.ours && !i.finalized),
+            inputs,
+            outputs,
+            psbt_base64: psbt.to_string(),
+        })
+    }
+
+    /// Extract the transaction from a finalized PSBT, refusing one that is
+    /// not. `Psbt::extract_tx` does not check: it takes an input with no
+    /// final script as it stands, and the node then rejects a transaction
+    /// with a missing signature.
     pub fn extract_tx(psbt_base64: &str) -> Result<Transaction> {
-        let psbt = Psbt::from_str(psbt_base64).map_err(|e| Error::Psbt(e.to_string()))?;
+        let psbt = parse_psbt(psbt_base64)?;
+        if let Some(n) = psbt
+            .inputs
+            .iter()
+            .position(|i| i.final_script_sig.is_none() && i.final_script_witness.is_none())
+        {
+            return Err(Error::Psbt(format!(
+                "input {n} is not signed: a transaction goes out only once every input is final"
+            )));
+        }
         psbt.extract_tx().map_err(|e| Error::Psbt(e.to_string()))
     }
 
@@ -2485,6 +2695,173 @@ mod tests {
         assert_eq!(err.code(), "not_replaceable");
         let err = handle.build_cancel("zz", 10.0).await.unwrap_err();
         assert_eq!(err.code(), "invalid_txid");
+    }
+
+    /// An HD wallet and a watch-only copy of it, both seeing the same
+    /// 100,000 sat coin; the copy's backend records what it broadcasts.
+    async fn keys_and_watcher(t: AddressType) -> (WalletHandle, WalletHandle, Arc<MockBackend>) {
+        let (keys, _) = open_hd(t).await;
+        let descriptor = keys.public_descriptors().await.external;
+        let (watcher, mock) = open_key(t, KeyMaterial::parse(&descriptor)).await;
+        assert!(watcher.is_watch_only(), "{descriptor}");
+        fund(&keys, 100_000).await;
+        fund(&watcher, 100_000).await;
+        (keys, watcher, mock)
+    }
+
+    /// The round trip PSBT import exists for: a watch-only copy makes the
+    /// transaction, the wallet holding the keys reads and signs it, and the
+    /// copy sends what came back. Every address type, since each fills in
+    /// its inputs differently.
+    #[tokio::test]
+    async fn a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_back() {
+        for t in [
+            AddressType::P2wpkh,
+            AddressType::P2tr,
+            AddressType::NestedP2wpkh,
+            AddressType::P2pkh,
+        ] {
+            let (keys, watcher, mock) = keys_and_watcher(t).await;
+            let unsigned = watcher.build_transfer(&pay(40_000), 2.0).await.unwrap();
+
+            let review = keys.import_psbt(&unsigned.psbt_base64).await.unwrap();
+            assert!(
+                review.inputs.iter().all(|i| i.ours && !i.finalized),
+                "{t:?}"
+            );
+            assert!(review.signable && !review.finalized, "{t:?}");
+            assert_eq!(review.txid, None, "{t:?}: not known until final");
+            assert_eq!(review.fee_sat, Some(unsigned.fee_sat), "{t:?}");
+            assert_eq!(review.vsize, Some(unsigned.vsize), "{t:?}");
+            assert_eq!(
+                review.net_sat,
+                -((40_000 + unsigned.fee_sat) as i64),
+                "{t:?}"
+            );
+            let paid: Vec<u64> = review
+                .outputs
+                .iter()
+                .filter(|o| !o.ours)
+                .map(|o| o.value_sat)
+                .collect();
+            assert_eq!(paid, vec![40_000], "{t:?}");
+            let err = watcher.sign_psbt(&review.psbt_base64).await.unwrap_err();
+            assert_eq!(err.code(), "unsupported", "{t:?}");
+
+            let signed = keys.sign_psbt(&review.psbt_base64).await.unwrap();
+            assert!(signed.finalized && !signed.signable, "{t:?}");
+            let exact = signed.vsize.expect("a final PSBT has an exact size");
+            assert!(
+                exact <= unsigned.vsize,
+                "{t:?}: the estimate is an upper bound"
+            );
+
+            let back = watcher.import_psbt(&signed.psbt_base64).await.unwrap();
+            assert!(back.finalized && !back.signable, "{t:?}");
+            let sent = watcher.broadcast(&back.psbt_base64).await.unwrap();
+            assert_eq!(Some(sent.txid), signed.txid, "{t:?}");
+            assert_eq!(mock.broadcasts.lock().unwrap().len(), 1, "{t:?}");
+        }
+    }
+
+    /// A hardware signer hands back signatures rather than final scripts.
+    /// Importing completes them from our own descriptor, so the watch-only
+    /// copy can send what the device signed.
+    #[tokio::test]
+    async fn signatures_made_elsewhere_are_finalized_on_import() {
+        let (keys, watcher, _) = keys_and_watcher(AddressType::P2wpkh).await;
+        let unsigned = watcher.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&unsigned.psbt_base64).unwrap();
+        {
+            let inner = keys.inner.lock().await;
+            let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
+            let options = SignOptions {
+                try_finalize: false,
+                ..SignOptions::default()
+            };
+            let done = inner
+                .wallet
+                .sign_with_signers(&mut psbt, &signers, options)
+                .unwrap();
+            assert!(!done);
+        }
+        assert!(
+            psbt.inputs
+                .iter()
+                .all(|i| !i.partial_sigs.is_empty() && i.final_script_witness.is_none())
+        );
+
+        let review = watcher.import_psbt(&psbt.to_string()).await.unwrap();
+        assert!(review.finalized);
+        watcher.broadcast(&review.psbt_base64).await.unwrap();
+    }
+
+    /// `Psbt::extract_tx` takes an unsigned input as it stands; the backend
+    /// is never asked to relay one.
+    #[tokio::test]
+    async fn broadcast_refuses_a_psbt_that_is_not_final() {
+        let (handle, mock) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let err = handle.broadcast(&built.psbt_base64).await.unwrap_err();
+        assert_eq!(err.code(), "psbt");
+        assert!(err.to_string().contains("not signed"), "{err}");
+        assert!(mock.broadcasts.lock().unwrap().is_empty());
+    }
+
+    /// An input that is not ours is described by what the PSBT claims and
+    /// left unsigned; ours is signed, and the whole cannot go out yet.
+    #[tokio::test]
+    async fn someone_elses_input_is_described_and_left_to_them() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let mut stranger = vec![0x00, 0x14];
+        stranger.extend([0x66; 20]);
+        psbt.unsigned_tx.input.push(TxIn {
+            previous_output: OutPoint {
+                txid: Txid::from_str(&"44".repeat(32)).unwrap(),
+                vout: 1,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            witness: Witness::new(),
+        });
+        psbt.inputs.push(bdk_wallet::bitcoin::psbt::Input {
+            witness_utxo: Some(TxOut {
+                value: Amount::from_sat(30_000),
+                script_pubkey: ScriptBuf::from_bytes(stranger),
+            }),
+            ..Default::default()
+        });
+
+        let review = handle.sign_psbt(&psbt.to_string()).await.unwrap();
+        let (ours, theirs) = (&review.inputs[0], &review.inputs[1]);
+        assert!(ours.ours && ours.finalized);
+        assert!(!theirs.ours && !theirs.finalized);
+        assert_eq!(theirs.value_sat, Some(30_000), "as the PSBT claims");
+        assert!(!review.finalized && !review.signable);
+        assert_eq!(review.vsize, None, "their input's size is not ours to know");
+        assert_eq!(review.fee_sat, Some(built.fee_sat + 30_000));
+        assert_eq!(review.net_sat, -((40_000 + built.fee_sat) as i64));
+        let err = handle.broadcast(&review.psbt_base64).await.unwrap_err();
+        assert_eq!(err.code(), "psbt");
+    }
+
+    #[tokio::test]
+    async fn a_psbt_reads_from_hex_as_from_base64() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let hex = Psbt::from_str(&built.psbt_base64).unwrap().serialize_hex();
+        let from_hex = handle.import_psbt(&format!(" {hex}\n")).await.unwrap();
+        let from_base64 = handle.import_psbt(&built.psbt_base64).await.unwrap();
+        assert_eq!(from_hex, from_base64);
+        for garbage in ["", "not a psbt", "70736274ff00"] {
+            let err = handle.import_psbt(garbage).await.unwrap_err();
+            assert_eq!(err.code(), "psbt", "{garbage:?}");
+        }
     }
 
     #[tokio::test]

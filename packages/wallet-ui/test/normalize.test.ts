@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   toFeeEstimate,
+  toPsbtReview,
   toPublicDescriptors,
   toTxDetail,
   toTxSummary,
@@ -137,6 +138,41 @@ describe("toPublicDescriptors", () => {
       internal: null,
       account_xpub: null,
       fingerprint: null,
+    });
+  });
+});
+
+describe("toPsbtReview", () => {
+  // An unsigned PSBT with someone else's input: no txid, size or fee yet,
+  // and that input's value unknown.
+  it("turns every absent optional into null, inside and out", () => {
+    const raw = {
+      psbt_base64: "cHNidP8B",
+      txid: undefined,
+      inputs: [
+        { txid: "01", vout: 0, value_sat: 5000, ours: true, finalized: false },
+        { txid: "02", vout: 3, value_sat: undefined, ours: false, finalized: false },
+      ],
+      outputs: [{ address: undefined, value_sat: 0, ours: false }],
+      fee_sat: undefined,
+      vsize: undefined,
+      net_sat: -5000,
+      finalized: false,
+      signable: true,
+    };
+    expect(toPsbtReview(raw)).toEqual({
+      psbt_base64: "cHNidP8B",
+      txid: null,
+      inputs: [
+        { txid: "01", vout: 0, value_sat: 5000, ours: true, finalized: false },
+        { txid: "02", vout: 3, value_sat: null, ours: false, finalized: false },
+      ],
+      outputs: [{ address: null, value_sat: 0, ours: false }],
+      fee_sat: null,
+      vsize: null,
+      net_sat: -5000,
+      finalized: false,
+      signable: true,
     });
   });
 });
