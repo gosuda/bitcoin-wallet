@@ -59,7 +59,15 @@ export function renderResult(): HTMLElement {
             { icon: "external" },
           )
         : null,
-      button("Back to wallet", () => navigate("dashboard"), { variant: "primary", block: true }),
+      button(
+        "Back to wallet",
+        () => {
+          // Spent, as on the desktop: the result route has nothing to show again.
+          session.lastResult = null;
+          navigate("dashboard");
+        },
+        { variant: "primary", block: true },
+      ),
     ),
   );
   return host;

@@ -1,5 +1,5 @@
 import { api } from "../../api";
-import { suggestBumpRate } from "../../feebump";
+import { isBumpable, suggestBumpRate } from "../../feebump";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
@@ -140,7 +140,7 @@ export function renderTransaction(): HTMLElement {
     );
 
     // Only our own unconfirmed sends can be replaced, and only with a key.
-    const bumpable = pending && d.net_sat < 0 && !info.is_watch_only;
+    const bumpable = isBumpable(d) && !info.is_watch_only;
     content.replaceChildren(
       alert.node,
       hero,

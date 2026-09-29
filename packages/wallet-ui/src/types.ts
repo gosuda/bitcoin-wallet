@@ -4,17 +4,23 @@ export type Network = (typeof NETWORKS)[number];
 export const ADDRESS_TYPES = ["p2pkh", "p2wpkh", "nested_p2wpkh", "p2tr", "p2pk"] as const;
 export type AddressType = (typeof ADDRESS_TYPES)[number];
 
+/** An address type a wallet can be opened on. */
+export type OpenableAddressType = Exclude<AddressType, "p2pk">;
+
 /**
- * The types a wallet can be opened on.
+ * Whether a wallet can be opened on `t`.
  *
  * `p2pk` stays in the union because the core still derives and prints such a
  * key, and a config stored before this may name it — but it cannot back a
  * wallet: its descriptor is a bare script with no signing context, and the
- * core refuses to open one rather than let a send reach that.
+ * core refuses to open one rather than let a send reach that. Both shells'
+ * route guards send such a config back to Setup, which never offers it.
  */
-export const OPENABLE_ADDRESS_TYPES = ADDRESS_TYPES.filter(
-  (t): t is Exclude<AddressType, "p2pk"> => t !== "p2pk",
-);
+export function isOpenable(t: AddressType): t is OpenableAddressType {
+  return t !== "p2pk";
+}
+
+export const OPENABLE_ADDRESS_TYPES = ADDRESS_TYPES.filter(isOpenable);
 
 /** Mirrors `wallet_core::BackendConfig` (serde-tagged on `kind`). */
 export interface BackendConfig {
@@ -145,6 +151,17 @@ export interface TxDetail {
   inputs: TxInput[];
   outputs: TxOutput[];
 }
+
+/** The confirmation targets Send offers, in blocks. */
+export const FEE_TARGETS = [1, 3, 6] as const;
+export type FeeTarget = (typeof FEE_TARGETS)[number];
+
+/** What Send starts on in both shells: about an hour, at a rate that rarely overpays. */
+export const DEFAULT_FEE_TARGET: FeeTarget = 6;
+
+/** The address gaps a rescan offers; the first is the core's own default. */
+export const RESCAN_GAPS = [20, 100, 500] as const;
+export type RescanGap = (typeof RESCAN_GAPS)[number];
 
 /**
  * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):

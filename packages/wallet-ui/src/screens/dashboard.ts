@@ -4,7 +4,7 @@ import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { headlineSat, pendingSat } from "../balance";
 import { buildPaymentUri, qrPayload } from "../bip21";
-import { suggestBumpRate } from "../feebump";
+import { isBumpable, suggestBumpRate } from "../feebump";
 import { platform } from "../platform";
 import { navigate } from "../router";
 import { sameWalletGuard, screenGuard } from "../screen";
@@ -17,6 +17,7 @@ import {
   MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type PublicDescriptors,
+  RESCAN_GAPS,
   type TxDetail,
   type TxOutput,
   type TxSummary,
@@ -378,7 +379,7 @@ export function renderDashboard(): HTMLElement {
         const explorer = await api.explorerUrl(d.txid);
         // Only our own unconfirmed sends can be replaced, and only with a key.
         let suggested: number | null = null;
-        if (d.confirmations === null && d.net_sat < 0 && !wallet.is_watch_only) {
+        if (isBumpable(d) && !wallet.is_watch_only) {
           try {
             suggested = suggestBumpRate(await api.estimateFee(), d.fee_rate_sat_vb);
           } catch {
@@ -583,15 +584,12 @@ export function renderDashboard(): HTMLElement {
   };
 
   // --- rescan: for a restore that shows too little --------------------------
-  let gap = "20";
+  let gap = `${RESCAN_GAPS[0]}`;
   const gapChips = radioGroup(
     "rescan_gap",
-    [
-      { value: "20", label: "gap 20" },
-      { value: "100", label: "100" },
-      { value: "500", label: "500" },
-    ],
-    "20",
+    // Only the first chip says what the numbers are.
+    RESCAN_GAPS.map((g, i) => ({ value: `${g}`, label: i === 0 ? `gap ${g}` : `${g}` })),
+    gap,
     (v) => {
       gap = v;
     },

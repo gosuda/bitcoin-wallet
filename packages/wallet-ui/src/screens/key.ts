@@ -119,17 +119,14 @@ export function renderKey(): HTMLElement {
     if (ev.key === "Enter") openBtn.click();
   });
 
-  // P2PK has no BIP32 account layout, so no phrase can describe one: offering
-  // the phrase screens here would only dead-end in the core's refusal.
-  const hdCapable = cfg.address_type !== "p2pk";
+  // Every type this screen can be reached with has an account layout: a config
+  // naming P2PK, which has none, is sent back to Setup by the route guard.
   const newWalletBtn = button("New wallet", () => navigate("create"), "primary", "md", {
     name: "plus",
   });
   const restoreBtn = button("Restore wallet", () => navigate("restore"), "default", "md", {
     name: "key",
   });
-  newWalletBtn.disabled = !hdCapable;
-  restoreBtn.disabled = !hdCapable;
 
   // The single-key path is intact, just folded away: a recovery phrase is the
   // default, and one raw key is the escape hatch.
@@ -149,7 +146,7 @@ export function renderKey(): HTMLElement {
       generated,
     ]),
   ]);
-  advanced.open = advancedOpen || !hdCapable;
+  advanced.open = advancedOpen;
   advanced.addEventListener("toggle", () => {
     advancedOpen = advanced.open;
   });
@@ -247,9 +244,7 @@ export function renderKey(): HTMLElement {
       ]),
       el("p", {
         className: "hint",
-        text: hdCapable
-          ? "A recovery phrase backs up every address this wallet will ever use. Restoring one brings its history back."
-          : "P2PK has no BIP32 account layout, so it cannot be backed up by a recovery phrase. Choose another address type in Setup, or use a single key below.",
+        text: "A recovery phrase backs up every address this wallet will ever use. Restoring one brings its history back.",
       }),
       platform().canRememberWallet ? null : el("p", { className: "hint", text: NO_KEYSTORE_HINT }),
     ]),

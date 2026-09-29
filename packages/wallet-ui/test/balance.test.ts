@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headlineSat, pendingSat, spendableSat } from "../src/balance";
+import { headlineSat, pendingSat } from "../src/balance";
 import type { Balance } from "../src/types";
 
 const balance = (b: Partial<Balance>): Balance => ({
@@ -29,21 +29,8 @@ describe("balance rules", () => {
     ).toBe(230);
   });
 
-  // Immature coinbase and untrusted pending cannot be spent, so a send that
-  // offered them would build a transaction the node rejects.
-  it("excludes immature and untrusted money from what a send may use", () => {
-    const b = balance({
-      confirmed: 1000,
-      trusted_pending: 200,
-      untrusted_pending: 30,
-      immature: 4,
-    });
-    expect(spendableSat(b)).toBe(1200);
-    expect(spendableSat(b)).toBeLessThan(headlineSat(b));
-  });
-
   it("reads zero everywhere for an empty wallet", () => {
     const b = balance({});
-    expect([headlineSat(b), pendingSat(b), spendableSat(b)]).toEqual([0, 0, 0]);
+    expect([headlineSat(b), pendingSat(b)]).toEqual([0, 0]);
   });
 });

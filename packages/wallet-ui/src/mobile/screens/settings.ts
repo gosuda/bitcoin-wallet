@@ -4,7 +4,14 @@ import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { session } from "../../session";
-import { ADDRESS_TYPE_LABELS, backendHost, errorMessage, NETWORK_LABELS } from "../../types";
+import {
+  ADDRESS_TYPE_LABELS,
+  backendHost,
+  errorMessage,
+  NETWORK_LABELS,
+  RESCAN_GAPS,
+  type RescanGap,
+} from "../../types";
 import { banner, el, formatNumber } from "../../ui/dom";
 import {
   body,
@@ -20,7 +27,7 @@ import {
   withBusy,
 } from "../ui";
 
-type Gap = "20" | "100" | "500";
+type Gap = `${RescanGap}`;
 
 export function renderSettings(): HTMLElement {
   const info = session.wallet;
@@ -60,12 +67,8 @@ export function renderSettings(): HTMLElement {
   // Rescan: for a wallet restored from words that had spread further than
   // the default gap. It merges; nothing already known is lost.
   const gap = chips<Gap>(
-    [
-      { value: "20", label: "20" },
-      { value: "100", label: "100" },
-      { value: "500", label: "500" },
-    ],
-    "20",
+    RESCAN_GAPS.map((g) => ({ value: `${g}` as Gap, label: `${g}` })),
+    `${RESCAN_GAPS[0]}`,
     undefined,
     { label: "Address gap" },
   );

@@ -6,6 +6,7 @@ import {
   type AddressType,
   DEFAULT_ESPLORA_URL,
   errorMessage,
+  isOpenable,
   NETWORK_LABELS,
   type Network,
 } from "../../types";
@@ -40,7 +41,9 @@ export function renderSetup(): HTMLElement {
 
   const addressType = chips(
     ADDRESS_TYPES.map((a) => ({ value: a, label: ADDRESS_TYPE_LABELS[a] })),
-    cfg?.address_type ?? "p2wpkh",
+    // A config saved before P2PK stopped being openable can name it; it is
+    // not a choice here, so start from the default instead.
+    cfg && isOpenable(cfg.address_type) ? cfg.address_type : "p2wpkh",
     undefined,
     { label: "Address type" },
   );

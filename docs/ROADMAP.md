@@ -492,13 +492,28 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       binding and 98 UI tests pass; in the web app a restore reaches the dashboard and Close
       wallet returns to Key
 
-- [ ] **3.6 Drift closed** · S · `feebump.ts`, `balance.ts`, both shells · **decision** on the
+- [x] **3.6 Drift closed** · S · `feebump.ts`, `balance.ts`, both shells · **decision** on the
   default fee target (3 or 6 blocks)
       why: `isBumpable` is exported, tested and re-implemented inline by both shells;
       `spendableSat` is unused; rescan presets are duplicated; the shells default to different
       fee targets; desktop Send hides why an address is wrong; mobile Result keeps a stale
-      result; mobile Key gates watch-only on a type that cannot be opened · done when: one
-      source for each rule, both shells import it, tests pass
+      result; mobile Key gates watch-only on a type that cannot be opened · done: 2026-09-29 —
+      each rule now has one home, and both shells import it. `isBumpable` takes any
+      `{confirmations, net_sat}`, and both detail views call it in place of their inline
+      copies (a test covers a detail). `spendableSat` is deleted. `types.ts` holds
+      `FEE_TARGETS`, `DEFAULT_FEE_TARGET` (6, decided), `RESCAN_GAPS` (the first is the
+      core's `DEFAULT_STOP_GAP`, 20) and `isOpenable`, and both Sends and both rescans build
+      from them. Desktop Send shows `addressError`'s reason. Mobile Result's "Back to wallet"
+      spends the result as desktop's does. The p2pk gate was more than mobile's: a config
+      saved by an older build can still name p2pk, and both Key screens tailored their offer
+      to it while still offering paths the core refuses. Both route guards now send an
+      unopenable config to Setup, both Setups start from P2WPKH when the stored type is not
+      one they offer, and both gates are gone, along with desktop's stale "or use a single
+      key below". In the web app: a planted p2pk config asked for `#/key` and got Setup with
+      P2WPKH checked, and Continue stored `p2wpkh`; Send starts on 6 blocks; the rescan chips
+      read "gap 20", 100, 500; a mainnet address in a testnet4 wallet reads "Not a Testnet4
+      address — this one is for Bitcoin mainnet." The phone shell's changes are
+      typechecked, not clicked: the web app does not mount it. 98 UI tests pass
 
 - [ ] **3.7 Nothing fails silently** · S · `app.ts`, `apps/native/src/main.ts`,
   `apps/web/src/main.ts`, mobile `screens/scan.ts`, `ui/clipboard.ts`
@@ -608,8 +623,8 @@ one starts when it is picked.
 - 2026-09-14 — GitHub settings are changed through `gh`, each after an explicit OK.
 - 2026-09-14 — The phone bundle workflow runs on manual dispatch only.
 - 2026-09-28 — The stray review page is removed, not moved: it reviews a different project.
-- Open: the default fee target (3.6); the number locale (3.9); the first tag (4.9); Pages
-  (4.10).
+- 2026-09-29 — Both shells start Send on a 6-block target (3.6).
+- Open: the number locale (3.9); the first tag (4.9); Pages (4.10).
 
 ## Not doing
 

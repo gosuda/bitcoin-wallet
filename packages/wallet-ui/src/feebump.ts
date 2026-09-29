@@ -7,8 +7,12 @@
 
 import { type FeeEstimate, rateForTarget, type TxSummary } from "./types";
 
-/** Only our own unconfirmed sends can be replaced; everything else is settled. */
-export function isBumpable(tx: TxSummary): boolean {
+/**
+ * Only our own unconfirmed sends can be replaced; everything else is settled.
+ * Takes a list row or a detail alike. Whether this wallet can sign the
+ * replacement is the caller's other question.
+ */
+export function isBumpable(tx: Pick<TxSummary, "confirmations" | "net_sat">): boolean {
   return tx.confirmations === null && tx.net_sat < 0;
 }
 

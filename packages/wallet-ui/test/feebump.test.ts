@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isBumpable, suggestBumpRate } from "../src/feebump";
-import { rateForTarget, type TxSummary } from "../src/types";
+import { rateForTarget, type TxDetail, type TxSummary } from "../src/types";
 
 const tx = (t: Partial<TxSummary>): TxSummary => ({
   txid: "a".repeat(64),
@@ -28,6 +28,15 @@ describe("isBumpable", () => {
   it("refuses an incoming payment even while unconfirmed", () => {
     expect(isBumpable(tx({ confirmations: null, net_sat: 1000 }))).toBe(false);
     expect(isBumpable(tx({ confirmations: null, net_sat: 0 }))).toBe(false);
+  });
+
+  // Both shells decide from the detail view, which is not a list row.
+  it("reads a transaction detail the same way", () => {
+    const detail: Pick<TxDetail, "confirmations" | "net_sat"> = {
+      confirmations: null,
+      net_sat: -1000,
+    };
+    expect(isBumpable(detail)).toBe(true);
   });
 });
 

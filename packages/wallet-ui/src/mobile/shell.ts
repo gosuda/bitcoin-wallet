@@ -10,6 +10,7 @@
 import { platform } from "../platform";
 import { currentRoute, navigate, type Route } from "../router";
 import { session } from "../session";
+import { isOpenable } from "../types";
 import { clear, el } from "../ui/dom";
 import { type IconName, icon } from "../ui/icons";
 import "../ui/mobile.css";
@@ -77,7 +78,11 @@ function guard(route: Route): Route {
   // stashed there is nothing to show.
   if (route === "tx" && !currentTxid()) return "dashboard";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
-  if (KEY_ROUTES.has(route) && !session.config) return "setup";
+  // A config saved before P2PK stopped being openable can still name it, and
+  // Setup, which never offers it, is where a type is chosen again.
+  if (KEY_ROUTES.has(route) && (!session.config || !isOpenable(session.config.address_type))) {
+    return "setup";
+  }
   if (route === "unlock" && (!platform().canRememberWallet || !session.remembered)) return "key";
   return route;
 }

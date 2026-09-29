@@ -12,7 +12,7 @@ import { renderSend } from "./screens/send";
 import { renderSetup } from "./screens/setup";
 import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
-import { backendHost, NETWORK_LABELS } from "./types";
+import { backendHost, isOpenable, NETWORK_LABELS } from "./types";
 import { clear, el } from "./ui/dom";
 import { brandMark, icon } from "./ui/icons";
 
@@ -96,7 +96,11 @@ function guard(route: Route): Route {
   // A watch-only wallet has nothing to sign with; the screen is not offered.
   if (route === "send" && session.wallet?.is_watch_only) return "dashboard";
   if (route === "result" && !session.lastResult) return session.wallet ? "dashboard" : "setup";
-  if (KEY_ROUTES.has(route) && !session.config) return "setup";
+  // A config saved before P2PK stopped being openable can still name it, and
+  // Setup, which never offers it, is where a type is chosen again.
+  if (KEY_ROUTES.has(route) && (!session.config || !isOpenable(session.config.address_type))) {
+    return "setup";
+  }
   // Unlock exists only where a key can outlive the session; in a browser there
   // is nothing to unlock, so the route is unreachable rather than empty.
   if (route === "unlock" && (!platform().canRememberWallet || !session.remembered)) return "key";
