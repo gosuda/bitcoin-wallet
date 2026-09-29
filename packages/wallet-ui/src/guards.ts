@@ -35,7 +35,7 @@ export const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>([
 ]);
 
 /** Destinations only the phone shell has; the desktop sends them to the wallet. */
-const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
+export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
   "receive",
   "scan",
   "settings",

@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type GuardState, guardRoute, type Shell } from "../src/guards";
-import { ROUTES, type Route } from "../src/router";
+import { type GuardState, guardRoute, PHONE_ONLY, type Shell } from "../src/guards";
+import { ROUTES } from "../src/router";
 import type { AddressType } from "../src/types";
 
 const SHELLS: readonly Shell[] = ["desktop", "phone"];
-const PHONE_ONLY: readonly Route[] = ["receive", "scan", "settings", "tx", "export"];
 
 const fresh: GuardState = {
   wallet: null,
@@ -102,7 +101,7 @@ describe("guardRoute", () => {
       for (const route of ROUTES) {
         const landed = guardRoute(route, state, shell);
         expect(guardRoute(landed, state, shell), `${route} → ${landed}`).toBe(landed);
-        if (shell === "desktop") expect(PHONE_ONLY).not.toContain(landed);
+        if (shell === "desktop") expect(PHONE_ONLY.has(landed), landed).toBe(false);
       }
     }
   });

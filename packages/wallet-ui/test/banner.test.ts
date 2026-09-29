@@ -1,8 +1,14 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { banner, queueNotice } from "../src/ui/dom";
 
 describe("queueNotice", () => {
+  // The queue is module state: whatever an earlier test left in it would show
+  // in the first banner here, so each test starts by taking it.
+  beforeEach(() => {
+    banner();
+  });
+
   // Boot runs before any screen exists; whichever screen comes up first says
   // what went wrong, instead of passing for a fresh start.
   it("is shown by the next banner, once", () => {
