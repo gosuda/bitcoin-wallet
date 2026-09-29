@@ -8,7 +8,12 @@
  */
 
 import type { Platform } from "@bitcoin-wallet/ui/platform";
-import type { AppConfig, RememberedWallet, StoredSecret } from "@bitcoin-wallet/ui/types";
+import {
+  type AppConfig,
+  messageOf,
+  type RememberedWallet,
+  type StoredSecret,
+} from "@bitcoin-wallet/ui/types";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
@@ -78,7 +83,8 @@ export async function keystoreAvailable(): Promise<boolean> {
  *
  * The plugin is imported lazily so the desktop bundle never loads it, and a
  * cancel is reported by the plugin as an error rather than a value — hence the
- * message check rather than a plain rethrow.
+ * message check rather than a plain rethrow. That error is a plain
+ * `{ message }` object, not an `Error`, so it is read with `messageOf`.
  */
 async function scanQr(): Promise<string | null> {
   const { scan, Format, cancel } = await import("@tauri-apps/plugin-barcode-scanner");
@@ -86,8 +92,7 @@ async function scanQr(): Promise<string | null> {
     const result = await scan({ windowed: false, formats: [Format.QRCode] });
     return result.content;
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    if (/cancel/i.test(message)) return null;
+    if (/cancel/i.test(messageOf(e) ?? "")) return null;
     throw e;
   } finally {
     // Leaving the camera running would keep the preview over the next screen.
