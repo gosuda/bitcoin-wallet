@@ -87,7 +87,9 @@ jobs:
           releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
           releaseDraft: true
           prerelease: false
-          includeUpdaterJson: false
+          # No updater: v1 renamed this from includeUpdaterJson and defaults it
+          # to true, so the old name would be ignored and latest.json uploaded.
+          uploadUpdaterJson: false
           args: ${{ matrix.args }}
 
       - name: Keep the bundles for a manual run
