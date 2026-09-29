@@ -16,6 +16,10 @@ pull requests a change arrived in.
   network, server or address type (asking first, since that closes the wallet), rescans,
   shows the public keys, and closes or forgets the wallet. Rescan and the public keys moved
   there from the Wallet page. (#39)
+- The phone sends to several recipients in one transaction, as the desktop does. Add
+  recipient gives each a card of its own, one sat/BTC choice covers them all, and the review
+  lists every recipient before the fee and the total. Scanning from Send opens the camera
+  there, so the recipients already filled in stay; a scan fills the last empty row. (#39)
 
 ### Fixed
 

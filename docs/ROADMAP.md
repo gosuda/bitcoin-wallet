@@ -908,9 +908,21 @@ items before it change no screen, so they land while that batch is reviewed.
       boots the whole desktop shell for the top bar; the guard tests follow. The browser
       build was checked against the board
 
-- [ ] **6.9 Several recipients on the phone** · M · `mobile/screens/send.ts` · after 6.6
-      why: the phone sends to one address; the api and desktop take several · done when: rows
-      can be added and removed, Max only with one row, the review lists each; jsdom tests
+- [x] **6.9 Several recipients on the phone** · M · `mobile/screens/send.ts` · after 6.6
+      why: the phone sends to one address; the api and desktop take several · done: 2026-09-30 —
+      Add recipient turns Send into a card per recipient, with its address, scan button, amount
+      and a × that is gone while only one is left. A lone recipient keeps the To and Amount
+      cards, and Max with them; adding a second leaves Max and discards its drain. One sat/BTC
+      choice below the cards covers every row and converts them all. Review lists each
+      recipient by both ends of its address with its amount, then the fee and the total, and
+      one transaction pays them all. A row's scan button now opens the camera on Send itself,
+      so the rows already filled in survive it; the code fills the last row without an address,
+      or the pressed one when none is empty, as decided. The scan button is the 48px square the
+      boards draw: a rule for rows of buttons had stretched it to half the row. Ten jsdom tests
+      in `send-multi.test.ts` cover adding and removing, Max, the unit, both reviews, a
+      prefilled payment, where a scan lands, a cancelled or unreadable scan, and leaving
+      mid-scan; breaking where a scan lands, Max, the unit, the build or the review fails at
+      least one of them
 
 - [x] **6.10 Focus rings on the phone** · S · `ui/mobile.css`, `ui/app.css` · after 6.6
       why: rows, tabs and the primary button have no visible focus, and textareas none on either

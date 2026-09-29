@@ -230,6 +230,11 @@ body {
   flex: 1;
 }
 
+/* A square keeps its size in a row, where buttons otherwise share the width. */
+.m-row > .m-btn-square {
+  flex: none;
+}
+
 /* 16px is the floor: below it iOS zooms the page when the field takes focus. */
 .m-body input[type="text"],
 .m-body input[type="password"],
@@ -357,6 +362,109 @@ body {
 .m-row > input {
   flex: 1;
   min-width: 0;
+}
+
+/* Send to several --------------------------------------------------------- */
+
+.m-recipients {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Cards that stack, one per recipient, drawn tighter than a card on its own. */
+.m-recipient {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.m-recipient-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 20px;
+}
+
+/* The × is drawn small; its target overhangs the row rather than growing it. */
+.m-recipient-remove {
+  width: 40px;
+  height: 40px;
+  margin: -10px -11px -10px 0;
+  color: var(--muted);
+}
+
+/* Every row shares one unit, so each amount names it inside its field. */
+.m-amount-field {
+  position: relative;
+}
+
+.m-body .m-amount-field input {
+  padding-right: 56px;
+}
+
+.m-amount-unit {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+.m-add-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-add-line .m-btn {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.m-unit-line {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-unit-line .m-chips {
+  flex-wrap: nowrap;
+}
+
+/* The review of a send to several: each recipient, then the fee and the total. */
+.m-review {
+  display: grid;
+  grid-template-columns: 1fr max-content;
+  gap: 6px var(--space-4);
+  align-items: baseline;
+  margin: 0;
+  font-size: 15px;
+}
+
+.m-review dt {
+  color: var(--muted);
+}
+
+.m-review dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.m-review .m-review-to {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.m-review .m-review-total {
+  font-weight: 600;
 }
 
 /* Balance ----------------------------------------------------------------- */

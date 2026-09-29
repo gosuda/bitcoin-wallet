@@ -312,6 +312,36 @@ export function historyReset(alert: Banner): HistoryReset {
   };
 }
 
+/** The four corners a QR code is aimed into. */
+export function reticle(): HTMLElement {
+  return el("div", { className: "m-reticle" }, [el("span"), el("span"), el("span"), el("span")]);
+}
+
+/** Marks handed out so far; each one carries its own number. */
+let marks = 0;
+
+/**
+ * Turns the page see-through while a camera runs: the OS draws the preview
+ * behind the webview, not in it, so the page has to let it show
+ * (`data-scanning` on the root element).
+ *
+ * A screen replaced mid-scan hears that it has left only after the new one
+ * has rendered, so clearing leaves alone a mark some other screen has set
+ * since.
+ */
+export function seeThroughMark(): { set(): void; clear(): void } {
+  const root = document.documentElement;
+  const id = String(++marks);
+  return {
+    set: () => {
+      root.dataset.scanning = id;
+    },
+    clear: () => {
+      if (root.dataset.scanning === id) delete root.dataset.scanning;
+    },
+  };
+}
+
 /** Pushes everything after it to the bottom of the scroll area. */
 export function spacer(): HTMLElement {
   return el("div", { className: "m-spacer" });

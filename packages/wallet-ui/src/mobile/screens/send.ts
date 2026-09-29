@@ -1,6 +1,8 @@
 import { addressError, addressLooksValid } from "../../address";
 import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
+import { type PaymentRequest, parsePaymentUri } from "../../bip21";
+import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { session } from "../../session";
@@ -12,11 +14,26 @@ import {
   type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
+  type Recipient,
   rateForTarget,
   type TxPreview,
 } from "../../types";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
-import { body, button, card, chips, header, labelled, lede, row, spacer, withBusy } from "../ui";
+import { icon } from "../../ui/icons";
+import {
+  body,
+  button,
+  card,
+  chips,
+  header,
+  labelled,
+  lede,
+  reticle,
+  row,
+  seeThroughMark,
+  spacer,
+  withBusy,
+} from "../ui";
 
 interface Prefill {
   address?: string;
@@ -32,6 +49,45 @@ export function prefillSend(next: Prefill): void {
 
 type FeeChoice = `${FeeTarget}` | "custom";
 
+const UNIT_LABELS: Record<Unit, string> = { sat: "sat", btc: "BTC" };
+
+/** One recipient's fields, whichever cards they are laid out in. */
+interface RecipientRow {
+  address: HTMLInputElement;
+  amount: HTMLInputElement;
+  addressErr: HTMLElement;
+  amountErr: HTMLElement;
+  /** The unit inside the amount field, for when the chips are not beside it. */
+  unitMark: HTMLElement;
+  /** Null where this build has no camera. */
+  scan: HTMLButtonElement | null;
+  /** A field only shows its error once the user has left it. */
+  touched: { address: boolean; amount: boolean };
+}
+
+/** Both ends of an address, which is what tells two apart at a glance. */
+function short(address: string): string {
+  return `${address.slice(0, 8)}…${address.slice(-6)}`;
+}
+
+/** A send to several, reviewed: every recipient, then the fee and the total. */
+function recipientList(to: readonly Recipient[], fee: string, total: number): HTMLElement {
+  const list = el("dl", { className: "m-review" });
+  for (const r of to) {
+    list.append(
+      el("dt", { className: "m-review-to", text: short(r.address) }),
+      el("dd", { text: `${formatNumber(r.amount_sat)} sat` }),
+    );
+  }
+  list.append(
+    el("dt", { text: "Fee" }),
+    el("dd", { text: fee }),
+    el("dt", { className: "m-review-total", text: "Total" }),
+    el("dd", { className: "m-review-total", text: `${formatNumber(total)} sat` }),
+  );
+  return list;
+}
+
 export function renderSend(): HTMLElement {
   const onScreen = screenGuard();
   const info = session.wallet;
@@ -44,29 +100,16 @@ export function renderSend(): HTMLElement {
   const alert = banner();
   const taken = prefill;
   prefill = {};
+  const scanQr = platform().scanQr;
 
-  // --- fields -----------------------------------------------------------
-  const address = textInput({
-    value: taken.address ?? "",
-    placeholder: "bc1 / tb1 address",
-    mono: true,
-    name: "address",
-  });
-  address.setAttribute("autocapitalize", "none");
-  address.setAttribute("autocorrect", "off");
-  const addressErr = el("span", { className: "m-err", attrs: { role: "status" } });
-
-  const amount = textInput({
-    value: taken.amountSat !== undefined ? String(taken.amountSat) : "",
-    placeholder: "0",
-    mono: true,
-    name: "amount",
-  });
-  amount.setAttribute("inputmode", "decimal");
-  const amountErr = el("span", { className: "m-err", attrs: { role: "status" } });
-
-  /** A field only shows its error once the user has left it. */
-  const touched = { address: taken.address !== undefined, amount: taken.amountSat !== undefined };
+  // --- recipients -----------------------------------------------------------
+  //
+  // A lone recipient keeps the To and Amount cards, with the unit and Max
+  // beside the amount. Several get a card each and share one unit, chosen
+  // below the cards; Max spends everything, so only a lone recipient has it.
+  const rows: RecipientRow[] = [];
+  const recipientsBox = el("div", { className: "m-recipients" });
+  const unitLine = el("div", { className: "m-unit-line" });
 
   let currentUnit: Unit = "sat";
   const unit = chips<Unit>(
@@ -76,10 +119,15 @@ export function renderSend(): HTMLElement {
     ],
     currentUnit,
     (next) => {
-      // Convert the shown value instead of reinterpreting it; keep whole sats.
-      const parsed = parseAmount(amount.value, currentUnit);
+      if (next === currentUnit) return;
+      // Convert the shown values instead of reinterpreting them; keep whole
+      // sats. A value that does not parse stays as typed: its message says why.
+      for (const r of rows) {
+        const parsed = parseAmount(r.amount.value, currentUnit);
+        if (parsed.sats !== null) r.amount.value = formatAmount(parsed.sats, next);
+        r.unitMark.textContent = UNIT_LABELS[next];
+      }
       currentUnit = next;
-      if (parsed.sats !== null) amount.value = formatAmount(parsed.sats, next);
       refresh();
     },
     { label: "Amount unit" },
@@ -89,7 +137,8 @@ export function renderSend(): HTMLElement {
   //
   // Tapping it asks the core to build a drain to the address, so the amount
   // that appears is exactly what will leave. Editing the amount, the rate or
-  // the address leaves the mode; the stale preview is discarded.
+  // the address leaves the mode; the stale preview is discarded. Adding a
+  // recipient leaves it too: everything can only go to one address.
   let drain: TxPreview | null = null;
   /**
    * See the desktop Send screen: `drain` is null while a build is in flight,
@@ -115,12 +164,16 @@ export function renderSend(): HTMLElement {
   };
 
   const fillMax = async (): Promise<void> => {
+    // Max is only drawn beside a lone recipient; several have no one address
+    // for everything to go to.
+    const only = rows.length === 1 ? rows[0] : undefined;
+    if (!only) return;
     alert.hide();
-    const to = address.value.trim();
+    const to = only.address.value.trim();
     const bad = to
       ? addressError(to, info.network)
       : "Enter the address first — the exact amount depends on it.";
-    touched.address = true;
+    only.touched.address = true;
     refresh();
     if (bad) return alert.show("error", bad);
     try {
@@ -137,8 +190,8 @@ export function renderSend(): HTMLElement {
         return;
       }
       drain = preview;
-      amount.value = formatAmount(preview.total_out_sat, currentUnit);
-      touched.amount = true;
+      only.amount.value = formatAmount(preview.total_out_sat, currentUnit);
+      only.touched.amount = true;
       max.setAttribute("aria-pressed", "true");
       maxNote.textContent = `Everything: ${formatNumber(preview.total_out_sat + preview.fee_sat)} sat minus the ${formatNumber(preview.fee_sat)} sat fee. Edit the amount to leave Max.`;
       refresh();
@@ -248,42 +301,243 @@ export function renderSend(): HTMLElement {
   const rateError = (): string | null =>
     fee.value() === "custom" ? feeRateError(Number(rateInput.value)) : feeRateError(rate);
 
-  const refresh = (): void => {
-    setError(
-      addressErr,
-      address,
-      touched.address ? addressError(address.value, info.network) : null,
-    );
-    setError(
-      amountErr,
-      amount,
-      touched.amount ? parseAmount(amount.value, currentUnit).error : null,
-    );
-    setError(rateErr, rateInput, rateError());
-    review.disabled =
-      !addressLooksValid(address.value, info.network) ||
-      parseAmount(amount.value, currentUnit).sats === null ||
-      rateError() !== null;
+  /** What Review would send, or null while any row is incomplete or wrong. */
+  const recipients = (): Recipient[] | null => {
+    const out: Recipient[] = [];
+    for (const r of rows) {
+      const address = r.address.value.trim();
+      const sats = parseAmount(r.amount.value, currentUnit).sats;
+      if (!addressLooksValid(address, info.network) || sats === null) return null;
+      out.push({ address, amount_sat: sats });
+    }
+    return out;
   };
 
-  address.addEventListener("input", () => {
+  const refresh = (): void => {
+    for (const r of rows) {
+      setError(
+        r.addressErr,
+        r.address,
+        r.touched.address ? addressError(r.address.value, info.network) : null,
+      );
+      setError(
+        r.amountErr,
+        r.amount,
+        r.touched.amount ? parseAmount(r.amount.value, currentUnit).error : null,
+      );
+    }
+    setError(rateErr, rateInput, rateError());
+    review.disabled = recipients() === null || rateError() !== null;
+  };
+
+  // --- rows -----------------------------------------------------------------
+
+  /** Any edit moves the form on from what Review or Max built for it. */
+  const edited = (): void => {
     clearPreview();
     leaveDrain();
     refresh();
-  });
-  address.addEventListener("blur", () => {
-    touched.address = true;
-    refresh();
-  });
-  amount.addEventListener("input", () => {
+  };
+
+  const newRow = (from: Prefill): RecipientRow => {
+    const address = textInput({
+      value: from.address ?? "",
+      placeholder: "bc1 / tb1 address",
+      mono: true,
+      name: "address",
+    });
+    address.setAttribute("autocapitalize", "none");
+    address.setAttribute("autocorrect", "off");
+    const amount = textInput({
+      value: from.amountSat !== undefined ? formatAmount(from.amountSat, currentUnit) : "",
+      placeholder: "0",
+      mono: true,
+      name: "amount",
+    });
+    amount.setAttribute("inputmode", "decimal");
+    const r: RecipientRow = {
+      address,
+      amount,
+      addressErr: el("span", { className: "m-err", attrs: { role: "status" } }),
+      amountErr: el("span", { className: "m-err", attrs: { role: "status" } }),
+      unitMark: el("span", {
+        className: "m-amount-unit",
+        text: UNIT_LABELS[currentUnit],
+        attrs: { "aria-hidden": "true" },
+      }),
+      scan: null,
+      touched: { address: from.address !== undefined, amount: from.amountSat !== undefined },
+    };
+    if (scanQr) {
+      r.scan = button("", () => void scanFor(r), {
+        icon: "scan",
+        ariaLabel: "Scan a QR code",
+        square: true,
+      });
+    }
+    address.addEventListener("input", edited);
+    address.addEventListener("blur", () => {
+      r.touched.address = true;
+      refresh();
+    });
+    amount.addEventListener("input", edited);
+    amount.addEventListener("blur", () => {
+      r.touched.amount = true;
+      refresh();
+    });
+    return r;
+  };
+
+  /** A recipient among several, as a card of its own. */
+  const cardFor = (r: RecipientRow, n: number): HTMLElement => {
+    const name = `Recipient ${n}`;
+    r.address.setAttribute("aria-label", `${name} address`);
+    r.amount.setAttribute("aria-label", `${name} amount`);
+    const removeLabel = `Remove recipient ${n}`;
+    const remove = el(
+      "button",
+      {
+        className: "m-icon-btn m-recipient-remove",
+        attrs: { type: "button", "aria-label": removeLabel, title: removeLabel },
+        on: { click: () => removeRecipient(r) },
+      },
+      [icon("x", 18)],
+    );
+    const node = card(
+      el("div", { className: "m-recipient-head" }, [sectionLabel(name), remove]),
+      row(r.address, r.scan),
+      r.addressErr,
+      el("div", { className: "m-amount-field" }, [r.amount, r.unitMark]),
+      r.amountErr,
+    );
+    node.classList.add("m-recipient");
+    return node;
+  };
+
+  /** Lays the rows out for how many there are: Max beside a lone one, a × on each of several. */
+  const layout = (): void => {
+    const only = rows.length === 1 ? rows[0] : undefined;
+    if (only) {
+      // A card's names would override the To and Amount labels.
+      only.address.removeAttribute("aria-label");
+      only.amount.removeAttribute("aria-label");
+      recipientsBox.replaceChildren(
+        card(labelled("To", only.address), row(only.address, only.scan), only.addressErr),
+        card(
+          labelled("Amount", only.amount),
+          row(only.amount, unit.node, max),
+          only.amountErr,
+          maxNote,
+        ),
+      );
+      unitLine.replaceChildren();
+      return;
+    }
+    recipientsBox.replaceChildren(...rows.map((r, i) => cardFor(r, i + 1)));
+    unitLine.replaceChildren(el("span", { className: "hint", text: "Amounts in" }), unit.node);
+  };
+
+  const addRecipient = (): void => {
+    // Review would now build for other recipients, and Max needs a lone one.
     clearPreview();
     leaveDrain();
+    rows.push(newRow({}));
+    layout();
     refresh();
-  });
-  amount.addEventListener("blur", () => {
-    touched.amount = true;
+  };
+
+  const removeRecipient = (r: RecipientRow): void => {
+    const i = rows.indexOf(r);
+    if (i < 0 || rows.length === 1) return;
+    clearPreview();
+    leaveDrain();
+    rows.splice(i, 1);
+    layout();
     refresh();
-  });
+  };
+
+  const addLine = el("div", { className: "m-add-line" }, [
+    button("Add recipient", addRecipient, { icon: "plus" }),
+    unitLine,
+  ]);
+
+  // --- scanning ---------------------------------------------------------------
+  //
+  // The camera runs on this screen rather than on Scan, which would rebuild
+  // this one and lose every row. While it runs the form steps aside for what
+  // Scan shows: a reticle over a page turned see-through.
+  const mark = seeThroughMark();
+  /** Stops the camera and turns the page solid again; null while none runs. */
+  let stopScan: (() => void) | null = null;
+  const scanner = body(
+    el("div", { className: "m-scan" }, [
+      reticle(),
+      lede("Point the camera at an address or a bitcoin: QR code."),
+    ]),
+    button("Cancel", () => stopScan?.(), { block: true }),
+  );
+  const scanNote = lede("Address filled in from a scan.");
+
+  /**
+   * Where a scanned payment goes: the last row without an address, so a scan
+   * overwrites nothing while a row is still empty. With none empty it
+   * replaces the address beside the scan button pressed, as a lone row
+   * always has.
+   */
+  const scanTarget = (pressed: RecipientRow): RecipientRow => {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      if (r && r.address.value.trim() === "") return r;
+    }
+    return pressed;
+  };
+
+  const fillFromScan = (r: RecipientRow, payment: PaymentRequest): void => {
+    clearPreview();
+    leaveDrain();
+    r.address.value = payment.address;
+    r.touched.address = true;
+    // A code without an amount leaves the one typed alone.
+    if (payment.amountSat !== undefined) {
+      r.amount.value = formatAmount(payment.amountSat, currentUnit);
+      r.touched.amount = true;
+    }
+    refresh();
+    if (!scanNote.isConnected) form.appendChild(scanNote);
+    r.address.scrollIntoView({ block: "nearest" });
+  };
+
+  const scanFor = async (pressed: RecipientRow): Promise<void> => {
+    if (!scanQr || stopScan) return;
+    alert.hide();
+    const camera = new AbortController();
+    const stop = (): void => {
+      camera.abort();
+      mark.clear();
+    };
+    stopScan = stop;
+    // Taking the form out of the page scrolls it back to the top.
+    const scrolled = form.scrollTop;
+    mark.set();
+    host.classList.add("m-scanner");
+    host.replaceChildren(scanHead, scanner);
+    let text: string | null = null;
+    try {
+      text = await scanQr(camera.signal);
+    } catch (e) {
+      if (onScreen()) alert.show("error", errorMessage(e));
+    }
+    stop();
+    stopScan = null;
+    host.classList.remove("m-scanner");
+    host.replaceChildren(head, form);
+    form.scrollTop = scrolled;
+    // Null is a cancel, not a failure: say nothing.
+    if (text === null || !onScreen()) return;
+    const payment = parsePaymentUri(text);
+    if (payment) fillFromScan(scanTarget(pressed), payment);
+    else alert.show("warn", "That QR code is not a Bitcoin address.");
+  };
 
   // --- review -----------------------------------------------------------------
   const reviewHost = el("div");
@@ -320,25 +574,25 @@ export function renderSend(): HTMLElement {
     () =>
       withBusy(review, async () => {
         alert.hide();
-        touched.address = true;
-        touched.amount = true;
+        for (const r of rows) {
+          r.touched.address = true;
+          r.touched.amount = true;
+        }
         refresh();
-        const to = address.value.trim();
-        const parsed = parseAmount(amount.value, currentUnit);
-        if (addressError(to, info.network) || parsed.sats === null) return;
+        const to = recipients();
+        if (to === null) return;
         try {
           const seq = formSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
-          const preview =
-            drain ?? (await api.buildTransfer([{ address: to, amount_sat: parsed.sats }], rate));
+          const preview = drain ?? (await api.buildTransfer(to, rate));
           if (seq !== formSeq || !onScreen()) {
             // The form changed or the screen went away while this was building.
-            // Showing it would offer the previous recipient and amount; keeping
-            // it would strand the PSBT with nothing left to reclaim it.
+            // Showing it would offer the previous recipients and amounts;
+            // keeping it would strand the PSBT with nothing left to reclaim it.
             if (preview !== drain) void api.discardTx(preview.psbt_id);
             return;
           }
-          showPreview(preview, preview.total_out_sat);
+          showPreview(preview, to);
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
         }
@@ -346,7 +600,7 @@ export function renderSend(): HTMLElement {
     { variant: "primary", block: true },
   );
 
-  function showPreview(preview: TxPreview, sats: number): void {
+  function showPreview(preview: TxPreview, to: readonly Recipient[]): void {
     pendingPreview = preview;
     const confirm = button(
       "Confirm and send",
@@ -370,14 +624,18 @@ export function renderSend(): HTMLElement {
       { variant: "primary", block: true },
     );
 
+    const total = preview.total_out_sat + preview.fee_sat;
+    const feeText = `${formatNumber(preview.fee_sat)} sat · ${formatNumber(preview.vsize)} vB`;
     const sheet = card(
       sectionLabel("Review"),
-      kv([
-        ["Amount", `${formatNumber(sats)} sat`],
-        ["Fee", `${formatNumber(preview.fee_sat)} sat · ${formatNumber(preview.vsize)} vB`],
-        ["Change", `${formatNumber(preview.change_sat)} sat`],
-        ["Total", `${formatNumber(sats + preview.fee_sat)} sat`],
-      ]),
+      to.length === 1
+        ? kv([
+            ["Amount", `${formatNumber(preview.total_out_sat)} sat`],
+            ["Fee", feeText],
+            ["Change", `${formatNumber(preview.change_sat)} sat`],
+            ["Total", `${formatNumber(total)} sat`],
+          ])
+        : recipientList(to, feeText, total),
       confirm,
       button("Cancel", clearPreview, { variant: "quiet" }),
     );
@@ -386,36 +644,34 @@ export function renderSend(): HTMLElement {
     sheet.scrollIntoView({ block: "nearest" });
   }
 
-  const scan = button("", () => navigate("scan"), {
-    icon: "scan",
-    ariaLabel: "Scan a QR code",
-    square: true,
-  });
-
   // Screens are rebuilt on every navigation, so anything still pending when
   // this one goes away is unreachable — abandoned sends would grow the core's
-  // pending map without bound.
+  // pending map without bound. The camera, which has no way out of its own,
+  // stops with the screen.
   const discardOnLeave = (): void => {
+    stopScan?.();
     clearPreview();
     leaveDrain();
     window.removeEventListener("hashchange", discardOnLeave);
   };
   window.addEventListener("hashchange", discardOnLeave);
 
-  host.appendChild(header("Send", { back: "dashboard" }));
-  host.appendChild(
-    body(
-      alert.node,
-      card(labelled("To", address), row(address, scan), addressErr),
-      card(labelled("Amount", amount), row(amount, unit.node, max), amountErr, maxNote),
-      card(sectionLabel("Fee"), fee.node, customRow, rateErr, rateNote),
-      reviewHost,
-      spacer(),
-      review,
-      taken.address ? lede("Address filled in from a scan.") : null,
-    ),
+  const head = header("Send", { back: "dashboard" });
+  const scanHead = header("Scan");
+  const form = body(
+    alert.node,
+    recipientsBox,
+    addLine,
+    card(sectionLabel("Fee"), fee.node, customRow, rateErr, rateNote),
+    reviewHost,
+    spacer(),
+    review,
+    taken.address ? scanNote : null,
   );
+  host.append(head, form);
 
+  rows.push(newRow(taken));
+  layout();
   refresh();
   void refreshRate();
   return host;
