@@ -156,7 +156,7 @@ branch on `$?`.
 ```bash
 just test       # core and CLI, the wasm bindings in Node, the UI suite — no network
 just regtest    # end-to-end against a real bitcoind + Esplora
-just check      # everything CI lints and typechecks
+just check      # what CI lints and typechecks, bar clippy on the phone targets
 ```
 
 Each recipe in the [`justfile`](justfile) is a line or two over plain commands

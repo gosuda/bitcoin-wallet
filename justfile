@@ -6,10 +6,11 @@
 wasm:
     scripts/build-wasm.sh
 
-# Lint and typecheck everything, as CI does: Rust native and wasm32, the frontend, the version and the Tauri pairs.
+# Lint and typecheck as CI does: Rust native and wasm32, the frontend, the version and the Tauri pairs. Not clippy on the phone targets, which needs their SDKs.
 check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy -p wallet-core --no-default-features -- -D warnings
     scripts/with-wasm-cc.sh cargo clippy -p wallet-core --target wasm32-unknown-unknown --no-default-features --features backend-esplora --all-targets -- -D warnings
     scripts/with-wasm-cc.sh cargo clippy -p wallet-wasm --target wasm32-unknown-unknown --all-targets -- -D warnings
     pnpm check

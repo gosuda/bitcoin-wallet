@@ -24,7 +24,7 @@ Then, from the repository root:
 ```bash
 pnpm install
 just wasm      # build the wasm core into packages/wallet-ui, where the apps import it
-just check     # everything CI lints and typechecks
+just check     # what CI lints and typechecks, bar clippy on the phone targets
 just test      # every test that needs no node
 ```
 
@@ -35,7 +35,7 @@ changing anything under `crates/`**, or the app keeps running the old core.
 
 | Recipe | What | Notes |
 |---|---|---|
-| `just check` | fmt, clippy (native and wasm32), Biome, TypeScript, the version copies, the Tauri pairs | the same checks CI runs |
+| `just check` | fmt, clippy (native, native without default features, and wasm32), Biome, TypeScript, the version copies, the Tauri pairs | the checks CI runs, except clippy on the phone targets, which needs the Android NDK and Xcode |
 | `just test` | core and CLI tests, the wasm bindings and wasm-only paths in Node, the UI suite | the UI suite runs as if on a German device, so a number pinned to en-US fails |
 | `just regtest` | end to end against a real `bitcoind` and `electrs` | downloads x86_64 binaries on macOS, so an Apple-silicon Mac needs Rosetta; CI runs it on every pull request either way |
 | `just android-apk`, `just ios-sim` | a debug phone build | see the README's iOS and Android section for the toolchain |
