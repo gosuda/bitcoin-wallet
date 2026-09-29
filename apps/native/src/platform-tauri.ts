@@ -99,15 +99,19 @@ export async function keystoreAvailable(): Promise<boolean> {
  * Only a failure is cancelled on the way out. A read or a cancel has already put
  * the camera away, and `cancel` stops whatever scan is running: sent after every
  * scan, the one from a Scan screen that was just replaced (its tab tapped again)
- * could land after the new screen's scan had started, and stop it. On Android a
- * cancelled scan never settles at all — the plugin drops the call before it
- * rejects it — which costs nothing, since the screen waiting on it has gone.
+ * could land after the new screen's scan had started, and stop it.
+ *
+ * An abort settles the wait itself. On Android the plugin's `cancel` never
+ * settles the scan it stops — it drops the call before rejecting it — so a caller
+ * waiting on the scan alone would wait for good.
  */
 async function scanQr(signal?: AbortSignal): Promise<string | null> {
   const { scan, Format, cancel, checkPermissions, requestPermissions } = await import(
     "@tauri-apps/plugin-barcode-scanner"
   );
   let camera = await checkPermissions();
+  // A screen left while that was being asked must not raise a prompt after.
+  if (signal?.aborted) return null;
   if (camera !== "granted") camera = await requestPermissions();
   if (camera !== "granted") {
     throw new Error(
@@ -116,11 +120,14 @@ async function scanQr(signal?: AbortSignal): Promise<string | null> {
   }
   // The permission prompt can outlast the screen that asked for it.
   if (signal?.aborted) return null;
+  const left = new Promise<null>((resolve) => {
+    signal?.addEventListener("abort", () => resolve(null), { once: true });
+  });
   const stop = (): void => void cancel().catch(() => undefined);
   signal?.addEventListener("abort", stop, { once: true });
   try {
-    const result = await scan({ windowed: true, formats: [Format.QRCode] });
-    return result.content;
+    const scanned = scan({ windowed: true, formats: [Format.QRCode] }).then((r) => r.content);
+    return await Promise.race([scanned, left]);
   } catch (e) {
     if (/cancel/i.test(messageOf(e) ?? "")) return null;
     // A scan that failed may have left the camera running behind the page.
