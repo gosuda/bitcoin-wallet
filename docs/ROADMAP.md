@@ -588,61 +588,149 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
 
 Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go with them.
 
-- [ ] **4.1 One version** · S · root `Cargo.toml`, crate manifests, `tauri.conf.json`,
+- [x] **4.1 One version** · S · root `Cargo.toml`, crate manifests, `tauri.conf.json`,
   `scripts/check-version.sh`, `justfile`
-      why: `0.1.0` is typed by hand in ten manifests and two Apple files · done when: the
-      workspace version is the source, a check script asserts the rest and runs in CI, `just
-      bump X.Y.Z` edits them all, and `release.yml` refuses a tag that disagrees
+      why: `0.1.0` is typed by hand in ten manifests and two Apple files · done: 2026-09-29 —
+      `[workspace.package] version` is the one place it is written. All five crates say
+      `version.workspace = true` (cargo metadata reads 0.1.0 for each). `tauri.conf.json` now
+      points at `../package.json`: tauri-build reads that file, shown by the build failing
+      ("must be a semver string") when the pointer names a missing one.
+      `scripts/check-version.sh` asserts every other copy (the four `package.json`, both
+      `CFBundle*` keys in the checked-in `Info.plist` and `project.yml`) and that no crate
+      states its own. Five mutations, one per kind of copy, each fail with an error naming
+      the file. It runs in the Linux `core` leg, next to a `just --list` that proves the
+      `justfile` parses (`just` is not on this Mac, so the recipes stay one-line calls into
+      scripts). `just bump X.Y.Z` runs `scripts/bump-version.sh`: in a throwaway clone,
+      bumping to 0.2.0 changed exactly the version lines of seven files plus the five
+      workspace entries in `Cargo.lock`, then passed its own check, and `v1.2.3` or `1.2` is
+      refused. `release.yml` has a `version` job that every bundle leg needs. On a tag it
+      runs the check with the tag (the tag goes in through `env`, not interpolation), and
+      `v0.1.1` against 0.1.0 fails. `RELEASING.md` describes it all; the push path filter
+      gains `scripts/**` and `justfile`
 
-- [ ] **4.2 A changelog and honest tiers** · S · `CHANGELOG.md`, `SECURITY.md` · **admin** for
+- [x] **4.2 A changelog and honest tiers** · S · `CHANGELOG.md`, `SECURITY.md` · **admin** for
   the stale objects
       why: no changelog; SECURITY.md promises support for tagged releases that do not exist; a
       2024 draft release with a 92 MB asset and a branch from a closed PR are still on GitHub ·
-      done when: Keep-a-Changelog seeded from the merged PRs; the tier says "main only until
-      the first tag"; the draft and the branch are deleted; description and topics set
+      done: 2026-09-29 — `CHANGELOG.md` follows Keep a Changelog. Its first section, 0.1.0,
+      says what the first version holds, with the pull request each part came from (#3–#36).
+      It was drawn from the merged PR bodies and checked against the code; the fixes made
+      before any release are left out, since nobody ran a version that had them.
+      `RELEASING.md` adds the changelog step to a version bump. SECURITY.md says `main` is the
+      only supported version until the first release is tagged. With the OK given, through
+      `gh`, and read back: the 2024 draft release (id 186891304, one 92.7 MB asset named
+      "kava") is deleted, and so is the branch `fix/remediation-cb472262-242d4e` from PR #9;
+      the repository now reads "Bitcoin wallet for desktop, iOS, Android and the browser, on
+      one Rust (BDK) core", with the topics bitcoin, bitcoin-wallet, rust, bdk, tauri, wasm and
+      esplora
 
-- [ ] **4.3 Phone bundles on demand** · M · `.github/workflows/mobile-bundle.yml`
+- [x] **4.3 Phone bundles on demand** · M · `.github/workflows/mobile-bundle.yml`
       why: CI compiles the Rust library for three mobile targets and never assembles an app ·
-      done when: a `workflow_dispatch` builds an Android debug APK on Linux and an iOS Simulator
-      app on macOS without signing, uploads both, asserts the camera and Face ID usage strings
-      in the built `Info.plist`, and the APK installs on an emulator
+      done: 2026-09-29 — `mobile-bundle.yml`, `workflow_dispatch` only, as decided. The Android
+      leg (ubuntu) builds an arm64 debug APK with JDK 17 pinned. The iOS leg (macOS) builds a
+      Simulator app. Neither signs, and each uploads its artifact for 7 days. The iOS leg
+      asserts `NSCameraUsageDescription`, `NSFaceIDUsageDescription` and the `bitcoin:` scheme
+      in the *built* app's Info.plist, found in DerivedData because the Tauri CLI copies a
+      Simulator build nowhere. GitHub only dispatches workflows present on the default branch,
+      so the file was proven from a short-lived probe branch whose copy differed only by a
+      three-line push trigger (branch deleted after). Run 36521331387 was green: both legs
+      took about 8 minutes, producing a 67 MB APK and a 33 MB zipped `.app`. The downloaded APK
+      installed on a fresh API 34 emulator (`versionName` 0.1.0) and opened on Setup. The
+      first runs surfaced two release-path bugs, each fixed in its own commit. The Tauri CLI
+      would not build at all (plugin-http crate 2.7 vs npm 2.6). And no macOS runner could build
+      the wasm core (Apple's clang has no wasm32 backend), which the release workflow's macOS
+      legs would have hit on the first tag
 
-- [ ] **4.4 Android release signing** · S · `gen/android/app/build.gradle.kts`, `release.yml`,
+- [x] **4.4 Android release signing** · S · `gen/android/app/build.gradle.kts`, `release.yml`,
   `docs/RELEASING.md` · **credentials**
-      why: no `signingConfigs`, so a release APK cannot be signed from this project · done when:
-      a release config reads a gitignored `keystore.properties` or environment; the release
-      workflow's Android leg runs when the secrets exist; `apksigner verify` on a local build
+      why: no `signingConfigs`, so a release APK cannot be signed from this project · done:
+      2026-09-29 — `app/build.gradle.kts` gains `signingConfigs.release`, read from a gitignored
+      `gen/android/keystore.properties` or from the `ANDROID_KEYSTORE_*` environment. The
+      release build type uses it only when one of them exists. It was proven with a throwaway
+      key, valid for one day. Signed once through the properties file and once through the
+      environment, the arm64 release APK passed `apksigner verify --print-certs` both times
+      (APK Signature Scheme v2), naming "CN=Throwaway test key, O=not for release". With
+      neither, the build is `app-universal-release-unsigned.apk`, which does not verify, as
+      before. `release.yml` gains a `keys` job that reports which signing secrets exist, since
+      a job's `if` cannot read secrets. An `android` job that needs it builds all four ABIs
+      as a signed `.apk` and `.aab`, checks the APK with `apksigner`, and attaches both to
+      the draft release on a tag or keeps them as artifacts on a manual run. `RELEASING.md` has
+      the Android section: the four secrets, making the Play upload key, and the local recipe.
+      Waiting on credentials: the real upload key, set as those four secrets. Until then
+      the job is skipped, not failed
 
-- [ ] **4.5 Minification verified** · S · `gen/android/app/proguard-rules.pro` · after 4.4
+- [x] **4.5 Minification verified** · S · `gen/android/app/proguard-rules.pro` · after 4.4
       why: R8 is on for release and the rules file is all comments; the Kotlin keystore shim is
-      reached over JNI · done when: a minified release build opens, remembers, relaunches and
-      unlocks on the emulator with a clean logcat, with keep rules only if that run demanded them
+      reached over JNI · done: 2026-09-29 — the rules file keeps line numbers and nothing else,
+      because the run needed no keep rule. R8's merged configuration shows why:
+      `proguard-android-optimize.txt` keeps every class with a native method under its own
+      name, so `io.crates.keyring.Keyring$Companion` and `initializeNdkContext` survive while
+      the outer class is renamed; wry's generated rules keep the webview glue; and Tauri's and
+      each plugin's consumer rules keep their `@Command` methods. A minified arm64 release APK,
+      signed with the 4.4 throwaway key, replaced the debug app on an API 34 emulator. It
+      restored the BIP39 test phrase with Remember ticked and fetched a fee estimate. After a
+      force-stop it relaunched on Unlock, showing the remembered address, and unlocked into the
+      wallet, with the biometric check running through its plugin. Updating it in place kept
+      the wallet. Logcat had no crash, no missing class or method, no JNI error and no Rust
+      panic. The `.aab` carries R8's mapping for Play Console. The run also found three scanner
+      bugs that had nothing to do with R8; each is fixed in its own commit
 
-- [ ] **4.6 iOS release configuration** · S · `tauri.conf.json`, `release.yml`,
+- [x] **4.6 iOS release configuration** · S · `tauri.conf.json`, `release.yml`,
   `docs/RELEASING.md` · **credentials**
-      why: the export method is `debugging` and there is no team · done when: the development
-      team comes from the environment, the release workflow's iOS leg exports with
-      `release-testing` when the secrets exist, and the mobile section of RELEASING.md exists
+      why: the export method is `debugging` and there is no team · done: 2026-09-29 —
+      `release.yml` gains an `ios` job, gated like the Android one by the `keys` job, which
+      now also reports whether `APPLE_API_KEY_P8` exists. The job builds for devices with
+      `--export-method release-testing`, which the CLI merges over the checked-in
+      `ExportOptions.plist`. It then checks the signature with `codesign` and attaches the
+      `.ipa` to the draft release, or keeps it as an artifact. The team comes from the
+      environment: the CLI reads `APPLE_DEVELOPMENT_TEAM`, set from the `APPLE_TEAM_ID` secret
+      macOS signing already uses, ahead of `bundle.iOS.developmentTeam`, so `tauri.conf.json`
+      stays without one. Signing goes through an App Store Connect API key, not an exported
+      certificate and profile: CLI 2.11 writes those settings outside the project's build
+      settings (tauri-apps/tauri#14462). All of that was read from the CLI's 2.11.5 source.
+      `RELEASING.md` has the iOS section: the four secrets, the key's Admin access, and
+      registering test devices first. The workflow parses, and its run steps pass shellcheck.
+      Waiting on credentials: an Apple developer team and that API key. Until they exist the
+      job is skipped, not failed
 
-- [ ] **4.7 CodeQL scans what ships** · S · repository setting, `README.md` · **admin**
+- [x] **4.7 CodeQL scans what ships** · S · repository setting, `README.md` · **admin**
       why: default setup scans Go and Python — the frozen reference and a design generator ·
-      done when: languages are actions, JavaScript/TypeScript and Rust; README matches
+      done: 2026-09-29 — the default setup's API cannot do this. Its PATCH accepts no `rust`
+      (only actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby and
+      swift, on both API versions), so dropping Go and Python there would drop Rust too. With
+      the OK given, `.github/workflows/codeql.yml` scans actions, javascript-typescript and rust
+      from source (`build-mode: none`) on pull requests, on pushes to `main` and weekly, and the
+      default setup is off (`not-configured`, read back). A probe branch that added itself to the
+      push trigger ran it once (36528289927). Actions checked 17 rules and JavaScript/TypeScript
+      87, with no results. Rust checked 26 in 8½ minutes and matched the three CLI alerts
+      already dismissed (#15–#17), which stay dismissed. The README says the Go reference is not
+      scanned
 
-- [ ] **4.8 `justfile` and contributor documents** · S · `justfile`, `README.md`,
+- [x] **4.8 `justfile` and contributor documents** · S · `justfile`, `README.md`,
   `CONTRIBUTING.md`, `apps/native/design/README.md`, `docs/signet-rig/`
       why: the wasm build command is written out in five places; there is no contributor guide;
       the design generator and the canvas republish recipe are undocumented; the phone test rig
-      is three sentences of prose · done when: `just --list` covers wasm, check, test, regtest,
-      the phone builds, version and the signet rig; each document exists and README points at it
+      is three sentences of prose · done: 2026-09-29 — `just --list` shows nine recipes: wasm,
+      check, test, regtest, android-apk, ios-sim, version, bump, signet. Each is a line or two
+      over a script, so `just` stays optional; it is not installed on this Mac, so the recipes
+      were run with its release binary from a scratch directory. The wasm build is now
+      written once, in `scripts/build-wasm.sh`, which `just wasm` and CI's wasm-core action
+      both run. `scripts/with-wasm-cc.sh` gives any command a wasm32-capable C compiler on
+      macOS, and the composite now only makes sure the image has one. `just check` (12 s)
+      and `just test` (25 s: 5 CLI, 76 core, 9 binding, 2 wasm32 deadline and 150 UI tests)
+      pass here. `CONTRIBUTING.md` covers setup, what each recipe runs, and how work is tracked,
+      committed and designed. The README's Tests, Apps and phone sections use the recipes, and
+      its Contributing section points to `CONTRIBUTING.md`. `apps/native/design/README.md` says
+      what each file is, how to run `gen.py`, and to diff against the live canvas before
+      republishing over it. `docs/signet-rig/` has `bitcoin.conf` (OP_TRUE challenge, RPC on
+      127.0.0.1), `start.sh` (bitcoind plus an Esplora electrs on :3002), `mine.sh` and a
+      README with the emulator URL. The scripts are shellcheck-clean and their guards were
+      exercised, but the rig itself was not re-run: the downloaded bitcoind is x86_64 and this
+      Mac has no Rosetta
 
 - [ ] **4.9 First tag** · S · `v0.1.0` · **decision** (outward-facing) · after 4.1 and 4.2
       why: the release workflow's tag path has never run · done when: the tag exists and the
       draft release built from it carries the desktop artifacts
-
-- [ ] **4.10 Web build deployed** · S · `.github/workflows/pages.yml`, `apps/web/vite.config.ts` ·
-  **admin**, and only if wanted
-      why: the browser build is compiled on every push and published nowhere · done when: a
-      Pages URL serves it, and the page says keys are held for the session only
 
 ## Round 5 — Product
 
@@ -663,6 +751,15 @@ one starts when it is picked.
 - Labels and contacts (BIP21 `label` is parsed, then dropped)
 - CPFP; cancel-by-replacement; PSBT import; auto-lock on background; fiat display; a theme
   toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the signing key first)
+- A first sync that can finish on a slow link. The first sync is one full scan inside the
+  180 s scan budget, and a scan that runs out keeps nothing, so a wallet whose history takes
+  longer to fetch starts over every time and never syncs. The BIP39 test phrase on signet did
+  this over the emulator's ~265 ms link (4.5). Keeping what each pass found, or a longer
+  budget with progress, needs a decision first.
+- QR reading without Google Play Services. The Android scanner plugin uses Play Services'
+  ML Kit model (`play-services-mlkit-barcode-scanning`), downloaded on first use, so on a
+  phone without Play Services the camera opens and never reads a code. Bundling the model
+  means changing the plugin (no canvas)
 
 ## Decisions
 
@@ -674,7 +771,10 @@ one starts when it is picked.
 - 2026-09-29 — Both shells start Send on a 6-block target (3.6).
 - 2026-09-29 — Numbers on screen follow the device's locale, as dates do; amount fields keep
   plain digits and a `.` (3.9).
-- Open: the first tag (4.9); Pages (4.10).
+- 2026-09-29 — The first tag is `v0.1.0`, cut from the merge of Round 4 (4.9).
+- 2026-09-29 — The browser build is not hosted; 4.10 moved to Not doing.
+- 2026-09-29 — CodeQL runs from `codeql.yml`, not the default setup, whose API cannot keep
+  Rust while dropping Go and Python (4.7).
 
 ## Not doing
 
@@ -691,3 +791,5 @@ one starts when it is picked.
   `tauri.conf.json` on every build; it only applies to a bare `./gradlew` run.
 - `forgetWallet` deleting the keystore entry — by design; the reset in Round 5 is the other path.
 - Coverage thresholds — a report may be added (3.8); no gate.
+- Hosting the browser build on Pages (was 4.10) — a hosted page that handles keys is a target
+  for look-alike copies and for a poisoned deploy, and anyone can build and run it locally.

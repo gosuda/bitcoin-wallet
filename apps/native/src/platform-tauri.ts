@@ -8,7 +8,12 @@
  */
 
 import type { Platform } from "@bitcoin-wallet/ui/platform";
-import type { AppConfig, RememberedWallet, StoredSecret } from "@bitcoin-wallet/ui/types";
+import {
+  type AppConfig,
+  messageOf,
+  type RememberedWallet,
+  type StoredSecret,
+} from "@bitcoin-wallet/ui/types";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
@@ -78,20 +83,62 @@ export async function keystoreAvailable(): Promise<boolean> {
  *
  * The plugin is imported lazily so the desktop bundle never loads it, and a
  * cancel is reported by the plugin as an error rather than a value — hence the
- * message check rather than a plain rethrow.
+ * message check rather than a plain rethrow. That error is a plain
+ * `{ message }` object, not an `Error`, so it is read with `messageOf`.
+ *
+ * The camera permission is asked for here because on Android the plugin's
+ * `scan` never asks: without the permission it fails at once, so the first
+ * scan on a new install could never open the camera.
+ *
+ * `windowed` puts the camera behind the webview. Without it the plugin lays the
+ * camera over the whole app with no control of its own, so nothing short of a
+ * readable QR code could end a scan: Android's back key only moved the hidden
+ * page, and iOS has no back key at all. Behind the page, the Scan screen stays
+ * usable, and leaving it aborts `signal`, which is what stops the camera.
+ *
+ * Only a failure is cancelled on the way out. A read or a cancel has already put
+ * the camera away, and `cancel` stops whatever scan is running: sent after every
+ * scan, the one from a Scan screen that was just replaced (its tab tapped again)
+ * could land after the new screen's scan had started, and stop it.
+ *
+ * An abort settles the wait itself. On Android the plugin's `cancel` never
+ * settles the scan it stops — it drops the call before rejecting it — so a caller
+ * waiting on the scan alone would wait for good.
  */
-async function scanQr(): Promise<string | null> {
-  const { scan, Format, cancel } = await import("@tauri-apps/plugin-barcode-scanner");
+async function scanQr(signal?: AbortSignal): Promise<string | null> {
+  const { scan, Format, cancel, checkPermissions, requestPermissions } = await import(
+    "@tauri-apps/plugin-barcode-scanner"
+  );
+  let camera = await checkPermissions();
+  // A screen left while that was being asked must not raise a prompt after.
+  if (signal?.aborted) return null;
+  if (camera !== "granted") camera = await requestPermissions();
+  if (camera !== "granted") {
+    throw new Error(
+      "Camera access was refused. Allow it in Settings and try again, or paste the address.",
+    );
+  }
+  // The permission prompt can outlast the screen that asked for it.
+  if (signal?.aborted) return null;
+  let settle = (): void => undefined;
+  const left = new Promise<null>((resolve) => {
+    settle = () => resolve(null);
+  });
+  const stop = (): void => {
+    void cancel().catch(() => undefined);
+    settle();
+  };
+  signal?.addEventListener("abort", stop, { once: true });
   try {
-    const result = await scan({ windowed: false, formats: [Format.QRCode] });
-    return result.content;
+    const scanned = scan({ windowed: true, formats: [Format.QRCode] }).then((r) => r.content);
+    return await Promise.race([scanned, left]);
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    if (/cancel/i.test(message)) return null;
+    if (/cancel/i.test(messageOf(e) ?? "")) return null;
+    // A scan that failed may have left the camera running behind the page.
+    await cancel().catch(() => undefined);
     throw e;
   } finally {
-    // Leaving the camera running would keep the preview over the next screen.
-    await cancel().catch(() => undefined);
+    signal?.removeEventListener("abort", stop);
   }
 }
 

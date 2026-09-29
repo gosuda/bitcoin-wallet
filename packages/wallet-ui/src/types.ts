@@ -334,10 +334,21 @@ function detailedMessage(value: AppError): string | null {
   }
 }
 
+/**
+ * The message a failure carries, whatever shape it arrived in: an `Error`, a
+ * bare string, or the plain `{ message }` object a Tauri mobile plugin rejects
+ * with — which is not an `Error`, so reading only those lost what it said.
+ */
+export function messageOf(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value !== "object" || value === null) return null;
+  const message = (value as Record<string, unknown>).message;
+  return typeof message === "string" ? message : null;
+}
+
 export function errorMessage(value: unknown): string {
   if (isAppError(value)) return detailedMessage(value) ?? value.message;
-  if (value instanceof Error) return value.message;
-  return typeof value === "string" ? value : "unexpected error";
+  return messageOf(value) ?? "unexpected error";
 }
 
 export const NETWORK_LABELS: Record<Network, string> = {

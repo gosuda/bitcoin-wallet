@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { errorMessage, isAppError, MAX_FEE_RATE_SAT_VB, WalletError } from "../src/types";
+import {
+  errorMessage,
+  isAppError,
+  MAX_FEE_RATE_SAT_VB,
+  messageOf,
+  WalletError,
+} from "../src/types";
 
 /**
  * Every code this UI can receive: from `wallet_core::Error::code()`
@@ -99,6 +105,26 @@ describe("errorMessage", () => {
     expect(errorMessage(new Error("plain"))).toBe("plain");
     expect(errorMessage("just a string")).toBe("just a string");
     expect(errorMessage(42)).toBe("unexpected error");
+  });
+
+  it("reads the plain { message } object a mobile plugin rejects with", () => {
+    // What Tauri's Android runtime sends for an exception in a plugin command.
+    const rejection = { message: "No permission to use camera. Did you request it yet?" };
+    expect(errorMessage(rejection)).toBe(rejection.message);
+    expect(errorMessage({ message: 7 })).toBe("unexpected error");
+    expect(errorMessage({})).toBe("unexpected error");
+    expect(errorMessage(null)).toBe("unexpected error");
+  });
+});
+
+describe("messageOf", () => {
+  it("reads a message from an Error, a string or a { message } object, and nothing else", () => {
+    expect(messageOf(new Error("e"))).toBe("e");
+    expect(messageOf("s")).toBe("s");
+    expect(messageOf({ message: "cancelled" })).toBe("cancelled");
+    expect(messageOf({ message: ["no"] })).toBeNull();
+    expect(messageOf(undefined)).toBeNull();
+    expect(messageOf(42)).toBeNull();
   });
 });
 

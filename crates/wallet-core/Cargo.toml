@@ -1,6 +1,6 @@
 [package]
 name = "wallet-core"
-version = "0.1.0"
+version.workspace = true
 description = "Portable Bitcoin wallet core built on BDK; runs natively and in WASM"
 publish = false
 edition.workspace = true

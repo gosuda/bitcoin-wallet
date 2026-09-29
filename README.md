@@ -17,8 +17,9 @@ read it before opening an issue asking for something that is already listed ther
 
 **Open a wallet** three ways: a BIP39 recovery phrase (an HD account, with a
 passphrase if you want one), a single private key (hex or WIF), or an xpub or public
-descriptor to follow a wallet you cannot spend from. On a phone, a wallet can be
-remembered in the OS keychain and reopened with Face ID or the device unlock.
+descriptor to follow a wallet you cannot spend from. The desktop and phone apps can
+remember a wallet in the OS key store; on a phone it then reopens with Face ID or the
+device unlock.
 
 **Receive** on a fresh address each time (single-key wallets have the one address, and
 say so). The QR encodes a `bitcoin:` link, with an amount if you ask for one.
@@ -55,7 +56,8 @@ The maintained implementation. One wallet core, compiled once and reused everywh
 natively for the CLI and tests, and as WASM in the browser and the Tauri webview.
 It uses [BDK](https://bitcoindevkit.org) (`bdk_wallet`, `bdk_esplora`) and runs against
 any Esplora-compatible HTTP API — mempool.space, blockstream.info, electrs,
-[bitcoin-rs](https://github.com/gosuda/bitcoin-rs).
+[bitcoin-rs](https://github.com/gosuda/bitcoin-rs). The browser build reaches only the
+servers that send CORS headers; the desktop and phone apps reach any (see below).
 
 ```
 crates/wallet-core   # wallet logic: keys, sync, balance, build → sign → broadcast (no UI, no database)
@@ -73,15 +75,17 @@ answers with `localStorage` and reports `canRememberWallet: false`, so "Remember
 device" is not offered, no key is written anywhere, and the wallet lives only as long as
 the tab.
 
-**One frontend, two layouts.** The shell picks by viewport, not by build, and both
-layouts import the same screens' logic. Desktop is a single dashboard with the wallet,
+**One frontend, two layouts.** The layout is chosen when the app is built, not by
+viewport: the native entry point reads `TAURI_ENV_PLATFORM` and mounts the phone shell
+for iOS and Android, and the browser build always gets the desktop one. Both layouts
+import the same screens' logic. Desktop is a single dashboard with the wallet,
 receive, history and the panels for rescan and public keys, plus its own Send page.
 The phone is a tab bar — Wallet, Scan, Settings — over full-screen routes: Wallet,
 Receive, Send, Transaction, Export, Settings, and the Setup / Key / Create / Restore /
 Unlock flow before a wallet is open. Both bundles are built from the same source and
 the desktop bundle contains no phone chunks.
 
-**What the phone shell adds.** Four things need a device and are wired through Tauri
+**What the phone shell adds.** Three things need a device and are wired through Tauri
 plugins, each behind a capability in `apps/native/src-tauri/capabilities/mobile.json`:
 
 - **Camera** — the Scan tab reads a QR into the Send form (`barcode-scanner`).
@@ -89,9 +93,12 @@ plugins, each behind a capability in `apps/native/src-tauri/capabilities/mobile.
   (`biometric`); the key itself lives in the iOS Keychain or the Android Keystore.
 - **`bitcoin:` links** — a payment URI from another app opens Send filled in
   (`deep-link`).
-- **Chain requests through Rust** — the webview's `fetch` is replaced so cross-origin
-  http(s) goes out through the native HTTP stack (`http`), which is why any
-  Esplora endpoint works rather than only the ones that happen to send CORS headers.
+
+**Chain requests through Rust.** In both native apps, desktop and phone, the webview's
+`fetch` is replaced so that cross-origin http(s) goes out through the native HTTP stack
+(`http`). That is why any Esplora endpoint works there, not only the ones that happen
+to send CORS headers. Its scope is no static capability: the app grants itself each
+backend origin as that backend is configured, and no other origin.
 
 **Persistence.** The core never picks a database: it stages BDK `ChangeSet`s through a
 `Persister` the platform supplies. Browser and desktop both use the same IndexedDB store
@@ -147,13 +154,14 @@ branch on `$?`.
 ### Tests
 
 ```bash
-cargo test -p wallet-core          # unit tests, no network
-cargo test -p regtest-tests        # end-to-end against a real bitcoind + Esplora
-wasm-pack test --node crates/wallet-wasm   # the JS bindings, run in Node
-wasm-pack test --node crates/wallet-core --no-default-features --features backend-esplora
-                                   # the paths only wasm32 has (the deadline race)
-pnpm --filter @bitcoin-wallet/ui test   # the frontend's pure modules, under vitest
+just test       # core and CLI, the wasm bindings in Node, the UI suite — no network
+just regtest    # end-to-end against a real bitcoind + Esplora
+just check      # what CI lints and typechecks, bar clippy on the phone targets
 ```
+
+Each recipe in the [`justfile`](justfile) is a line or two over plain commands
+(`cargo test -p wallet-core`, `wasm-pack test --node crates/wallet-wasm`, …), so
+`just` itself is optional; [CONTRIBUTING.md](CONTRIBUTING.md) has the setup.
 
 `regtest-tests` downloads `bitcoind` and `electrs` on first build (via `bdk_testenv`) and
 drives the whole flow — receive, spend, fee bump, reopen from persisted state, and the HD
@@ -163,7 +171,8 @@ account with its separate change keychain — so no faucet or Docker is needed.
 
 Installers are built by `.github/workflows/release.yml` — run it by hand to
 check the bundles, or push a `v*` tag to attach them to a draft release. Signing
-is a matter of adding secrets; see [docs/RELEASING.md](docs/RELEASING.md).
+the macOS, Android and iOS builds is a matter of adding secrets; Windows signing is not
+wired yet. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Apps
 
@@ -171,7 +180,7 @@ Both shells share one pnpm workspace and one lockfile, and both import the WASM 
 build it first:
 
 ```bash
-wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
+just wasm                                     # or scripts/build-wasm.sh
 pnpm install                                  # from the repo root
 
 cd apps/native && pnpm tauri dev              # desktop, on :14200
@@ -198,26 +207,28 @@ pnpm tauri android build --debug --apk --target aarch64   # an APK to install by
 ```
 
 The wallet core is WASM inside the webview, not a Tauri command, so a change to
-`crates/` needs `wasm-pack` re-run (the command under [Apps](#apps)) before the app
-picks it up.
+`crates/` needs `just wasm` re-run before the app picks it up. `just android-apk` and
+`just ios-sim` do that first. Signed-for-nobody phone builds can also be made on demand
+by the `mobile bundles` workflow (Actions → run workflow).
 
-To exercise a funded wallet without a faucet, point Setup at a node you run and mine
-into it. `regtest` is not offered on the phone — it wants a node on localhost — but a
-private signet is: `bitcoind -signet` with `signetchallenge=51` makes blocks anyone can
-mine with `generatetoaddress`, and the emulator reaches the host at `10.0.2.2`.
+To send from the phone build without a faucet, run a private signet whose blocks anyone
+can mine: `just signet`, then point Setup at it — [docs/signet-rig](docs/signet-rig/README.md)
+has the whole recipe.
 
 ## The Go reference
 
 `reference/go/` is the original `btctxbuilder` — a transaction-building library and a
 TUI, frozen. It is where behaviour came from and what parity is checked against; it is
 not built or shipped by anything here, and its own supported-type table does not
-describe the Rust wallet. CodeQL's default setup still scans it, alongside the code that
-does ship.
+describe the Rust wallet. CodeQL does not scan it: `.github/workflows/codeql.yml` covers
+the workflows, the TypeScript and the Rust that ship.
 
 ```bash
 cd reference/go && make run
 ```
 
 ## Contributing
-Contributions are always welcome!  
-If you find a bug, have a feature idea, or just want to improve the project, feel free to open an issue or submit a pull request.
+
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the setup, what
+`just check` and `just test` run, and how work is tracked and committed; security reports
+go to [SECURITY.md](SECURITY.md) instead of an issue.

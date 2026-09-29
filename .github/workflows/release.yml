@@ -14,8 +14,23 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # A tag names the version it releases. One that disagrees with the workspace
+  # would publish installers numbered differently from their tag, so nothing
+  # is built until the two match. A manual run just checks the copies agree.
+  version:
+    name: version matches the tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the version, and the tag when there is one
+        env:
+          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+        run: scripts/check-version.sh ${TAG:+"$TAG"}
+
   bundle:
     name: ${{ matrix.name }}
+    needs: version
     runs-on: ${{ matrix.os }}
     # Never run yet, so there is no measured duration to set this from; a
     # release build (thin LTO, one codegen unit, notarisation) is the slowest
@@ -69,17 +84,32 @@ jobs:
       # One workspace, one lockfile: install from the repo root.
       - run: pnpm install --frozen-lockfile
 
-      - uses: tauri-apps/tauri-action@v1
+      # Signing and notarisation happen only when these secrets exist; without
+      # them the bundles are unsigned (see docs/RELEASING.md). A secret that does
+      # not exist still arrives as an empty variable, and Tauri signs whenever
+      # APPLE_CERTIFICATE is set at all — so it failed importing an empty
+      # certificate. Each variable is therefore exported only when it has a value.
+      - name: Export the Apple signing secrets that exist
+        if: runner.os == 'macOS'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Signing and notarisation only happen when these secrets exist; the
-          # build still succeeds unsigned without them (see docs/RELEASING.md).
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            value="${!name}"
+            [ -n "$value" ] || continue
+            delimiter="EOF_$(openssl rand -hex 8)"
+            printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "$value" "$delimiter" >> "$GITHUB_ENV"
+          done
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/native
           # Only a tag publishes; a manual run just proves the bundles build.
@@ -101,4 +131,156 @@ jobs:
             target/release/bundle/**
             target/*/release/bundle/**
           if-no-files-found: warn
+          retention-days: 7
+
+  # Which store signing keys the repository holds. A phone leg below runs only
+  # when its key exists — without one there is nothing it could publish — and a
+  # job's `if` cannot read secrets directly, hence this job.
+  keys:
+    name: which signing keys exist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      android: ${{ steps.check.outputs.android }}
+      ios: ${{ steps.check.outputs.ios }}
+    steps:
+      - id: check
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          echo "android=${ANDROID_KEYSTORE_BASE64:+true}" >> "$GITHUB_OUTPUT"
+          echo "ios=${APPLE_API_KEY_P8:+true}" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android (signed)
+    needs: [version, keys, bundle]
+    if: needs.keys.outputs.android == 'true'
+    runs-on: ubuntu-24.04
+    # All four ABIs, each a full release build of the Rust library.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android,wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: ./.github/actions/wasm-core
+      - run: pnpm install --frozen-lockfile
+
+      # The keystore exists only in this job's temporary directory; the Gradle
+      # build reads it through ANDROID_KEYSTORE_* (app/build.gradle.kts).
+      - name: Build the signed APK and app bundle
+        working-directory: apps/native
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          pnpm tauri android build --apk --aab --ci
+
+      - name: Check the APK carries the upload key's signature
+        run: |
+          apksigner=""
+          for tools in "$ANDROID_HOME"/build-tools/*/; do apksigner="${tools}apksigner"; done
+          for apk in apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk; do
+            "$apksigner" verify --print-certs "$apk"
+          done
+
+      - name: Attach to the draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release upload "$TAG" --clobber \
+            apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk \
+            apps/native/src-tauri/gen/android/app/build/outputs/bundle/*/*.aab
+
+      - name: Keep them for a manual run
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-release
+          path: |
+            apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
+            apps/native/src-tauri/gen/android/app/build/outputs/bundle/*/*.aab
+          if-no-files-found: error
+          retention-days: 7
+
+  # An .ipa for the devices registered to the team (ad hoc), signed through an
+  # App Store Connect API key: Xcode fetches or creates the distribution
+  # certificate and the profile itself, so nothing is imported into a keychain.
+  ios:
+    name: iOS (signed, registered devices)
+    needs: [version, keys, bundle]
+    if: needs.keys.outputs.ios == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: ./.github/actions/wasm-core
+      - run: pnpm install --frozen-lockfile
+
+      # The CLI reads the team from APPLE_DEVELOPMENT_TEAM and the key from a
+      # file, so the key exists only in this job's temporary directory.
+      - name: Build and sign the app
+        working-directory: apps/native
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY.p8"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY_PATH"
+          pnpm tauri ios build --export-method release-testing --ci
+
+      - name: Check the app's signature
+        run: |
+          for ipa in apps/native/src-tauri/gen/apple/build/*/*.ipa; do
+            unpacked=$(mktemp -d)
+            ditto -x -k "$ipa" "$unpacked"
+            codesign --verify --deep --strict --verbose=2 "$unpacked"/Payload/*.app
+            codesign --display --verbose=2 "$unpacked"/Payload/*.app
+          done
+
+      - name: Attach to the draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release upload "$TAG" --clobber apps/native/src-tauri/gen/apple/build/*/*.ipa
+
+      - name: Keep it for a manual run
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-release
+          path: apps/native/src-tauri/gen/apple/build/*/*.ipa
+          if-no-files-found: error
           retention-days: 7

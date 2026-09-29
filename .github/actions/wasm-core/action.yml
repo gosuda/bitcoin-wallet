@@ -13,5 +13,13 @@ runs:
     - uses: taiki-e/install-action@v2
       with:
         tool: wasm-pack
+    # secp256k1's C sources are compiled for wasm32 too, and Apple's clang has
+    # no wasm32 backend ("No available targets are compatible with triple").
+    # scripts/with-wasm-cc.sh points the build at Homebrew's LLVM on macOS, the
+    # same way it does on a developer's Mac; this makes sure the image has one.
+    # Elsewhere the script runs the build as it is.
+    - if: runner.os == 'macOS'
+      shell: bash
+      run: compgen -G "$(brew --prefix)/opt/llvm*/bin/clang" >/dev/null || brew install llvm
     - shell: bash
-      run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
+      run: bash scripts/build-wasm.sh

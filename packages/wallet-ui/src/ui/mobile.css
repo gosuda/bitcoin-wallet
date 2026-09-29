@@ -767,6 +767,38 @@ button.m-txrow:active {
   border-radius: 0 0 20px 0;
 }
 
+/* The screen is the camera's layer, dark in either theme as drawn. While a scan
+   runs the camera sits behind the webview, so the page turns see-through and
+   this layer only dims it; the tab bar stays solid. */
+.m-scanner {
+  background: var(--scan-bg);
+  color: var(--scan-fg);
+}
+
+.m-scanner .m-head {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+
+.m-scanner .m-lede {
+  color: var(--scan-fg);
+}
+
+.m-scanner .m-btn:not(.m-btn-primary) {
+  border-color: transparent;
+  background: var(--scan-control);
+  color: var(--scan-fg);
+}
+
+html[data-scanning],
+html[data-scanning] body {
+  background: transparent;
+}
+
+html[data-scanning] .m-scanner {
+  background: var(--scan-dim);
+}
+
 /* Unlock ------------------------------------------------------------------ */
 
 .m-centre {

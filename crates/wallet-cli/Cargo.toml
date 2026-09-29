@@ -1,6 +1,6 @@
 [package]
 name = "wallet-cli"
-version = "0.1.0"
+version.workspace = true
 description = "Command-line wallet over wallet-core, for development and scripts"
 publish = false
 edition.workspace = true

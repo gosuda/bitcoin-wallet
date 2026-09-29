@@ -24,6 +24,13 @@
   --subtle: #f4f4f2;
   --pending: #b45309;
 
+  /* The phone's Scan screen belongs to the camera: the dark palette's bg and fg
+     in either theme, and a dimmer instead of a fill while the camera shows. */
+  --scan-bg: #131312;
+  --scan-fg: #eceae4;
+  --scan-dim: rgb(19 19 18 / 55%);
+  --scan-control: rgb(236 234 228 / 12%);
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
