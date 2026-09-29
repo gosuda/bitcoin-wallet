@@ -18,6 +18,11 @@ locked_version() {
   ' Cargo.lock
 }
 
+# A version's major.minor, whatever prerelease or build part follows it.
+major_minor() {
+  if [[ "$1" =~ ^([0-9]+\.[0-9]+)\. ]]; then printf '%s' "${BASH_REMATCH[1]}"; fi
+}
+
 failed=0
 checked=0
 for dir in apps/native/node_modules/@tauri-apps/*/; do
@@ -31,7 +36,9 @@ for dir in apps/native/node_modules/@tauri-apps/*/; do
   [[ -n "$crate_version" ]] || continue
   npm_version=$(jq -r .version "$dir/package.json")
   checked=$((checked + 1))
-  if [[ "${npm_version%.*}" != "${crate_version%.*}" ]]; then
+  npm_line=$(major_minor "$npm_version")
+  crate_line=$(major_minor "$crate_version")
+  if [[ -z "$npm_line" || "$npm_line" != "$crate_line" ]]; then
     echo "::error::@tauri-apps/$pkg is $npm_version but the $crate crate is $crate_version; the Tauri CLI will not build until they share major.minor"
     failed=1
   fi
