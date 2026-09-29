@@ -2,6 +2,7 @@
 name = "wallet-core"
 version = "0.1.0"
 description = "Portable Bitcoin wallet core built on BDK; runs natively and in WASM"
+publish = false
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -71,3 +72,6 @@ futures-util = "0.3"
 
 [dev-dependencies]
 tokio = { workspace = true }
+
+[lints]
+workspace = true

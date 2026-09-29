@@ -6,6 +6,10 @@
 //! was known the wallet only ever re-checked what it had already revealed.
 //! `rescan` is the way out; this proves it against a real node.
 
+// Only ever compiled as a test. Saying so lets clippy's test exemption
+// reach the helpers here, not just the #[test] functions.
+#![cfg(test)]
+
 use std::time::Duration;
 
 use bdk_testenv::TestEnv;

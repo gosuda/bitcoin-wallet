@@ -245,7 +245,10 @@ export interface AppError {
 /** Frontend failure carrying the same `{ code, message, details? }` shape the commands return. */
 export class WalletError extends Error implements AppError {
   readonly code: string;
-  readonly details?: Record<string, unknown>;
+  // `declare`: a plain declaration is itself an own property, initialised to
+  // `undefined`, under ES2022 class fields — the very state the constructor
+  // below avoids. This way it exists only when the constructor sets it.
+  declare readonly details?: Record<string, unknown>;
 
   constructor(code: string, message: string, details?: Record<string, unknown>) {
     super(message);

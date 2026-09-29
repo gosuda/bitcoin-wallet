@@ -10,6 +10,7 @@ const wallet = (wallet_id: string): WalletInfo => ({
   address_type: "p2wpkh",
   wallet_id,
   is_hd: true,
+  is_ranged: true,
   is_watch_only: false,
 });
 

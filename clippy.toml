@@ -1,0 +1,3 @@
+# A test that unwraps is asserting; the workspace lints are for shipped code.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

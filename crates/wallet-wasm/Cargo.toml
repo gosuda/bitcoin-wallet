@@ -2,6 +2,7 @@
 name = "wallet-wasm"
 version = "0.1.0"
 description = "wasm-bindgen bindings for wallet-core (browser and Tauri webview)"
+publish = false
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -24,3 +25,6 @@ console_error_panic_hook = "0.1"
 # The Rust toolchain emits bulk-memory ops; wasm-opt must be told to accept them.
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[lints]
+workspace = true

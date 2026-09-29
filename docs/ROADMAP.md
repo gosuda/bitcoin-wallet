@@ -247,65 +247,146 @@ or a signed transaction. Nothing visual.
 
 Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it says.
 
-- [ ] **2.1 `rust.yml` says what it does** · S · `.github/workflows/rust.yml`, `release.yml`,
+- [x] **2.1 `rust.yml` says what it does** · S · `.github/workflows/rust.yml`, `release.yml`,
   new `.github/actions/wasm-core`, `docs/RELEASING.md`
       why: the path filter omits `.cargo/**` and `rust-toolchain.toml` (the audit job's own
       config cannot trigger it); no job has a timeout (one run took 2 h 19 m); no concurrency
       control; wasm-pack is compiled from source in seven job legs; `regtest-tests` is never
-      linted; RELEASING.md claims `cargo test --workspace` runs · done when: paths, timeouts and
-      cancel-in-progress set; one composite action installs a prebuilt wasm-pack and builds the
-      core; `regtest-tests` clippy'd; `--no-default-features` checked; the doc matches
+      linted; RELEASING.md claims `cargo test --workspace` runs · done: 2026-09-28 — the slow
+      runs were queue time, not build time: across the two slowest (5 h 16 m and 5 h wall
+      clock) every job executed in 0.4–5.1 min and waited up to 5 h for a runner, because
+      each push to a busy PR started a full matrix nobody cancelled. `concurrency` now
+      cancels a superseded PR run (never a push to `main`); every job has a timeout (30 min,
+      15 for the audit, 60 for the never-run release bundle); the filter adds
+      `rust-toolchain.toml`, `.cargo/**`, the root `package.json` and all of `.github/**`;
+      `.github/actions/wasm-core` installs a prebuilt wasm-pack (`taiki-e/install-action`) and
+      builds the core for the wasm job, the apps job and all four release legs; `regtest-tests`
+      is clippy'd with `--all-targets` and `wallet-core --no-default-features` with
+      `-D warnings`, both clean locally before they were added; RELEASING.md lists what CI
+      runs and says nothing runs `--workspace` (the only crates it would add, the app shell
+      and `wallet-wasm`, have no tests). `actionlint` clean, including a shellcheck note in
+      the NDK step. On this round's pull request the prebuilt wasm-pack (the v0.15.0
+      release tarball) installed in about a second; `cargo install` compiled it from source
+      on every cold cache — a warm one already had it in `~/.cargo/bin` — so the saving is
+      on cache misses
 
-- [ ] **2.2 `cargo deny` replaces `cargo audit`** · S · `deny.toml`, `.cargo/audit.toml`
+- [x] **2.2 `cargo deny` replaces `cargo audit`** · S · `deny.toml`, `.cargo/audit.toml`
   (removed), `rust.yml` · **admin** for the alert dismissals
       why: only advisories are checked today — no licence allow-list, no duplicate or wildcard
       bans, no source restriction; the three rustls-webpki Dependabot alerts are the dev-only
       0.101.7 reached through `minreq` → `bitcoind`/`electrsd` → `bdk_testenv`, already
-      explained in the ignore list but not on GitHub · done when: `cargo deny check` is green
-      locally and in CI with the ignores and their reasons migrated; alerts #39–41 dismissed as
-      not reachable at runtime
+      explained in the ignore list but not on GitHub · done: 2026-09-28 — `deny.toml` checks
+      all four: the five vulnerability ignores migrated with reasons and their GHSA ids (looked
+      up, not guessed: -0104/-0099/-0098 are GHSA-82j2/-xgp8/-965h; the quick-xml pair has
+      none); unmaintained and unsound notices fail for direct dependencies only, which is how
+      the six unmaintained crates cargo audit only warned about (proc-macro-error and five
+      `unic-*`, all through Tauri) and glib's unsoundness stay non-fatal while a direct
+      dependency no longer could; a thirteen-licence allow-list, each one used (cargo deny
+      warns otherwise); wildcard requirements denied, with every crate now `publish = false`
+      so workspace path dependencies pass; crates.io the only source. `cargo deny check`
+      green locally with and without `--all-features` (the action's default), on the same
+      0.20.2 the action ships; SECURITY.md points at `deny.toml`. Alerts #39–41 dismissed as
+      `not_used` with the RUSTSEC id and reason (admin OK 2026-09-28); open alerts read back
+      as #42–44 (vitest, 2.4) and #18 (glib, ships on Linux)
 
-- [ ] **2.3 Dependabot** · S · `.github/dependabot.yml` · **admin** to enable security updates
-      why: nothing proposes upgrades; security updates are disabled · done when: cargo, npm,
-      github-actions and gradle ecosystems, weekly, minor/patch grouped; the first Dependabot PR
-      appears
+- [x] **2.3 Dependabot** · S · `.github/dependabot.yml` · **admin** to enable security updates
+      why: nothing proposes upgrades; security updates are disabled · done: 2026-09-28 —
+      cargo, npm (the one pnpm workspace at the root), github-actions (the workflows and the
+      `wasm-core` composite, which `/` alone does not reach) and gradle (the Android project
+      under `gen/android`, which pins AGP, Kotlin and five androidx libraries), weekly, with
+      minor and patch grouped per ecosystem and majors one at a time; titles follow the
+      repository's Conventional Commits (`build(deps)`, `ci(deps)`). Validated against the
+      published schema (`check-jsonschema --builtin-schema vendor.dependabot`). Security
+      updates switched on (admin OK 2026-09-28) and read back `enabled: true`. The first
+      Dependabot pull request, #12, opened within minutes: vitest 3.2.7 → 4.1.11, the same fix
+      as 2.4, so it closes once this round is on `main`. Version updates start then too —
+      Dependabot reads this file from `main` only
 
-- [ ] **2.4 vitest 3 → 4** · S · `packages/wallet-ui/package.json`, `pnpm-lock.yaml`
+- [x] **2.4 vitest 3 → 4** · S · `packages/wallet-ui/package.json`, `pnpm-lock.yaml`
       why: 3.2.7 is inside CVE-2026-84373; the fix is 4.1.11 — dev-only, but three open alerts ·
-      done when: `pnpm -F @bitcoin-wallet/ui test` passes on 4.x; `pnpm why @vitest/mocker`
-      shows 4.1.x
+      done: 2026-09-28 — `vitest ^4.1.11`; `pnpm why -r @vitest/mocker` went from 3.2.7 to
+      4.1.11 with no other version left in the tree; the lockfile diff stays inside vitest's
+      own graph (chai 5 → 6; `vite-node`, `tinypool`, `tinyspy` gone; vitest now shares the
+      workspace's Vite 7.3.6). All 98 tests pass on v4.1.11 with no test or config change —
+      nothing here used anything on 4.0's removal list. Alerts #42–44 close when this reaches
+      `main`
 
-- [ ] **2.5 One Node configuration** · S · root `biome.json`, `tsconfig.base.json`, root
+- [x] **2.5 One Node configuration** · S · root `biome.json`, `tsconfig.base.json`, root
   `package.json`, the three package configs, `rust.yml`
       why: three near-identical `biome.json`, two identical tsconfigs, no root `test` script
-      (CI changes directory instead), no `packageManager` or `engines` · done when: the
-      packages extend one root config; `pnpm check && pnpm typecheck && pnpm test` works from
-      the root and CI runs exactly that; `pnpm audit --audit-level=high` in the apps job
+      (CI changes directory instead), no `packageManager` or `engines` · done: 2026-09-28 —
+      one root `biome.json`; each package's is `root: false, extends: "//"` plus its own
+      `files.includes`, and a probe file in each (an `any`, a non-null assertion, single
+      quotes, an over-long line) tripped all three shared rules in all three packages before
+      it was deleted; one `tsconfig.base.json`, and both apps' `tsc --showConfig` output —
+      every option and all 47/48 files — is byte-identical before and after; the root has
+      `test`, `packageManager: pnpm@10.19.0` (which pnpm/action-setup now reads, instead of a
+      second `version: 10`) and `engines.node` set to what the tools actually require (Vite
+      7's `^20.19 || >=22.12`, less the 21 and 23 vitest 4 skips). CI's apps job runs `pnpm
+      check`, `typecheck`, `test` and `build` from the root with no `cd` into a package, then
+      `pnpm audit --audit-level=high` — all five pass locally (98/98 tests, no known
+      vulnerabilities); the path filter adds the two new root files
 
-- [ ] **2.6 The UI package typechecks its tests** · S · new `packages/wallet-ui/tsconfig.json`,
+- [x] **2.6 The UI package typechecks its tests** · S · new `packages/wallet-ui/tsconfig.json`,
   `package.json`, `test/screen.test.ts`
       why: `test/**` is outside every tsconfig, so a fixture already lacks a required field
-      and nothing notices · done when: `typecheck` fails before the fixture fix and passes after
+      and nothing notices · done: 2026-09-28 — the package's own tsconfig (the shared base,
+      over `src`, `test` and `vitest.config.ts`) and a `typecheck` script with `typescript`
+      as a dev dependency. Before the fixture fix it failed with exactly one error, the one
+      named here (`test/screen.test.ts:7`, TS2741, `is_ranged` missing); after it, clean. The
+      root `pnpm typecheck` now covers all three packages. Giving the package a tsconfig also
+      changed how Vite and vitest compile it — each file takes its nearest tsconfig, and until
+      now there was none, so wallet-ui alone had pre-ES2022 class fields — which a test caught
+      (`WalletError` grew an own `details: undefined`) and which the preceding commit fixes at
+      the declaration; 98/98 pass
 
-- [ ] **2.7 Lints that lock in the record** · S · root `Cargo.toml`, `clippy.toml`, every
+- [x] **2.7 Lints that lock in the record** · S · root `Cargo.toml`, `clippy.toml`, every
   crate manifest
       why: the tree has zero `unwrap` in production code and nothing enforces it; release builds
-      have no overflow checks in a program that multiplies fee rates · done when: workspace
-      lints deny `unwrap_used`, `expect_used`, `todo`, `dbg_macro` (tests exempt), forbid
-      `unsafe_code` if none exists; `overflow-checks = true` in release; clippy clean with no
-      new `#[allow]`
+      have no overflow checks in a program that multiplies fee rates · done: 2026-09-28 —
+      `[workspace.lints]` forbids `unsafe_code` and denies `unwrap_used`, `expect_used`, `todo`
+      and `dbg_macro`; `clippy.toml` exempts tests; all five crates inherit it. `forbid` holds:
+      the tree has no `unsafe`, and the `#[no_mangle]`/`export_name` that wasm-bindgen and
+      Tauri's phone entry point generate are external proc-macro expansions rustc does not
+      lint — the wasm32 and iOS clippy runs pass. The record was one short: an `expect` on
+      Tauri's `run()`, now an explicit panic, since an event loop that never starts is
+      unrecoverable and a panic reaches a phone's crash reporting where an exit would not.
+      clippy's test exemption covers `#[test]` fns and `#[cfg(test)]` modules but not helpers
+      in an integration-test crate, so those four files say `#![cfg(test)]` (true of them
+      anyway) instead of carrying an `#[allow]`; `--list` still finds all six tests.
+      `overflow-checks = true` in release — the release `btcw` compile gets `-C
+      overflow-checks=on`. Clippy clean (native all targets, wasm32 core + wasm, iOS app)
+      with no new `#[allow]`; release CLI builds; core and CLI suites green. The regtest
+      suite runs in CI only now: this Mac moved to macOS 27 on arm64 with no x86_64
+      translation, and the harness's `bitcoind` 25.0 is an x86_64 build
 
-- [ ] **2.8 A tidy tree** · S · `.gitignore`, `bitcoin-rs-blueprint-review.html`,
+- [x] **2.8 A tidy tree** · S · `.gitignore`, `bitcoin-rs-blueprint-review.html`,
   `crates/wallet-cli/Cargo.toml`, `README.md` · **decision** on the stray HTML (remove or move)
       why: `.gitignore` is still the Go template and misses `*.keystore`, `*.jks`, `.DS_Store`,
       `packages/*/dist`; a review page is tracked at the root; the CLI's crate description
       still mentions the Go TUI; README says nothing scans `reference/go/` while CodeQL does ·
-      done when: each is fixed and a full build leaves `git status` clean
+      done: 2026-09-28 — `.gitignore` drops the Go template and adds the four; the template
+      had not even ignored the Go reference's own build (its `/bin` is root-anchored, and
+      `make build` writes `reference/go/bin/`), so that path is now named. No tracked file
+      matches any new pattern. The review page is removed (decision below; it stays in
+      history at `ece8550`); `btcw --help` now opens with the new description; README says
+      CodeQL still scans `reference/go/`. A full build — the workspace in debug and release,
+      the wasm core, both apps and the Go reference — leaves `git status` showing only these
+      edits
 
-- [ ] **2.9 `main` is protected** · S · `docs/rulesets/main.json` · **admin**
-      why: no branch protection, no rulesets — every green check is advisory · done when: a
-      ruleset requires a pull request and the `rust` jobs, forbids force-push, allows merge
-      commits; a direct push is refused
+- [x] **2.9 `main` is protected** · S · `docs/rulesets/main.json` · **admin**
+      why: no branch protection, no rulesets — every green check is advisory · done: 2026-09-28
+      — ruleset 24116734 (admin OK 2026-09-28, no bypass): a pull request (no approvals, since
+      one maintainer cannot approve their own), the ten `rust` jobs by name and pinned to
+      GitHub Actions so a hand-posted status cannot stand in, no force-push, no deletion, all
+      three merge methods allowed. The ten names were checked against what `rust.yml` can
+      produce, both ways. Read back from `rules/branches/main` as applied, and `main` reports
+      `protected: true`. A direct push of a probe commit by an admin was refused — `GH013 …
+      Changes must be made through a pull request. 10 of 10 required status checks are
+      expected.` — and `main` did not move. The workflow's `pull_request` trigger lost its
+      path filter, since a required check that never reports would hold a docs-only pull
+      request open forever; the push filter gains `clippy.toml`. `docs/rulesets/README.md`
+      has the apply, update and read-back calls, and why a renamed job must change both files
 
 ## Round 3 — Tests and drift
 
@@ -458,8 +539,9 @@ one starts when it is picked.
 - 2026-09-14 — vitest is upgraded to 4, not documented as accepted.
 - 2026-09-14 — GitHub settings are changed through `gh`, each after an explicit OK.
 - 2026-09-14 — The phone bundle workflow runs on manual dispatch only.
-- Open: the default fee target (3.6); the number locale (3.9); the stray review page (2.8);
-  the first tag (4.9); Pages (4.10).
+- 2026-09-28 — The stray review page is removed, not moved: it reviews a different project.
+- Open: the default fee target (3.6); the number locale (3.9); the first tag (4.9); Pages
+  (4.10).
 
 ## Not doing
 

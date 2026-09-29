@@ -2,6 +2,7 @@
 name = "bitcoin-wallet-app"
 version = "0.1.0"
 description = "Bitcoin wallet app shell: desktop, iOS and Android"
+publish = false
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -36,3 +37,6 @@ tauri-plugin-http = "2.5"
 tauri-plugin-barcode-scanner = "2.4"
 tauri-plugin-biometric = "2.3"
 tauri-plugin-deep-link = "2.4"
+
+[lints]
+workspace = true

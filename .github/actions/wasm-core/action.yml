@@ -1,0 +1,17 @@
+name: wasm core
+description: >-
+  Builds crates/wallet-wasm into packages/wallet-ui/src/wasm/pkg, where both apps
+  import it from. Expects a Rust toolchain with the wasm32-unknown-unknown target
+  already installed by the calling job.
+
+runs:
+  using: composite
+  steps:
+    # A prebuilt binary. `cargo install wasm-pack` compiled it from source in
+    # every leg that needed it — minutes each time, for a tool that is the same
+    # on every run.
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: wasm-pack
+    - shell: bash
+      run: wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg

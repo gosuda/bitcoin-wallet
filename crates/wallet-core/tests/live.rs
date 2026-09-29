@@ -1,5 +1,9 @@
 //! Live-network smoke tests. Run with: `cargo test -p wallet-core --test live -- --ignored`
 
+// Only ever compiled as a test. Saying so lets clippy's test exemption
+// reach the helpers here, not just the #[test] functions.
+#![cfg(test)]
+
 use wallet_core::{
     AddressType, BackendConfig, KeyMaterial, MemoryPersister, Network, WalletConfig, WalletHandle,
 };

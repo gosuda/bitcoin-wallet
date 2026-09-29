@@ -24,7 +24,22 @@ clap = { version = "4", features = ["derive"] }
 async-lock = "3"
 web-time = "1"
 
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+# Production code has no unwrap/expect/todo/dbg today; these keep it that way.
+# clippy.toml lets tests unwrap and expect. todo and dbg stay denied in tests
+# too: neither belongs in a committed test.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+todo = "deny"
+dbg_macro = "deny"
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
 strip = true
+# Fee rates are multiplied by transaction weights; a wrap in a release build
+# would be a wrong amount, where a panic is only a refused send.
+overflow-checks = true
