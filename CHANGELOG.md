@@ -25,6 +25,11 @@ pull requests a change arrived in.
 - A wallet remembered on this device can be opened again after Setup: Setup now continues to
   Unlock when the network chosen there is the wallet's own. Unlock refuses a wallet saved on
   another network, which it used to open against the wrong chain's server. (#39)
+- A wallet whose history saved on this device cannot be read can be opened again. Unlock,
+  Key, Restore and Create offer to reset this device's history, which deletes only that
+  history and keeps the key and the settings; the next sync downloads it back. On Unlock the
+  only way out used to be Forget, which deletes the key too. History saved by a newer version
+  of the app asks for an update instead. (#39)
 - A wallet with a long history can finish its first sync on a slow connection. A scan is no
   longer cut off after 180 s; each request to the server has 30 s instead, so a server that
   stops answering is still caught, and sooner. (#38)

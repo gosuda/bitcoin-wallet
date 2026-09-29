@@ -96,7 +96,7 @@ export function makePersister(walletId: string): WalletPersister {
   };
 }
 
-/** Drops a wallet's stored state; used when the wallet is forgotten. */
+/** Drops a wallet's stored state: when it is forgotten, or reset because it cannot be read. */
 export async function deleteWalletState(walletId: string): Promise<void> {
   await withStore("readwrite", (store) => store.delete(walletId));
 }

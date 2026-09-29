@@ -1,10 +1,12 @@
 import { api } from "../api";
 import { navigate } from "../router";
+import { routeGuard } from "../screen";
 import { session } from "../session";
 import { ADDRESS_TYPE_LABELS, backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { banner, button, el, kv, mono, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { KEYCHAIN_NAME } from "../ui/remember";
+import { historyReset } from "../ui/reset";
 
 export function renderUnlock(): HTMLElement {
   const cfg = session.config;
@@ -18,24 +20,23 @@ export function renderUnlock(): HTMLElement {
     return el("main");
   }
 
+  // `routeGuard`, not `screenGuard`: unlocking is what sets `session.wallet`.
+  const onScreen = routeGuard();
   const alert = banner();
+  const offer = historyReset(alert);
 
-  const unlockBtn = button(
-    "Unlock",
-    () =>
-      withBusy(unlockBtn, async () => {
-        alert.hide();
-        try {
-          await api.unlockWallet();
-          navigate("dashboard");
-        } catch (e) {
-          alert.show("error", errorMessage(e));
-        }
-      }),
-    "primary",
-    "md",
-    { name: "key" },
-  );
+  const unlock = async (reset = false): Promise<void> => {
+    alert.hide();
+    try {
+      await (reset ? api.resetHistoryAndUnlock() : api.unlockWallet());
+      navigate("dashboard");
+    } catch (e) {
+      if (onScreen()) offer.report(e, () => unlock(true));
+    }
+  };
+  const unlockBtn = button("Unlock", () => withBusy(unlockBtn, unlock), "primary", "md", {
+    name: "key",
+  });
 
   // Two-step inline confirm: the slot swaps between the trigger and the prompt.
   const forgetSlot = el("span", { className: "push-end" });
@@ -82,6 +83,7 @@ export function renderUnlock(): HTMLElement {
       }),
     ]),
     alert.node,
+    offer.node,
     el("section", { className: "card unlock-card" }, [
       el("div", { className: "unlock-head" }, [
         el("span", { className: "key-circle" }, [icon("key", 18)]),

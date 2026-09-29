@@ -7,8 +7,10 @@
  */
 
 import { navigate, type Route } from "../router";
-import { el } from "../ui/dom";
+import { errorMessage, historyResetFixes } from "../types";
+import { type Banner, el } from "../ui/dom";
 import { type IconName, icon } from "../ui/icons";
+import { type HistoryReset, RESET_CONFIRM, RESET_TEXT, RESET_TRIGGER } from "../ui/reset";
 
 export type Child = Node | string | null | undefined;
 
@@ -255,6 +257,59 @@ export function confirmDanger(opts: {
   );
   host.appendChild(arm);
   return host;
+}
+
+/**
+ * The phone's `historyReset` (see `ui/reset.ts`), as the canvas draws it on
+ * Unlock: a card with the error and its trigger, then the second step in the
+ * accent, two taps as with `confirmDanger`.
+ */
+export function historyReset(alert: Banner): HistoryReset {
+  const node = el("div", { className: "m-reset" });
+  return {
+    node,
+    report(error, reset) {
+      if (!historyResetFixes(error)) {
+        node.replaceChildren();
+        alert.show("error", errorMessage(error));
+        return false;
+      }
+      alert.hide();
+      const step = el("div", { className: "slot" });
+      const trigger = button(
+        RESET_TRIGGER,
+        () => {
+          const go = button(RESET_CONFIRM, () => withBusy(go, reset), {
+            variant: "primary",
+            block: true,
+          });
+          const keep = button(
+            "Keep it",
+            () => {
+              step.replaceChildren();
+              trigger.focus();
+            },
+            { variant: "quiet" },
+          );
+          const sheet = card(lede(RESET_TEXT), go, keep);
+          sheet.classList.add("m-confirm", "m-confirm-accent");
+          step.replaceChildren(sheet);
+          go.focus();
+        },
+        { block: true },
+      );
+      const offer = card(
+        el("p", { className: "m-reset-message", attrs: { role: "alert" } }, [
+          icon("alert", 20),
+          el("span", { text: errorMessage(error) }),
+        ]),
+        trigger,
+      );
+      offer.classList.add("m-reset-card");
+      node.replaceChildren(offer, step);
+      return true;
+    },
+  };
 }
 
 /** Pushes everything after it to the bottom of the scroll area. */

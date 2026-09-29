@@ -877,11 +877,24 @@ items before it change no screen, so they land while that batch is reviewed.
       it and said to go ahead; the decisions are below. 3 · Wallet gave Public keys and Rescan
       to Settings, and the brief now records the answers
 
-- [ ] **6.7 Reset local history, keep the key** · M · `api.ts`, `persist/indexeddb.ts`, the
+- [x] **6.7 Reset local history, keep the key** · M · `api.ts`, `persist/indexeddb.ts`, the
   Unlock, Key, Restore and Create screens · after 6.6
       why: a wallet whose saved state cannot be read shows `corrupt_state` and a dead end; on
-      Unlock the only way out also deletes the key · done when: the error offers a reset that
-      deletes only that wallet's local history and opens it again; jsdom tests cover each screen
+      Unlock the only way out also deletes the key · done: 2026-09-30 — when the key opens but
+      the history saved on this device cannot be read, Unlock, Key, Restore and Create say so
+      on both shells and offer "Reset this device's history", with a second step as Forget
+      has. Confirming deletes that wallet's IndexedDB record and nothing else, then opens the
+      wallet the way the screen was opening it; the key, the remembered record and the
+      settings stay. `api.resetHistoryAndOpen` and `resetHistoryAndUnlock` try the open first
+      and delete only a record that has just failed to read, so a readable one is never
+      touched. A record from a newer version asks for an update and offers no reset, as
+      decided. On the phone's Unlock the reset stands where the Unlock button was, as the
+      board draws it. 38 jsdom tests in `reset.test.ts` open all ten ways in on both shells:
+      the first step deletes nothing, confirming deletes only that history and opens the
+      wallet, and a newer version's record offers no reset. In the browser build, a wallet
+      whose saved record was overwritten with broken JSON offered the reset from Key; its
+      first step left the record alone, and Reset history opened the wallet over a fresh
+      record, where a sync brought its signet coin back
 
 - [x] **6.8 Desktop Settings** · M · new `screens/settings.ts`, `guards.ts`, `app.ts` · after 6.6
       why: changing network, server or address type on the desktop means Close wallet, then

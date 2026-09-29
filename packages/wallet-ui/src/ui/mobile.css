@@ -667,6 +667,41 @@ button.m-txrow:active {
   border-color: var(--fg);
 }
 
+/* The history reset's second step: it keeps the key, so the accent, not the danger. */
+.m-confirm-accent {
+  border-color: var(--accent);
+}
+
+/* A wallet whose saved history cannot be read: why, and the reset in two taps. */
+.m-reset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.m-reset:empty {
+  display: none;
+}
+
+.m-reset-card {
+  border-color: var(--danger);
+}
+
+.m-reset-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--danger);
+}
+
+/* Level with the first line of the text beside it. */
+.m-reset-message .icon {
+  margin-top: 2px;
+}
+
 .m-centre-text {
   text-align: center;
 }

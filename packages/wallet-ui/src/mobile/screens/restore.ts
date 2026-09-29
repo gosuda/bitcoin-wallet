@@ -1,11 +1,23 @@
 import { api } from "../../api";
 import { navigate } from "../../router";
+import { routeGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
 import { banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
-import { body, button, card, chips, header, labelled, lede, spacer, withBusy } from "../ui";
+import {
+  body,
+  button,
+  card,
+  chips,
+  header,
+  historyReset,
+  labelled,
+  lede,
+  spacer,
+  withBusy,
+} from "../ui";
 
 type Mode = "phrase" | "key" | "watch";
 
@@ -25,24 +37,29 @@ export function renderRestore(): HTMLElement {
   return phrase();
 }
 
+/** The open behind each door's button; `reset` goes through the api's history reset. */
 function openWith(
   secret: () => string,
   remember: () => boolean,
   passphrase: () => string | undefined,
   alert: ReturnType<typeof banner>,
 ) {
-  return async () => {
+  return async (reset = false) => {
     alert.hide();
     const cfg = session.config;
     if (!cfg) return navigate("setup");
-    await api.openWallet(secret(), cfg.address_type, remember(), passphrase());
+    const open = reset ? api.resetHistoryAndOpen : api.openWallet;
+    await open(secret(), cfg.address_type, remember(), passphrase());
     session.remembered = await api.getRemembered();
     navigate("dashboard");
   };
 }
 
 function phrase(): HTMLElement {
+  // `routeGuard`, not `screenGuard`: opening is what sets `session.wallet`.
+  const onScreen = routeGuard();
   const alert = banner();
+  const offer = historyReset(alert);
   const remember = rememberCheckbox();
   const passphrase = textInput({ placeholder: "Leave empty for none", name: "passphrase" });
   passphrase.type = "password";
@@ -112,28 +129,24 @@ function phrase(): HTMLElement {
   // rebuilt for 24 words after this is armed.
   wipeOnLeave(() => [...inputs, passphrase]);
 
-  const go = button(
-    "Restore",
-    () =>
-      withBusy(go, async () => {
-        try {
-          const words = inputs
-            .map((i) => i.value.trim().toLowerCase())
-            .filter(Boolean)
-            .join(" ");
-          await api.validateMnemonic(words);
-          await openWith(
-            () => words,
-            () => remember.checked(),
-            () => passphrase.value || undefined,
-            alert,
-          )();
-        } catch (e) {
-          alert.show("error", errorMessage(e));
-        }
-      }),
-    { variant: "primary", block: true },
-  );
+  const restore = async (reset = false): Promise<void> => {
+    try {
+      const words = inputs
+        .map((i) => i.value.trim().toLowerCase())
+        .filter(Boolean)
+        .join(" ");
+      await api.validateMnemonic(words);
+      await openWith(
+        () => words,
+        () => remember.checked(),
+        () => passphrase.value || undefined,
+        alert,
+      )(reset);
+    } catch (e) {
+      if (onScreen()) offer.report(e, () => restore(true));
+    }
+  };
+  const go = button("Restore", () => withBusy(go, restore), { variant: "primary", block: true });
 
   return el("main", {}, [
     header("Restore wallet", { back: "key" }),
@@ -150,36 +163,35 @@ function phrase(): HTMLElement {
         remember.node,
       ),
       spacer(),
+      offer.node,
       go,
     ),
   ]);
 }
 
 function singleKey(): HTMLElement {
+  const onScreen = routeGuard();
   const alert = banner();
+  const offer = historyReset(alert);
   const remember = rememberCheckbox();
   const secret = textInput({ type: "password", mono: true, name: "secret" });
   secret.setAttribute("autocapitalize", "none");
   secret.setAttribute("autocorrect", "off");
   wipeOnLeave(() => [secret]);
 
-  const go = button(
-    "Open wallet",
-    () =>
-      withBusy(go, async () => {
-        try {
-          await openWith(
-            () => secret.value.trim(),
-            () => remember.checked(),
-            () => undefined,
-            alert,
-          )();
-        } catch (e) {
-          alert.show("error", errorMessage(e));
-        }
-      }),
-    { variant: "primary", block: true },
-  );
+  const open = async (reset = false): Promise<void> => {
+    try {
+      await openWith(
+        () => secret.value.trim(),
+        () => remember.checked(),
+        () => undefined,
+        alert,
+      )(reset);
+    } catch (e) {
+      if (onScreen()) offer.report(e, () => open(true));
+    }
+  };
+  const go = button("Open wallet", () => withBusy(go, open), { variant: "primary", block: true });
 
   const generate = button("Generate a new key", async () => {
     alert.hide();
@@ -203,6 +215,7 @@ function singleKey(): HTMLElement {
       card(labelled("Private key", secret), secret, generate),
       card(remember.node),
       spacer(),
+      offer.node,
       go,
     ),
   ]);
@@ -214,7 +227,9 @@ function singleKey(): HTMLElement {
  * path is shared; what differs is what the user is told it can do.
  */
 function watchOnly(): HTMLElement {
+  const onScreen = routeGuard();
   const alert = banner();
+  const offer = historyReset(alert);
   const remember = rememberCheckbox();
   const source = el("textarea", {
     attrs: {
@@ -230,23 +245,23 @@ function watchOnly(): HTMLElement {
   // future address — the same reason Export warns before it is shared.
   wipeOnLeave(() => [source]);
 
-  const go = button(
-    "Follow this wallet",
-    () =>
-      withBusy(go, async () => {
-        try {
-          await openWith(
-            () => source.value.trim(),
-            () => remember.checked(),
-            () => undefined,
-            alert,
-          )();
-        } catch (e) {
-          alert.show("error", errorMessage(e));
-        }
-      }),
-    { variant: "primary", block: true, icon: "eye" },
-  );
+  const follow = async (reset = false): Promise<void> => {
+    try {
+      await openWith(
+        () => source.value.trim(),
+        () => remember.checked(),
+        () => undefined,
+        alert,
+      )(reset);
+    } catch (e) {
+      if (onScreen()) offer.report(e, () => follow(true));
+    }
+  };
+  const go = button("Follow this wallet", () => withBusy(go, follow), {
+    variant: "primary",
+    block: true,
+    icon: "eye",
+  });
 
   return el("main", {}, [
     header("Watch-only", { back: "key" }),
@@ -258,6 +273,7 @@ function watchOnly(): HTMLElement {
       card(labelled("xpub or descriptor", source), source),
       card(remember.node),
       spacer(),
+      offer.node,
       go,
     ),
   ]);

@@ -7,6 +7,7 @@ import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "..
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { NO_KEYSTORE_HINT, rememberCheckbox } from "../ui/remember";
+import { historyReset } from "../ui/reset";
 import { wipeOnLeave } from "../ui/words";
 
 /**
@@ -30,6 +31,7 @@ export function renderKey(): HTMLElement {
   const onScreen = routeGuard();
 
   const alert = banner();
+  const offer = historyReset(alert);
   const secret = textInput({
     type: "password",
     placeholder: "64-char hex or WIF",
@@ -84,36 +86,33 @@ export function renderKey(): HTMLElement {
     }),
   );
 
-  const openBtn = button(
-    "Open wallet",
-    () =>
-      withBusy(openBtn, async () => {
-        alert.hide();
-        const value = secret.value.trim();
-        if (!value) {
-          alert.show("error", "Enter a private key (hex or WIF) or generate one.");
-          return;
-        }
-        // Read once: the checkbox stays live across the await, and asking it
-        // again afterwards can disagree with what was actually stored.
-        const willRemember = remember.checked();
-        try {
-          const info = await api.openWallet(value, cfg.address_type, willRemember);
-          secret.value = "";
-          generated.replaceChildren();
-          generated.className = "hidden";
-          if (willRemember) session.remembered = info;
-          // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-          // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
-          if (onScreen()) navigate("dashboard");
-        } catch (e) {
-          if (onScreen()) alert.show("error", errorMessage(e));
-        }
-      }),
-    "primary",
-    "md",
-    { name: "key" },
-  );
+  const openKey = async (reset = false): Promise<void> => {
+    alert.hide();
+    const value = secret.value.trim();
+    if (!value) {
+      alert.show("error", "Enter a private key (hex or WIF) or generate one.");
+      return;
+    }
+    // Read once: the checkbox stays live across the await, and asking it
+    // again afterwards can disagree with what was actually stored.
+    const willRemember = remember.checked();
+    try {
+      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
+      const info = await open(value, cfg.address_type, willRemember);
+      secret.value = "";
+      generated.replaceChildren();
+      generated.className = "hidden";
+      if (willRemember) session.remembered = info;
+      // `onScreen` is `routeGuard`, not `screenGuard`: it has no
+      // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
+      if (onScreen()) navigate("dashboard");
+    } catch (e) {
+      if (onScreen()) offer.report(e, () => openKey(true));
+    }
+  };
+  const openBtn = button("Open wallet", () => withBusy(openBtn, openKey), "primary", "md", {
+    name: "key",
+  });
 
   secret.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") openBtn.click();
@@ -166,31 +165,32 @@ export function renderKey(): HTMLElement {
     },
   });
   const watchRemember = rememberCheckbox();
+  const follow = async (reset = false): Promise<void> => {
+    alert.hide();
+    const value = watchSource.value.trim();
+    if (!value) {
+      alert.show("error", "Paste an xpub or a public descriptor.");
+      return;
+    }
+    const willRemember = watchRemember.checked();
+    try {
+      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
+      const info = await open(value, cfg.address_type, willRemember);
+      watchSource.value = "";
+      // The wallet is already open here. Reading the record back could
+      // fail and put an error over a wallet that opened fine, so take what
+      // we know — the same shape the private-key path above uses.
+      if (willRemember) session.remembered = info;
+      // `onScreen` is `routeGuard`, not `screenGuard`: it has no
+      // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
+      if (onScreen()) navigate("dashboard");
+    } catch (e) {
+      if (onScreen()) offer.report(e, () => follow(true));
+    }
+  };
   const followBtn = button(
     "Follow this wallet",
-    () =>
-      withBusy(followBtn, async () => {
-        alert.hide();
-        const value = watchSource.value.trim();
-        if (!value) {
-          alert.show("error", "Paste an xpub or a public descriptor.");
-          return;
-        }
-        const willRemember = watchRemember.checked();
-        try {
-          const info = await api.openWallet(value, cfg.address_type, willRemember);
-          watchSource.value = "";
-          // The wallet is already open here. Reading the record back could
-          // fail and put an error over a wallet that opened fine, so take what
-          // we know — the same shape the private-key path above uses.
-          if (willRemember) session.remembered = info;
-          // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-          // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
-          if (onScreen()) navigate("dashboard");
-        } catch (e) {
-          if (onScreen()) alert.show("error", errorMessage(e));
-        }
-      }),
+    () => withBusy(followBtn, follow),
     "default",
     "md",
     { name: "eye" },
@@ -235,6 +235,7 @@ export function renderKey(): HTMLElement {
       }),
     ]),
     alert.node,
+    offer.node,
     el("section", { className: "card card-loose" }, [
       sectionLabel("Start a wallet"),
       el("div", { className: "actions" }, [

@@ -1,13 +1,13 @@
 import { api } from "../../api";
 import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { routeGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
-import { body, button, card, header, labelled, spacer, withBusy } from "../ui";
+import { body, button, card, header, historyReset, labelled, spacer, withBusy } from "../ui";
 
 /** How many words the user has to type back before the wallet is created. */
 const CHECKS = 3;
@@ -24,8 +24,12 @@ function pickPositions(total: number, count: number): number[] {
 }
 
 export function renderCreate(): HTMLElement {
-  const onScreen = screenGuard();
+  // `routeGuard`, not `screenGuard`: creating the wallet sets `session.wallet`,
+  // and an error after that, such as the key store refusing the key, must
+  // still be shown here.
+  const onScreen = routeGuard();
   const alert = banner();
+  const offer = historyReset(alert);
   const host = el("main");
   const cfg = session.config;
   if (!cfg) {
@@ -67,26 +71,27 @@ export function renderCreate(): HTMLElement {
         name: "passphrase",
       });
 
-      const create = button(
-        "Create wallet",
-        () =>
-          withBusy(create, async () => {
-            alert.hide();
-            try {
-              await api.openWallet(
-                generated.words,
-                cfg.address_type,
-                remember.checked(),
-                passphrase.value || undefined,
-              );
-              session.remembered = await api.getRemembered();
-              navigate("dashboard");
-            } catch (e) {
-              alert.show("error", errorMessage(e));
-            }
-          }),
-        { variant: "primary", block: true, disabled: true },
-      );
+      const createWallet = async (reset = false): Promise<void> => {
+        alert.hide();
+        try {
+          const open = reset ? api.resetHistoryAndOpen : api.openWallet;
+          await open(
+            generated.words,
+            cfg.address_type,
+            remember.checked(),
+            passphrase.value || undefined,
+          );
+          session.remembered = await api.getRemembered();
+          navigate("dashboard");
+        } catch (e) {
+          if (onScreen()) offer.report(e, () => createWallet(true));
+        }
+      };
+      const create = button("Create wallet", () => withBusy(create, createWallet), {
+        variant: "primary",
+        block: true,
+        disabled: true,
+      });
 
       function refresh(): void {
         const ok = [...answers.entries()].every(
@@ -113,6 +118,7 @@ export function renderCreate(): HTMLElement {
         ),
         card(labelled("Passphrase", passphrase, "(optional)"), passphrase, remember.node),
         spacer(),
+        offer.node,
         create,
       );
 

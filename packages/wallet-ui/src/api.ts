@@ -31,7 +31,7 @@ import type {
   Utxo,
   WalletInfo,
 } from "./types";
-import { MAX_FEE_RATE_SAT_VB, NETWORK_LABELS, WalletError } from "./types";
+import { historyResetFixes, MAX_FEE_RATE_SAT_VB, NETWORK_LABELS, WalletError } from "./types";
 import type { BuiltTx } from "./wasm";
 import {
   explorerTxUrl,
@@ -211,6 +211,42 @@ async function openWallet(
 }
 
 /**
+ * Runs `open`, and when what stops it is the wallet's saved history on this
+ * device (`historyResetFixes`), deletes that history, nothing else, and runs
+ * it once more. The key and the settings stay; the next sync downloads the
+ * history back.
+ *
+ * `open` goes first so that only a record which has just failed to read is
+ * ever deleted, whatever a screen holds by the time its reset is confirmed:
+ * a readable record is left alone, and so is one a newer version saved.
+ */
+async function withHistoryReset(
+  walletId: () => Promise<string>,
+  open: () => Promise<WalletInfo>,
+): Promise<WalletInfo> {
+  try {
+    return await open();
+  } catch (e) {
+    if (!historyResetFixes(e)) throw e;
+  }
+  await deleteWalletState(await walletId());
+  return open();
+}
+
+/** `openWallet`, resetting the wallet's saved history here if it cannot be read. */
+async function resetHistoryAndOpen(
+  secret: string,
+  addressType: AddressType,
+  remember: boolean,
+  passphrase?: string,
+): Promise<WalletInfo> {
+  return withHistoryReset(
+    async () => walletIdForKey(secret, (await requireConfig()).network, addressType, passphrase),
+    () => openWallet(secret, addressType, remember, passphrase),
+  );
+}
+
+/**
  * Whether Unlock can open the remembered wallet now: this device keeps keys,
  * one is remembered, and it is on the network the settings name. The settings
  * hold one server, so a wallet remembered on another network would otherwise
@@ -226,8 +262,11 @@ export function canUnlockHere(): boolean {
 /**
  * Opens the remembered wallet with the key loaded from the OS keystore. The
  * stored entry carries the passphrase too, so unlocking never asks for one.
+ *
+ * `resetHistory` is `withHistoryReset` around the open. It is decided here,
+ * past the keystore read, so a reset asks the OS for the key once.
  */
-async function unlockWallet(): Promise<WalletInfo> {
+async function unlockWallet(resetHistory = false): Promise<WalletInfo> {
   const notRemembered = () =>
     new WalletError("not_remembered", "no wallet is saved on this device");
   const record = await platform().getRemembered();
@@ -244,13 +283,10 @@ async function unlockWallet(): Promise<WalletInfo> {
   }
   const stored = await platform().loadSecret(record.wallet_id);
   if (!stored?.secret) throw notRemembered();
-  const { info } = await install(
-    stored.secret,
-    record.network,
-    record.address_type,
-    stored.passphrase ?? undefined,
-  );
-  return info;
+  const { secret, passphrase } = stored;
+  const open = async () =>
+    (await install(secret, record.network, record.address_type, passphrase ?? undefined)).info;
+  return resetHistory ? withHistoryReset(async () => record.wallet_id, open) : open();
 }
 
 /** Removes the keystore entry, the local wallet state and the remembered record. */
@@ -408,9 +444,22 @@ export const api = {
   validateMnemonic: (words: string): Promise<void> => validateMnemonic(words),
   openWallet: (secret: string, addressType: AddressType, remember: boolean, passphrase?: string) =>
     openWallet(secret, addressType, remember, passphrase),
+  /**
+   * `openWallet` for a wallet whose saved history here cannot be read: that
+   * history is deleted and the wallet opened again. The key store and the
+   * settings are not touched.
+   */
+  resetHistoryAndOpen: (
+    secret: string,
+    addressType: AddressType,
+    remember: boolean,
+    passphrase?: string,
+  ) => resetHistoryAndOpen(secret, addressType, remember, passphrase),
   closeWallet: async (): Promise<void> => releaseWallet(),
   getRemembered: (): Promise<RememberedWallet | null> => platform().getRemembered(),
   unlockWallet: () => unlockWallet(),
+  /** `unlockWallet` for such a wallet, the same way; its key stays in the keystore. */
+  resetHistoryAndUnlock: () => unlockWallet(true),
   forgetWallet: () => forgetWallet(),
   sync: (): Promise<Balance> => syncWallet(),
   /** Look `stopGap` unused addresses past the last used one, then re-read the balance. */

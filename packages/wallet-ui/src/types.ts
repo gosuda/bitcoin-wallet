@@ -365,9 +365,10 @@ function detailedMessage(value: AppError): string | null {
     case "not_replaceable":
       return "This transaction can no longer be replaced.";
     case "corrupt_state":
-      return typeof d?.reason === "string"
-        ? `The saved wallet data could not be read (${d.reason}).`
-        : "The saved wallet data could not be read.";
+      // Not unreadable, only ahead of this version: an update reads it.
+      return d?.reason === "future_version"
+        ? "The saved wallet data on this device is from a newer version of the app. Update the app to open it."
+        : "The saved wallet data on this device can't be read.";
     default:
       return null;
   }
@@ -388,6 +389,19 @@ export function messageOf(value: unknown): string | null {
 export function errorMessage(value: unknown): string {
   if (isAppError(value)) return detailedMessage(value) ?? value.message;
   return messageOf(value) ?? "unexpected error";
+}
+
+/**
+ * Whether deleting the wallet's saved history on this device fixes `value`:
+ * the record could not be read, and the next sync downloads the history back.
+ * A record from a newer version of the app is not one of these. An update
+ * reads it, and a reset would lose what that version keeps, such as frozen
+ * coins.
+ */
+export function historyResetFixes(value: unknown): boolean {
+  if (!isAppError(value) || value.code !== "corrupt_state") return false;
+  const reason = value.details?.reason;
+  return reason === "malformed" || reason === "mismatch";
 }
 
 export const NETWORK_LABELS: Record<Network, string> = {

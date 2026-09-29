@@ -1,11 +1,12 @@
 import { api } from "../../api";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
+import { routeGuard } from "../../screen";
 import { session } from "../../session";
 import { ADDRESS_TYPE_LABELS, errorMessage, NETWORK_LABELS } from "../../types";
 import { banner, el } from "../../ui/dom";
 import { icon } from "../../ui/icons";
-import { body, button, confirmDanger, header, spacer, withBusy } from "../ui";
+import { body, button, confirmDanger, header, historyReset, spacer, withBusy } from "../ui";
 
 function short(address: string): string {
   return address.length > 22 ? `${address.slice(0, 12)}…${address.slice(-6)}` : address;
@@ -19,26 +20,33 @@ export function renderUnlock(): HTMLElement {
     return host;
   }
 
+  // `routeGuard`, not `screenGuard`: unlocking is what sets `session.wallet`.
+  const onScreen = routeGuard();
   const alert = banner();
+  const offer = historyReset(alert);
   const auth = platform().authenticate;
 
-  const unlock = button(
-    auth ? "Unlock" : "Open wallet",
-    () =>
-      withBusy(unlock, async () => {
-        alert.hide();
-        try {
-          // The key lives in the OS key store either way; this only gates
-          // reading it, so a device without biometrics still opens normally.
-          if (auth) await auth("Unlock your wallet");
-          await api.unlockWallet();
-          navigate("dashboard");
-        } catch (e) {
-          alert.show("error", errorMessage(e));
-        }
-      }),
-    { variant: "primary", block: true, icon: auth ? "faceid" : "key" },
-  );
+  const attempt = async (reset = false): Promise<void> => {
+    alert.hide();
+    try {
+      // The key lives in the OS key store either way; this only gates
+      // reading it, so a device without biometrics still opens normally.
+      if (auth) await auth("Unlock your wallet");
+      await (reset ? api.resetHistoryAndUnlock() : api.unlockWallet());
+      navigate("dashboard");
+    } catch (e) {
+      if (!onScreen()) return;
+      // Unlocking again would fail the same way, so the reset stands where
+      // Unlock was, as the canvas draws it.
+      if (offer.report(e, () => attempt(true))) unlock.replaceWith(offer.node);
+      else offer.node.replaceWith(unlock);
+    }
+  };
+  const unlock = button(auth ? "Unlock" : "Open wallet", () => withBusy(unlock, attempt), {
+    variant: "primary",
+    block: true,
+    icon: auth ? "faceid" : "key",
+  });
 
   // Two taps: this deletes the saved key and the local history, and the
   // desktop screen already asked twice.

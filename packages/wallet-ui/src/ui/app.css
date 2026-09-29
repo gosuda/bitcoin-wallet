@@ -844,6 +844,11 @@ tr.tx-detail td {
   border-color: var(--danger);
 }
 
+/* A second step that keeps the key, where Forget's deletes it. */
+.accent-card {
+  border-color: var(--accent);
+}
+
 /* A place a confirm appears in; empty, it must not add a gap of its own. */
 .slot:empty {
   display: none;
@@ -988,6 +993,30 @@ tr.tx-detail td {
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--danger);
+}
+
+/* A wallet whose saved history cannot be read: why, and the reset in two steps. */
+.reset-offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.reset-offer:empty {
+  display: none;
+}
+
+.reset-message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-weight: 500;
+  color: var(--danger);
+}
+
+/* Level with the first line of the text beside it. */
+.reset-message .icon {
+  margin-top: 2px;
 }
 
 /* Result */
