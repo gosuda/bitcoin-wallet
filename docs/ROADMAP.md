@@ -742,14 +742,26 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
 Branch `round-5-bugs-first`. What the checks around the first tag turned up, fixed before any
 new feature.
 
-- [ ] **5.1 A first sync that can finish on a slow link** · M ·
-  `crates/wallet-core/src/backend/`, `wallet.rs`
+- [x] **5.1 A first sync that can finish on a slow link** · M ·
+  `crates/wallet-core/src/backend/esplora.rs`, `packages/wallet-ui/src/net.ts`, both shells
       why: the first sync is one full scan inside a 180 s budget, and a scan that runs out keeps
       nothing, so a wallet whose history takes longer to fetch starts over every time and never
       syncs; the BIP39 test phrase on signet did this over the emulator's ~265 ms link (4.5) ·
-      done when: a scan is cut off only after two minutes without progress, not two minutes in
-      all; tests on both targets show a scan that keeps moving outliving the window and a
-      stalled one cut off; the test phrase's first sync finishes on the emulator
+      done: 2026-09-29 — a scan no longer has a budget of its own; each request has one. A
+      scan's length follows the history. After the scripts, BDK fetches one block hash per
+      confirmation height, one after another and with no progress signal, so no fixed window
+      fits every wallet. A first attempt that cut a scan off after two quiet minutes failed on
+      exactly that tail. Natively, reqwest already bounds each request. On wasm32,
+      `esplora-client` drops its timeout, so the shells' `fetch` now bounds each chain request
+      at 30 s (`net.ts`, used by the desktop, phone and browser shells). It rejects with the
+      value reqwest's wasm client reads as its own timeout, so the error stays the typed "did
+      not answer within 30 s". It also hands reqwest's cancellation to Tauri's HTTP plugin,
+      which never saw it before. `test/net.test.ts` has four tests, and taking away the limit
+      or the abort forwarding fails them. On an API 34 emulator with the release build, the
+      test phrase (281 transactions over 170 block heights) finished its first sync in about
+      200 s, where the old build failed at 180 s every time. Pointed at a server that accepts
+      and never answers, a sync failed after 30 s with "The backend did not answer within
+      30 s."
 
 - [ ] **5.2 QR reading without Google Play Services** · S · `gen/android/app/build.gradle.kts`
   (no canvas)

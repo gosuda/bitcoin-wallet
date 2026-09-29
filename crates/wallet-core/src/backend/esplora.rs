@@ -14,25 +14,26 @@ use super::{ChainBackend, FeeEstimate};
 use crate::{Error, Result};
 
 const PARALLEL_REQUESTS: usize = 4;
-/// Budget for one round trip: broadcast, fee estimates, tip height.
+/// Budget for one round trip: broadcast, fee estimates, tip height — and for
+/// each request of a scan.
 const CALL_DEADLINE_SECS: u64 = 30;
-/// Budget for a scan, which is many round trips. The client's own retry
-/// backoff on a flapping endpoint (six tries, ~16 s) fits inside it several
-/// times over, so this only ever fires on a genuinely hung server.
-const SCAN_DEADLINE_SECS: u64 = 180;
 
-/// Bound a backend call in time.
+// A scan has no budget of its own. It is many round trips, as many as the
+// wallet's history needs: after the scripts, BDK fetches one block hash per
+// confirmation height, one after another. A fixed budget cut a long history off
+// every time on a slow link, and a scan that is cut off keeps nothing, so such
+// a wallet never finished its first sync. What catches a hung server is the
+// bound on each request instead: reqwest's timeout natively, and in a webview
+// the shell's `fetch` (`packages/wallet-ui/src/net.ts`), because on wasm32
+// `esplora-client` does not pass its timeout on to reqwest.
+
+/// Bound a single backend call in time.
 ///
-/// Both targets need this, for different reasons. Natively reqwest enforces a
-/// timeout *per request*, which does not bound a scan: a scan is many requests,
-/// and a server answering each one slowly can run past any budget while no
-/// single request ever times out. On wasm32 `esplora-client` silently drops the
-/// timeout it is given — reqwest cannot abort a `fetch` there — so those builds
-/// have no per-request bound at all and a hung endpoint hung the wallet.
-///
-/// Wrapping the whole call means [`SCAN_DEADLINE_SECS`] is a real budget on
-/// every target rather than a comment, and a caller sees the same
-/// [`Error::Timeout`] wherever it runs.
+/// On wasm32 `esplora-client` drops the timeout it is given, so without this a
+/// hung endpoint hung the wallet wherever the shell had not bounded the request
+/// itself. Natively it also bounds the client's retries, each of which gets
+/// reqwest's per-request timeout afresh, and a caller sees the same
+/// [`Error::Timeout`] on every target.
 #[cfg(not(target_arch = "wasm32"))]
 async fn deadline<T>(secs: u64, call: impl Future<Output = Result<T>>) -> Result<T> {
     match tokio::time::timeout(std::time::Duration::from_secs(secs), call).await {
@@ -116,23 +117,17 @@ impl ChainBackend for EsploraBackend {
         request: FullScanRequest<KeychainKind>,
         stop_gap: usize,
     ) -> Result<FullScanResponse<KeychainKind>> {
-        deadline(SCAN_DEADLINE_SECS, async {
-            self.client
-                .full_scan(request, stop_gap, PARALLEL_REQUESTS)
-                .await
-                .map_err(|e| map_err(*e))
-        })
-        .await
+        self.client
+            .full_scan(request, stop_gap, PARALLEL_REQUESTS)
+            .await
+            .map_err(|e| map_err(*e))
     }
 
     async fn sync(&self, request: SyncRequest<(KeychainKind, u32)>) -> Result<SyncResponse> {
-        deadline(SCAN_DEADLINE_SECS, async {
-            self.client
-                .sync(request, PARALLEL_REQUESTS)
-                .await
-                .map_err(|e| map_err(*e))
-        })
-        .await
+        self.client
+            .sync(request, PARALLEL_REQUESTS)
+            .await
+            .map_err(|e| map_err(*e))
     }
 
     async fn broadcast(&self, tx: &Transaction) -> Result<Txid> {
@@ -168,8 +163,8 @@ mod tests {
     use super::*;
 
     /// The native branch used to be a no-op that returned the future untouched,
-    /// so `SCAN_DEADLINE_SECS` bounded nothing off the browser. In the browser,
-    /// this race is the only bound a hung endpoint meets.
+    /// so a single call was bounded nowhere but the browser. There, this race
+    /// is the only bound a hung endpoint meets unless the shell sets one.
     #[cfg_attr(not(target_arch = "wasm32"), tokio::test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     async fn the_deadline_actually_fires() {
