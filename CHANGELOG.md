@@ -14,6 +14,7 @@ pull requests a change arrived in.
   stops answering is still caught, and sooner. (#38)
 - Reading QR codes on Android no longer needs Google Play Services, or a download before the
   first scan: the barcode model now ships inside the app. (#38)
+- Desktop Setup no longer warns about P2PK, which it does not offer. (#38)
 
 ## [0.1.0] - 2026-09-29
 

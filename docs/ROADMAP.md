@@ -779,10 +779,11 @@ new feature.
       No real QR code was decoded: the emulator's virtual camera cannot be aimed at its poster
       without the emulator's window, and eight headings found nothing
 
-- [ ] **5.3 No P2PK hint on desktop Setup** · S · `packages/wallet-ui/src/screens/setup.ts`
+- [x] **5.3 No P2PK hint on desktop Setup** · S · `packages/wallet-ui/src/screens/setup.ts`
       why: Setup's address type still says "P2PK funds are not discoverable by public indexers",
-      though P2PK has not been a choice there since #7 · done when: the hint is gone, and a test
-      says Setup names no P2PK
+      though P2PK has not been a choice there since #7 · done: 2026-09-29 — the hint is gone.
+      A jsdom test renders desktop Setup and finds no P2PK in it, matching the word on its own
+      because the P2PKH choice starts the same way. With the hint put back, the test fails
 
 ## Round 6 — Product
 
