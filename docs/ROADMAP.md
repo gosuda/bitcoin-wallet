@@ -728,9 +728,14 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       exercised, but the rig itself was not re-run: the downloaded bitcoind is x86_64 and this
       Mac has no Rosetta
 
-- [ ] **4.9 First tag** · S · `v0.1.0` · **decision** (outward-facing) · after 4.1 and 4.2
-      why: the release workflow's tag path has never run · done when: the tag exists and the
-      draft release built from it carries the desktop artifacts
+- [x] **4.9 First tag** · S · `v0.1.0` · **decision** (outward-facing) · after 4.1 and 4.2
+      why: the release workflow's tag path has never run · done: 2026-09-29 — `v0.1.0` tags
+      `7cf6c80`, the merge of Round 4 (#36), whose tree is the one CI passed. The tag's run
+      (36532310845) passed the version check against the tag and built the four desktop legs
+      in 18 minutes. The phone jobs were skipped, since no signing keys exist yet. The draft
+      release `v0.1.0` holds nine unsigned installers: a `.dmg` and an `.app.tar.gz` for each
+      Mac architecture, an `.msi` and a `-setup.exe` for Windows, and a `.deb`, an `.AppImage`
+      and an `.rpm` for Linux. Publishing it is left to the user
 
 ## Round 5 — Product
 
