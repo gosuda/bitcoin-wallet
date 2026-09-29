@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installChainFetch, REQUEST_TIMEOUT_MS, REQWEST_TIMED_OUT, withTimeout } from "../src/net";
+import { session } from "../src/session";
 
 /**
  * A stand-in for `fetch` that answers only when told to, and fails the way a
@@ -40,7 +41,9 @@ describe("withTimeout", () => {
     held.answer(new Response("123"));
     await expect(pending).resolves.toBeInstanceOf(Response);
 
-    // reqwest aborts its signal once it has read the response.
+    // `caller` stands for reqwest's own signal, on the Request it hands to
+    // fetch: its AbortGuard lives in the response and aborts on drop, once the
+    // response has been read.
     caller.abort();
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -84,6 +87,7 @@ describe("installChainFetch", () => {
 
   afterEach(() => {
     globalThis.fetch = original;
+    session.config = null;
     vi.unstubAllGlobals();
   });
 
@@ -105,5 +109,27 @@ describe("installChainFetch", () => {
     // Rerouted with a signal of its own: the one the time limit aborts.
     const init = route.mock.calls[0]?.[1] as RequestInit | undefined;
     expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("bounds a backend served from this very origin too, and nothing else there", async () => {
+    session.config = {
+      network: "signet",
+      address_type: "p2wpkh",
+      backend: { kind: "esplora", url: "http://localhost:5173/esplora/api/" },
+    };
+    const page = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("same origin"),
+    );
+    globalThis.fetch = page;
+    installChainFetch();
+
+    await globalThis.fetch("http://localhost:5173/wallet_wasm_bg.wasm");
+    await globalThis.fetch("http://localhost:5173/esplora/api-docs");
+    await globalThis.fetch("http://localhost:5173/esplora/api/blocks/tip/height");
+
+    // The app's own files keep the page's fetch untouched: no signal of ours.
+    expect(page.mock.calls[0]?.[1]?.signal).toBeUndefined();
+    expect(page.mock.calls[1]?.[1]?.signal).toBeUndefined();
+    expect(page.mock.calls[2]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 });

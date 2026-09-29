@@ -9,6 +9,8 @@
  * hung server would hang a sync with it.
  */
 
+import { session } from "./session";
+
 /** The core's budget for one round trip (`CALL_DEADLINE_SECS`). */
 export const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -54,7 +56,17 @@ export function withTimeout(fetchFn: typeof fetch, ms = REQUEST_TIMEOUT_MS): typ
   };
 }
 
-/** Whether `url` leaves this page's origin, as every chain request does. */
+/**
+ * Whether `url` is under the chain backend the wallet is set up for. Needed
+ * because a backend can share the page's origin: the browser build served from
+ * the same host as its Esplora API, behind one reverse proxy.
+ */
+function toBackend(url: string): boolean {
+  const base = session.config?.backend.url.replace(/\/+$/, "");
+  return base !== undefined && base !== "" && (url === base || url.startsWith(`${base}/`));
+}
+
+/** Whether `url` leaves this page's origin, as every other chain request does. */
 function leavesThisOrigin(url: string): boolean {
   try {
     const target = new URL(url, globalThis.location.href);
@@ -68,16 +80,20 @@ function leavesThisOrigin(url: string): boolean {
 }
 
 /**
- * Bound every request that leaves this origin, sending it through `route` when
- * one is given (the native shell hands such requests to Rust). Anything else —
- * app assets, the dev server — keeps the page's own `fetch`, untimed.
+ * Bound every chain request: each one that leaves this origin, which also goes
+ * through `route` when one is given (the native shell hands such requests to
+ * Rust), and each one to the configured backend on this origin. Anything else —
+ * app assets, the wasm binary, the dev server — keeps the page's own `fetch`,
+ * untimed, so a slow download of the app itself is never cut off.
  */
 export function installChainFetch(route?: typeof fetch): void {
   const webFetch = globalThis.fetch.bind(globalThis);
-  const chain = withTimeout(route ?? webFetch);
+  const routed = withTimeout(route ?? webFetch);
+  const local = withTimeout(webFetch);
   globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url =
       input instanceof Request ? input.url : input instanceof URL ? input.href : String(input);
-    return leavesThisOrigin(url) ? chain(input, init) : webFetch(input, init);
+    if (leavesThisOrigin(url)) return routed(input, init);
+    return toBackend(url) ? local(input, init) : webFetch(input, init);
   };
 }
