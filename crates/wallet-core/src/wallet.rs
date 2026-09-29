@@ -8,14 +8,17 @@
 use std::str::FromStr;
 
 use async_lock::Mutex;
+use bdk_wallet::bitcoin::key::Secp256k1;
 use bdk_wallet::bitcoin::{
-    Address, Amount, FeeRate, Psbt, ScriptBuf, Sequence, Transaction, Weight,
+    Address, Amount, FeeRate, NetworkKind, Psbt, ScriptBuf, Sequence, Transaction, Weight,
 };
 use bdk_wallet::chain::{ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
+use bdk_wallet::descriptor::{ExtendedDescriptor, IntoWalletDescriptor};
 use bdk_wallet::error::CreateTxError;
-use bdk_wallet::keys::DescriptorPublicKey;
+use bdk_wallet::keys::{DescriptorPublicKey, KeyMap};
 use bdk_wallet::miniscript::ForEachKey;
+use bdk_wallet::signer::SignersContainer;
 use bdk_wallet::{KeychainKind, SignOptions, Wallet};
 use serde::{Deserialize, Serialize};
 use web_time::{SystemTime, UNIX_EPOCH};
@@ -260,10 +263,23 @@ fn load_error(_: bdk_wallet::error::LoadError) -> Error {
 }
 
 struct Inner {
+    /// Built from public descriptors only: it holds no private key.
     wallet: Wallet,
+    /// The keys this wallet signs with — one container per keychain, empty
+    /// for watch-only. Held here rather than inside `wallet`, the shape
+    /// bdk_wallet 3.2 moved to when it deprecated wallet-owned signers.
+    signers: Vec<SignersContainer>,
     persister: Box<dyn Persister>,
     #[cfg(test)]
     fail_next_persist: bool,
+}
+
+/// A descriptor carrying private keys, split into the public descriptor BDK
+/// is given and the keymap the signers are built from.
+fn split_descriptor(descriptor: &str, kind: NetworkKind) -> Result<(ExtendedDescriptor, KeyMap)> {
+    descriptor
+        .into_wallet_descriptor(&Secp256k1::new(), kind)
+        .map_err(|e| Error::Descriptor(e.to_string()))
 }
 
 /// Wallet handle. BDK calls run under a short-lived async mutex; network I/O
@@ -351,40 +367,55 @@ impl WalletHandle {
 
         let stored = persister.initialize().await?;
         let fresh = stored.is_empty();
-        // BDK's descriptor traits need an owned, `'static` `String`, so each
-        // arm clones out of the `Zeroizing` wrapper here — the clone is no
-        // more exposed than the copy BDK's own `KeyMap` already holds
-        // un-zeroized for the wallet's lifetime, and the original stays
-        // wrapped, zeroized when `descriptors` drops at the end of this match.
-        let wallet = match descriptors {
-            Descriptors::Single(descriptor) if fresh => {
-                Wallet::create_single(descriptor.to_string())
-                    .network(net)
-                    .create_wallet_no_persist()
-                    .map_err(|e| Error::Descriptor(e.to_string()))?
-            }
-            Descriptors::Single(descriptor) => Wallet::load()
-                .descriptor(KeychainKind::External, Some(descriptor.to_string()))
-                .extract_keys()
+        // Each descriptor string carries the private key. Split it once, here:
+        // BDK is handed only the public descriptor, and the keymap stays with
+        // this handle as its signers. The strings themselves stay wrapped and
+        // are zeroized when `descriptors` drops at the end of this function.
+        let kind = NetworkKind::from(net);
+        let (external, internal) = match &descriptors {
+            Descriptors::Single(descriptor) => (split_descriptor(descriptor, kind)?, None),
+            Descriptors::Hd { external, internal } => (
+                split_descriptor(external, kind)?,
+                Some(split_descriptor(internal, kind)?),
+            ),
+        };
+        let (external, external_keys) = external;
+        let (internal, internal_keys) = internal.unzip();
+        let wallet = match internal {
+            None if fresh => Wallet::create_single(external.to_string())
+                .network(net)
+                .create_wallet_no_persist()
+                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            None => Wallet::load()
+                .descriptor(KeychainKind::External, Some(external.to_string()))
                 .check_network(net)
                 .load_wallet_no_persist(stored)
                 .map_err(load_error)?
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
-            Descriptors::Hd { external, internal } if fresh => {
-                Wallet::create(external.to_string(), internal.to_string())
-                    .network(net)
-                    .create_wallet_no_persist()
-                    .map_err(|e| Error::Descriptor(e.to_string()))?
-            }
-            Descriptors::Hd { external, internal } => Wallet::load()
+            Some(internal) if fresh => Wallet::create(external.to_string(), internal.to_string())
+                .network(net)
+                .create_wallet_no_persist()
+                .map_err(|e| Error::Descriptor(e.to_string()))?,
+            Some(internal) => Wallet::load()
                 .descriptor(KeychainKind::External, Some(external.to_string()))
                 .descriptor(KeychainKind::Internal, Some(internal.to_string()))
-                .extract_keys()
                 .check_network(net)
                 .load_wallet_no_persist(stored)
                 .map_err(load_error)?
                 .ok_or_else(|| Error::Persist("stored wallet state is empty".into()))?,
         };
+        let mut signers = vec![SignersContainer::build(
+            external_keys,
+            wallet.public_descriptor(KeychainKind::External),
+            wallet.secp_ctx(),
+        )];
+        if let Some(keys) = internal_keys {
+            signers.push(SignersContainer::build(
+                keys,
+                wallet.public_descriptor(KeychainKind::Internal),
+                wallet.secp_ctx(),
+            ));
+        }
 
         let ranged = wallet
             .public_descriptor(KeychainKind::External)
@@ -392,6 +423,7 @@ impl WalletHandle {
 
         let mut inner = Inner {
             wallet,
+            signers,
             persister,
             #[cfg(test)]
             fail_next_persist: false,
@@ -943,9 +975,12 @@ impl WalletHandle {
         }
         let mut psbt = Psbt::from_str(psbt_base64).map_err(|e| Error::Psbt(e.to_string()))?;
         let inner = self.inner.lock().await;
+        // External keychain first, then change — the order the deprecated
+        // wallet-owned `Wallet::sign` used internally.
+        let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
         let finalized = inner
             .wallet
-            .sign(&mut psbt, SignOptions::default())
+            .sign_with_signers(&mut psbt, &signers, SignOptions::default())
             .map_err(|e| Error::Sign(e.to_string()))?;
         if !finalized {
             return Err(Error::Sign(
