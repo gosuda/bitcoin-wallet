@@ -120,10 +120,14 @@ async function scanQr(signal?: AbortSignal): Promise<string | null> {
   }
   // The permission prompt can outlast the screen that asked for it.
   if (signal?.aborted) return null;
+  let settle = (): void => undefined;
   const left = new Promise<null>((resolve) => {
-    signal?.addEventListener("abort", () => resolve(null), { once: true });
+    settle = () => resolve(null);
   });
-  const stop = (): void => void cancel().catch(() => undefined);
+  const stop = (): void => {
+    void cancel().catch(() => undefined);
+    settle();
+  };
   signal?.addEventListener("abort", stop, { once: true });
   try {
     const scanned = scan({ windowed: true, formats: [Format.QRCode] }).then((r) => r.content);
