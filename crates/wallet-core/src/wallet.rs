@@ -12,7 +12,7 @@ use bdk_wallet::bitcoin::hex::FromHex;
 use bdk_wallet::bitcoin::key::Secp256k1;
 use bdk_wallet::bitcoin::{
     Address, Amount, FeeRate, NetworkKind, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, Txid,
-    Weight, WitnessVersion,
+    Weight,
 };
 use bdk_wallet::chain::{CanonicalizationParams, ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
@@ -123,10 +123,14 @@ fn parse_psbt(text: &str) -> Result<Psbt> {
 }
 
 /// Puts this wallet's own record of each coin of ours a PSBT spends into it,
-/// over whatever the PSBT said: the output for a segwit spend, the whole
-/// previous transaction for all but taproot, as BDK's own builder does.
-/// What a signature of ours commits to then comes from our history, not
-/// from whoever made the PSBT.
+/// over whatever the PSBT said: the whole previous transaction, and the
+/// output itself for a segwit spend. What a signature of ours commits to
+/// then comes from our history, not from whoever made the PSBT.
+///
+/// The previous transaction goes in for taproot too, where BDK's own builder
+/// leaves it out. Signing checks every input's previous transaction against
+/// its txid, so a PSBT mixing a taproot coin of ours with anyone's older
+/// segwit input would otherwise be refused.
 fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
     let graph = wallet.tx_graph();
     for (txin, input) in psbt.unsigned_tx.input.iter().zip(psbt.inputs.iter_mut()) {
@@ -148,9 +152,7 @@ fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
         if segwit.is_some() {
             input.witness_utxo = Some(txout.clone());
         }
-        if segwit != Some(WitnessVersion::V1) {
-            input.non_witness_utxo = Some(prev_tx.as_ref().clone());
-        }
+        input.non_witness_utxo = Some(prev_tx.as_ref().clone());
     }
 }
 
@@ -1408,16 +1410,15 @@ impl WalletHandle {
         let inner = self.inner.lock().await;
         fill_ours(&inner.wallet, &mut psbt);
         let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
-        // What our signatures commit to was just filled in from this wallet's
-        // own history. So a PSBT that lacks someone else's previous
-        // transaction need not stop us signing ours.
-        let options = SignOptions {
-            trust_witness_utxo: true,
-            ..SignOptions::default()
-        };
+        // BDK's default refuses any input whose whole previous transaction is
+        // missing or does not hash to its txid. That is the defence against
+        // the segwit fee attack (CVE-2020-14199): without it, a coin of ours
+        // this wallet has not synced yet would be signed at whatever amount
+        // the PSBT claims. So it stays on, even though that means a PSBT
+        // must carry the previous transaction of everyone's inputs.
         inner
             .wallet
-            .sign_with_signers(&mut psbt, &signers, options)
+            .sign_with_signers(&mut psbt, &signers, SignOptions::default())
             .map_err(|e| Error::Sign(e.to_string()))?;
         self.review(&inner, psbt)
     }
@@ -2819,9 +2820,16 @@ mod tests {
         let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
         let mut stranger = vec![0x00, 0x14];
         stranger.extend([0x66; 20]);
+        // Their coin, with the whole transaction that made it, as a PSBT
+        // must carry it for this wallet to sign alongside.
+        let mut theirs = funding_tx(ScriptBuf::from_bytes(stranger.clone()), 1_000);
+        theirs.output.push(TxOut {
+            value: Amount::from_sat(30_000),
+            script_pubkey: ScriptBuf::from_bytes(stranger),
+        });
         psbt.unsigned_tx.input.push(TxIn {
             previous_output: OutPoint {
-                txid: Txid::from_str(&"44".repeat(32)).unwrap(),
+                txid: theirs.compute_txid(),
                 vout: 1,
             },
             script_sig: ScriptBuf::new(),
@@ -2829,10 +2837,8 @@ mod tests {
             witness: Witness::new(),
         });
         psbt.inputs.push(bdk_wallet::bitcoin::psbt::Input {
-            witness_utxo: Some(TxOut {
-                value: Amount::from_sat(30_000),
-                script_pubkey: ScriptBuf::from_bytes(stranger),
-            }),
+            witness_utxo: Some(theirs.output[1].clone()),
+            non_witness_utxo: Some(theirs),
             ..Default::default()
         });
 
@@ -2847,6 +2853,28 @@ mod tests {
         assert_eq!(review.net_sat, -((40_000 + built.fee_sat) as i64));
         let err = handle.broadcast(&review.psbt_base64).await.unwrap_err();
         assert_eq!(err.code(), "psbt");
+    }
+
+    /// The segwit fee attack (CVE-2020-14199): a PSBT names a coin of ours
+    /// that this wallet has not seen, with only a claimed output to vouch for
+    /// its amount. Signing refuses rather than sign whatever amount it says.
+    #[tokio::test]
+    async fn an_unseen_coin_of_ours_is_not_signed_on_the_psbts_word() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        psbt.unsigned_tx.input[0].previous_output = OutPoint {
+            txid: Txid::from_str(&"77".repeat(32)).unwrap(),
+            vout: 0,
+        };
+        psbt.inputs[0].non_witness_utxo = None;
+        assert!(
+            psbt.inputs[0].witness_utxo.is_some(),
+            "the claim stands alone"
+        );
+        let err = handle.sign_psbt(&psbt.to_string()).await.unwrap_err();
+        assert_eq!(err.code(), "sign");
     }
 
     #[tokio::test]
