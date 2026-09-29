@@ -1,4 +1,4 @@
-import { boot } from "@bitcoin-wallet/ui";
+import { boot, showBootFailure } from "@bitcoin-wallet/ui";
 import { setPlatform } from "@bitcoin-wallet/ui/platform";
 import { installNativeFetch, keystoreAvailable, tauriPlatform } from "./platform-tauri";
 
@@ -64,7 +64,13 @@ async function main(): Promise<void> {
     await boot();
   }
   // After boot: the handler navigates, so the shell must already be listening.
-  if (MOBILE) await wireDeepLinks().catch(() => undefined);
+  // A failure leaves the app usable, only deaf to `bitcoin:` links, so it is
+  // logged rather than put in front of the user.
+  if (MOBILE) {
+    await wireDeepLinks().catch((e: unknown) => {
+      console.error("bitcoin: links will not open this app:", e);
+    });
+  }
 }
 
-void main();
+main().catch(showBootFailure);

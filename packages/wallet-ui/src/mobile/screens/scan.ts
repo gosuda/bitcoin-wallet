@@ -24,10 +24,15 @@ export function renderScan(): HTMLElement {
     el("span"),
   ]);
 
-  const accept = (text: string): void => {
+  const accept = (text: string, from: "scan" | "clipboard"): void => {
     const payment = parsePaymentUri(text);
     if (!payment) {
-      alert.show("warn", "That QR code is not a Bitcoin address.");
+      alert.show(
+        "warn",
+        from === "scan"
+          ? "That QR code is not a Bitcoin address."
+          : "The clipboard does not hold a Bitcoin address.",
+      );
       return;
     }
     prefillSend({
@@ -55,7 +60,7 @@ export function renderScan(): HTMLElement {
       const text = await scan();
       if (!onScreen()) return;
       // Null is a cancel, not a failure: say nothing and stay put.
-      if (text !== null) accept(text);
+      if (text !== null) accept(text, "scan");
     } catch (e) {
       if (onScreen()) alert.show("error", errorMessage(e));
     } finally {
@@ -74,13 +79,24 @@ export function renderScan(): HTMLElement {
 
   const paste = button("Paste from clipboard", async () => {
     alert.hide();
+    let text: string;
     try {
-      const text = await navigator.clipboard.readText();
+      text = await navigator.clipboard.readText();
+    } catch (e) {
+      console.error("could not read the clipboard:", e);
       if (!onScreen()) return;
-      accept(text);
-    } catch {
-      if (onScreen()) alert.show("warn", "Nothing readable in the clipboard.");
+      // A refusal is the user's to change; anything else is this build or
+      // browser, and typing the address is the way round it.
+      const refused = e instanceof DOMException && e.name === "NotAllowedError";
+      alert.show(
+        "warn",
+        refused
+          ? "Clipboard access was refused. Allow it and try again, or type the address."
+          : "The clipboard cannot be read here. Type the address instead.",
+      );
+      return;
     }
+    if (onScreen()) accept(text, "clipboard");
   });
 
   host.appendChild(header("Scan"));

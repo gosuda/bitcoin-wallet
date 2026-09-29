@@ -515,12 +515,25 @@ Branch `round-3-tests-and-drift`. Every claim in the code has a test, or is gone
       address — this one is for Bitcoin mainnet." The phone shell's changes are
       typechecked, not clicked: the web app does not mount it. 98 UI tests pass
 
-- [ ] **3.7 Nothing fails silently** · S · `app.ts`, `apps/native/src/main.ts`,
+- [x] **3.7 Nothing fails silently** · S · `app.ts`, `apps/native/src/main.ts`,
   `apps/web/src/main.ts`, mobile `screens/scan.ts`, `ui/clipboard.ts`
       why: a settings store that cannot be read looks like a first run; a deep-link wiring
       failure vanishes; a web boot failure leaves a blank page; every clipboard failure reads as
-      "nothing to paste" · done when: each path logs and, where a user can act, says so with the
-      existing banner
+      "nothing to paste" · done: 2026-09-29 — every path logs with `console.error`, and the
+      ones a user can act on use the existing banner. Boot, which runs before any screen
+      exists, queues its news (`queueNotice` in `ui/dom.ts`) for the first banner a screen
+      creates. Checked in the web app with the real modules: a settings read made to throw
+      "store locked" opens Setup saying "The saved settings could not be read (store locked).
+      Choose them again."; a remembered-wallet read made to throw says the saved wallet could
+      not be read and to open it again with its phrase or key. Both entry points now end in
+      `showBootFailure`, which puts the error in the page (the native one too, whose start
+      could fail the same way): called with an error, the page shows "The wallet could not
+      start: …" in the error banner, not a blank window. A deep-link wiring failure is only
+      logged; the app works without it. The phone's paste tells a refused permission
+      ("Allow it and try again") from a clipboard this build cannot read, and a pasted
+      non-address no longer calls itself a QR code. A failed copy still says "Failed" and
+      now logs why. A jsdom test covers the queued notice (shown once, by the next banner);
+      100 UI tests
 
 - [ ] **3.8 The routing and normalizing rules are tested** · M · `app.ts`, `mobile/shell.ts`,
   `wasm/index.ts` → `wasm/normalize.ts`, `test/`

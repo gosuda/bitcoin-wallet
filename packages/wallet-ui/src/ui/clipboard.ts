@@ -13,7 +13,9 @@ export function copyButton(
       try {
         await platform().writeClipboard(getText());
         setButtonLabel(btn, "Copied");
-      } catch {
+      } catch (e) {
+        // The label says it failed; the log says why.
+        console.error("could not write the clipboard:", e);
         setButtonLabel(btn, "Failed");
       }
       window.setTimeout(() => {

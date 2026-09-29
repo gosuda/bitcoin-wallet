@@ -186,9 +186,19 @@ export interface Banner {
 }
 
 /** One `role="alert"` banner per screen. */
+let queuedNotice: { kind: BannerKind; message: string } | null = null;
+
+/**
+ * Something that happened before any screen existed, such as a stored record
+ * boot could not read. The next banner a screen creates shows it, once.
+ */
+export function queueNotice(kind: BannerKind, message: string): void {
+  queuedNotice = { kind, message };
+}
+
 export function banner(): Banner {
   const node = el("div", { className: "banner", attrs: { role: "alert" } });
-  return {
+  const alert: Banner = {
     node,
     show(kind, message) {
       node.className = `banner banner-visible banner-${kind}`;
@@ -199,6 +209,11 @@ export function banner(): Banner {
       node.textContent = "";
     },
   };
+  if (queuedNotice) {
+    alert.show(queuedNotice.kind, queuedNotice.message);
+    queuedNotice = null;
+  }
+  return alert;
 }
 
 export function kv(rows: readonly [string, Node | string][]): HTMLElement {

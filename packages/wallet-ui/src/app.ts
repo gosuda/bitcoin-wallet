@@ -12,8 +12,8 @@ import { renderSend } from "./screens/send";
 import { renderSetup } from "./screens/setup";
 import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
-import { backendHost, isOpenable, NETWORK_LABELS } from "./types";
-import { clear, el } from "./ui/dom";
+import { backendHost, errorMessage, isOpenable, NETWORK_LABELS } from "./types";
+import { banner, clear, el, queueNotice } from "./ui/dom";
 import { brandMark, icon } from "./ui/icons";
 
 const STEPS = ["Setup", "Key", "Wallet"] as const;
@@ -139,15 +139,27 @@ export interface BootOptions {
  * on nothing knows whether it is running in a Tauri window or a browser tab.
  */
 export async function boot(options: BootOptions = {}): Promise<void> {
+  // A store that cannot be read is not a first run, though it lands on the
+  // same screen: that screen says why, rather than pass for a fresh start.
   try {
     session.config = await api.getConfig();
-  } catch {
+  } catch (e) {
+    console.error("could not read the saved settings:", e);
+    queueNotice(
+      "error",
+      `The saved settings could not be read (${errorMessage(e)}). Choose them again.`,
+    );
     session.config = null;
   }
   if (session.config) {
     try {
       session.remembered = await api.getRemembered();
-    } catch {
+    } catch (e) {
+      console.error("could not read the remembered wallet:", e);
+      queueNotice(
+        "error",
+        `The wallet saved on this device could not be read (${errorMessage(e)}). Open it again with its recovery phrase or key.`,
+      );
       session.remembered = null;
     }
   }
@@ -158,4 +170,15 @@ export async function boot(options: BootOptions = {}): Promise<void> {
   window.addEventListener("hashchange", render);
   if (session.remembered && currentRoute() === "setup") navigate("unlock");
   else render();
+}
+
+/**
+ * For an entry point whose start failed before any screen could come up:
+ * says so in the page, which would otherwise stay blank, and logs the cause.
+ */
+export function showBootFailure(e: unknown): void {
+  console.error("the wallet could not start:", e);
+  const alert = banner();
+  alert.show("error", `The wallet could not start: ${errorMessage(e)}`);
+  (document.getElementById("app") ?? document.body).replaceChildren(alert.node);
 }
