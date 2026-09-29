@@ -292,15 +292,17 @@ Branch `round-2-ci-and-supply-chain`. The repository stops checking less than it
 - [x] **2.3 Dependabot** · S · `.github/dependabot.yml` · **admin** to enable security updates
       why: nothing proposes upgrades; security updates are disabled · done: 2026-09-28 —
       cargo, npm (the one pnpm workspace at the root), github-actions (the workflows and the
-      `wasm-core` composite, which `/` alone does not reach) and gradle (the Android project
-      under `gen/android`, which pins AGP, Kotlin and five androidx libraries), weekly, with
+      `wasm-core` composite, which `/` alone does not reach), weekly, with
       minor and patch grouped per ecosystem and majors one at a time; titles follow the
       repository's Conventional Commits (`build(deps)`, `ci(deps)`). Validated against the
       published schema (`check-jsonschema --builtin-schema vendor.dependabot`). Security
       updates switched on (admin OK 2026-09-28) and read back `enabled: true`. The first
       Dependabot pull request, #12, opened within minutes: vitest 3.2.7 → 4.1.11, the same fix
       as 2.4, so it closes once this round is on `main`. Version updates start then too —
-      Dependabot reads this file from `main` only
+      Dependabot reads this file from `main` only. Gradle was in the first version, and
+      dropped on 2026-09-29: all three of its proposals (androidx, Kotlin 2.4, Gradle 9) failed
+      a local APK build, because the generated Android project's toolchain is pinned by
+      Tauri's own plugin modules; the reason is in `dependabot.yml`
 
 - [x] **2.4 vitest 3 → 4** · S · `packages/wallet-ui/package.json`, `pnpm-lock.yaml`
       why: 3.2.7 is inside CVE-2026-84373; the fix is 4.1.11 — dev-only, but three open alerts ·
