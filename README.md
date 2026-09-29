@@ -147,13 +147,14 @@ branch on `$?`.
 ### Tests
 
 ```bash
-cargo test -p wallet-core          # unit tests, no network
-cargo test -p regtest-tests        # end-to-end against a real bitcoind + Esplora
-wasm-pack test --node crates/wallet-wasm   # the JS bindings, run in Node
-wasm-pack test --node crates/wallet-core --no-default-features --features backend-esplora
-                                   # the paths only wasm32 has (the deadline race)
-pnpm --filter @bitcoin-wallet/ui test   # the frontend's pure modules, under vitest
+just test       # core and CLI, the wasm bindings in Node, the UI suite — no network
+just regtest    # end-to-end against a real bitcoind + Esplora
+just check      # everything CI lints and typechecks
 ```
+
+Each recipe in the [`justfile`](justfile) is a line or two over plain commands
+(`cargo test -p wallet-core`, `wasm-pack test --node crates/wallet-wasm`, …), so
+`just` itself is optional; [CONTRIBUTING.md](CONTRIBUTING.md) has the setup.
 
 `regtest-tests` downloads `bitcoind` and `electrs` on first build (via `bdk_testenv`) and
 drives the whole flow — receive, spend, fee bump, reopen from persisted state, and the HD
@@ -171,7 +172,7 @@ Both shells share one pnpm workspace and one lockfile, and both import the WASM 
 build it first:
 
 ```bash
-wasm-pack build crates/wallet-wasm --target web --release --out-dir ../../packages/wallet-ui/src/wasm/pkg
+just wasm                                     # or scripts/build-wasm.sh
 pnpm install                                  # from the repo root
 
 cd apps/native && pnpm tauri dev              # desktop, on :14200
@@ -198,13 +199,13 @@ pnpm tauri android build --debug --apk --target aarch64   # an APK to install by
 ```
 
 The wallet core is WASM inside the webview, not a Tauri command, so a change to
-`crates/` needs `wasm-pack` re-run (the command under [Apps](#apps)) before the app
-picks it up.
+`crates/` needs `just wasm` re-run before the app picks it up. `just android-apk` and
+`just ios-sim` do that first. Signed-for-nobody phone builds can also be made on demand
+by the `mobile bundles` workflow (Actions → run workflow).
 
-To exercise a funded wallet without a faucet, point Setup at a node you run and mine
-into it. `regtest` is not offered on the phone — it wants a node on localhost — but a
-private signet is: `bitcoind -signet` with `signetchallenge=51` makes blocks anyone can
-mine with `generatetoaddress`, and the emulator reaches the host at `10.0.2.2`.
+To send from the phone build without a faucet, run a private signet whose blocks anyone
+can mine: `just signet`, then point Setup at it — [docs/signet-rig](docs/signet-rig/README.md)
+has the whole recipe.
 
 ## The Go reference
 
@@ -219,5 +220,7 @@ cd reference/go && make run
 ```
 
 ## Contributing
-Contributions are always welcome!  
-If you find a bug, have a feature idea, or just want to improve the project, feel free to open an issue or submit a pull request.
+
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the setup, what
+`just check` and `just test` run, and how work is tracked and committed; security reports
+go to [SECURITY.md](SECURITY.md) instead of an issue.

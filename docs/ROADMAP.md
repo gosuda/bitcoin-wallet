@@ -653,12 +653,27 @@ Branch `round-4-shipping`. Versions, bundles, signing, and the documents that go
       why: default setup scans Go and Python — the frozen reference and a design generator ·
       done when: languages are actions, JavaScript/TypeScript and Rust; README matches
 
-- [ ] **4.8 `justfile` and contributor documents** · S · `justfile`, `README.md`,
+- [x] **4.8 `justfile` and contributor documents** · S · `justfile`, `README.md`,
   `CONTRIBUTING.md`, `apps/native/design/README.md`, `docs/signet-rig/`
       why: the wasm build command is written out in five places; there is no contributor guide;
       the design generator and the canvas republish recipe are undocumented; the phone test rig
-      is three sentences of prose · done when: `just --list` covers wasm, check, test, regtest,
-      the phone builds, version and the signet rig; each document exists and README points at it
+      is three sentences of prose · done: 2026-09-29 — `just --list` shows nine recipes: wasm,
+      check, test, regtest, android-apk, ios-sim, version, bump, signet. Each is a line or two
+      over a script, so `just` stays optional; it is not installed on this Mac, so the recipes
+      were run with its release binary from a scratch directory. The wasm build is now
+      written once, in `scripts/build-wasm.sh`, which `just wasm` and CI's wasm-core action
+      both run. `scripts/with-wasm-cc.sh` gives any command a wasm32-capable C compiler on
+      macOS, and the composite now only makes sure the image has one. `just check` (12 s)
+      and `just test` (25 s: 5 CLI, 76 core, 9 binding, 2 wasm32 deadline and 150 UI tests)
+      pass here. `CONTRIBUTING.md` covers setup, what each recipe runs, and how work is tracked,
+      committed and designed. The README's Tests, Apps and phone sections use the recipes, and
+      its Contributing section points to `CONTRIBUTING.md`. `apps/native/design/README.md` says
+      what each file is, how to run `gen.py`, and to diff against the live canvas before
+      republishing over it. `docs/signet-rig/` has `bitcoin.conf` (OP_TRUE challenge, RPC on
+      127.0.0.1), `start.sh` (bitcoind plus an Esplora electrs on :3002), `mine.sh` and a
+      README with the emulator URL. The scripts are shellcheck-clean and their guards were
+      exercised, but the rig itself was not re-run: the downloaded bitcoind is x86_64 and this
+      Mac has no Rosetta
 
 - [ ] **4.9 First tag** · S · `v0.1.0` · **decision** (outward-facing) · after 4.1 and 4.2
       why: the release workflow's tag path has never run · done when: the tag exists and the
