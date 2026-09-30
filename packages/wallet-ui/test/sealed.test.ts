@@ -122,7 +122,7 @@ describe("a secret sealed under an app password (6.12)", () => {
       const refused = await unseal(WALLET, other, PASSWORD).catch((e: unknown) => e);
       expect(refused).toMatchObject({ code: "unknown_secret_format" });
       expect(errorMessage(refused)).toBe(
-        "The key saved in this browser can't be read by this version of the app.",
+        "The key saved in this browser cannot be read by this version of the app.",
       );
     }
   });

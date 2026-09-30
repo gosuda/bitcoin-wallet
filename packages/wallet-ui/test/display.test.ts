@@ -9,19 +9,34 @@ vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
 vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
 
 import { api } from "../src/api";
+import { renderCoins } from "../src/mobile/screens/coins";
+import { renderCreate as renderPhoneCreate } from "../src/mobile/screens/create";
+import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
 import { renderResult as renderPhoneResult } from "../src/mobile/screens/result";
 import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
+import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
 import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderUnlock as renderPhoneUnlock } from "../src/mobile/screens/unlock";
 import { renderWallet as renderPhoneWallet } from "../src/mobile/screens/wallet";
 import { platform, setPlatform } from "../src/platform";
+import { renderCreate } from "../src/screens/create";
 import { renderDashboard } from "../src/screens/dashboard";
+import { renderRestore } from "../src/screens/restore";
 import { renderResult } from "../src/screens/result";
+import { renderSettings } from "../src/screens/settings";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
 import type { RememberedWallet, TxDetail } from "../src/types";
 import { formatTime, shortId } from "../src/ui/format";
-import { forgetWarning, SENT_LINE, SENT_TITLE } from "../src/ui/text";
+import {
+  FROZEN_HINT,
+  forgetWarning,
+  NO_COINS,
+  PASSPHRASE_HINT,
+  RESCAN_HINT,
+  SENT_LINE,
+  SENT_TITLE,
+} from "../src/ui/text";
 import { fake } from "./fakes";
 import { at, buttonNamed, mount, settle, useScreenHarness } from "./harness";
 
@@ -63,7 +78,7 @@ describe("ids and addresses (7.3)", () => {
     await settle();
 
     expect(texts(screen, ".m-io-addr")).toEqual([PAYEE, fake.ADDRESS]);
-    expect(texts(screen, ".m-io-note")).toEqual(["change, back to you"]);
+    expect(texts(screen, ".m-io-note")).toEqual(["change, back to this wallet"]);
   });
 
   it("shortens a coin's address in the desktop's table, whole on hover", async () => {
@@ -220,6 +235,47 @@ describe("one word for each action (7.6)", () => {
       expect(screen.textContent).toContain(SENT_TITLE);
       expect(screen.textContent).toContain(SENT_LINE);
       expect(buttonNamed(screen, "Copy transaction id")).toBeTruthy();
+    }
+  });
+});
+
+describe("one name for each thing (7.7)", () => {
+  it("says what freezing does, and that there are no coins, alike on both shells", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("dashboard");
+    const desktop = mount(renderDashboard());
+    await settle();
+    const desktopText = desktop.textContent;
+    at("coins");
+    const phone = mount(renderCoins());
+    await settle();
+
+    for (const text of [desktopText, phone.textContent]) {
+      expect(text).toContain(FROZEN_HINT);
+      expect(text).toContain(NO_COINS);
+    }
+  });
+
+  it("says what Rescan is for alike in both Settings", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("settings");
+    for (const render of [renderSettings, renderPhoneSettings]) {
+      expect(mount(render()).textContent).toContain(RESCAN_HINT);
+    }
+  });
+
+  // The phone's Create had no warning that the passphrase is half the backup.
+  it("warns about the passphrase in the same words wherever one is set", async () => {
+    at("create");
+    for (const render of [renderCreate, renderPhoneCreate]) {
+      const screen = mount(render());
+      await settle();
+      expect(screen.textContent).toContain(PASSPHRASE_HINT);
+    }
+    at("restore");
+    setRestoreMode("phrase");
+    for (const render of [renderRestore, renderPhoneRestore]) {
+      expect(mount(render()).textContent).toContain(PASSPHRASE_HINT);
     }
   });
 });

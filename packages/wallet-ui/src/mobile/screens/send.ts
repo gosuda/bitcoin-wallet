@@ -15,6 +15,7 @@ import {
   type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
+  NETWORK_LABELS,
   type Recipient,
   rateForTarget,
   type TxPreview,
@@ -23,7 +24,7 @@ import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui
 import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
 import { feeLine, formatRate, formatSats } from "../../ui/format";
 import { icon } from "../../ui/icons";
-import { maxModeNote } from "../../ui/text";
+import { FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
 import {
   body,
   button,
@@ -214,11 +215,11 @@ export function renderSend(): HTMLElement {
   rateInput.setAttribute("inputmode", "decimal");
   const customRow = el("div", { className: "m-rate-row" }, [
     rateInput,
-    el("span", { className: "m-rate-unit", text: "sat/vB · floor 1" }),
+    el("span", { className: "m-rate-unit", text: "sat/vB" }),
   ]);
   customRow.hidden = true;
   const rateErr = el("span", { className: "m-err", attrs: { role: "status" } });
-  const rateNote = el("span", { className: "m-txmeta", text: "Fetching fee estimate…" });
+  const rateNote = el("span", { className: "m-txmeta", text: FETCHING_ESTIMATE });
   let estimate: FeeEstimate | null = null;
   let rate = 1;
 
@@ -248,7 +249,7 @@ export function renderSend(): HTMLElement {
     if (choice === "custom") {
       const typed = Number(rateInput.value);
       rate = Number.isFinite(typed) && typed >= 1 ? typed : 1;
-      rateNote.textContent = `${formatRate(rate)} · your rate`;
+      rateNote.textContent = `Custom rate · ${FLOOR_NOTE}`;
     } else {
       try {
         estimate ??= await api.estimateFee();
@@ -262,9 +263,9 @@ export function renderSend(): HTMLElement {
         // the transaction does not pay.
         rate = typeableRate(rateForTarget(estimate, Number(choice)) ?? 1);
         rateNote.textContent = formatRate(rate);
-      } catch (e) {
+      } catch (_e) {
         if (fee.value() !== choice || !onScreen()) return;
-        rateNote.textContent = `Using 1 sat/vB — ${errorMessage(e)}`;
+        rateNote.textContent = `Estimate unavailable — starting at ${formatRate(1)}`;
         rate = 1;
       }
     }
@@ -364,7 +365,7 @@ export function renderSend(): HTMLElement {
   const newRow = (from: Prefill): RecipientRow => {
     const address = textInput({
       value: from.address ?? "",
-      placeholder: "bc1 / tb1 address",
+      placeholder: `${NETWORK_LABELS[info.network]} address`,
       mono: true,
       name: "address",
     });
@@ -444,7 +445,7 @@ export function renderSend(): HTMLElement {
       only.address.removeAttribute("aria-label");
       only.amount.removeAttribute("aria-label");
       recipientsBox.replaceChildren(
-        card(labelled("To", only.address), row(only.address, only.scan), only.addressErr),
+        card(labelled("Address", only.address), row(only.address, only.scan), only.addressErr),
         card(
           labelled("Amount", only.amount),
           row(only.amount, unit.node, max),

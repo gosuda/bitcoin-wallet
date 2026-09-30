@@ -6,6 +6,7 @@ import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount 
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import { PASSPHRASE_HINT } from "../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../ui/words";
 
 /** Quiet period after a keystroke before the phrase is checked again. */
@@ -251,11 +252,7 @@ export function renderRestore(): HTMLElement {
       ]),
       gridBox,
       errorLine,
-      field(
-        "Passphrase (optional)",
-        passphrase,
-        "A passphrase creates a different wallet from the same words. It is stored with them if you choose to remember this device.",
-      ),
+      field("Passphrase (optional)", passphrase, PASSPHRASE_HINT),
       remember.node,
     ]),
     el("div", { className: "actions actions-split" }, [

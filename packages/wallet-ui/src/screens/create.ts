@@ -7,6 +7,7 @@ import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import { PASSPHRASE_HINT } from "../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
 
@@ -214,11 +215,7 @@ export function renderCreate(): HTMLElement {
       sectionLabel("Confirm your backup"),
       el("span", { className: "hint", text: "Fill in the missing words to continue." }),
       confirmBox,
-      field(
-        "Passphrase (optional)",
-        passphrase,
-        "A passphrase creates a different wallet from the same words. It is stored with them if you choose to remember this device. Write it down too — without it the words alone cannot recover this wallet.",
-      ),
+      field("Passphrase (optional)", passphrase, PASSPHRASE_HINT),
       remember.node,
     ]),
     el("div", { className: "actions actions-split" }, [

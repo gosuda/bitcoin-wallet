@@ -67,7 +67,7 @@ async function pressScan(screen: HTMLElement, row: number): Promise<void> {
 describe("several recipients on the phone (6.9)", () => {
   it("adds a card per recipient, and × shows only while there are several", async () => {
     const screen = await openSend();
-    expect(labels(screen)).toEqual(["To", "Amount", "Fee"]);
+    expect(labels(screen)).toEqual(["Address", "Amount", "Fee"]);
     expect(removers(screen)).toHaveLength(0);
     // This platform has no camera, so no row offers a scan.
     expect(scanners(screen)).toHaveLength(0);
@@ -80,7 +80,7 @@ describe("several recipients on the phone (6.9)", () => {
     type(nth(addresses(screen), 1), SECOND);
     nth(removers(screen), 0).click();
 
-    expect(labels(screen)).toEqual(["To", "Amount", "Fee"]);
+    expect(labels(screen)).toEqual(["Address", "Amount", "Fee"]);
     expect(addresses(screen).map((f) => f.value)).toEqual([SECOND]);
     expect(removers(screen)).toHaveLength(0);
   });

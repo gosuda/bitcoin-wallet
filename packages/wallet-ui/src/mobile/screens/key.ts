@@ -41,7 +41,7 @@ export function renderKey(): HTMLElement {
           className: "m-lede",
           text: "Follow a wallet by its xpub or descriptor. It shows balance and history and can receive, but cannot send.",
         }),
-        button("Add watch-only wallet", open("watch"), { block: true, icon: "eye" }),
+        button("Follow a wallet", open("watch"), { block: true, icon: "eye" }),
       ),
       platform().canRememberWallet ? null : el("p", { className: "hint", text: NO_KEYSTORE_HINT }),
       spacer(),

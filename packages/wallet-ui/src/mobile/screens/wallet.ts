@@ -145,7 +145,7 @@ export function renderWallet(): HTMLElement {
       alert.hide();
     } catch (e) {
       if (!onScreen()) return;
-      synced.textContent = "Sync failed";
+      synced.textContent = `${syncedText()} · sync failed, retrying`;
       alert.show("warn", errorMessage(e));
     } finally {
       sync.disabled = false;

@@ -1,5 +1,4 @@
 import QRCode from "qrcode";
-
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { headlineSat, pendingSat } from "../balance";
@@ -55,6 +54,7 @@ import {
 } from "../ui/dom";
 import { feeLine, formatRate, formatTime, formatWhen, shortId, shortOutpoint } from "../ui/format";
 import { icon } from "../ui/icons";
+import { FROZEN_HINT, NO_COINS, whoseInputs } from "../ui/text";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
@@ -76,7 +76,7 @@ function utxoTable(
   onFreeze: (u: Utxo, frozen: boolean) => void,
 ): HTMLElement {
   if (utxos.length === 0) {
-    return el("p", { className: "empty", text: "No unspent outputs. Sync to refresh." });
+    return el("p", { className: "empty", text: NO_COINS });
   }
   const head = el("tr", {}, [
     ticked ? el("th", { className: "coin-pick" }) : null,
@@ -175,7 +175,7 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
   }
   const head = el("tr", {}, [
     el("th", { className: "tx-dir" }),
-    el("th", { text: "Txid" }),
+    el("th", { text: "Transaction id" }),
     el("th", { className: "num", text: "Amount (sat)" }),
     el("th", { className: "num", text: "Conf." }),
     el("th", { className: "num", text: "When" }),
@@ -279,7 +279,7 @@ export function renderDashboard(): HTMLElement {
   const paintCoinCount = (): void => {
     const frozen = coins.filter((u) => u.frozen).length;
     const picked = chosen();
-    const parts = [`${formatNumber(coins.length)} output${coins.length === 1 ? "" : "s"}`];
+    const parts = [`${formatNumber(coins.length)} coin${coins.length === 1 ? "" : "s"}`];
     if (frozen > 0) parts.push(`${formatNumber(frozen)} frozen`);
     if (picked.length > 0) {
       parts.push(`${formatNumber(picked.length)} selected, ${formatSats(coinsValue(picked))}`);
@@ -510,7 +510,7 @@ export function renderDashboard(): HTMLElement {
             sectionLabel("Cancel"),
             el("span", {
               className: "muted",
-              text: `Replace it with a transaction that pays ${formatSats(preview.change_sat)} back to your wallet. Fee ${formatSats(preview.fee_sat)}.`,
+              text: `Replace it with a transaction that pays ${formatSats(preview.change_sat)} back to this wallet. Fee ${formatSats(preview.fee_sat)}.`,
             }),
             el("div", { className: "actions actions-end" }, [
               button("Keep it", keep, "quiet", "sm"),
@@ -608,7 +608,7 @@ export function renderDashboard(): HTMLElement {
         sectionLabel("Speed up"),
         el("span", {
           className: "hint",
-          text: "Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).",
+          text: "Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).",
         }),
       ]),
       el("div", { className: "tx-card-row" }, [targets, rateHint]),
@@ -622,16 +622,14 @@ export function renderDashboard(): HTMLElement {
     offer: Offer,
     ownerDetail: HTMLTableRowElement,
   ): HTMLElement => {
-    const ownInputs = d.inputs.filter((i) => i.ours).length;
+    const _ownInputs = d.inputs.filter((i) => i.ours).length;
     const muted = (text: string) => el("span", { className: "muted", text });
     const rows: [string, Node | string][] = [
-      ["Txid", mono(d.txid, "small")],
+      ["Transaction id", mono(d.txid, "small")],
       ["Fee", feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb)],
       [
         "From",
-        `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${
-          ownInputs === d.inputs.length ? " · yours" : ownInputs > 0 ? ` · ${ownInputs} yours` : ""
-        }`,
+        `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${` · ${whoseInputs(d.inputs)}`}`,
       ],
       ...d.outputs.map((o): [string, Node] => [
         outputLabel(d, o),
@@ -741,7 +739,7 @@ export function renderDashboard(): HTMLElement {
   const renderSynced = () => {
     const at = session.lastSyncedAt;
     const base = at ? `Synced ${formatTime(at)}` : "Not synced yet";
-    syncedLabel.textContent = autoSyncFailed ? `${base} · retrying` : base;
+    syncedLabel.textContent = autoSyncFailed ? `${base} · sync failed, retrying` : base;
   };
 
   const refreshLocal = async () => {
@@ -952,13 +950,13 @@ export function renderDashboard(): HTMLElement {
     ]),
     el("section", { className: "card" }, [
       el("div", { className: "card-head" }, [
-        sectionLabel("Unspent outputs"),
+        sectionLabel("Coins"),
         el("div", { className: "card-head-end" }, [utxoCount, ticked ? sendSelectedBtn : null]),
       ]),
       utxoBox,
       el("p", {
         className: "hint",
-        text: "A frozen output stays out of every send, of Max and of the spendable balance until it is unfrozen.",
+        text: FROZEN_HINT,
       }),
     ]),
     el("section", { className: "card" }, [

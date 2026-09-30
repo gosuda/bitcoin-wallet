@@ -90,5 +90,5 @@ export function addressError(raw: string, network: Network): string | null {
   if (claimed !== null && claimed !== FAMILY_OF[network]) {
     return `Not a ${label} address — this one is for ${FAMILY_NAME[claimed]}.`;
   }
-  return `Not a valid ${label.toLowerCase()} address.`;
+  return `Not a valid ${label} address.`;
 }

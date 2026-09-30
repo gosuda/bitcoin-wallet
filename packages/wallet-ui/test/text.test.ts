@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forgetWarning, maxModeNote, sentNotSaved } from "../src/ui/text";
+import { forgetWarning, maxModeNote, sentNotSaved, whoseInputs } from "../src/ui/text";
 
 describe("forgetWarning", () => {
   // Only a mnemonic has a recovery phrase: each wallet is told its own way back.
@@ -29,5 +29,20 @@ describe("the sentences both Send screens say", () => {
     expect(sentNotSaved("disk full")).toBe(
       "Sent, but this device could not save it: disk full. The next sync picks it up.",
     );
+  });
+});
+
+describe("whoseInputs", () => {
+  const ours = { ours: true };
+  const theirs = { ours: false };
+
+  // What the wallet owns is "this wallet's" on both shells, never "yours".
+  it("says whose a transaction's inputs are", () => {
+    expect(whoseInputs([ours])).toBe("from this wallet");
+    expect(whoseInputs([ours, ours])).toBe("both from this wallet");
+    expect(whoseInputs([ours, ours, ours])).toBe("all from this wallet");
+    expect(whoseInputs([ours, theirs])).toBe("1 from this wallet");
+    expect(whoseInputs([theirs])).toBe("from another wallet");
+    expect(whoseInputs([theirs, theirs])).toBe("none from this wallet");
   });
 });

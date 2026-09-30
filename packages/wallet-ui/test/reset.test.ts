@@ -35,7 +35,7 @@ const SAVED: RememberedWallet = {
 };
 
 // The canvas's words (MUnlockReset and its note), and that freezing goes with the history.
-const UNREADABLE = "The saved wallet data on this device can't be read.";
+const UNREADABLE = "The saved wallet data on this device cannot be read.";
 const TRIGGER = "Reset this device's history";
 const SECOND_STEP =
   "The key stays on this device. The history saved here is deleted and downloaded again on the next sync, and any coin you froze is unfrozen.";

@@ -5,7 +5,7 @@
  */
 
 import type { WalletInfo } from "../types";
-import { formatSats } from "./format";
+import { formatNumber, formatSats } from "./format";
 
 /** The Sent screen's first line, and the one after it. */
 export const SENT_TITLE = "Transaction broadcast";
@@ -40,4 +40,47 @@ export function forgetWarning(wallet: Pick<WalletInfo, "is_watch_only" | "is_hd"
 /** Under an amount in Max mode: what it sends, and how to leave the mode. */
 export function maxModeNote(everything: number, fee: number): string {
   return `Everything: ${formatSats(everything)} minus the ${formatSats(fee)} fee. Edit the amount to leave Max; Max needs a single recipient.`;
+}
+
+/** The fee floor, as every fee field's note says it. */
+export const FLOOR_NOTE = "floor 1 sat/vB";
+
+/** While a fee estimate is on its way, on every screen that asks for one. */
+export const FETCHING_ESTIMATE = "Fetching the fee estimate…";
+
+/** A coin list with nothing in it. */
+export const NO_COINS = "No coins yet. Sync to look for them.";
+
+/** What freezing does, said once under every list of coins. */
+export const FROZEN_HINT =
+  "A frozen coin stays out of every send, Max included, and out of the spendable balance until you unfreeze it.";
+
+/** What Rescan is for, under both shells' Rescan. */
+export const RESCAN_HINT =
+  "Looks further past the last used address than a sync does, for a restored wallet that shows less than it should.";
+
+/** Under a BIP39 passphrase field, when creating and when restoring alike. */
+export const PASSPHRASE_HINT =
+  "A passphrase creates a different wallet from the same words. Write it down too: without it, the words alone cannot recover this wallet. If you remember this device, it is kept with them.";
+
+/** Over a newly generated single key, which is shown this once. */
+export const KEY_SHOWN_ONCE =
+  "Write this key down before you fund its address: it is shown once, and losing it loses the funds.";
+
+/**
+ * Whose a transaction's inputs are, as Import PSBT and a transaction's detail
+ * say it: "from this wallet", "both from this wallet", "1 from this wallet",
+ * "from another wallet".
+ */
+export function whoseInputs(inputs: readonly { ours: boolean }[]): string {
+  const n = inputs.length;
+  const ours = inputs.filter((i) => i.ours).length;
+  if (ours === n)
+    return n === 1
+      ? "from this wallet"
+      : n === 2
+        ? "both from this wallet"
+        : "all from this wallet";
+  if (ours === 0) return n === 1 ? "from another wallet" : "none from this wallet";
+  return `${formatNumber(ours)} from this wallet`;
 }

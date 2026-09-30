@@ -34,7 +34,7 @@ import {
   withBusy,
 } from "../ui/dom";
 import { feeLine } from "../ui/format";
-import { maxModeNote } from "../ui/text";
+import { FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
 
 interface RecipientRow {
   node: HTMLElement;
@@ -56,7 +56,6 @@ interface RecipientRow {
 /** A target as the radio group carries it. */
 type TargetChoice = `${FeeTarget}`;
 
-const FLOOR_NOTE = "floor 1 sat/vB";
 const MAX_HINT = "Max sends everything: the whole balance minus the fee, to this one recipient.";
 const MAX_HINT_CHOSEN =
   "Max sends the chosen coins: all of them minus the fee, to this one recipient.";
@@ -70,7 +69,7 @@ export function renderSend(): HTMLElement {
   }
   const onScreen = screenGuard();
   const host = backendHost(cfg.backend);
-  const networkName = NETWORK_LABELS[wallet.network].toLowerCase();
+  const networkName = NETWORK_LABELS[wallet.network];
   /**
    * The coins ticked on the Wallet page when Send selected opened this, or
    * null. The send spends exactly those, Max included, until Let the wallet
@@ -122,7 +121,7 @@ export function renderSend(): HTMLElement {
     renderFeeError();
     updateReview();
   });
-  const feeHint = el("span", { className: "hint fee-source", text: "Fetching estimate…" });
+  const feeHint = el("span", { className: "hint fee-source", text: FETCHING_ESTIMATE });
 
   const renderFeeError = () => {
     setError(feeError, feeRate, rateTouched ? feeRateError(Number(feeRate.value)) : null);
@@ -176,8 +175,8 @@ export function renderSend(): HTMLElement {
       estimate = await api.estimateFee();
       if (!onScreen() || rateTouched) return;
       applyEstimate();
-    } catch (e) {
-      if (onScreen()) feeHint.textContent = `Estimate unavailable: ${errorMessage(e)}`;
+    } catch (_e) {
+      if (onScreen()) feeHint.textContent = `Estimate unavailable — enter a rate · ${FLOOR_NOTE}`;
     }
   };
 
@@ -318,7 +317,10 @@ export function renderSend(): HTMLElement {
 
   const addRow = () => {
     const seq = rowSeq++;
-    const address = textInput({ placeholder: `Recipient address (${wallet.network})`, mono: true });
+    const address = textInput({
+      placeholder: `${NETWORK_LABELS[wallet.network]} address`,
+      mono: true,
+    });
     address.id = `recipient-address-${seq}`;
     const amount = textInput({ placeholder: "0", mono: true });
     amount.id = `recipient-amount-${seq}`;

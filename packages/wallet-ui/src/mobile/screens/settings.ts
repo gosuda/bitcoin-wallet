@@ -19,7 +19,7 @@ import {
 import { chooseLockAfter, lockAfter } from "../../ui/autolock";
 import { banner, el, formatNumber } from "../../ui/dom";
 import { formatSats } from "../../ui/format";
-import { forgetWarning } from "../../ui/text";
+import { forgetWarning, RESCAN_HINT } from "../../ui/text";
 import {
   body,
   button,
@@ -101,13 +101,13 @@ export function renderSettings(): HTMLElement {
   );
   const rescanBlock = el("div", { className: "m-block" }, [
     el("div", { className: "m-block-head" }, [
-      el("span", { text: "Rescan the chain" }),
+      el("span", { text: "Rescan" }),
       el("span", { className: "m-item-value", text: "gap" }),
     ]),
     el("div", { className: "m-block-row" }, [gap.node, rescan]),
     el("span", {
       className: "hint",
-      text: "For a restored wallet that shows less than it should.",
+      text: RESCAN_HINT,
     }),
   ]);
 

@@ -57,7 +57,7 @@ export function renderSetup(): HTMLElement {
       if (!trimmed) {
         // Desktop refuses this here too. Saving it instead would only surface
         // as a backend error when a wallet is opened, several screens later.
-        alert.show("error", "Esplora URL is required.");
+        alert.show("error", "Enter an Esplora server URL.");
         return;
       }
       try {

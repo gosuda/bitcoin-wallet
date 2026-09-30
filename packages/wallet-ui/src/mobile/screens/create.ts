@@ -6,6 +6,7 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
+import { PASSPHRASE_HINT } from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
 import { body, button, card, header, historyReset, labelled, spacer, withBusy } from "../ui";
 
@@ -116,7 +117,12 @@ export function renderCreate(): HTMLElement {
           el("p", { className: "m-lede", text: "Fill in the missing words to continue." }),
           confirm,
         ),
-        card(labelled("Passphrase", passphrase, "(optional)"), passphrase, remember.node),
+        card(
+          labelled("Passphrase", passphrase, "(optional)"),
+          passphrase,
+          el("p", { className: "m-lede", text: PASSPHRASE_HINT }),
+          remember.node,
+        ),
         spacer(),
         offer.node,
         create,

@@ -29,7 +29,7 @@ import {
 } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
-import { forgetWarning } from "../ui/text";
+import { forgetWarning, RESCAN_HINT } from "../ui/text";
 
 /** A setting: what it is, what it is set to, and what can be done about it. */
 function settingRow(label: string, value: Node | string, action?: HTMLElement): HTMLElement {
@@ -165,8 +165,12 @@ export function renderSettings(): HTMLElement {
   const renderKeys = (d: PublicDescriptors) => {
     const rows: [string, Node][] = [];
     if (d.account_xpub !== null) rows.push(["Account xpub", mono(d.account_xpub, "small")]);
-    rows.push([d.internal === null ? "Descriptor" : "Receive", mono(d.external, "small")]);
-    if (d.internal !== null) rows.push(["Change", mono(d.internal, "small")]);
+    if (d.fingerprint !== null) rows.push(["Fingerprint", mono(d.fingerprint, "small")]);
+    rows.push([
+      d.internal === null ? "Descriptor" : "Receive descriptor",
+      mono(d.external, "small"),
+    ]);
+    if (d.internal !== null) rows.push(["Change descriptor", mono(d.internal, "small")]);
     const actions = el("div", { className: "actions" });
     if (d.account_xpub !== null) {
       const xpub = d.account_xpub;
@@ -295,7 +299,7 @@ export function renderSettings(): HTMLElement {
         sectionLabel("Rescan"),
         el("span", {
           className: "hint",
-          text: "Looks further past the last used address — for a restore that shows too little.",
+          text: RESCAN_HINT,
         }),
       ]),
       el("div", { className: "actions" }, [rescanBtn, gapChips]),

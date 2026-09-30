@@ -66,7 +66,7 @@ export function renderSetup(): HTMLElement {
         alert.hide();
         const trimmed = url.value.trim();
         if (!trimmed) {
-          alert.show("error", "Esplora URL is required.");
+          alert.show("error", "Enter an Esplora server URL.");
           return;
         }
         const backend: BackendConfig = { kind: "esplora", url: trimmed };
@@ -96,7 +96,7 @@ export function renderSetup(): HTMLElement {
     el("section", { className: "card card-loose" }, [
       field("Network", networkGroup),
       field(
-        "Esplora URL",
+        "Esplora server",
         url,
         "Any Esplora-compatible API — mempool.space, blockstream.info, electrs, bitcoin-rs.",
       ),

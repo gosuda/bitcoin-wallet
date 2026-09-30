@@ -178,7 +178,7 @@ const DESKTOP: Shell = {
     ];
   },
   drawnUnsigned: [
-    "2 inputs, both yours · 2 outputs",
+    "2 inputs, both from this wallet · 2 outputs",
     `Input 1 | 57f7533d63…cee1b3a7:0 | This wallet · not signed | ${n(30_000)}`,
     `Input 2 | 9ae2136a23…23210b1b:1 | This wallet · not signed | ${n(25_000)}`,
     `Output 1 | ${RECIPIENT} | Recipient | ${n(40_000)}`,
@@ -187,7 +187,7 @@ const DESKTOP: Shell = {
     "Signed 0 of 2 inputs",
   ],
   drawnShared: [
-    "2 inputs, 1 yours · 2 outputs",
+    "2 inputs, 1 from this wallet · 2 outputs",
     `Input 1 | 57f7533d63…cee1b3a7:0 | This wallet · not signed | ${n(30_000)}`,
     "Input 2 | c3a9d07e51…6be02f94:2 | Another wallet · signed | unknown",
     `Output 1 | ${RECIPIENT} | Recipient | ${n(40_000)}`,
@@ -234,22 +234,22 @@ const PHONE: Shell = {
     ];
   },
   drawnUnsigned: [
-    "Inputs · 2 — both yours",
+    "Inputs · 2 — both from this wallet",
     `57f7533d63…cee1b3a7:0 | ${n(30_000)} sat`,
     `9ae2136a23…23210b1b:1 | ${n(25_000)} sat`,
     "Outputs · 2",
     `${RECIPIENT} | ${n(40_000)} sat`,
-    `${CHANGE} (change, back to you) | ${n(14_779)} sat`,
+    `${CHANGE} (change, back to this wallet) | ${n(14_779)} sat`,
     "Fee | 221 sat · 1.0 sat/vB · 221 vB",
     "Signed 0 of 2 inputs",
   ],
   drawnShared: [
-    "Inputs · 2 — 1 yours",
+    "Inputs · 2 — 1 from this wallet",
     `57f7533d63…cee1b3a7:0 | ${n(30_000)} sat`,
-    "c3a9d07e51…6be02f94:2 (not yours · signed) | unknown",
+    "c3a9d07e51…6be02f94:2 (another wallet's · signed) | unknown",
     "Outputs · 2",
     `${RECIPIENT} | ${n(40_000)} sat`,
-    `${CHANGE} (change, back to you) | ${n(14_779)} sat`,
+    `${CHANGE} (change, back to this wallet) | ${n(14_779)} sat`,
     "Fee | unknown",
     "Signed 1 of 2 inputs",
   ],

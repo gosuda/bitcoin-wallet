@@ -5,7 +5,8 @@ import { session } from "../../session";
 import { errorMessage, type PsbtInput, type PsbtReview } from "../../types";
 import { banner, el, formatNumber, sectionLabel } from "../../ui/dom";
 import { feeLine, formatSats, shortOutpoint } from "../../ui/format";
-import { feeRate, psbtFlow, signedLine, whoseInputs } from "../../ui/psbt";
+import { feeRate, psbtFlow, signedLine } from "../../ui/psbt";
+import { whoseInputs } from "../../ui/text";
 import {
   body,
   button,
@@ -27,7 +28,7 @@ import {
  * not signed yet; the count above the list and the line under it say the rest.
  */
 function inputNote(input: PsbtInput): string | null {
-  const notes = [input.ours ? null : "not yours", input.finalized ? "signed" : null];
+  const notes = [input.ours ? null : "another wallet's", input.finalized ? "signed" : null];
   const said = notes.filter((n) => n !== null);
   return said.length === 0 ? null : said.join(" · ");
 }

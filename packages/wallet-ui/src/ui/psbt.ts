@@ -10,7 +10,7 @@ import { api } from "../api";
 import { navigate } from "../router";
 import { sameWalletGuard, screenGuard } from "../screen";
 import { session } from "../session";
-import { errorMessage, isAppError, type PsbtInput, type PsbtReview } from "../types";
+import { errorMessage, isAppError, type PsbtReview } from "../types";
 import { readClipboard } from "./clipboard";
 import { type Banner, type BannerKind, formatNumber } from "./dom";
 
@@ -75,15 +75,6 @@ export function signedCount(review: PsbtReview): number {
 export function signedLine(review: PsbtReview): string {
   const n = review.inputs.length;
   return `Signed ${formatNumber(signedCount(review))} of ${formatNumber(n)} input${n === 1 ? "" : "s"}`;
-}
-
-/** Whose the inputs are, as the head of the list says it: "both yours", "1 yours". */
-export function whoseInputs(inputs: readonly PsbtInput[]): string {
-  const n = inputs.length;
-  const ours = inputs.filter((i) => i.ours).length;
-  if (ours === n) return n === 1 ? "yours" : n === 2 ? "both yours" : "all yours";
-  if (ours === 0) return n === 1 ? "not yours" : "none yours";
-  return `${formatNumber(ours)} yours`;
 }
 
 /**

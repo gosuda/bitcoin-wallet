@@ -276,7 +276,7 @@ export function feeRateError(rate: number): string | null {
   if (!Number.isFinite(rate)) return "Enter a fee rate.";
   if (rate <= 0) return "Fee rate must be more than 0 sat/vB.";
   if (rate > MAX_FEE_RATE_SAT_VB) {
-    return `Fee rate can't be over ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
+    return `Fee rate cannot be over ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
   }
   return null;
 }
@@ -408,7 +408,7 @@ function detailedMessage(value: AppError): string | null {
       // Not unreadable, only ahead of this version: an update reads it.
       return d?.reason === "future_version"
         ? "The saved wallet data on this device is from a newer version of the app. Update the app to open it."
-        : "The saved wallet data on this device can't be read.";
+        : "The saved wallet data on this device cannot be read.";
     default:
       return null;
   }

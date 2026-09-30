@@ -25,6 +25,7 @@ import {
   formatSats,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
 import {
   body,
   button,
@@ -169,10 +170,8 @@ export function renderTransaction(): HTMLElement {
       : `${formatNumber(d.confirmations ?? 0)}${d.block_height === null ? "" : ` · block ${formatNumber(d.block_height)}`}`;
     const facts = listCard(item("Fee", fee, undefined), item("Confirmations", confirmations));
 
-    const ownInputs = d.inputs.filter((i) => i.ours).length;
-    const from = `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${
-      ownInputs === d.inputs.length ? " · yours" : ownInputs > 0 ? ` · ${ownInputs} yours` : ""
-    }`;
+    const _ownInputs = d.inputs.filter((i) => i.ours).length;
+    const from = `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${` · ${whoseInputs(d.inputs)}`}`;
     const flow = listCard(item("From", from));
     // Each output whole, as Import PSBT lists them: this is where a payee is checked.
     const outputs = card(
@@ -226,7 +225,7 @@ export function renderTransaction(): HTMLElement {
     rate.max = String(MAX_FEE_RATE_SAT_VB);
     rate.step = "0.1";
     rate.setAttribute("inputmode", "decimal");
-    const note = el("span", { className: "hint", text: "Fetching the 1-block estimate…" });
+    const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const bump = button(
       "Bump fee",
       () =>
@@ -352,7 +351,7 @@ export function renderTransaction(): HTMLElement {
         const sheet = card(
           sectionLabel("Cancel"),
           lede(
-            `Replace it with a transaction that pays ${formatSats(built.change_sat)} back to your wallet. Fee ${formatSats(built.fee_sat)}.`,
+            `Replace it with a transaction that pays ${formatSats(built.change_sat)} back to this wallet. Fee ${formatSats(built.fee_sat)}.`,
           ),
           go,
           button("Keep it", close, { variant: "quiet" }),
@@ -386,7 +385,7 @@ export function renderTransaction(): HTMLElement {
     // What the last build asked for; Custom starts from it.
     let rate = suggestPackageRate(null, 1, parentRate);
 
-    const note = el("span", { className: "hint", text: "Fetching the estimate…" });
+    const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const custom = textInput({ type: "number", mono: true, name: "speedup_rate" });
     custom.min = "1";
     custom.max = String(MAX_FEE_RATE_SAT_VB);
@@ -440,7 +439,7 @@ export function renderTransaction(): HTMLElement {
         shown = formatRate(typed);
       } else if (estimate === undefined) {
         // Built once the estimate answers.
-        note.textContent = "Fetching the estimate…";
+        note.textContent = FETCHING_ESTIMATE;
         blank("…");
         return;
       } else {
@@ -533,7 +532,7 @@ export function renderTransaction(): HTMLElement {
       el("div", { className: "m-bump-head" }, [sectionLabel("Speed up"), note]),
       el("p", {
         className: "m-card-text",
-        text: "Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).",
+        text: "Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).",
       }),
       target.node,
       customSlot,

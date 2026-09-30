@@ -5,6 +5,7 @@ import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
 import { banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
+import { KEY_SHOWN_ONCE, PASSPHRASE_HINT } from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
 import {
   body,
@@ -167,7 +168,7 @@ function phrase(): HTMLElement {
         passphrase,
         el("p", {
           className: "m-lede",
-          text: "A passphrase creates a different wallet from the same words. Without it those words alone cannot recover this one.",
+          text: PASSPHRASE_HINT,
         }),
         remember.node,
       ),
@@ -211,7 +212,7 @@ function singleKey(): HTMLElement {
       const key = await api.generateKey(cfg.network, cfg.address_type);
       secret.value = key.wif;
       secret.type = "text";
-      alert.show("warn", "Write this key down before continuing. It is shown once.");
+      alert.show("warn", KEY_SHOWN_ONCE);
     } catch (e) {
       alert.show("error", errorMessage(e));
     }

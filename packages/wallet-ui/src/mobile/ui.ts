@@ -125,7 +125,11 @@ export function ioLine(where: string, value: string, note: string | null): HTMLE
 /** Said under an output that is this wallet's; a payment to someone else needs no note. */
 export function outputNote(owner: { net_sat: number }, output: TxOutput): string | null {
   const role = outputRole(owner, output);
-  return role === "change" ? "change, back to you" : role === "ours" ? "to you" : null;
+  return role === "change"
+    ? "change, back to this wallet"
+    : role === "ours"
+      ? "to this wallet"
+      : null;
 }
 
 export function row(...children: Child[]): HTMLElement {

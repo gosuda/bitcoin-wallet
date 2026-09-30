@@ -226,7 +226,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     history(sent());
     const buildCancel = vi.spyOn(api, "buildCancel");
     const screen = await shell.show(OUTGOING);
-    const card = `pays ${n(48_200)} sat back to your wallet. Fee ${n(1_380)} sat.`;
+    const card = `pays ${n(48_200)} sat back to this wallet. Fee ${n(1_380)} sat.`;
 
     buttonNamed(screen, "Cancel").click();
     await settle();
@@ -299,7 +299,7 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     folded[0]?.click();
     await settle();
 
-    expect(screen.textContent).not.toContain("back to your wallet");
+    expect(screen.textContent).not.toContain("Replace it with a transaction");
     expect(buttons(screen, "Bump fee")).toHaveLength(1);
     expect(buttonNamed(screen, "Cancel")).toBeTruthy();
     const dropped = await buildCancel.mock.results[0]?.value;

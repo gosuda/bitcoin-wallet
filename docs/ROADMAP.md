@@ -1158,10 +1158,28 @@ clearer or safer variant was taken.
       and the Max note. `text.test.ts` pins them; `display.test.ts` renders both Unlock and
       both Sent screens; the screen tests use the new labels
 
-- [ ] **7.7 One name for each thing** · M · both shells
+- [x] **7.7 One name for each thing** · M · both shells
       why: "output" and "coin", "your wallet" and "this wallet", "Txid" and "Transaction id",
-      four passphrase warnings (none on phone Create), "can't" and "cannot" · done when: each
-      thing has one name on both shells, and the screen tests use it
+      four passphrase warnings (none on phone Create), "can't" and "cannot" · done: 2026-09-30
+      — one name for each thing on both shells. A coin is a "coin": the desktop's Unspent
+      outputs card is Coins, counts coins and says "No coins yet. Sync to look for them." as
+      the phone does, and both lists head the switches "Frozen" and share one hint on what
+      freezing does. What the wallet owns is "this wallet's": `whoseInputs`, moved to
+      `ui/text.ts`, says "both from this wallet" in Import PSBT and in both transaction
+      details, the phone's notes say "change, back to this wallet" and "another wallet's", and
+      both Cancel cards pay "back to this wallet". "Transaction id" replaces "Txid"; "Esplora
+      server" replaces "Esplora URL"; the recipient field is "Address" on both, its placeholder
+      naming the network as the screens do ("Signet address"), and a bad address says "Not a
+      valid Signet address.". One passphrase warning on all four screens, the phone's Create
+      included, which had none; one Rescan heading and hint; one warning over a new single key,
+      the desktop's "Kept in memory only." gone; one "Fetching the fee estimate…", failures
+      that start "Estimate unavailable —", one custom-rate note, and "sync failed, retrying" on
+      both; the desktop's public keys add the fingerprint and name each descriptor. The
+      desktop's Key screen is "Start a wallet", as the phone's is, and the phone's watch-only
+      door reads "Follow a wallet". No "can't" is left. The Rescan chips and the desktop's
+      uppercased "(optional)" stay as they are. `text.test.ts` pins `whoseInputs`;
+      `display.test.ts` renders both shells for the coin hints, Rescan and all four passphrase
+      warnings; the screen tests use the new names
 
 ## Later — not picked
 

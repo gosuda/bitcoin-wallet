@@ -191,7 +191,7 @@ export async function unseal(
   if (!parts) {
     throw new WalletError(
       "unknown_secret_format",
-      "The key saved in this browser can't be read by this version of the app.",
+      "The key saved in this browser cannot be read by this version of the app.",
     );
   }
   // `seal` refuses an empty password, so none opens a record.

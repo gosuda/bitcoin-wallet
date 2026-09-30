@@ -59,6 +59,11 @@ pull requests a change arrived in.
   "Confirm and send", "Edit" to leave a review, "Use a different wallet", "Copy
   transaction id". Forget on the desktop's Unlock warns what it deletes, as Settings does,
   and the Sent screen says the same on both. (#40)
+- Each thing has one name on both shells: a "coin" (the desktop's Unspent outputs card is
+  now Coins), "this wallet's" for what the wallet owns, "Transaction id", "Esplora
+  server". Both shells warn about a passphrase in the same words, the phone's Create
+  included, and say the same about freezing, Rescan, a new single key and a fee estimate.
+  (#40)
 
 ### Fixed
 

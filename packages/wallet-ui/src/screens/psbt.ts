@@ -3,7 +3,8 @@ import { session } from "../session";
 import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
 import { formatRate, formatVsize, outputRole, shortOutpoint } from "../ui/format";
-import { feeRate, psbtFlow, signedLine, whoseInputs } from "../ui/psbt";
+import { feeRate, psbtFlow, signedLine } from "../ui/psbt";
+import { whoseInputs } from "../ui/text";
 
 /** Beside Sign and Broadcast until the PSBT can go out, as 7 says it. */
 const WAITS = "Broadcast waits until every input is signed and the PSBT is finalized.";
