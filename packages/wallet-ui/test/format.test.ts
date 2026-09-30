@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { outputRole, shortId, shortOutpoint } from "../src/ui/format";
+import {
+  feeLine,
+  formatRate,
+  formatVsize,
+  outputRole,
+  shortId,
+  shortOutpoint,
+} from "../src/ui/format";
 import { useDeviceLocale } from "./setup-locale";
 
 // `ui/dom.ts` builds its formatters when it loads, as the app does when it
@@ -67,5 +74,29 @@ describe("outputRole", () => {
     expect(outputRole({ net_sat: -1_000 }, { ours: false })).toBe("recipient");
     expect(outputRole({ net_sat: -1_000 }, { ours: true })).toBe("change");
     expect(outputRole({ net_sat: 1_000 }, { ours: true })).toBe("ours");
+  });
+});
+
+describe("rates, sizes and fees", () => {
+  // A rate is typed back into a field with a ".", so it keeps one on every device.
+  it("writes a rate with one decimal", () => {
+    expect(formatRate(2)).toBe("2.0 sat/vB");
+    expect(formatRate(12.345)).toBe("12.3 sat/vB");
+  });
+
+  it("groups a size the way the device groups numbers", () => {
+    expect(formatVsize(141)).toBe("141 vB");
+    expect(formatVsize(12_345)).toBe(`${(12_345).toLocaleString()} vB`);
+  });
+
+  // One line for every screen that describes a fee, on both shells.
+  it("says a fee as amount, rate and size, working the rate out when it is not given", () => {
+    expect(feeLine(141, 141)).toBe("141 sat · 1.0 sat/vB · 141 vB");
+    expect(feeLine(153, 150, 1.02)).toBe("153 sat · 1.0 sat/vB · 150 vB");
+  });
+
+  it("leaves out what is not known", () => {
+    expect(feeLine(null, 141)).toBe("141 vB");
+    expect(feeLine(221, null)).toBe("221 sat");
   });
 });

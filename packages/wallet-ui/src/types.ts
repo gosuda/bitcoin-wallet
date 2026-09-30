@@ -1,3 +1,5 @@
+import { formatNumber, formatRate, formatSats } from "./ui/format";
+
 export const NETWORKS = ["bitcoin", "testnet3", "testnet4", "signet", "regtest"] as const;
 export type Network = (typeof NETWORKS)[number];
 
@@ -274,7 +276,7 @@ export function feeRateError(rate: number): string | null {
   if (!Number.isFinite(rate)) return "Enter a fee rate.";
   if (rate <= 0) return "Fee rate must be more than 0 sat/vB.";
   if (rate > MAX_FEE_RATE_SAT_VB) {
-    return `Fee rate can't be over ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
+    return `Fee rate can't be over ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
   }
   return null;
 }
@@ -378,23 +380,23 @@ function detailedMessage(value: AppError): string | null {
       if (d.available_sat === 0 && frozen > 0) {
         return "Every coin is frozen. Unfreeze one to spend it.";
       }
-      const short = `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
-      return frozen > 0 ? `${short} Frozen coins hold ${frozen.toLocaleString()} sat.` : short;
+      const short = `Need ${formatNumber(d.needed_sat - d.available_sat)} more sat.`;
+      return frozen > 0 ? `${short} Frozen coins hold ${formatSats(frozen)}.` : short;
     }
     case "timeout":
       return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
     case "invalid_fee_rate":
-      return `Enter a fee rate greater than 0, up to ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
+      return `Enter a fee rate greater than 0, up to ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
     case "dust":
       return isFiniteNumber(d?.output)
         ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
         : null;
     case "fee_too_low":
       if (isFiniteNumber(d?.required_sat_vb)) {
-        return `The fee rate must be at least ${d.required_sat_vb} sat/vB to replace the original.`;
+        return `The fee rate must be at least ${formatRate(d.required_sat_vb)} to replace the original.`;
       }
       if (isFiniteNumber(d?.required_sat)) {
-        return `The fee must be at least ${d.required_sat.toLocaleString()} sat to replace the original.`;
+        return `The fee must be at least ${formatSats(d.required_sat)} to replace the original.`;
       }
       return null;
     case "not_replaceable":

@@ -2,6 +2,7 @@ import { addressError, addressLooksValid } from "../../address";
 import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
+import { typeableRate } from "../../feebump";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
@@ -19,7 +20,8 @@ import {
   type TxPreview,
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
-import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
+import { feeLine, formatRate, formatSats } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import {
   body,
@@ -72,14 +74,14 @@ function recipientList(to: readonly Recipient[], fee: string, total: number): HT
   for (const r of to) {
     list.append(
       el("dt", { className: "m-review-to", text: r.address }),
-      el("dd", { text: `${formatNumber(r.amount_sat)} sat` }),
+      el("dd", { text: `${formatSats(r.amount_sat)}` }),
     );
   }
   list.append(
     el("dt", { text: "Fee" }),
     el("dd", { text: fee }),
     el("dt", { className: "m-review-total", text: "Total" }),
-    el("dd", { className: "m-review-total", text: `${formatNumber(total)} sat` }),
+    el("dd", { className: "m-review-total", text: `${formatSats(total)}` }),
   );
   return list;
 }
@@ -195,7 +197,7 @@ export function renderSend(): HTMLElement {
       only.amount.value = formatAmount(preview.total_out_sat, currentUnit);
       only.touched.amount = true;
       max.setAttribute("aria-pressed", "true");
-      maxNote.textContent = `Everything: ${formatNumber(preview.total_out_sat + preview.fee_sat)} sat minus the ${formatNumber(preview.fee_sat)} sat fee. Edit the amount to leave Max.`;
+      maxNote.textContent = `Everything: ${formatSats(preview.total_out_sat + preview.fee_sat)} minus the ${formatSats(preview.fee_sat)} fee. Edit the amount to leave Max.`;
       refresh();
     } catch (e) {
       alert.show("error", errorMessage(e));
@@ -245,7 +247,7 @@ export function renderSend(): HTMLElement {
     if (choice === "custom") {
       const typed = Number(rateInput.value);
       rate = Number.isFinite(typed) && typed >= 1 ? typed : 1;
-      rateNote.textContent = `${rate.toFixed(1)} sat/vB · your rate`;
+      rateNote.textContent = `${formatRate(rate)} · your rate`;
     } else {
       try {
         estimate ??= await api.estimateFee();
@@ -254,8 +256,11 @@ export function renderSend(): HTMLElement {
         // silently built at 1 sat/vB while the field showed the typed rate.
         // The screen can also have changed while it was in flight.
         if (fee.value() !== choice || !onScreen()) return;
-        rate = rateForTarget(estimate, Number(choice)) ?? 1;
-        rateNote.textContent = `${rate.toFixed(2)} sat/vB`;
+        // Rounded and floored as the desktop's field is: the raw estimate can be
+        // below the 1 sat/vB the core builds at, and the note would name a rate
+        // the transaction does not pay.
+        rate = typeableRate(rateForTarget(estimate, Number(choice)) ?? 1);
+        rateNote.textContent = formatRate(rate);
       } catch (e) {
         if (fee.value() !== choice || !onScreen()) return;
         rateNote.textContent = `Using 1 sat/vB — ${errorMessage(e)}`;
@@ -641,15 +646,15 @@ export function renderSend(): HTMLElement {
     );
 
     const total = preview.total_out_sat + preview.fee_sat;
-    const feeText = `${formatNumber(preview.fee_sat)} sat · ${formatNumber(preview.vsize)} vB`;
+    const feeText = feeLine(preview.fee_sat, preview.vsize);
     const sheet = card(
       sectionLabel("Review"),
       to.length === 1
         ? kv([
-            ["Amount", `${formatNumber(preview.total_out_sat)} sat`],
+            ["Amount", `${formatSats(preview.total_out_sat)}`],
             ["Fee", feeText],
-            ["Change", `${formatNumber(preview.change_sat)} sat`],
-            ["Total", `${formatNumber(total)} sat`],
+            ["Change", `${formatSats(preview.change_sat)}`],
+            ["Total", `${formatSats(total)}`],
           ])
         : recipientList(to, feeText, total),
       confirm,

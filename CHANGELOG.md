@@ -48,6 +48,10 @@ pull requests a change arrived in.
 - Addresses and transaction ids are shortened one way everywhere, and the phone shows a
   payee's address whole in Send's review, a transaction's detail and Import PSBT, as the
   desktop does: that is where a payment is checked. (#40)
+- Amounts, fee rates and sizes are written one way on both shells: "1,234 sat", a rate
+  with one decimal, and a fee as "141 sat · 1.0 sat/vB · 141 vB". The phone's Send names
+  the rate it will pay, which on a quiet network used to read below the 1 sat/vB it pays.
+  (#40)
 
 ### Fixed
 

@@ -9,8 +9,10 @@ vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
 vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
 
 import { api } from "../src/api";
+import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
 import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderUnlock as renderPhoneUnlock } from "../src/mobile/screens/unlock";
+import { renderWallet as renderPhoneWallet } from "../src/mobile/screens/wallet";
 import { platform, setPlatform } from "../src/platform";
 import { renderDashboard } from "../src/screens/dashboard";
 import { renderUnlock } from "../src/screens/unlock";
@@ -101,5 +103,39 @@ describe("ids and addresses (7.3)", () => {
     expect(shown).toContain(shortId(fake.ADDRESS));
     expect(texts(phone, ".m-address")).toEqual([shortId(fake.ADDRESS)]);
     session.remembered = null;
+  });
+});
+
+describe("amounts and rates (7.4)", () => {
+  // Below the relay minimum the core builds at 1 sat/vB anyway; the note used
+  // to name the raw estimate, "0.10 sat/vB", a rate the send would not pay.
+  it("names the rate the phone's Send will pay, never one under the floor", async () => {
+    fake.state.estimate = { "6": 0.1 };
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    const screen = mount(renderPhoneSend());
+    await settle();
+
+    expect(texts(screen, ".m-txmeta")).toContain("1.0 sat/vB");
+  });
+
+  it("writes the phone's history amounts with their unit", async () => {
+    fake.state.transactions = [
+      {
+        txid: SENT,
+        net_sat: -40_153,
+        sent_sat: 49_580,
+        received_sat: 9_427,
+        fee_sat: 153,
+        confirmations: 3,
+        timestamp: 1_790_000_000,
+      },
+    ];
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("dashboard");
+    const screen = mount(renderPhoneWallet());
+    await settle();
+
+    expect(texts(screen, ".m-amt")).toEqual([`−${(40_153).toLocaleString()} sat`]);
   });
 });

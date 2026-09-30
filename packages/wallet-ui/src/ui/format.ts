@@ -6,6 +6,35 @@
 
 import type { CoinId } from "../types";
 
+/*
+ * Numbers on screen follow the device's locale, as dates already did. Text
+ * put into an amount field does not: `formatAmount` writes plain digits and
+ * a `.`, which is what the field reads back.
+ */
+const numberFormat = new Intl.NumberFormat();
+const decimalSign =
+  numberFormat.formatToParts(0.5).find((part) => part.type === "decimal")?.value ?? ".";
+/** The eight digits after a BTC point, in the device's numerals (٠٠٠٠٠٠٠١ in Arabic). */
+const satDigits = new Intl.NumberFormat(undefined, { minimumIntegerDigits: 8, useGrouping: false });
+
+/** An integer grouped the way the device writes numbers; no unit. */
+export function formatNumber(n: number): string {
+  return numberFormat.format(n);
+}
+
+export function formatSats(sats: number): string {
+  return `${formatNumber(sats)} sat`;
+}
+
+/**
+ * A balance in BTC with all 8 decimals, in the device's separators. Integer
+ * math, so exact for any sat count; balances are never negative.
+ */
+export function formatBtc(sats: number): string {
+  const whole = Math.floor(sats / 1e8);
+  return `${formatNumber(whole)}${decimalSign}${satDigits.format(sats - whole * 1e8)} BTC`;
+}
+
 /**
  * An id shortened for a list or a summary: its first 10 and last 8
  * characters around "…", enough to tell two apart at a glance. Used for a
@@ -36,4 +65,37 @@ export function outputRole(
 ): "recipient" | "change" | "ours" {
   if (!output.ours) return "recipient";
   return owner.net_sat < 0 ? "change" : "ours";
+}
+
+/**
+ * A fee rate as the screens write it, with one decimal: "2.0 sat/vB". A rate
+ * is typed back into a field with a ".", so it keeps one on every device.
+ */
+export function formatRate(satPerVb: number): string {
+  return `${satPerVb.toFixed(1)} sat/vB`;
+}
+
+/** A transaction's size in virtual bytes: "141 vB". */
+export function formatVsize(vbytes: number): string {
+  return `${formatNumber(vbytes)} vB`;
+}
+
+/**
+ * What a transaction pays, as every screen that describes one writes it:
+ * "141 sat · 1.0 sat/vB · 141 vB". The rate is worked out from the fee and
+ * the size when it is not given, and a part that is not known is left out.
+ */
+export function feeLine(
+  feeSat: number | null,
+  vsize: number | null,
+  rateSatPerVb?: number | null,
+): string {
+  const rate = rateSatPerVb ?? (feeSat !== null && vsize ? feeSat / vsize : null);
+  return [
+    feeSat === null ? null : formatSats(feeSat),
+    rate === null ? null : formatRate(rate),
+    vsize === null ? null : formatVsize(vsize),
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
 }

@@ -17,6 +17,7 @@ import {
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
+import { feeLine, formatRate, formatSats } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import {
   body,
@@ -157,7 +158,8 @@ export function renderTransaction(): HTMLElement {
     ]);
     const hero = card(
       dot,
-      el("span", { className: "m-hero m-tx-amount" }, [
+      // Money in is green here as in both lists.
+      el("span", { className: incoming ? "m-hero m-tx-amount m-tx-in" : "m-hero m-tx-amount" }, [
         `${incoming ? "+" : "−"}${formatNumber(Math.abs(d.net_sat))} `,
         el("span", { className: "m-tx-unit", text: "sat" }),
       ]),
@@ -165,10 +167,7 @@ export function renderTransaction(): HTMLElement {
     );
     hero.classList.add("m-tx-hero");
 
-    const fee =
-      d.fee_sat === null
-        ? `${formatNumber(d.vsize)} vB`
-        : `${formatNumber(d.fee_sat)} sat · ${(d.fee_rate_sat_vb ?? 0).toFixed(1)} sat/vB · ${formatNumber(d.vsize)} vB`;
+    const fee = feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb);
     const confirmations = pending
       ? "0 — in the mempool"
       : `${formatNumber(d.confirmations ?? 0)}${d.block_height === null ? "" : ` · block ${formatNumber(d.block_height)}`}`;
@@ -183,7 +182,7 @@ export function renderTransaction(): HTMLElement {
     const outputs = card(
       sectionLabel(`Outputs · ${formatNumber(d.outputs.length)}`),
       ...d.outputs.map((o) =>
-        ioLine(o.address ?? "script", `${formatNumber(o.value_sat)} sat`, outputNote(d, o)),
+        ioLine(o.address ?? "script", `${formatSats(o.value_sat)}`, outputNote(d, o)),
       ),
     );
     outputs.classList.add("m-io-card");
@@ -268,11 +267,11 @@ export function renderTransaction(): HTMLElement {
       let text: string;
       try {
         suggested = suggestBumpRate(await api.estimateFee(), originalRate);
-        text = `1-block estimate ${suggested} sat/vB`;
+        text = `1-block estimate ${formatRate(suggested)}`;
       } catch {
         // Name the rate actually prefilled: with the original's rate known,
         // the floor is above 1 sat/vB and saying otherwise misreports the field.
-        text = `Estimate unavailable — starting at ${suggested} sat/vB`;
+        text = `Estimate unavailable — starting at ${formatRate(suggested)}`;
       }
       // The note is information either way, but the field belongs to whoever
       // typed in it: an estimate arriving after that is stale advice, not a
@@ -363,7 +362,7 @@ export function renderTransaction(): HTMLElement {
         const sheet = card(
           sectionLabel("Cancel"),
           lede(
-            `Replace it with a transaction that pays ${formatNumber(built.change_sat)} sat back to your wallet. Fee ${formatNumber(built.fee_sat)} sat.`,
+            `Replace it with a transaction that pays ${formatSats(built.change_sat)} back to your wallet. Fee ${formatSats(built.fee_sat)}.`,
           ),
           go,
           button("Keep it", close, { variant: "quiet" }),
@@ -440,7 +439,7 @@ export function renderTransaction(): HTMLElement {
         const problem =
           feeRateError(typed) ??
           (parentRate !== null && typed <= parentRate
-            ? `It pays ${parentRate.toFixed(1)} sat/vB alone already; a child helps only above that.`
+            ? `It pays ${formatRate(parentRate)} alone already; a child helps only above that.`
             : null);
         if (problem !== null) {
           customErr.textContent = problem;
@@ -448,7 +447,7 @@ export function renderTransaction(): HTMLElement {
           return;
         }
         rate = typed;
-        shown = String(typed);
+        shown = formatRate(typed);
       } else if (estimate === undefined) {
         // Built once the estimate answers.
         note.textContent = "Fetching the estimate…";
@@ -457,27 +456,27 @@ export function renderTransaction(): HTMLElement {
       } else {
         const blocks = Number(choice);
         rate = suggestPackageRate(estimate, blocks, parentRate);
-        shown = rate.toFixed(1);
+        shown = formatRate(rate);
         if (estimate === null) {
-          note.textContent = `Estimate unavailable — starting at ${shown} sat/vB`;
+          note.textContent = `Estimate unavailable — starting at ${shown}`;
         } else if (rate > suggestPackageRate(estimate, blocks)) {
           // The estimate alone would offer a rate the transaction pays already.
-          note.textContent = `Raised above the ${(parentRate ?? 0).toFixed(1)} sat/vB it pays alone`;
+          note.textContent = `Raised above the ${formatRate(parentRate ?? 0)} it pays alone`;
         } else {
-          note.textContent = `${blocks}-block estimate ${shown} sat/vB`;
+          note.textContent = `${blocks}-block estimate ${shown}`;
         }
       }
-      pays.textContent = `${shown} sat/vB for both`;
+      pays.textContent = `${shown} for both`;
       fee.textContent = "…";
       keep.textContent = "…";
       const at = rate;
       try {
         const built = await holdPreview(() => api.buildCpfp(d.txid, at));
         if (!built) return;
-        fee.textContent = `${formatNumber(built.fee_sat)} sat`;
+        fee.textContent = `${formatSats(built.fee_sat)}`;
         // The child spends our coins from this payment and nothing else, so
         // they come to what it keeps plus its fee.
-        keep.textContent = `${formatNumber(built.change_sat)} of ${formatNumber(built.change_sat + built.fee_sat)} sat`;
+        keep.textContent = `${formatNumber(built.change_sat)} of ${formatSats(built.change_sat + built.fee_sat)}`;
       } catch (e) {
         fee.textContent = "—";
         keep.textContent = "—";

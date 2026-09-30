@@ -4,7 +4,7 @@ import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type PsbtInput, type PsbtReview } from "../../types";
 import { banner, el, formatNumber, sectionLabel } from "../../ui/dom";
-import { shortOutpoint } from "../../ui/format";
+import { feeLine, formatSats, shortOutpoint } from "../../ui/format";
 import { feeRate, psbtFlow, signedLine, whoseInputs } from "../../ui/psbt";
 import {
   body,
@@ -33,10 +33,7 @@ function inputNote(input: PsbtInput): string | null {
 }
 
 function feeText(r: PsbtReview): string {
-  if (r.fee_sat === null) return "unknown";
-  const rate = feeRate(r);
-  const fee = `${formatNumber(r.fee_sat)} sat`;
-  return rate === null ? fee : `${fee} · ${rate.toFixed(1)} sat/vB`;
+  return r.fee_sat === null ? "unknown" : feeLine(r.fee_sat, r.vsize, feeRate(r));
 }
 
 /** The card M14 draws under the PSBT: its inputs, its outputs, then the fee. */
@@ -49,7 +46,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
     ...r.inputs.map((input) =>
       ioLine(
         shortOutpoint(input),
-        input.value_sat === null ? "unknown" : formatNumber(input.value_sat),
+        input.value_sat === null ? "unknown" : formatSats(input.value_sat),
         inputNote(input),
       ),
     ),
@@ -58,7 +55,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
       text: `Outputs · ${formatNumber(r.outputs.length)}`,
     }),
     ...r.outputs.map((output) =>
-      ioLine(output.address ?? "script", formatNumber(output.value_sat), outputNote(r, output)),
+      ioLine(output.address ?? "script", formatSats(output.value_sat), outputNote(r, output)),
     ),
     el("div", { className: "m-psbt-fee" }, [
       el("span", { text: "Fee" }),

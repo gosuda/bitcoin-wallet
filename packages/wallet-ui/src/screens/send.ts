@@ -1,6 +1,7 @@
 import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
+import { typeableRate } from "../feebump";
 import { navigate } from "../router";
 import { screenGuard } from "../screen";
 import { session } from "../session";
@@ -32,6 +33,7 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
+import { feeLine } from "../ui/format";
 
 interface RecipientRow {
   node: HTMLElement;
@@ -157,7 +159,7 @@ export function renderSend(): HTMLElement {
       updateReview();
       return;
     }
-    const rounded = Math.max(1, Math.ceil(rate * 10) / 10);
+    const rounded = typeableRate(rate);
     // A Max preview was built at the rate showing when it started. Moving the
     // rate under it would leave Review displaying this one and broadcasting
     // that one.
@@ -431,7 +433,10 @@ export function renderSend(): HTMLElement {
         return null;
       }
       if (sats === null) {
-        alert.show("error", `Invalid amount for ${address}: whole sats > 0.`);
+        alert.show(
+          "error",
+          `Invalid amount for ${address}: enter a whole number of sat, more than 0.`,
+        );
         r.amount.focus();
         return null;
       }
@@ -528,13 +533,7 @@ export function renderSend(): HTMLElement {
       sectionLabel("Review"),
       kv([
         ["Total out", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
-        [
-          "Fee",
-          el("span", { className: "mono" }, [
-            `${formatSats(p.fee_sat)} `,
-            muted(`(${p.vsize} vB · ${p.input_count} in)`),
-          ]),
-        ],
+        ["Fee", el("span", { className: "mono", text: feeLine(p.fee_sat, p.vsize) })],
         [
           "Change",
           el("span", { className: "mono" }, [

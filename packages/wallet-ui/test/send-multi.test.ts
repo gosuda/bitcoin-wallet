@@ -150,7 +150,7 @@ describe("several recipients on the phone (6.9)", () => {
     expect(all(review, "dd").map((d) => d.textContent)).toEqual([
       `${(30_000).toLocaleString()} sat`,
       `${(18_000).toLocaleString()} sat`,
-      "141 sat · 141 vB",
+      "141 sat · 1.0 sat/vB · 141 vB",
       `${(48_141).toLocaleString()} sat`,
     ]);
 

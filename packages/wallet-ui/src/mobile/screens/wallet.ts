@@ -5,6 +5,7 @@ import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
+import { formatSats } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { body, button, card, header, listCard, row } from "../ui";
 import { showTransaction } from "./tx";
@@ -36,7 +37,7 @@ function txRow(tx: TxSummary): HTMLElement {
   const meta = [whenLabel(tx), dateLabel(tx)].filter(Boolean).join(" · ");
   const amount = el("span", {
     className: "m-amt",
-    text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
+    text: `${incoming ? "+" : "−"}${formatSats(Math.abs(tx.net_sat))}`,
   });
   if (incoming) amount.classList.add("m-tx-in");
 
@@ -83,7 +84,7 @@ export function renderWallet(): HTMLElement {
     // formatBtc already carries the unit; appending another gave "BTC BTC".
     sub.textContent = formatBtc(total);
     const waiting = pendingSat(balance);
-    pending.textContent = waiting > 0 ? `${formatNumber(waiting)} sat pending` : "";
+    pending.textContent = waiting > 0 ? `${formatSats(waiting)} pending` : "";
     pending.hidden = waiting === 0;
   };
 

@@ -246,34 +246,7 @@ export function kv(rows: readonly [string, Node | string][]): HTMLElement {
   return dl;
 }
 
-/*
- * Numbers on screen follow the device's locale, as dates already did. Text
- * put into an amount field does not: `formatAmount` writes plain digits and
- * a `.`, which is what the field reads back.
- */
-const numberFormat = new Intl.NumberFormat();
-const decimalSign =
-  numberFormat.formatToParts(0.5).find((part) => part.type === "decimal")?.value ?? ".";
-/** The eight digits after a BTC point, in the device's numerals (٠٠٠٠٠٠٠١ in Arabic). */
-const satDigits = new Intl.NumberFormat(undefined, { minimumIntegerDigits: 8, useGrouping: false });
-
-/** An integer grouped the way the device writes numbers; no unit. */
-export function formatNumber(n: number): string {
-  return numberFormat.format(n);
-}
-
-export function formatSats(sats: number): string {
-  return `${formatNumber(sats)} sat`;
-}
-
-/**
- * A balance in BTC with all 8 decimals, in the device's separators. Integer
- * math, so exact for any sat count; balances are never negative.
- */
-export function formatBtc(sats: number): string {
-  const whole = Math.floor(sats / 1e8);
-  return `${formatNumber(whole)}${decimalSign}${satDigits.format(sats - whole * 1e8)} BTC`;
-}
+export { formatBtc, formatNumber, formatSats } from "./format";
 
 /** Uppercase card heading (mockup `.label`). */
 export function sectionLabel(text: string): HTMLElement {

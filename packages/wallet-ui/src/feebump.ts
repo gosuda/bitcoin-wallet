@@ -103,7 +103,15 @@ function outbid(market: number | null, toBeatSatVb?: number | null): number {
     toBeatSatVb != null && Number.isFinite(toBeatSatVb) && toBeatSatVb > 0
       ? toBeatSatVb + REPLACEMENT_MARGIN_SAT_VB
       : 0;
-  const rate = Math.max(market ?? 1, mustBeat);
-  // Rounded up to a tenth so the value is typeable, floored at the relay minimum.
-  return Math.max(1, Math.ceil(rate * 10) / 10);
+  return typeableRate(Math.max(market ?? 1, mustBeat));
+}
+
+/**
+ * A rate as a fee field is prefilled with, on both shells: rounded up to a
+ * tenth so it can be typed, and no lower than the relay minimum the core
+ * builds at anyway. A note showing the raw estimate below that would name a
+ * rate the transaction does not pay.
+ */
+export function typeableRate(rateSatPerVb: number): number {
+  return Math.max(1, Math.ceil(rateSatPerVb * 10) / 10);
 }

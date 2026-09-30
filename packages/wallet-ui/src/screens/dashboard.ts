@@ -53,7 +53,7 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
-import { shortId, shortOutpoint } from "../ui/format";
+import { feeLine, formatRate, shortId, shortOutpoint } from "../ui/format";
 import { icon } from "../ui/icons";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
@@ -252,8 +252,9 @@ export function renderDashboard(): HTMLElement {
   const sameWallet = sameWalletGuard();
 
   const alert = banner();
-  const heroTotal = el("span", { className: "stat-hero mono", text: "0" });
-  const heroBtc = el("span", { className: "stat-secondary mono", text: formatBtc(0) });
+  // Unknown until the balance is read, as on the phone: a "0" first reads as an empty wallet.
+  const heroTotal = el("span", { className: "stat-hero mono", text: "—" });
+  const heroBtc = el("span", { className: "stat-secondary mono", text: "" });
   const stats = el("div", { className: "stat-row" });
   const utxoBox = el("div");
   const utxoCount = el("span", { className: "hint", text: "" });
@@ -563,9 +564,9 @@ export function renderDashboard(): HTMLElement {
         why = " · estimate unavailable";
       } else if (rate > suggestPackageRate(estimate, blocks)) {
         // The estimate alone would offer a rate the transaction pays already.
-        why = ` · raised above the ${(d.fee_rate_sat_vb ?? 0).toFixed(1)} sat/vB it pays alone`;
+        why = ` · raised above the ${formatRate(d.fee_rate_sat_vb ?? 0)} it pays alone`;
       }
-      rateHint.textContent = `${rate.toFixed(1)} sat/vB for the two together${why}`;
+      rateHint.textContent = `${formatRate(rate)} for the two together${why}`;
       numbers.textContent = "Working out the fee…";
       try {
         const built = await holdPreview(() => api.buildCpfp(d.txid, rate), ownerDetail);
@@ -638,12 +639,7 @@ export function renderDashboard(): HTMLElement {
     const muted = (text: string) => el("span", { className: "muted", text });
     const rows: [string, Node | string][] = [
       ["Txid", mono(d.txid, "small")],
-      [
-        "Fee",
-        d.fee_sat === null
-          ? `${formatNumber(d.vsize)} vB`
-          : `${formatSats(d.fee_sat)} · ${(d.fee_rate_sat_vb ?? 0).toFixed(1)} sat/vB · ${formatNumber(d.vsize)} vB`,
-      ],
+      ["Fee", feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb)],
       [
         "From",
         `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${

@@ -18,6 +18,7 @@ import {
 } from "../../types";
 import { chooseLockAfter, lockAfter } from "../../ui/autolock";
 import { banner, el, formatNumber } from "../../ui/dom";
+import { formatSats } from "../../ui/format";
 import {
   body,
   button,
@@ -89,7 +90,7 @@ export function renderSettings(): HTMLElement {
           session.lastSyncedAt = new Date();
           alert.show(
             "ok",
-            `Rescanned with a gap of ${gap.value()}: ${formatNumber(headlineSat(balance))} sat in this wallet.`,
+            `Rescanned with a gap of ${gap.value()}: ${formatSats(headlineSat(balance))} in this wallet.`,
           );
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));

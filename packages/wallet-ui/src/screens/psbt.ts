@@ -2,7 +2,7 @@ import { navigate } from "../router";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
-import { outputRole, shortOutpoint } from "../ui/format";
+import { formatRate, formatVsize, outputRole, shortOutpoint } from "../ui/format";
 import { feeRate, psbtFlow, signedLine, whoseInputs } from "../ui/psbt";
 
 /** Beside Sign and Broadcast until the PSBT can go out, as 7 says it. */
@@ -69,9 +69,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
         : "";
   const fee = ioRow(
     "Fee",
-    rate === null || r.vsize === null
-      ? ""
-      : `${rate.toFixed(1)} sat/vB · ${formatNumber(r.vsize)} vB`,
+    rate === null || r.vsize === null ? "" : `${formatRate(rate)} · ${formatVsize(r.vsize)}`,
     why ? el("span", { className: "hint", text: why }) : "",
     r.fee_sat === null ? "unknown" : formatNumber(r.fee_sat),
   );
