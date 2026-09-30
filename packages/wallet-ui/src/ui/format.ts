@@ -137,7 +137,16 @@ export function formatTime(date: Date): string {
  * this one. `timestamp` is in seconds, as the core reports it.
  */
 export function formatWhen(timestamp: number, now: Date = new Date()): string {
-  const date = new Date(timestamp * 1000);
+  return whenWords(new Date(timestamp * 1000), now).replace(/ /g, NBSP);
+}
+
+/**
+ * A time is one phrase: a row that wraps beside a wide amount put "Today" on
+ * one line and "07:44" on the next, so its spaces do not break.
+ */
+const NBSP = "\u00a0";
+
+function whenWords(date: Date, now: Date): string {
   const age = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
   if (age < MINUTE) return "just now";
   if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`;

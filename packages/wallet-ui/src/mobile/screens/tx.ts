@@ -37,7 +37,6 @@ import {
   lede,
   listCard,
   outputNote,
-  row,
   withBusy,
 } from "../ui";
 
@@ -199,13 +198,12 @@ export function renderTransaction(): HTMLElement {
           { icon: "external" },
         )
       : null;
+    // One per line, as on Sent: side by side, "Open in explorer" broke in two.
     const ident = card(
       sectionLabel("Transaction id"),
       el("span", { className: "m-mono-block", text: d.txid }),
-      row(
-        copyButton(() => d.txid, "Copy transaction id"),
-        explorer,
-      ),
+      copyButton(() => d.txid, "Copy transaction id"),
+      explorer,
     );
 
     const actions: HTMLElement[] = [];

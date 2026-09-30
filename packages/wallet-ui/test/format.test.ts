@@ -119,15 +119,19 @@ describe("pending, confirmations and time", () => {
   const now = new Date(2026, 8, 30, 14, 32, 10);
   const secondsAgo = (s: number) => Math.floor(now.getTime() / 1000) - s;
 
+  // A time is one phrase: its spaces do not break, so a wrapping row keeps it whole.
+  const whole = (text: string) => text.replace(/ /g, "\u00a0");
+
   it("says a recent time relatively, then the time today, then the date", () => {
-    expect(formatWhen(secondsAgo(30), now)).toBe("just now");
-    expect(formatWhen(secondsAgo(12 * 60), now)).toBe("12 min ago");
+    expect(formatWhen(secondsAgo(30), now)).toBe(whole("just now"));
+    expect(formatWhen(secondsAgo(12 * 60), now)).toBe(whole("12 min ago"));
     const earlier = new Date(2026, 8, 30, 9, 5);
-    expect(formatWhen(earlier.getTime() / 1000, now)).toBe(`Today ${formatTime(earlier)}`);
+    expect(formatWhen(earlier.getTime() / 1000, now)).toBe(whole(`Today ${formatTime(earlier)}`));
     const before = new Date(2026, 7, 27, 18, 0);
     expect(formatWhen(before.getTime() / 1000, now)).toBe(
-      before.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      whole(before.toLocaleDateString(undefined, { month: "short", day: "numeric" })),
     );
+    expect(formatWhen(earlier.getTime() / 1000, now)).not.toContain(" ");
   });
 
   it("names the year only when it is not this one", () => {

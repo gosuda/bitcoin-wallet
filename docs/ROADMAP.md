@@ -1075,6 +1075,13 @@ clearer or safer variant was taken.
   unspent output, what the wallet owns is "this wallet's", "Cancel" only ever cancels a payment.
   Sentence case, no contractions, "…" and never "...".
 
+**Checked in the running apps** on 2026-09-30, against a signet wallet: the browser build's
+desktop shell and the Android emulator read the same for coins, history, a transaction's
+detail, Send's review and Settings. The check found three things the tests could not: times
+came out on a Korean device as "Today 오후 12:52", so times use the boards' 24-hour clock
+(7.5); a history row wrapped a time between "Today" and "07:44"; and "Open in explorer" broke
+in two beside "Copy transaction id" on the phone, both fixed in their own commit.
+
 - [x] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
       why: with every coin frozen, Max said "Need 11 more sat." · done: 2026-09-30 —
       `InsufficientFunds` carries `frozen_sat`, which a transfer or a drain the wallet chose
