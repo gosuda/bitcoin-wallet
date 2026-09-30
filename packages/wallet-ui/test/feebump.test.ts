@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  canPayForParent,
-  isBumpable,
-  suggestBumpRate,
-  suggestPackageRate,
-  typeableRate,
-} from "../src/feebump";
+import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../src/feebump";
 import { rateForTarget, type TxDetail, type TxSummary, type Utxo } from "../src/types";
 
 const tx = (t: Partial<TxSummary>): TxSummary => ({
@@ -147,15 +141,6 @@ describe("suggestPackageRate", () => {
     expect(suggestPackageRate(null, 1, 4)).toBe(5);
     expect(suggestPackageRate(estimate, 6, null)).toBe(2);
     expect(suggestPackageRate(null, 6)).toBe(1);
-  });
-});
-
-// What both shells prefill a fee field with, and what the phone's note names.
-describe("typeableRate", () => {
-  it("rounds up to a tenth, and never below the 1 sat/vB the core builds at", () => {
-    expect(typeableRate(0.1)).toBe(1);
-    expect(typeableRate(2.01)).toBe(2.1);
-    expect(typeableRate(3)).toBe(3);
   });
 });
 

@@ -75,6 +75,16 @@ export function formatRate(satPerVb: number): string {
   return `${satPerVb.toFixed(1)} sat/vB`;
 }
 
+/**
+ * A rate as a fee field is prefilled with, on both shells: rounded up to a
+ * tenth so it can be typed, and no lower than the relay minimum the core
+ * builds at anyway. A note showing the raw estimate below that would name a
+ * rate the transaction does not pay.
+ */
+export function typeableRate(rateSatPerVb: number): number {
+  return Math.max(1, Math.ceil(rateSatPerVb * 10) / 10);
+}
+
 /** A transaction's size in virtual bytes: "141 vB". */
 export function formatVsize(vbytes: number): string {
   return `${formatNumber(vbytes)} vB`;

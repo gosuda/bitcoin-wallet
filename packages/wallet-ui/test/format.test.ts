@@ -11,6 +11,7 @@ import {
   outputRole,
   shortId,
   shortOutpoint,
+  typeableRate,
 } from "../src/ui/format";
 import { useDeviceLocale } from "./setup-locale";
 
@@ -147,5 +148,14 @@ describe("pending, confirmations and time", () => {
     // On the 24-hour clock whatever the device, so no "PM" or "오후" joins "Today".
     expect(formatTime(at)).toBe("14:32");
     expect(formatDateTime(at.getTime() / 1000)).toContain(formatTime(at).slice(0, 2));
+  });
+});
+
+// What both shells prefill a fee field with, and what the phone's note names.
+describe("typeableRate", () => {
+  it("rounds up to a tenth, and never below the 1 sat/vB the core builds at", () => {
+    expect(typeableRate(0.1)).toBe(1);
+    expect(typeableRate(2.01)).toBe(2.1);
+    expect(typeableRate(3)).toBe(3);
   });
 });

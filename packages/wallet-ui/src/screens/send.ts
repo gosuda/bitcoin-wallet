@@ -1,7 +1,6 @@
 import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
-import { typeableRate } from "../feebump";
 import { navigate } from "../router";
 import { screenGuard } from "../screen";
 import { session } from "../session";
@@ -33,7 +32,7 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
-import { feeLine } from "../ui/format";
+import { feeLine, typeableRate } from "../ui/format";
 import { FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
 
 interface RecipientRow {

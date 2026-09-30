@@ -2,7 +2,6 @@ import { addressError, addressLooksValid } from "../../address";
 import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
-import { typeableRate } from "../../feebump";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
@@ -22,7 +21,7 @@ import {
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
 import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
-import { feeLine, formatRate, formatSats } from "../../ui/format";
+import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
 import {
