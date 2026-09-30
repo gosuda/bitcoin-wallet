@@ -37,12 +37,17 @@ export function renderRestore(): HTMLElement {
   return phrase();
 }
 
-/** The open behind each door's button; `reset` goes through the api's history reset. */
+/**
+ * The open behind each door's button; `reset` goes through the api's history
+ * reset. The wallet is open once it returns, whatever screen is up by then,
+ * but only the door still on screen moves on to it.
+ */
 function openWith(
   secret: () => string,
   remember: () => boolean,
   passphrase: () => string | undefined,
   alert: ReturnType<typeof banner>,
+  onScreen: () => boolean,
 ) {
   return async (reset = false) => {
     alert.hide();
@@ -51,7 +56,7 @@ function openWith(
     const open = reset ? api.resetHistoryAndOpen : api.openWallet;
     await open(secret(), cfg.address_type, remember(), passphrase());
     session.remembered = await api.getRemembered();
-    navigate("dashboard");
+    if (onScreen()) navigate("dashboard");
   };
 }
 
@@ -141,6 +146,7 @@ function phrase(): HTMLElement {
         () => remember.checked(),
         () => passphrase.value || undefined,
         alert,
+        onScreen,
       )(reset);
     } catch (e) {
       if (onScreen()) offer.report(e, () => restore(true));
@@ -186,6 +192,7 @@ function singleKey(): HTMLElement {
         () => remember.checked(),
         () => undefined,
         alert,
+        onScreen,
       )(reset);
     } catch (e) {
       if (onScreen()) offer.report(e, () => open(true));
@@ -252,6 +259,7 @@ function watchOnly(): HTMLElement {
         () => remember.checked(),
         () => undefined,
         alert,
+        onScreen,
       )(reset);
     } catch (e) {
       if (onScreen()) offer.report(e, () => follow(true));

@@ -82,7 +82,7 @@ export function renderCreate(): HTMLElement {
             passphrase.value || undefined,
           );
           session.remembered = await api.getRemembered();
-          navigate("dashboard");
+          if (onScreen()) navigate("dashboard");
         } catch (e) {
           if (onScreen()) offer.report(e, () => createWallet(true));
         }

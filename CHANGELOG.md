@@ -57,6 +57,8 @@ pull requests a change arrived in.
   history and keeps the key and the settings; the next sync downloads it back. On Unlock the
   only way out used to be Forget, which deletes the key too. History saved by a newer version
   of the app asks for an update instead. (#39)
+- Leaving Unlock, or the phone's Create or Restore, while a wallet is still opening no longer
+  pulls you back to it once it opens. (#39)
 - A wallet with a long history can finish its first sync on a slow connection. A scan is no
   longer cut off after 180 s; each request to the server has 30 s instead, so a server that
   stops answering is still caught, and sooner. (#38)

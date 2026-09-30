@@ -33,7 +33,7 @@ export function renderUnlock(): HTMLElement {
       // reading it, so a device without biometrics still opens normally.
       if (auth) await auth("Unlock your wallet");
       await (reset ? api.resetHistoryAndUnlock() : api.unlockWallet());
-      navigate("dashboard");
+      if (onScreen()) navigate("dashboard");
     } catch (e) {
       if (!onScreen()) return;
       // Unlocking again would fail the same way, so the reset stands where

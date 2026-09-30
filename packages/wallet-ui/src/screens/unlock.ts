@@ -45,7 +45,7 @@ export function renderUnlock(): HTMLElement {
     const appPassword = password?.input.value;
     try {
       await (reset ? api.resetHistoryAndUnlock(appPassword) : api.unlockWallet(appPassword));
-      navigate("dashboard");
+      if (onScreen()) navigate("dashboard");
     } catch (e) {
       if (!onScreen()) return;
       // A wrong password is said under its field, and nothing else changes.
