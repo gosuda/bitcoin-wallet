@@ -33,8 +33,8 @@ describe("the sentences both Send screens say", () => {
 });
 
 describe("whoseInputs", () => {
-  const ours = { ours: true };
-  const theirs = { ours: false };
+  const ours = { txid: "cd".repeat(32), vout: 1, ours: true };
+  const theirs = { txid: "ef".repeat(32), vout: 0, ours: false };
 
   // What the wallet owns is "this wallet's" on both shells, never "yours".
   it("says whose a transaction's inputs are", () => {
@@ -44,5 +44,11 @@ describe("whoseInputs", () => {
     expect(whoseInputs([ours, theirs])).toBe("1 from this wallet");
     expect(whoseInputs([theirs])).toBe("from another wallet");
     expect(whoseInputs([theirs, theirs])).toBe("none from this wallet");
+  });
+
+  // Found in review: a mining payout read "from another wallet".
+  it("says a coinbase's coins are newly mined", () => {
+    const coinbase = { txid: "0".repeat(64), vout: 0xffff_ffff, ours: false };
+    expect(whoseInputs([coinbase])).toBe("newly mined");
   });
 });

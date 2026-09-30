@@ -70,9 +70,14 @@ export const KEY_SHOWN_ONCE =
 /**
  * Whose a transaction's inputs are, as Import PSBT and a transaction's detail
  * say it: "from this wallet", "both from this wallet", "1 from this wallet",
- * "from another wallet".
+ * "from another wallet". A coinbase's one input spends nothing: its coins
+ * are "newly mined", from no wallet at all.
  */
-export function whoseInputs(inputs: readonly { ours: boolean }[]): string {
+export function whoseInputs(
+  inputs: readonly { txid: string; vout: number; ours: boolean }[],
+): string {
+  const [first] = inputs;
+  if (inputs.length === 1 && first !== undefined && isCoinbase(first)) return "newly mined";
   const n = inputs.length;
   const ours = inputs.filter((i) => i.ours).length;
   if (ours === n)
@@ -83,4 +88,9 @@ export function whoseInputs(inputs: readonly { ours: boolean }[]): string {
         : "all from this wallet";
   if (ours === 0) return n === 1 ? "from another wallet" : "none from this wallet";
   return `${formatNumber(ours)} from this wallet`;
+}
+
+/** The null outpoint, which only a coinbase's input spends. */
+function isCoinbase(input: { txid: string; vout: number }): boolean {
+  return input.vout === 0xffff_ffff && /^0{64}$/.test(input.txid);
 }
