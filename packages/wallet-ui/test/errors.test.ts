@@ -10,8 +10,9 @@ import {
 /**
  * Every code this UI can receive: from `wallet_core::Error::code()`
  * (mirrored here, not imported — there is nothing to import across the
- * wasm boundary), from `api.ts`'s own `WalletError` throws, and from the
- * Tauri IPC envelope's `internal`/`config`.
+ * wasm boundary), from `api.ts`'s own `WalletError` throws and the browser
+ * key store's (`platform/sealed.ts`), and from the Tauri IPC envelope's
+ * `internal`/`config`.
  */
 const ALL_CODES = [
   "invalid_key",
@@ -38,6 +39,9 @@ const ALL_CODES = [
   "not_remembered",
   "wrong_network",
   "unknown_psbt",
+  "wrong_password",
+  "unknown_secret_format",
+  "no_app_password",
   "internal",
   "config",
 ] as const;
@@ -87,6 +91,10 @@ describe("errorMessage", () => {
   it("names the ceiling for invalid_fee_rate", () => {
     const msg = errorMessage(new WalletError("invalid_fee_rate", "x"));
     expect(msg).toContain(MAX_FEE_RATE_SAT_VB.toLocaleString());
+  });
+
+  it("says a wrong app password in the canvas's words", () => {
+    expect(errorMessage(new WalletError("wrong_password", "x"))).toBe("Wrong password.");
   });
 
   it("falls back to the message when details are missing or the wrong shape", () => {

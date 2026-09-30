@@ -52,7 +52,7 @@ export function renderRestore(): HTMLElement {
   const offer = historyReset(alert);
   const errorLine = el("p", { className: "field-error", attrs: { role: "status" } });
   const gridBox = el("div");
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => update());
 
   // Optional, and part of the wallet's identity rather than a lock on it: the
   // phrase is valid with or without one, and each passphrase restores a
@@ -79,7 +79,7 @@ export function renderRestore(): HTMLElement {
   const complete = (): boolean => boxes.length > 0 && boxes.every((b) => b.value.trim() !== "");
 
   const update = () => {
-    restoreBtn.disabled = !valid;
+    restoreBtn.disabled = !valid || !remember.ready();
   };
 
   const validate = async () => {
@@ -187,6 +187,7 @@ export function renderRestore(): HTMLElement {
       alert.show("error", "Enter a valid recovery phrase first.");
       return;
     }
+    if (!remember.ready()) return;
     const secret = words().join(" ");
     const willRemember = remember.checked();
     try {
@@ -196,6 +197,7 @@ export function renderRestore(): HTMLElement {
         cfg.address_type,
         willRemember,
         passphrase.value || undefined,
+        remember.appPassword(),
       );
       for (const box of boxes) box.value = "";
       passphrase.value = "";

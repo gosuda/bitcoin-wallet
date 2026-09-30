@@ -1184,6 +1184,84 @@ tr.tx-detail td {
   color: var(--danger);
 }
 
+.unlock-password {
+  width: 320px;
+  max-width: 100%;
+}
+
+/* App password, the browser's (2e, 2f): masked, with the eye that shows it
+   inside the box, as the boards draw it. */
+.password-box {
+  position: relative;
+  display: flex;
+}
+
+.password-box input {
+  padding-right: calc(var(--space-3) + 16px + var(--space-2));
+}
+
+.password-box input[type="password"] {
+  letter-spacing: 0.18em;
+}
+
+.password-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-eye[aria-pressed="true"] {
+  color: var(--fg);
+}
+
+/* Remember on this device, in the browser: once ticked, the app password and
+   its confirmation hang from the box on a rule. */
+.remember {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.remember-password {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-left: 7px;
+  padding-left: 17px;
+  border-left: 2px solid var(--border);
+}
+
+.remember-password-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  /* A field that reports an error grows downwards; its neighbour stays put. */
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .remember-password-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.remember-warning {
+  font-size: var(--text-sm);
+  color: var(--accent-deep);
+}
+
 /* A wallet whose saved history cannot be read: why, and the reset in two steps. */
 .reset-offer {
   display: flex;

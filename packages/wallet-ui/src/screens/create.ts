@@ -61,7 +61,7 @@ export function renderCreate(): HTMLElement {
   const offer = historyReset(alert);
   const phraseBox = el("div", {}, [el("p", { className: "empty", text: "Generating…" })]);
   const confirmBox = el("div", {}, [el("p", { className: "empty", text: "Generating…" })]);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => refresh());
 
   // Optional and not shown again: the phrase above is only half the backup when
   // one is set, so the hint says what losing it costs. Left empty it means no
@@ -99,7 +99,7 @@ export function renderCreate(): HTMLElement {
     });
 
   const refresh = () => {
-    createBtn.disabled = phrase === null || !confirmed();
+    createBtn.disabled = phrase === null || !confirmed() || !remember.ready();
   };
 
   const submit = async (reset = false): Promise<void> => {
@@ -113,6 +113,7 @@ export function renderCreate(): HTMLElement {
       alert.show("error", "The words you typed do not match the phrase.");
       return;
     }
+    if (!remember.ready()) return;
     const willRemember = remember.checked();
     try {
       const open = reset ? api.resetHistoryAndOpen : api.openWallet;
@@ -121,6 +122,7 @@ export function renderCreate(): HTMLElement {
         cfg.address_type,
         willRemember,
         passphrase.value || undefined,
+        remember.appPassword(),
       );
       phrase = null;
       passphrase.value = "";

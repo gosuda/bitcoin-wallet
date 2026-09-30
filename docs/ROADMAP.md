@@ -955,11 +955,31 @@ items before it change no screen, so they land while that batch is reviewed.
       Android emulator with 1 min chosen, the wallet came back on Unlock after 87 seconds in
       the background, and stayed open after 27
 
-- [ ] **6.12 A browser keystore** · L · `apps/web/src/platform-browser.ts`, `platform/index.ts`,
+- [x] **6.12 A browser keystore** · L · `apps/web/src/platform-browser.ts`, `platform/index.ts`,
   `ui/remember.ts`, desktop Unlock · after 6.6 · **decision** (key derivation, naming)
-      why: the browser build cannot remember a wallet at all · done when: a remembered secret is
-      encrypted with a password (WebCrypto, AES-GCM) and kept in IndexedDB, a wrong password is
-      its own error, and tests cover the round trip
+      why: the browser build cannot remember a wallet at all · done: 2026-09-30 — the browser
+      build remembers a wallet behind an app password. `platform/sealed.ts` derives a key from
+      it with PBKDF2-SHA256 over 600,000 rounds and a random 16-byte salt, as decided, and
+      seals the key and any BIP39 passphrase with AES-256-GCM under a random 12-byte IV, all
+      from WebCrypto. The record holds its format version, round count, salt, IV and
+      ciphertext, never the password, in an IndexedDB database of its own
+      (`bitcoin-wallet-keystore`, by wallet id). A wrong password fails GCM's check and is
+      `wrong_password`, "Wrong password." under the field; a record in a format this version
+      does not know is `unknown_secret_format`, refused before anything is derived. The
+      platform says `needsAppPassword`; `rememberSecret`, `loadSecret` and the api's opens
+      and unlocks carry the password, and an OS keystore is asked exactly what it was. On
+      Key, Create and Restore a ticked Remember reveals App password and Confirm app
+      password with the board's warning, and the button waits until the two match; Unlock
+      asks for it as 2e draws it, and Forget deletes the sealed record too. Settings says
+      "in this browser, encrypted with your app password". Fourteen Node tests in
+      `sealed.test.ts` cover the round trip, a wrong password, fresh salts and IVs, a changed
+      ciphertext, IV or salt, a record moved to another wallet's slot (GCM's additional data
+      is the wallet id), unknown formats, the round count and its ceiling of ten times the
+      default, and the key store over a map. Fifteen jsdom tests in `app-password.test.ts`
+      drive the screens on a browser-like platform and on a keychain one, which shows no
+      password field anywhere. Breaking the round count, its ceiling, the wallet binding, the
+      format check, the gate, the wipe, where the error is said, the password's way to the
+      store or Forget fails at least one of them. Not yet tried in a browser
 
 - [x] **6.13 Coin control on screen** · M · both shells · after 6.3 and 6.6
       why: 6.3 has no way to be used · done: 2026-09-30 — the desktop's Unspent outputs card

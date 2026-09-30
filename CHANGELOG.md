@@ -31,6 +31,11 @@ pull requests a change arrived in.
   Settings. A frozen coin stays out of every send, of Max and of the spendable balance until
   it is unfrozen. Send selected opens Send paying from the ticked coins alone, Max included,
   until Let the wallet choose hands the choice back. (#39)
+- The browser build can remember a wallet too, behind an app password of your choosing. The
+  password encrypts the key (PBKDF2-SHA256 over 600,000 rounds, then AES-GCM, both from
+  WebCrypto), and only the encrypted key is kept, in the browser's IndexedDB. Unlock asks
+  for the password and says so under the field when it is wrong. The desktop and phone apps
+  keep the OS key store and ask for no password. (#39)
 
 ### Fixed
 

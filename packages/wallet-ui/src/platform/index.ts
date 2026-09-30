@@ -5,19 +5,28 @@
  * webview against the WASM core, so the shell is only asked for what a page
  * cannot do on its own: durable config, the remembered-wallet record, the
  * key store, the clipboard and opening a link. A Tauri window supplies all of
- * them; a browser tab supplies all but the key store, and says so through
- * `canRememberWallet`.
+ * them, its key store being the OS one; a browser tab seals the key under an
+ * app password instead, and says so through `needsAppPassword`.
  */
 
 import type { AppConfig, LockAfter, RememberedWallet, StoredSecret } from "../types";
 
 export interface Platform {
   /**
-   * Whether this shell can keep a key across runs. False in a browser, where
-   * there is no OS keychain: the "Remember on this device" choice is not
-   * offered, no remembered record is written, and `unlock` is unreachable.
+   * Whether this shell can keep a key across runs. False where no key store
+   * works — a native build whose OS keystore is unusable, or a browser page
+   * without WebCrypto: the "Remember on this device" choice is not offered, no
+   * remembered record is written, and `unlock` is unreachable.
    */
   readonly canRememberWallet: boolean;
+
+  /**
+   * Whether remembering and unlocking a wallet take an app password. Only the
+   * browser sets it: with no OS keychain there, its key store seals the key
+   * under a password the user chooses (`platform/sealed.ts`). An OS keystore
+   * guards the key with the device's own login, so absent means no.
+   */
+  readonly needsAppPassword?: boolean;
 
   /** The stored app config, or `null` when the shell has none yet. */
   getConfig(): Promise<AppConfig | null>;
@@ -36,10 +45,23 @@ export interface Platform {
   getLockAfter(): Promise<LockAfter>;
   setLockAfter(choice: LockAfter): Promise<void>;
 
-  /** Rejects where `canRememberWallet` is false. */
-  rememberSecret(walletId: string, secret: string, passphrase?: string): Promise<void>;
-  /** Rejects where `canRememberWallet` is false. */
-  loadSecret(walletId: string): Promise<StoredSecret | null>;
+  /**
+   * Rejects where `canRememberWallet` is false. Where `needsAppPassword` is
+   * set, the key is sealed under `appPassword` and nothing is stored without
+   * one; elsewhere it is ignored.
+   */
+  rememberSecret(
+    walletId: string,
+    secret: string,
+    passphrase?: string,
+    appPassword?: string,
+  ): Promise<void>;
+  /**
+   * Rejects where `canRememberWallet` is false. Where `needsAppPassword` is
+   * set, `appPassword` opens the sealed key, and any other rejects with
+   * `wrong_password`.
+   */
+  loadSecret(walletId: string, appPassword?: string): Promise<StoredSecret | null>;
   /** Rejects where `canRememberWallet` is false. */
   forgetSecret(walletId: string): Promise<void>;
 

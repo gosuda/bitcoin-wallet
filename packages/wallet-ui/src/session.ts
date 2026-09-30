@@ -8,7 +8,7 @@ export interface Session {
   handle: WalletApi | null;
   /** Non-secret description of `handle`, for the screens. */
   wallet: WalletInfo | null;
-  /** Mirror of the persisted "remembered_wallet" record; the key stays in the OS keystore. */
+  /** Mirror of the persisted "remembered_wallet" record; the key stays in the key store. */
   remembered: RememberedWallet | null;
   lastSyncedAt: Date | null;
   lastResult: BroadcastResult | null;

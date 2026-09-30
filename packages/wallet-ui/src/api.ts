@@ -191,13 +191,16 @@ async function install(
  * Opens the wallet the user just entered, optionally saving its key.
  *
  * "Remember" stores the passphrase with the words: the two are one wallet's
- * identity, and the OS keystore already guards the words.
+ * identity, and the key store already guards the words. In the browser that
+ * store seals both under `appPassword`, which is not the BIP39 passphrase:
+ * it locks only this browser's copy.
  */
 async function openWallet(
   secret: string,
   addressType: AddressType,
   remember: boolean,
   passphrase?: string,
+  appPassword?: string,
 ): Promise<WalletInfo> {
   const { network } = await requireConfig();
   const { info, attempt } = await install(secret, network, addressType, passphrase);
@@ -214,7 +217,7 @@ async function openWallet(
       if (!stillCurrent(attempt)) {
         throw new WalletError("superseded", "a newer wallet-open request replaced this one");
       }
-      await platform().rememberSecret(info.wallet_id, secret, passphrase);
+      await platform().rememberSecret(info.wallet_id, secret, passphrase, appPassword);
       if (!stillCurrent(attempt)) {
         // The entry just written above can only be this attempt's own -
         // nothing else could have raced to write it while this turn held
@@ -266,10 +269,11 @@ async function resetHistoryAndOpen(
   addressType: AddressType,
   remember: boolean,
   passphrase?: string,
+  appPassword?: string,
 ): Promise<WalletInfo> {
   return withHistoryReset(
     async () => walletIdForKey(secret, (await requireConfig()).network, addressType, passphrase),
-    () => openWallet(secret, addressType, remember, passphrase),
+    () => openWallet(secret, addressType, remember, passphrase, appPassword),
   );
 }
 
@@ -287,13 +291,16 @@ export function canUnlockHere(): boolean {
 }
 
 /**
- * Opens the remembered wallet with the key loaded from the OS keystore. The
- * stored entry carries the passphrase too, so unlocking never asks for one.
+ * Opens the remembered wallet with the key loaded from the key store. The
+ * stored entry carries the BIP39 passphrase too, so unlocking never asks for
+ * that one. The browser's store opens only with `appPassword`, and a wrong one
+ * fails as `wrong_password` before anything is opened.
  *
  * `resetHistory` is `withHistoryReset` around the open. It is decided here,
- * past the keystore read, so a reset asks the OS for the key once.
+ * past the keystore read, so a reset reads the key once: one OS prompt, or one
+ * app password check.
  */
-async function unlockWallet(resetHistory = false): Promise<WalletInfo> {
+async function unlockWallet(resetHistory: boolean, appPassword?: string): Promise<WalletInfo> {
   const notRemembered = () =>
     new WalletError("not_remembered", "no wallet is saved on this device");
   const record = await platform().getRemembered();
@@ -308,7 +315,11 @@ async function unlockWallet(resetHistory = false): Promise<WalletInfo> {
       `The wallet saved on this device is on ${saved}. Choose ${saved} in Setup to open it.`,
     );
   }
-  const stored = await platform().loadSecret(record.wallet_id);
+  // Only a password actually given is passed on: an OS keystore is asked for
+  // the key by wallet id alone, exactly as before there were app passwords.
+  const stored = await (appPassword === undefined
+    ? platform().loadSecret(record.wallet_id)
+    : platform().loadSecret(record.wallet_id, appPassword));
   if (!stored?.secret) throw notRemembered();
   const { secret, passphrase } = stored;
   const open = async () =>
@@ -475,8 +486,17 @@ export const api = {
     wordCount: number,
   ): Promise<GeneratedMnemonic> => generateMnemonic(network, addressType, wordCount),
   validateMnemonic: (words: string): Promise<void> => validateMnemonic(words),
-  openWallet: (secret: string, addressType: AddressType, remember: boolean, passphrase?: string) =>
-    openWallet(secret, addressType, remember, passphrase),
+  /**
+   * `appPassword` seals the key when `remember` is set on a platform that
+   * `needsAppPassword` (the browser); an OS keystore ignores it.
+   */
+  openWallet: (
+    secret: string,
+    addressType: AddressType,
+    remember: boolean,
+    passphrase?: string,
+    appPassword?: string,
+  ) => openWallet(secret, addressType, remember, passphrase, appPassword),
   /**
    * `openWallet` for a wallet whose saved history here cannot be read: that
    * history is deleted and the wallet opened again. The key store and the
@@ -487,12 +507,14 @@ export const api = {
     addressType: AddressType,
     remember: boolean,
     passphrase?: string,
-  ) => resetHistoryAndOpen(secret, addressType, remember, passphrase),
+    appPassword?: string,
+  ) => resetHistoryAndOpen(secret, addressType, remember, passphrase, appPassword),
   closeWallet: async (): Promise<void> => releaseWallet(),
   getRemembered: (): Promise<RememberedWallet | null> => platform().getRemembered(),
-  unlockWallet: () => unlockWallet(),
+  /** `appPassword` is the browser's, typed on Unlock; an OS keystore needs none. */
+  unlockWallet: (appPassword?: string) => unlockWallet(false, appPassword),
   /** `unlockWallet` for such a wallet, the same way; its key stays in the keystore. */
-  resetHistoryAndUnlock: () => unlockWallet(true),
+  resetHistoryAndUnlock: (appPassword?: string) => unlockWallet(true, appPassword),
   forgetWallet: () => forgetWallet(),
   sync: (): Promise<Balance> => holdOpen(syncWallet),
   /** Look `stopGap` unused addresses past the last used one, then re-read the balance. */

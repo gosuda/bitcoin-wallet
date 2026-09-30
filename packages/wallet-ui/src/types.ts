@@ -57,7 +57,7 @@ export interface WalletInfo {
   is_watch_only: boolean;
 }
 
-/** Non-secret record of the wallet whose key is kept in the OS keystore. */
+/** Non-secret record of the wallet whose key is kept in the key store. */
 export interface RememberedWallet {
   wallet_id: string;
   address: string;
@@ -71,7 +71,8 @@ export interface RememberedWallet {
  *
  * The BIP39 passphrase is stored alongside the words because it is part of the
  * same wallet's identity — the words on their own open a different wallet — and
- * the OS keystore is already the boundary that protects them.
+ * the key store is already the boundary that protects them: the OS keystore, or
+ * in the browser the seal of the app password.
  */
 export interface StoredSecret {
   secret: string;
@@ -392,6 +393,9 @@ function detailedMessage(value: AppError): string | null {
       return null;
     case "not_replaceable":
       return "This transaction can no longer be replaced.";
+    case "wrong_password":
+      // The canvas's words (2e), said under the App password field.
+      return "Wrong password.";
     case "corrupt_state":
       // Not unreadable, only ahead of this version: an update reads it.
       return d?.reason === "future_version"

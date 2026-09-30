@@ -39,7 +39,7 @@ export function renderKey(): HTMLElement {
     name: "secret",
   });
   const generated = el("div", { className: "hidden" });
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => gateOpen());
 
   const showGenerated = (key: GeneratedKey) => {
     generated.className = "card secret-box";
@@ -93,12 +93,21 @@ export function renderKey(): HTMLElement {
       alert.show("error", "Enter a private key (hex or WIF) or generate one.");
       return;
     }
+    // Nothing is remembered without a confirmed app password. The button waits
+    // for one, and so does a reset offered before the fields changed.
+    if (!remember.ready()) return;
     // Read once: the checkbox stays live across the await, and asking it
     // again afterwards can disagree with what was actually stored.
     const willRemember = remember.checked();
     try {
       const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-      const info = await open(value, cfg.address_type, willRemember);
+      const info = await open(
+        value,
+        cfg.address_type,
+        willRemember,
+        undefined,
+        remember.appPassword(),
+      );
       secret.value = "";
       generated.replaceChildren();
       generated.className = "hidden";
@@ -110,9 +119,18 @@ export function renderKey(): HTMLElement {
       if (onScreen()) offer.report(e, () => openKey(true));
     }
   };
-  const openBtn = button("Open wallet", () => withBusy(openBtn, openKey), "primary", "md", {
-    name: "key",
-  });
+  // Open wallet waits for a ticked box's app password; `withBusy` enables the
+  // button again, so that gate is put back once an attempt settles.
+  const gateOpen = () => {
+    openBtn.disabled = !remember.ready();
+  };
+  const openBtn = button(
+    "Open wallet",
+    () => void withBusy(openBtn, openKey).finally(gateOpen),
+    "primary",
+    "md",
+    { name: "key" },
+  );
 
   secret.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") openBtn.click();
@@ -164,7 +182,7 @@ export function renderKey(): HTMLElement {
       autocomplete: "off",
     },
   });
-  const watchRemember = rememberCheckbox();
+  const watchRemember = rememberCheckbox(() => gateFollow());
   const follow = async (reset = false): Promise<void> => {
     alert.hide();
     const value = watchSource.value.trim();
@@ -172,10 +190,17 @@ export function renderKey(): HTMLElement {
       alert.show("error", "Paste an xpub or a public descriptor.");
       return;
     }
+    if (!watchRemember.ready()) return;
     const willRemember = watchRemember.checked();
     try {
       const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-      const info = await open(value, cfg.address_type, willRemember);
+      const info = await open(
+        value,
+        cfg.address_type,
+        willRemember,
+        undefined,
+        watchRemember.appPassword(),
+      );
       watchSource.value = "";
       // The wallet is already open here. Reading the record back could
       // fail and put an error over a wallet that opened fine, so take what
@@ -188,9 +213,12 @@ export function renderKey(): HTMLElement {
       if (onScreen()) offer.report(e, () => follow(true));
     }
   };
+  const gateFollow = () => {
+    followBtn.disabled = !watchRemember.ready();
+  };
   const followBtn = button(
     "Follow this wallet",
-    () => withBusy(followBtn, follow),
+    () => void withBusy(followBtn, follow).finally(gateFollow),
     "default",
     "md",
     { name: "eye" },

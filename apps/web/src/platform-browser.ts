@@ -1,14 +1,18 @@
 /**
  * The browser's half of the platform seam.
  *
- * A tab has no OS keychain, so this shell deliberately stores no key material:
- * `canRememberWallet` is false and the three secret methods reject. Keys live in
- * memory for the life of the tab and are gone when it closes. Only non-secret
- * records — the app config and, for shape parity, the remembered wallet and
- * the lock time — are kept, in `localStorage` under a versioned key.
+ * A tab has no OS keychain, so a remembered key is sealed under an app
+ * password the user chooses — PBKDF2-SHA256 and AES-GCM from WebCrypto — and
+ * kept in an IndexedDB database of its own (`sealedKeystore` over
+ * `sealedSecrets`). Without "Remember" nothing secret is written, and the key
+ * lives in memory for the life of the tab. The non-secret records — the app
+ * config, the remembered wallet and the lock time — are kept in `localStorage`
+ * under a versioned key.
  */
 
 import type { Platform } from "@bitcoin-wallet/ui/platform";
+import { sealedKeystore } from "@bitcoin-wallet/ui/sealed";
+import { sealedSecrets } from "@bitcoin-wallet/ui/sealed-secrets";
 import { type AppConfig, lockAfterFrom, type RememberedWallet } from "@bitcoin-wallet/ui/types";
 
 const PREFIX = "bitcoin-wallet.v1.";
@@ -40,14 +44,11 @@ function write(key: string, value: unknown): void {
   }
 }
 
-function noKeystore(): Promise<never> {
-  return Promise.reject(
-    new Error("this browser has no key store; the wallet is open for this tab only"),
-  );
-}
-
 export const browserPlatform: Platform = {
-  canRememberWallet: false,
+  // WebCrypto is there only on a secure origin (https, or localhost). A page
+  // served any other way cannot seal a key, so it keeps one for the tab only.
+  canRememberWallet: crypto.subtle !== undefined,
+  needsAppPassword: true,
 
   getConfig: async () => read<AppConfig>(CONFIG_KEY),
   setConfig: async (config) => write(CONFIG_KEY, config),
@@ -58,9 +59,7 @@ export const browserPlatform: Platform = {
   getLockAfter: async () => lockAfterFrom(read(LOCK_AFTER_KEY)),
   setLockAfter: async (choice) => write(LOCK_AFTER_KEY, choice),
 
-  rememberSecret: noKeystore,
-  loadSecret: noKeystore,
-  forgetSecret: noKeystore,
+  ...sealedKeystore(sealedSecrets),
 
   writeClipboard: (text) => navigator.clipboard.writeText(text),
   openUrl: async (url) => {

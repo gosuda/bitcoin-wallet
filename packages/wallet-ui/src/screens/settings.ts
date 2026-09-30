@@ -28,7 +28,7 @@ import {
   withBusy,
 } from "../ui/dom";
 import { icon } from "../ui/icons";
-import { KEYCHAIN_NAME } from "../ui/remember";
+import { rememberedWhere } from "../ui/remember";
 
 /** A setting: what it is, what it is set to, and what can be done about it. */
 function settingRow(label: string, value: Node | string, action?: HTMLElement): HTMLElement {
@@ -110,10 +110,7 @@ export function renderSettings(): HTMLElement {
   const rememberedValue = !canRemember
     ? "Not available here"
     : remembered
-      ? el("span", {}, [
-          "Yes ",
-          el("span", { className: "hint", text: `· in the ${KEYCHAIN_NAME}` }),
-        ])
+      ? el("span", {}, ["Yes ", el("span", { className: "hint", text: `· ${rememberedWhere()}` })])
       : "No";
   // Only a remembered wallet is ever locked, so without a keystore there is
   // nothing to choose.
