@@ -386,7 +386,9 @@ function detailedMessage(value: AppError): string | null {
       return frozen > 0 ? `${short} Frozen coins hold ${formatSats(frozen)}.` : short;
     }
     case "timeout":
-      return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
+      return isFiniteNumber(d?.secs)
+        ? `The Esplora server did not answer within ${d.secs} s.`
+        : null;
     case "invalid_fee_rate":
       return `Enter a fee rate greater than 0, up to ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
     case "dust":

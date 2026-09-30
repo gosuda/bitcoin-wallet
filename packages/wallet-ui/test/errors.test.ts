@@ -124,6 +124,12 @@ describe("errorMessage", () => {
     expect(errorMessage(byAmount)).toContain(`${(2000).toLocaleString()} sat`);
   });
 
+  // Named as Setup and Settings name it, not "the backend". Found in review.
+  it("names the Esplora server when it does not answer", () => {
+    const err = new WalletError("timeout", "x", { secs: 30 });
+    expect(errorMessage(err)).toBe("The Esplora server did not answer within 30 s.");
+  });
+
   it("names the recipient for dust, one-indexed as the cards are", () => {
     const err = new WalletError("dust", "x", { output: 0 });
     expect(errorMessage(err)).toContain("Recipient 1 is too small");
