@@ -5,7 +5,7 @@ import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
 import { banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
-import { KEY_SHOWN_ONCE, PASSPHRASE_HINT } from "../../ui/text";
+import { KEY_SHOWN_ONCE, PASSPHRASE_HINT, phraseError } from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
 import {
   body,
@@ -136,12 +136,16 @@ function phrase(): HTMLElement {
   wipeOnLeave(() => [...inputs, passphrase]);
 
   const restore = async (reset = false): Promise<void> => {
+    const typed = inputs.map((i) => i.value.trim().toLowerCase()).filter(Boolean);
+    const words = typed.join(" ");
     try {
-      const words = inputs
-        .map((i) => i.value.trim().toLowerCase())
-        .filter(Boolean)
-        .join(" ");
       await api.validateMnemonic(words);
+    } catch (e) {
+      // As the desktop says it: an unknown word by its place in the grid.
+      if (onScreen()) alert.show("error", phraseError(errorMessage(e), typed));
+      return;
+    }
+    try {
       await openWith(
         () => words,
         () => remember.checked(),

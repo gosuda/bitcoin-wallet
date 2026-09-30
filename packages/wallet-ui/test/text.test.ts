@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { forgetWarning, maxModeNote, sentence, sentNotSaved, whoseInputs } from "../src/ui/text";
+import {
+  forgetWarning,
+  maxModeNote,
+  phraseError,
+  sentence,
+  sentNotSaved,
+  whoseInputs,
+} from "../src/ui/text";
 
 describe("forgetWarning", () => {
   // Only a mnemonic has a recovery phrase: each wallet is told its own way back.
@@ -48,6 +55,22 @@ describe("sentence", () => {
     expect(sentence("tb1qexample is not valid")).toBe("tb1qexample is not valid.");
     const outpoint = `${"cd".repeat(32)}:1`;
     expect(sentence(`${outpoint} is frozen`)).toBe(`${outpoint} is frozen.`);
+  });
+});
+
+describe("phraseError", () => {
+  const typed = ["abandon", "ability", "able", "xyz"];
+
+  // bip39 counts from 0: "(word 3)" is the fourth.
+  it("names an unknown word by its place in the grid, and by what was typed", () => {
+    const core =
+      "invalid key material: invalid mnemonic: mnemonic contains an unknown word (word 3)";
+    expect(phraseError(core, typed)).toBe('Word 4 "xyz" is not in the word list.');
+  });
+
+  it("says any other reason as a sentence, without the core's framing", () => {
+    const core = "invalid key material: invalid mnemonic: invalid checksum";
+    expect(phraseError(core, typed)).toBe("Invalid checksum.");
   });
 });
 

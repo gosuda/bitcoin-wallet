@@ -22,6 +22,29 @@ export function sentence(message: string): string {
   return /[.!?…]$/.test(capital) ? capital : `${capital}.`;
 }
 
+/** bip39 reports an unknown word by its 0-based index; a grid counts from 1. */
+const UNKNOWN_WORD = /unknown word \(word (\d+)\)/i;
+
+/** Framing the core adds on the way out; a phrase's check is only about the phrase. */
+const CORE_PREFIX = /^(?:invalid key material:\s*)?(?:invalid mnemonic:\s*)?/i;
+
+/**
+ * Why a recovery phrase was refused, on both Restore screens. An unknown word
+ * is named by its place in the grid, and by what was typed there: the core
+ * counts from 0, and "(word 3)" was the fourth.
+ */
+export function phraseError(message: string, typed: readonly string[]): string {
+  const unknown = UNKNOWN_WORD.exec(message);
+  if (unknown) {
+    const position = Number(unknown[1]) + 1;
+    const word = typed[position - 1];
+    return word
+      ? `Word ${position} "${word}" is not in the word list.`
+      : `Word ${position} is not in the word list.`;
+  }
+  return sentence(message.trim().replace(CORE_PREFIX, ""));
+}
+
 /** The Sent screen's first line, and the one after it. */
 export const SENT_TITLE = "Transaction broadcast";
 export const SENT_LINE = "The network has it. It shows as Pending until it is in a block.";

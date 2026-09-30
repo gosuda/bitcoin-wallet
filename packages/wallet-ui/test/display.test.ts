@@ -27,7 +27,7 @@ import { renderSend } from "../src/screens/send";
 import { renderSettings } from "../src/screens/settings";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
-import type { RememberedWallet, TxDetail } from "../src/types";
+import { type RememberedWallet, type TxDetail, WalletError } from "../src/types";
 import { banner } from "../src/ui/dom";
 import { formatTime, shortId } from "../src/ui/format";
 import {
@@ -335,6 +335,32 @@ describe("one name for each thing (7.7)", () => {
       expect(text).toContain(FROZEN_HINT);
       expect(text).toContain(NO_COINS);
     }
+  });
+
+  // Found in review: the phone showed the core's words, "(word 3)" for the
+  // fourth word, where the desktop names the word by its place.
+  it("names an unknown word by its place on the phone's Restore too", async () => {
+    at("restore");
+    setRestoreMode("phrase");
+    const screen = mount(renderPhoneRestore());
+    const cells = [...screen.querySelectorAll<HTMLInputElement>('input[aria-label^="Word "]')];
+    cells.forEach((cell, i) => {
+      cell.value = i === 3 ? "xyz" : "abandon";
+    });
+    const refused = vi
+      .spyOn(api, "validateMnemonic")
+      .mockRejectedValueOnce(
+        new WalletError(
+          "invalid_key",
+          "invalid key material: invalid mnemonic: mnemonic contains an unknown word (word 3)",
+        ),
+      );
+
+    buttonNamed(screen, "Restore wallet").click();
+    await settle();
+    refused.mockRestore();
+
+    expect(find(screen, ".banner").textContent).toBe('Word 4 "xyz" is not in the word list.');
   });
 
   it("says what Rescan is for alike in both Settings", async () => {
