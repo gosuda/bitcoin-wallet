@@ -597,7 +597,9 @@ describe("Import PSBT on the desktop (7)", () => {
     await settle();
 
     expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
+    expect(fake.calls).toContainEqual(["import_psbt", UNSIGNED.psbt_base64]);
     expect(fake.calls).not.toContainEqual(["import_psbt", SHARED.psbt_base64]);
+    expect(DESKTOP.said(screen)).toEqual(DESKTOP.drawnUnsigned);
   });
 
   it("reads any other file as its text, trimmed: base64, or hex", async () => {
