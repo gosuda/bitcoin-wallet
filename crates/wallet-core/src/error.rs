@@ -56,7 +56,7 @@ pub enum Error {
     InvalidFeeRate(String),
     #[error("signing error: {0}")]
     Sign(String),
-    #[error("psbt error: {0}")]
+    #[error("PSBT error: {0}")]
     Psbt(String),
     #[error("unsupported: {0}")]
     Unsupported(String),
@@ -298,7 +298,7 @@ mod tests {
                 "invalid fee rate: x",
             ),
             (Error::Sign("x".into()), "sign", None, "signing error: x"),
-            (Error::Psbt("x".into()), "psbt", None, "psbt error: x"),
+            (Error::Psbt("x".into()), "psbt", None, "PSBT error: x"),
             (
                 Error::Unsupported("x".into()),
                 "unsupported",

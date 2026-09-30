@@ -142,7 +142,7 @@ describe("errorMessage", () => {
   // PSBT, which knows the text failed to parse, says it in words of its own.
   it("passes a PSBT refusal on in the core's words, which say why", () => {
     const why =
-      "psbt error: input 0 is not signed: a transaction goes out only once every input is final";
+      "PSBT error: input 0 is not signed: a transaction goes out only once every input is final";
     expect(errorMessage(new WalletError("psbt", why))).toBe(why);
   });
 

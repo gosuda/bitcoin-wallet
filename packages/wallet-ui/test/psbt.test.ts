@@ -294,7 +294,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     const error = find(screen, "#psbt-error");
     expect(error.textContent).toBe("This is not a PSBT the wallet can read.");
     expect(field(screen).getAttribute("aria-invalid")).toBe("true");
-    expect(screen.textContent).not.toContain("psbt error");
+    expect(screen.textContent).not.toContain("PSBT error");
     expect(shell.said(screen)).toEqual([]);
     expect(buttonNamed(screen, "Sign").disabled).toBe(true);
     expect(buttonNamed(screen, "Broadcast").disabled).toBe(true);
@@ -374,7 +374,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     fake.state.psbtReview = SIGNED;
     const screen = await shell.open();
     await paste(screen, SIGNED.psbt_base64);
-    const why = "psbt error: absurdly high fee rate of 30000 sat/vB";
+    const why = "PSBT error: absurdly high fee rate of 30000 sat/vB";
     const refused = vi
       .spyOn(api, "broadcastPsbt")
       .mockRejectedValueOnce(new WalletError("psbt", why));

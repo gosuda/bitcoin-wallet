@@ -23,7 +23,7 @@ export const UR_REFUSED =
 
 /**
  * Said under the field for text the core cannot read as a PSBT. The core
- * passes on the parser's own words ("psbt error: error in PSBT base64
+ * passes on the parser's own words ("PSBT error: error in PSBT base64
  * encoding"), which name its failure rather than what was pasted. Only here:
  * the same code also refuses a PSBT at broadcast, for a reason worth reading.
  */
