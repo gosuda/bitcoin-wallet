@@ -132,6 +132,19 @@ export function watchPlaceholder(network: Network | undefined): string {
     : "tpub… or wpkh([fingerprint/84h/1h/0h]tpub…/0/*)";
 }
 
+/** Beside the public keys on both shells: what they give away, and to whom. */
+export const PUBLIC_KEYS_NOTE =
+  "These reveal this wallet's history, not its funds. Share them only with a watch-only wallet you trust.";
+
+/** The button that copies one descriptor, or the receive and change pair. */
+export function copyDescriptorsLabel(pair: boolean): string {
+  return pair ? "Copy descriptors" : "Copy descriptor";
+}
+
+/** Under Receive's amount on both shells: what the QR holds. */
+export const RECEIVE_QR_NOTE =
+  "With an amount, the QR is a bitcoin: link; without one, it is the bare address.";
+
 /** Over a newly generated single key, which is shown this once. */
 export const KEY_SHOWN_ONCE =
   "Write this key down before you fund its address: it is shown once, and losing it loses the funds.";

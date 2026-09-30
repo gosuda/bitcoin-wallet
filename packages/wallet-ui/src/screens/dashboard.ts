@@ -54,7 +54,7 @@ import {
 } from "../ui/dom";
 import { feeLine, formatRate, formatTime, formatWhen, shortId, shortOutpoint } from "../ui/format";
 import { icon } from "../ui/icons";
-import { FROZEN_HINT, NO_COINS, whoseInputs } from "../ui/text";
+import { FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, whoseInputs } from "../ui/text";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
@@ -948,7 +948,7 @@ export function renderDashboard(): HTMLElement {
             requestErr,
             el("p", {
               className: "muted small",
-              text: "With an amount the QR is a bitcoin: link; without one it is the bare address.",
+              text: RECEIVE_QR_NOTE,
             }),
           ]),
         ]),

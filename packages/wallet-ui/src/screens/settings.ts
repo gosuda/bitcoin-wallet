@@ -29,7 +29,7 @@ import {
 } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
-import { forgetWarning, RESCAN_HINT } from "../ui/text";
+import { copyDescriptorsLabel, forgetWarning, PUBLIC_KEYS_NOTE, RESCAN_HINT } from "../ui/text";
 
 /** A setting: what it is, what it is set to, and what can be done about it. */
 function settingRow(label: string, value: Node | string, action?: HTMLElement): HTMLElement {
@@ -177,9 +177,7 @@ export function renderSettings(): HTMLElement {
       actions.appendChild(copyButton(() => xpub, "Copy xpub", "sm"));
     }
     const both = d.internal === null ? d.external : `${d.external}\n${d.internal}`;
-    actions.appendChild(
-      copyButton(() => both, d.internal === null ? "Copy descriptor" : "Copy descriptors", "sm"),
-    );
+    actions.appendChild(copyButton(() => both, copyDescriptorsLabel(d.internal !== null), "sm"));
     keysSlot.replaceChildren(kv(rows), actions);
   };
   const showKeys = el(
@@ -312,7 +310,7 @@ export function renderSettings(): HTMLElement {
         sectionLabel("Public keys"),
         el("span", {
           className: "hint",
-          text: "Reveal your history, not your funds — for a watch-only copy elsewhere.",
+          text: PUBLIC_KEYS_NOTE,
         }),
         keysSlot,
       ]),

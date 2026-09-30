@@ -11,6 +11,8 @@ vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persis
 import { api } from "../src/api";
 import { renderCoins } from "../src/mobile/screens/coins";
 import { renderCreate as renderPhoneCreate } from "../src/mobile/screens/create";
+import { renderExport } from "../src/mobile/screens/export";
+import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
 import { renderResult as renderPhoneResult } from "../src/mobile/screens/result";
 import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
@@ -35,6 +37,8 @@ import {
   forgetWarning,
   NO_COINS,
   PASSPHRASE_HINT,
+  PUBLIC_KEYS_NOTE,
+  RECEIVE_QR_NOTE,
   RESCAN_HINT,
   SENT_LINE,
   SENT_TITLE,
@@ -361,6 +365,35 @@ describe("one name for each thing (7.7)", () => {
     refused.mockRestore();
 
     expect(find(screen, ".banner").textContent).toBe('Word 4 "xyz" is not in the word list.');
+  });
+
+  // Found in review: "your history" on one shell, "Copy both" on the other.
+  it("says what public keys give away, and copies them, alike on both shells", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("settings");
+    const desktop = mount(renderSettings());
+    buttonNamed(desktop, "Export public keys").click();
+    await settle();
+    expect(desktop.textContent).toContain(PUBLIC_KEYS_NOTE);
+    expect(buttonNamed(desktop, "Copy descriptor")).toBeTruthy();
+
+    at("export");
+    const phone = mount(renderExport());
+    await settle();
+    expect(phone.textContent).toContain(PUBLIC_KEYS_NOTE);
+    expect(buttonNamed(phone, "Copy descriptor")).toBeTruthy();
+  });
+
+  it("says what Receive's QR holds alike on both shells", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("dashboard");
+    const desktop = mount(renderDashboard());
+    await settle();
+    expect(desktop.textContent).toContain(RECEIVE_QR_NOTE);
+    at("receive");
+    const phone = mount(renderPhoneReceive());
+    await settle();
+    expect(phone.textContent).toContain(RECEIVE_QR_NOTE);
   });
 
   it("says what Rescan is for alike in both Settings", async () => {
