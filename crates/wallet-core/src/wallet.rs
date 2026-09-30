@@ -852,8 +852,6 @@ impl WalletHandle {
         Self::persist(&mut inner).await
     }
 
-    /// The outpoints of `coins`, each an unspent coin of this wallet that is
-    /// not frozen: a send held to chosen coins spends exactly these.
     /// What the frozen coins of this wallet hold, confirmed or not: the part
     /// of the balance no send the wallet chooses coins for can use.
     fn frozen_total(wallet: &Wallet) -> u64 {
@@ -877,6 +875,8 @@ impl WalletHandle {
         })
     }
 
+    /// The outpoints of `coins`, each an unspent coin of this wallet that is
+    /// not frozen: a send held to chosen coins spends exactly these.
     fn chosen_outpoints(wallet: &Wallet, coins: &[CoinId]) -> Result<Vec<OutPoint>> {
         coins
             .iter()
