@@ -261,6 +261,8 @@ export function labelled(text: string, control: HTMLElement, note?: string): HTM
  * will happen and a Delete / Keep pair. Every place a wallet can be forgotten
  * goes through this, so the phone never destroys anything on one tap.
  */
+let confirmSeq = 0;
+
 export function confirmDanger(opts: {
   trigger: string;
   triggerVariant?: "danger" | "quiet";
@@ -276,8 +278,12 @@ export function confirmDanger(opts: {
         variant: "danger",
         block: true,
       });
+      // Read out with the button, which alone says only "Delete it".
+      const warning = lede(opts.text);
+      warning.id = `confirm-danger-${++confirmSeq}`;
+      go.setAttribute("aria-describedby", warning.id);
       const sheet = card(
-        lede(opts.text),
+        warning,
         go,
         button("Keep it", () => host.replaceChildren(arm), { variant: "quiet" }),
       );

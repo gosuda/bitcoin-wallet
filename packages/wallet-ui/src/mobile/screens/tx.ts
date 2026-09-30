@@ -231,6 +231,8 @@ export function renderTransaction(): HTMLElement {
 
   const bumpCard = (id: string, originalRate: number | null): HTMLElement => {
     const rate = textInput({ value: "1", type: "number", mono: true, name: "bump_rate" });
+    // The card's heading names the action, not the field.
+    rate.setAttribute("aria-label", "Fee rate, in sat/vB");
     rate.min = "1";
     rate.max = String(MAX_FEE_RATE_SAT_VB);
     rate.step = "0.1";

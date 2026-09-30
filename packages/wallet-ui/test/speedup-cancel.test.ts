@@ -291,6 +291,15 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     }
   });
 
+  // Found in review: the field had no name once the button stopped naming the rate.
+  it("names Bump fee's rate field for a screen reader", async () => {
+    history(sent());
+    const screen = await PHONE.show(OUTGOING);
+    expect(find(screen, "input[name=bump_rate]").getAttribute("aria-label")).toBe(
+      "Fee rate, in sat/vB",
+    );
+  });
+
   it("folds Bump fee away while Cancel is open, and opening it again calls the cancel off", async () => {
     history(sent());
     const buildCancel = vi.spyOn(api, "buildCancel");

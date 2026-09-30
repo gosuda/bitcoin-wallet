@@ -257,7 +257,10 @@ describe("one word for each action (7.6)", () => {
       expect(buttonNamed(screen, "Use a different wallet")).toBeTruthy();
       buttonNamed(screen, "Forget this wallet").click();
       expect(screen.textContent).toContain(forgetWarning(null));
-      expect(buttonNamed(screen, "Delete it")).toBeTruthy();
+      // Found in review: the button alone said only "Delete it".
+      const yes = buttonNamed(screen, "Delete it");
+      const described = document.getElementById(yes.getAttribute("aria-describedby") ?? "");
+      expect(described?.textContent).toBe(forgetWarning(null));
       expect(buttonNamed(screen, "Keep it")).toBeTruthy();
     }
     session.remembered = null;

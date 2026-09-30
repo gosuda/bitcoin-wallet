@@ -110,9 +110,15 @@ export function renderUnlock(): HTMLElement {
         }),
       "danger",
     );
+    // Read out with the button, which alone says only "Delete it".
+    yes.setAttribute("aria-describedby", "forget-warning");
     confirmSlot.replaceChildren(
       el("section", { className: "card danger-card" }, [
-        el("span", { className: "muted", text: forgetWarning(null) }),
+        el("span", {
+          className: "muted",
+          text: forgetWarning(null),
+          attrs: { id: "forget-warning" },
+        }),
         el("div", { className: "actions actions-end" }, [
           button("Keep it", () => confirmSlot.replaceChildren(), "quiet"),
           yes,

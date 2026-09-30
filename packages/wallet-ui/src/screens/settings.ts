@@ -233,11 +233,14 @@ export function renderSettings(): HTMLElement {
         }),
       "danger",
     );
+    // Read out with the button, which alone says only "Delete it".
+    yes.setAttribute("aria-describedby", "forget-warning");
     forgetSlot.replaceChildren(
       el("section", { className: "card danger-card" }, [
         el("span", {
           className: "muted",
           text: forgetWarning(wallet),
+          attrs: { id: "forget-warning" },
         }),
         el("div", { className: "actions actions-end" }, [
           button("Keep it", () => forgetSlot.replaceChildren(), "quiet"),
