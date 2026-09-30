@@ -45,9 +45,10 @@ function write(key: string, value: unknown): void {
 }
 
 export const browserPlatform: Platform = {
-  // WebCrypto is there only on a secure origin (https, or localhost). A page
-  // served any other way cannot seal a key, so it keeps one for the tab only.
-  canRememberWallet: crypto.subtle !== undefined,
+  // Sealing needs WebCrypto, there only on a secure origin (https, or
+  // localhost), and the sealed key is kept in IndexedDB. A page without
+  // either keeps the key for the tab only.
+  canRememberWallet: crypto.subtle !== undefined && typeof indexedDB !== "undefined",
   needsAppPassword: true,
 
   getConfig: async () => read<AppConfig>(CONFIG_KEY),
