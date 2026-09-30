@@ -1050,6 +1050,63 @@ items before it change no screen, so they land while that batch is reviewed.
       the webview there until the apps read the clipboard through the shell; then it filled the
       field and the PSBT was described
 
+## Round 7 — Bugs and one display standard
+
+Branch `round-7-display`. Picked on 2026-09-30: the two wording bugs left from Round 6, and
+the display text made one standard across both shells, as the owner asked. Two audits of the
+screens found the same thing shown or worded differently in about forty places. The standard
+below is what every screen follows from here on; where the shells disagreed, the more common,
+clearer or safer variant was taken.
+
+**The display standard**
+
+- **Ids and addresses.** A shortened id — a txid, an outpoint's txid, an address in a list or
+  a summary — shows its first 10 and last 8 characters around "…". An address is shown whole
+  wherever a payment or an output is reviewed or described: Send's review, a transaction's
+  detail, Import PSBT.
+- **Amounts.** "1,234 sat", grouped as the device does, except under a table heading that names
+  the unit. Money in is "+", money out "−". A fee rate has one decimal, "2.0 sat/vB"; a size
+  is "141 vB".
+- **Status and time.** "Pending" means not yet in a block, on both shells, in the pending
+  colour. Confirmations are "N confirmations", or "N conf." where a row is tight. Recent times
+  read "just now", "N min ago", "Today 14:02", then "Aug 27"; a transaction's detail says
+  "Aug 27, 14:02"; syncing says "Synced 14:32".
+- **Words.** One word for each action and each thing, the same on both shells: a "coin" is an
+  unspent output, what the wallet owns is "this wallet's", "Cancel" only ever cancels a payment.
+  Sentence case, no contractions, "…" and never "...".
+
+- [ ] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
+      why: with every coin frozen, Max said "Need 11 more sat." · done when: a send the wallet
+      chose coins for and could not cover names the frozen total, "Every coin is frozen" when
+      nothing else is left; core and copy tests
+
+- [ ] **7.2 The history reset says frozen coins go with it** · S · `ui/reset.ts`, `gen.py`
+      why: the reset also unfreezes every coin, and its words said only history was deleted ·
+      done when: both shells say so, and the reset tests hold the new words
+
+- [ ] **7.3 One format for ids and addresses** · M · new `ui/format.ts`, both shells
+      why: four ways to shorten an address, and the phone shortened the payee the desktop shows
+      whole · done when: one helper shortens every id, every review and detail shows the
+      address whole, and tests pin both
+
+- [ ] **7.4 One format for amounts, rates and sizes** · M · `ui/dom.ts`, `ui/format.ts`, both
+      shells · done when: every amount with a unit goes through one helper, rates have one
+      decimal everywhere, "sats" is gone, and tests pin the formats
+
+- [ ] **7.5 One way to say pending, confirmations and time** · M · both shells
+      why: pending was grey on one shell and amber on the other, one screen took 0 confirmations
+      for pending, and three helpers formatted dates · done when: one helper each, and tests
+
+- [ ] **7.6 One word for each action** · M · both shells
+      why: "Confirm & broadcast" and "Confirm and send", "Edit" and "Cancel", "Use a different
+      key" and "Use a different wallet", and more · done when: each action has one label on
+      both shells and the screen tests use it
+
+- [ ] **7.7 One name for each thing** · M · both shells
+      why: "output" and "coin", "your wallet" and "this wallet", "Txid" and "Transaction id",
+      four passphrase warnings (none on phone Create), "can't" and "cannot" · done when: each
+      thing has one name on both shells, and the screen tests use it
+
 ## Later — not picked
 
 Listed, not scheduled; each goes to the design canvas first unless marked otherwise.
@@ -1094,6 +1151,9 @@ Listed, not scheduled; each goes to the design canvas first unless marked otherw
 - 2026-09-30 — Several recipients on the phone share one amount unit, and a scan fills the
   last empty row (6.9).
 - 2026-09-30 — Rescan and Public keys move from the desktop Wallet page to Settings (6.8).
+- 2026-09-30 — The app password has no minimum length: the owner's call. SECURITY.md already
+  says a short one can be guessed offline by anyone with the browser's files (6.12).
+- 2026-09-30 — The display text follows one standard on both shells (Round 7).
 
 ## Not doing
 
