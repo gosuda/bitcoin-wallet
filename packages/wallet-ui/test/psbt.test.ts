@@ -490,6 +490,28 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     expect(shell.said(screen)).toEqual(shell.drawnUnsigned);
   });
 
+  it("keeps what was typed while Paste was still reading the clipboard", async () => {
+    fake.state.psbtReview = UNSIGNED;
+    const screen = await shell.open();
+    let answer = (_text: string): void => {};
+    setPlatform({
+      ...platform(),
+      readClipboard: () =>
+        new Promise<string>((resolve) => {
+          answer = resolve;
+        }),
+    });
+
+    buttonNamed(screen, "Paste").click();
+    await paste(screen, UNSIGNED.psbt_base64);
+    answer(SHARED.psbt_base64);
+    await settle();
+
+    expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
+    expect(fake.calls).not.toContainEqual(["import_psbt", SHARED.psbt_base64]);
+    expect(shell.said(screen)).toEqual(shell.drawnUnsigned);
+  });
+
   it("Paste says an empty clipboard is empty, and keeps what is in the field", async () => {
     fake.state.psbtReview = UNSIGNED;
     const screen = await shell.open();
@@ -555,6 +577,27 @@ describe("Import PSBT on the desktop (7)", () => {
     expect(fake.calls).toContainEqual(["import_psbt", base64]);
     expect(field(screen).value).toBe(base64);
     expect(DESKTOP.said(screen)).toEqual(DESKTOP.drawnUnsigned);
+  });
+
+  it("keeps what was typed while a chosen file was still being read", async () => {
+    fake.state.psbtReview = UNSIGNED;
+    const screen = await DESKTOP.open();
+    let answer = (_bytes: ArrayBuffer): void => {};
+    const slow = new File([SHARED.psbt_base64], "shared.txt");
+    Object.defineProperty(slow, "arrayBuffer", {
+      value: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          answer = resolve;
+        }),
+    });
+
+    choose(screen, slow);
+    await paste(screen, UNSIGNED.psbt_base64);
+    answer(new TextEncoder().encode(SHARED.psbt_base64).buffer as ArrayBuffer);
+    await settle();
+
+    expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
+    expect(fake.calls).not.toContainEqual(["import_psbt", SHARED.psbt_base64]);
   });
 
   it("reads any other file as its text, trimmed: base64, or hex", async () => {

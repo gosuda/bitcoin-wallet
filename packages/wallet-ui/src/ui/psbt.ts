@@ -165,9 +165,10 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
   /** The text last handed to the core; an edit that leaves it as it was reads nothing again. */
   let read = "";
   /**
-   * Bumped by every read and every signing. An answer lands only while its
-   * number is still the newest: one for text since replaced, or a signing the
-   * text moved on from, is dropped when it arrives.
+   * Bumped by every read, every signing, and every paste or file load. An
+   * answer lands only while its number is still the newest: one for text since
+   * replaced, a signing the text moved on from, or a clipboard or file that
+   * came back after the user typed, is dropped when it arrives.
    */
   let seq = 0;
 
@@ -218,8 +219,10 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
 
     async paste() {
       alert.hide();
+      const mine = ++seq;
       const got = await readClipboard();
-      if (!onScreen()) return;
+      // Typed over, or loaded, while the clipboard was read: the newer stands.
+      if (mine !== seq || !onScreen()) return;
       if (!("text" in got)) {
         alert.show("warn", got.refused ? PASTE_REFUSED : PASTE_UNAVAILABLE);
         return;
@@ -234,14 +237,18 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
 
     async load(file) {
       alert.hide();
+      const mine = ++seq;
       let bytes: Uint8Array;
       try {
         bytes = new Uint8Array(await file.arrayBuffer());
       } catch (e) {
-        if (onScreen()) alert.show("error", `The file could not be read: ${errorMessage(e)}`);
+        if (mine === seq && onScreen()) {
+          alert.show("error", `The file could not be read: ${errorMessage(e)}`);
+        }
         return;
       }
-      if (onScreen()) await fill(psbtFromFile(bytes));
+      // As with Paste: whatever reached the field while the file was read stands.
+      if (mine === seq && onScreen()) await fill(psbtFromFile(bytes));
     },
 
     async scanned(text) {
