@@ -33,7 +33,7 @@ import {
   withBusy,
 } from "../ui/dom";
 import { feeLine, typeableRate } from "../ui/format";
-import { FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
+import { ESTIMATE_UNAVAILABLE_TYPE, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
 
 interface RecipientRow {
   node: HTMLElement;
@@ -153,7 +153,7 @@ export function renderSend(): HTMLElement {
     if (!estimate) return;
     const rate = rateForTarget(estimate, Number(targetBlocks));
     if (rate === null) {
-      feeHint.textContent = "No estimate available; enter a rate.";
+      feeHint.textContent = ESTIMATE_UNAVAILABLE_TYPE;
       renderFeeError();
       updateReview();
       return;
@@ -175,7 +175,7 @@ export function renderSend(): HTMLElement {
       if (!onScreen() || rateTouched) return;
       applyEstimate();
     } catch (_e) {
-      if (onScreen()) feeHint.textContent = `Estimate unavailable — enter a rate · ${FLOOR_NOTE}`;
+      if (onScreen()) feeHint.textContent = ESTIMATE_UNAVAILABLE_TYPE;
     }
   };
 

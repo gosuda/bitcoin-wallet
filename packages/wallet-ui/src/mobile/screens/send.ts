@@ -23,7 +23,7 @@ import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui
 import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
 import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
-import { FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
+import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
 import {
   body,
   button,
@@ -260,11 +260,13 @@ export function renderSend(): HTMLElement {
         // Rounded and floored as the desktop's field is: the raw estimate can be
         // below the 1 sat/vB the core builds at, and the note would name a rate
         // the transaction does not pay.
-        rate = typeableRate(rateForTarget(estimate, Number(choice)) ?? 1);
-        rateNote.textContent = formatRate(rate);
+        const market = rateForTarget(estimate, Number(choice));
+        rate = typeableRate(market ?? 1);
+        // An estimate with no rate in it is none: say so, as the desktop does.
+        rateNote.textContent = market === null ? estimateUnavailable(rate) : formatRate(rate);
       } catch (_e) {
         if (fee.value() !== choice || !onScreen()) return;
-        rateNote.textContent = `Estimate unavailable — starting at ${formatRate(1)}`;
+        rateNote.textContent = estimateUnavailable(1);
         rate = 1;
       }
     }

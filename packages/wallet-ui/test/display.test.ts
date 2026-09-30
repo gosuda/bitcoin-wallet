@@ -23,6 +23,7 @@ import { renderCreate } from "../src/screens/create";
 import { renderDashboard } from "../src/screens/dashboard";
 import { renderRestore } from "../src/screens/restore";
 import { renderResult } from "../src/screens/result";
+import { renderSend } from "../src/screens/send";
 import { renderSettings } from "../src/screens/settings";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
@@ -171,6 +172,23 @@ describe("amounts and rates (7.4)", () => {
     expect(texts(screen, ".stat-value")).toEqual(["—", "—"]);
     await settle();
     expect(find(screen, ".stat-hero").textContent).not.toBe("—");
+  });
+
+  // Found in review: with no rate in the estimate, the desktop said "No
+  // estimate available" and the phone named 1.0 sat/vB as if estimated.
+  it("says an estimate with no rate is unavailable, alike on both Send screens", async () => {
+    fake.state.estimate = {};
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    const desktop = mount(renderSend());
+    await settle();
+    expect(find(desktop, ".fee-source").textContent).toBe(
+      "Estimate unavailable — enter a rate · floor 1.0 sat/vB",
+    );
+
+    const phone = mount(renderPhoneSend());
+    await settle();
+    expect(texts(phone, ".m-txmeta")).toContain("Estimate unavailable — starting at 1.0 sat/vB");
   });
 
   it("writes the phone's history amounts with their unit", async () => {

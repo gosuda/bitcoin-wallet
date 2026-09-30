@@ -5,7 +5,7 @@
  */
 
 import type { WalletInfo } from "../types";
-import { formatNumber, formatSats } from "./format";
+import { formatNumber, formatRate, formatSats } from "./format";
 
 /** The Sent screen's first line, and the one after it. */
 export const SENT_TITLE = "Transaction broadcast";
@@ -42,8 +42,19 @@ export function maxModeNote(everything: number, fee: number): string {
   return `Everything: ${formatSats(everything)} minus the ${formatSats(fee)} fee. Edit the amount to leave Max; Max needs a single recipient.`;
 }
 
-/** The fee floor, as every fee field's note says it. */
-export const FLOOR_NOTE = "floor 1 sat/vB";
+/** The fee floor, as every fee field's note says it, with its one decimal. */
+export const FLOOR_NOTE = `floor ${formatRate(1)}`;
+
+/**
+ * When no estimate came back, or one with no rate at all. The desktop's Send
+ * prefills a field the user can type in; everywhere else a preset starts
+ * from a rate of its own, which the note names.
+ */
+export const ESTIMATE_UNAVAILABLE_TYPE = `Estimate unavailable — enter a rate · ${FLOOR_NOTE}`;
+
+export function estimateUnavailable(startRate: number): string {
+  return `Estimate unavailable — starting at ${formatRate(startRate)}`;
+}
 
 /** While a fee estimate is on its way, on every screen that asks for one. */
 export const FETCHING_ESTIMATE = "Fetching the fee estimate…";

@@ -27,7 +27,7 @@ import {
   outputRole,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
-import { FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
+import { estimateUnavailable, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
 import {
   body,
   button,
@@ -273,7 +273,7 @@ export function renderTransaction(): HTMLElement {
       } catch {
         // Name the rate actually prefilled: with the original's rate known,
         // the floor is above 1 sat/vB and saying otherwise misreports the field.
-        text = `Estimate unavailable — starting at ${formatRate(suggested)}`;
+        text = estimateUnavailable(suggested);
       }
       // The note is information either way, but the field belongs to whoever
       // typed in it: an estimate arriving after that is stale advice, not a
@@ -459,7 +459,7 @@ export function renderTransaction(): HTMLElement {
         rate = suggestPackageRate(estimate, blocks, parentRate);
         shown = formatRate(rate);
         if (estimate === null) {
-          note.textContent = `Estimate unavailable — starting at ${shown}`;
+          note.textContent = estimateUnavailable(rate);
         } else if (rate > suggestPackageRate(estimate, blocks)) {
           // The estimate alone would offer a rate the transaction pays already.
           note.textContent = `Raised above the ${formatRate(parentRate ?? 0)} it pays alone`;
