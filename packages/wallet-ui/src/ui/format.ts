@@ -92,6 +92,11 @@ export function typeableRate(rateSatPerVb: number): number {
  */
 const NBSP = "\u00a0";
 
+/** A count and what it counts, grouped as the device groups numbers: "1 input", "1,204 inputs". */
+export function counted(count: number, word: string): string {
+  return `${formatNumber(count)} ${word}${count === 1 ? "" : "s"}`;
+}
+
 /** A transaction's size in virtual bytes: "141 vB". */
 export function formatVsize(vbytes: number): string {
   return `${formatNumber(vbytes)} vB`;

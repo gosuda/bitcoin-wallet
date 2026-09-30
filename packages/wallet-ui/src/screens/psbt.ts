@@ -2,7 +2,7 @@ import { navigate } from "../router";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
-import { formatRate, formatVsize, outputRole, shortOutpoint } from "../ui/format";
+import { counted, formatRate, formatVsize, outputRole, shortOutpoint } from "../ui/format";
 import { feeRate, psbtFlow, signedLine } from "../ui/psbt";
 import { PSBT_LEDE, whoseInputs } from "../ui/text";
 
@@ -19,10 +19,6 @@ function ioRow(what: string, where: Cell, whose: Cell, value: string): HTMLTable
     el("td", { className: "psbt-whose" }, [whose]),
     el("td", { className: "num mono", text: value }),
   ]);
-}
-
-function counted(count: number, word: string): string {
-  return `${formatNumber(count)} ${word}${count === 1 ? "" : "s"}`;
 }
 
 /**
