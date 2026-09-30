@@ -95,8 +95,8 @@ export function renderWallet(): HTMLElement {
           // The list is capped, so the count has to say which number it is.
           text:
             txs.length > shown
-              ? `${shown} of ${txs.length} · newest first`
-              : `${txs.length} · newest first`,
+              ? `${formatNumber(shown)} of ${formatNumber(txs.length)} · newest first`
+              : `${formatNumber(txs.length)} · newest first`,
         }),
       ]),
       ...(txs.length === 0
@@ -105,7 +105,7 @@ export function renderWallet(): HTMLElement {
       ...(txs.length > shown
         ? [
             button(
-              `Show all ${txs.length}`,
+              `Show all ${formatNumber(txs.length)}`,
               () => {
                 shown = txs.length;
                 paintTxs(txs);

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  counted,
   feeLine,
   formatConf,
   formatConfirmations,
@@ -169,5 +170,13 @@ describe("typeableRate", () => {
     expect(typeableRate(0.1)).toBe(1);
     expect(typeableRate(2.01)).toBe(2.1);
     expect(typeableRate(3)).toBe(3);
+  });
+});
+
+// Found in review: counts beside grouped amounts were not grouped.
+describe("counted", () => {
+  it("groups a count as the device does, and names what it counts", () => {
+    expect(counted(1, "input")).toBe("1 input");
+    expect(counted(1_234, "input")).toBe(`${(1_234).toLocaleString()} inputs`);
   });
 });

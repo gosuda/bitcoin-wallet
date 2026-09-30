@@ -52,7 +52,15 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
-import { feeLine, formatRate, formatTime, formatWhen, shortId, shortOutpoint } from "../ui/format";
+import {
+  counted,
+  feeLine,
+  formatRate,
+  formatTime,
+  formatWhen,
+  shortId,
+  shortOutpoint,
+} from "../ui/format";
 import { icon } from "../ui/icons";
 import { explorerFailed, FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, whoseInputs } from "../ui/text";
 
@@ -633,10 +641,7 @@ export function renderDashboard(): HTMLElement {
     const rows: [string, Node | string][] = [
       ["Transaction id", mono(d.txid, "small")],
       ["Fee", feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb)],
-      [
-        "From",
-        `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"} · ${whoseInputs(d.inputs)}`,
-      ],
+      ["From", `${counted(d.inputs.length, "input")} · ${whoseInputs(d.inputs)}`],
       ...d.outputs.map((o): [string, Node] => [
         outputLabel(d, o),
         el("span", { className: "mono" }, [
@@ -736,7 +741,7 @@ export function renderDashboard(): HTMLElement {
     // any preview it held.
     dropPreview();
     open = null;
-    txCount.textContent = `${txs.length} · newest first · click a row for detail`;
+    txCount.textContent = `${formatNumber(txs.length)} · newest first · click a row for detail`;
     txBox.replaceChildren(txTable(txs, openDetail));
   };
 

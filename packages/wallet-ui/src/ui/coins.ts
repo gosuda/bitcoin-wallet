@@ -10,7 +10,7 @@ import { navigate } from "../router";
 import { session } from "../session";
 import type { CoinId, Utxo } from "../types";
 import { el, formatSats } from "./dom";
-import { shortOutpoint } from "./format";
+import { counted, shortOutpoint } from "./format";
 import { icon } from "./icons";
 
 /** What Send offers for handing the choice of coins back to the wallet. */
@@ -33,7 +33,7 @@ export function heldTo(coins: readonly Utxo[] | null): CoinId[] | undefined {
 /** Send's line for a send held to chosen coins. */
 export function payingFrom(coins: readonly Utxo[]): string {
   const n = coins.length;
-  return `Paying from ${n} chosen coin${n === 1 ? "" : "s"} · ${formatSats(coinsValue(coins))}`;
+  return `Paying from ${counted(n, "chosen coin")} · ${formatSats(coinsValue(coins))}`;
 }
 
 /** Send selected: opens Send held to `coins`. */
