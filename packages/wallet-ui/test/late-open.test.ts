@@ -97,7 +97,7 @@ const OPENERS: readonly Opener[] = [
   {
     name: "phone Restore, recovery phrase",
     route: "restore",
-    press: "Restore",
+    press: "Restore wallet",
     hold: readingBack,
     render: async () => {
       setRestoreMode("phrase");

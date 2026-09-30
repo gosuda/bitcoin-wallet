@@ -33,7 +33,7 @@ describe("Settings on the desktop (6.8)", () => {
     }
     expect(buttonsNamed(screen, "Change…")).toHaveLength(3);
     expect(buttonNamed(screen, "Rescan")).toBeTruthy();
-    expect(buttonNamed(screen, "Export xpub and descriptors")).toBeTruthy();
+    expect(buttonNamed(screen, "Export public keys")).toBeTruthy();
     expect(buttonNamed(screen, "Close wallet")).toBeTruthy();
     // Nothing is remembered on this device, so there is nothing to forget.
     expect(buttonsNamed(screen, "Forget this wallet")).toHaveLength(0);
@@ -66,7 +66,7 @@ describe("Settings on the desktop (6.8)", () => {
     buttonsNamed(screen, "Change…")[1]?.click();
     expect(screen.textContent).toContain("Changing the server closes this wallet.");
 
-    buttonNamed(screen, "Cancel").click();
+    buttonNamed(screen, "Keep it").click();
 
     expect(screen.textContent).not.toContain("closes this wallet.");
     expect(session.wallet).not.toBeNull();
@@ -86,7 +86,7 @@ describe("Settings on the desktop (6.8)", () => {
     const screen = await openSettings();
     expect(screen.textContent).not.toContain("wpkh(fake/0/*)");
 
-    buttonNamed(screen, "Export xpub and descriptors").click();
+    buttonNamed(screen, "Export public keys").click();
     await settle();
 
     expect(screen.textContent).toContain("wpkh(fake/0/*)");

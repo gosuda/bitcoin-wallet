@@ -15,6 +15,7 @@ import { shortId } from "../ui/format";
 import { icon } from "../ui/icons";
 import { appPasswordField, KEYCHAIN_NAME } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import { forgetWarning } from "../ui/text";
 
 export function renderUnlock(): HTMLElement {
   const cfg = session.config;
@@ -89,11 +90,14 @@ export function renderUnlock(): HTMLElement {
   };
   const forgetBtn = button("Forget this wallet", () => showConfirm(), "quiet");
   forgetBtn.classList.add("btn-quiet-danger");
+  // The second step Settings has, in the same words: what is deleted and
+  // what brings the wallet back, then Keep it or Delete it.
+  const confirmSlot = el("div", { className: "slot" });
   const showConfirm = () => {
-    const yesBtn = button(
-      "Yes, forget",
+    const yes = button(
+      "Delete it",
       () =>
-        withBusy(yesBtn, async () => {
+        withBusy(yes, async () => {
           alert.hide();
           try {
             await api.forgetWallet();
@@ -101,20 +105,21 @@ export function renderUnlock(): HTMLElement {
             navigate("key");
           } catch (e) {
             alert.show("error", errorMessage(e));
-            showTrigger();
+            confirmSlot.replaceChildren();
           }
         }),
       "danger",
-      "sm",
     );
-    forgetSlot.replaceChildren(
-      el("span", { className: "confirm-inline", attrs: { role: "group" } }, [
-        "Really forget? ",
-        yesBtn,
-        button("Cancel", showTrigger, "quiet", "sm"),
+    confirmSlot.replaceChildren(
+      el("section", { className: "card danger-card" }, [
+        el("span", { className: "muted", text: forgetWarning(null) }),
+        el("div", { className: "actions actions-end" }, [
+          button("Keep it", () => confirmSlot.replaceChildren(), "quiet"),
+          yes,
+        ]),
       ]),
     );
-    yesBtn.focus();
+    yes.focus();
   };
   showTrigger();
 
@@ -155,9 +160,10 @@ export function renderUnlock(): HTMLElement {
       password?.node,
       el("div", { className: "actions" }, [
         unlockBtn,
-        button("Use a different key", () => navigate("key")),
+        button("Use a different wallet", () => navigate("key")),
         forgetSlot,
       ]),
+      confirmSlot,
       password
         ? el("span", {
             className: "hint",

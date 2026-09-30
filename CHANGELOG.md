@@ -55,6 +55,10 @@ pull requests a change arrived in.
 - Both shells say "Pending" alike and in the same colour, count confirmations alike, and
   write times alike: "12 min ago", "Today 14:02", then the date. Syncing reads "Synced
   14:32" on both. (#40)
+- Each action has one label on both shells, and "Cancel" only ever cancels a payment:
+  "Confirm and send", "Edit" to leave a review, "Use a different wallet", "Copy
+  transaction id". Forget on the desktop's Unlock warns what it deletes, as Settings does,
+  and the Sent screen says the same on both. (#40)
 
 ### Fixed
 

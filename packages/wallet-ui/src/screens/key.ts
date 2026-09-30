@@ -138,10 +138,10 @@ export function renderKey(): HTMLElement {
 
   // Every type this screen can be reached with has an account layout: a config
   // naming P2PK, which has none, is sent back to Setup by the route guard.
-  const newWalletBtn = button("New wallet", () => navigate("create"), "primary", "md", {
+  const newWalletBtn = button("Create new wallet", () => navigate("create"), "primary", "md", {
     name: "plus",
   });
-  const restoreBtn = button("Restore wallet", () => navigate("restore"), "default", "md", {
+  const restoreBtn = button("Restore from phrase", () => navigate("restore"), "default", "md", {
     name: "key",
   });
 

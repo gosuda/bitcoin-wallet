@@ -152,7 +152,10 @@ function phrase(): HTMLElement {
       if (onScreen()) offer.report(e, () => restore(true));
     }
   };
-  const go = button("Restore", () => withBusy(go, restore), { variant: "primary", block: true });
+  const go = button("Restore wallet", () => withBusy(go, restore), {
+    variant: "primary",
+    block: true,
+  });
 
   return el("main", {}, [
     header("Restore wallet", { back: "key" }),
@@ -200,7 +203,7 @@ function singleKey(): HTMLElement {
   };
   const go = button("Open wallet", () => withBusy(go, open), { variant: "primary", block: true });
 
-  const generate = button("Generate a new key", async () => {
+  const generate = button("Generate new key", async () => {
     alert.hide();
     const cfg = session.config;
     if (!cfg) return navigate("setup");

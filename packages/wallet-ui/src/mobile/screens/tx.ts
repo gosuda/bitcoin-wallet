@@ -188,7 +188,7 @@ export function renderTransaction(): HTMLElement {
     // ever explains itself is worse than no button.
     const explorer = explorerUrl
       ? button(
-          "Explorer",
+          "Open in explorer",
           async () => {
             alert.hide();
             try {
@@ -204,7 +204,7 @@ export function renderTransaction(): HTMLElement {
       sectionLabel("Transaction id"),
       el("span", { className: "m-mono-block", text: d.txid }),
       row(
-        copyButton(() => d.txid),
+        copyButton(() => d.txid, "Copy transaction id"),
         explorer,
       ),
     );
@@ -249,14 +249,9 @@ export function renderTransaction(): HTMLElement {
         }),
       { variant: "primary", block: true },
     );
-    const relabel = () => {
-      const label = bump.querySelector("span");
-      if (label) label.textContent = `Bump to ${rate.value} sat/vB`;
-    };
     let rateTouched = false;
     rate.addEventListener("input", () => {
       rateTouched = true;
-      relabel();
     });
     void (async () => {
       let suggested = suggestBumpRate(null, originalRate);
@@ -276,7 +271,6 @@ export function renderTransaction(): HTMLElement {
       note.textContent = text;
       if (rateTouched) return;
       rate.value = String(suggested);
-      relabel();
     })();
     const sheet = card(
       el("div", { className: "m-bump-head" }, [sectionLabel("Bump fee"), note]),
@@ -398,7 +392,7 @@ export function renderTransaction(): HTMLElement {
     custom.max = String(MAX_FEE_RATE_SAT_VB);
     custom.step = "0.1";
     custom.setAttribute("inputmode", "decimal");
-    custom.setAttribute("aria-label", "Rate for both, in sat/vB");
+    custom.setAttribute("aria-label", "Rate for the two together, in sat/vB");
     const customRow = el("div", { className: "m-rate-row" }, [
       custom,
       el("span", { className: "m-rate-unit", text: "sat/vB" }),
@@ -462,7 +456,7 @@ export function renderTransaction(): HTMLElement {
           note.textContent = `${blocks}-block estimate ${shown}`;
         }
       }
-      pays.textContent = `${shown} for both`;
+      pays.textContent = `${shown} for the two together`;
       fee.textContent = "…";
       keep.textContent = "…";
       const at = rate;

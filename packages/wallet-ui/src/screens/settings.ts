@@ -29,6 +29,7 @@ import {
 } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
+import { forgetWarning } from "../ui/text";
 
 /** A setting: what it is, what it is set to, and what can be done about it. */
 function settingRow(label: string, value: Node | string, action?: HTMLElement): HTMLElement {
@@ -94,7 +95,7 @@ export function renderSettings(): HTMLElement {
           text: `Changing the ${what} closes this wallet. You will open it again from Setup.`,
         }),
         el("div", { className: "actions actions-end" }, [
-          button("Cancel", () => changeSlot.replaceChildren(), "quiet"),
+          button("Keep it", () => changeSlot.replaceChildren(), "quiet"),
           go,
         ]),
       ]),
@@ -197,7 +198,7 @@ export function renderSettings(): HTMLElement {
         },
       },
     },
-    ["Export xpub and descriptors", icon("arrow", 14)],
+    ["Export public keys", icon("arrow", 14)],
   );
   keysSlot.appendChild(showKeys);
 
@@ -232,7 +233,7 @@ export function renderSettings(): HTMLElement {
       el("section", { className: "card danger-card" }, [
         el("span", {
           className: "muted",
-          text: "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.",
+          text: forgetWarning(wallet),
         }),
         el("div", { className: "actions actions-end" }, [
           button("Keep it", () => forgetSlot.replaceChildren(), "quiet"),

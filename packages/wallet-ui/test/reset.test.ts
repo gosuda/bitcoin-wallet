@@ -133,7 +133,7 @@ const OPENERS: readonly Opener[] = [
     name: "phone Restore, recovery phrase",
     route: "restore",
     remembered: false,
-    press: "Restore",
+    press: "Restore wallet",
     render: async () => {
       setRestoreMode("phrase");
       const screen = mount(renderPhoneRestore());

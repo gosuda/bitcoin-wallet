@@ -339,7 +339,7 @@ describe("Unlock in the browser asks for the app password (6.12)", () => {
     const screen = mount(renderUnlock());
 
     buttonNamed(screen, "Forget this wallet").click();
-    buttonNamed(screen, "Yes, forget").click();
+    buttonNamed(screen, "Delete it").click();
     await landsOn("key");
 
     expect(browser.records.size).toBe(0);

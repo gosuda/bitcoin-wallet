@@ -157,7 +157,7 @@ export function renderPsbt(): HTMLElement {
       reticle(),
       lede("Point the camera at a PSBT that fits one QR code."),
     ]),
-    button("Cancel", () => stopScan?.(), { block: true }),
+    button("Stop scanning", () => stopScan?.(), { block: true }),
   );
 
   const scanIn = async (): Promise<void> => {

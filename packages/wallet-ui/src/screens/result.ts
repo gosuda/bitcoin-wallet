@@ -5,6 +5,7 @@ import { errorMessage } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, readout, sectionLabel, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
+import { SENT_LINE, SENT_TITLE, sentNotSaved } from "../ui/text";
 
 export function renderResult(): HTMLElement {
   const result = session.lastResult;
@@ -15,10 +16,7 @@ export function renderResult(): HTMLElement {
 
   const alert = banner();
   if (result.persist_error) {
-    alert.show(
-      "warn",
-      `Broadcast succeeded, but local wallet state was not saved (${result.persist_error}). It will reconcile on the next sync.`,
-    );
+    alert.show("warn", sentNotSaved(result.persist_error));
   }
 
   // Regtest has no public explorer: no link rather than a dead one.
@@ -48,15 +46,15 @@ export function renderResult(): HTMLElement {
       el("div", { className: "result-head" }, [
         el("span", { className: "check-circle" }, [icon("check", 18)]),
         el("div", { className: "stack-2" }, [
-          el("span", { className: "result-title", text: "Transaction broadcast" }),
-          el("span", { className: "hint", text: "It will show as pending until it confirms." }),
+          el("span", { className: "result-title", text: SENT_TITLE }),
+          el("span", { className: "hint", text: SENT_LINE }),
         ]),
       ]),
       el("div", { className: "stack-6" }, [
         sectionLabel("Transaction id"),
         el("div", { className: "address-row" }, [
           readout(result.txid, "readout-sm"),
-          copyButton(() => result.txid),
+          copyButton(() => result.txid, "Copy transaction id"),
         ]),
         explorer ? el("span", { className: "hint mono break", text: explorer }) : null,
       ]),

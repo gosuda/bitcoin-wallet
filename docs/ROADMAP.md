@@ -1139,10 +1139,24 @@ clearer or safer variant was taken.
       gone. `format.test.ts` pins the words and times against a fixed now; `display.test.ts`
       renders both shells for Pending and for the sync time
 
-- [ ] **7.6 One word for each action** · M · both shells
+- [x] **7.6 One word for each action** · M · both shells
       why: "Confirm & broadcast" and "Confirm and send", "Edit" and "Cancel", "Use a different
-      key" and "Use a different wallet", and more · done when: each action has one label on
-      both shells and the screen tests use it
+      key" and "Use a different wallet", and more · done: 2026-09-30 — one label for each
+      action on both shells: "Confirm and send" where the desktop said "Confirm & broadcast";
+      "Edit" leaves a review, where the phone said "Cancel"; "Back" leaves the desktop's Send,
+      "Keep it" calls off a chain change in both Settings, and "Stop scanning" closes the
+      phone's camera, so "Cancel" only ever cancels a payment. "Use a different wallet" on both
+      Unlock screens, whose Forget now asks as Settings does, a warning then Keep it or Delete
+      it, where the desktop asked "Really forget?" with no warning. Both Sent screens say
+      "Transaction broadcast" and "The network has it. It shows as Pending until it is in a
+      block.", and one notice for a send this device could not save. "Copy transaction id" and
+      "Open in explorer" everywhere; "Bump fee" on both, the phone's button no longer renaming
+      itself; "for the two together" for Speed up; "Amount" and "Total" in both reviews; one
+      Max note; "Create new wallet", "Restore from phrase", "Restore wallet", "Generate new
+      key", "Request an amount" and "Export public keys" on both. `ui/text.ts` holds the
+      sentences both shells share: the Sent lines, Forget's warning for each kind of wallet,
+      and the Max note. `text.test.ts` pins them; `display.test.ts` renders both Unlock and
+      both Sent screens; the screen tests use the new labels
 
 - [ ] **7.7 One name for each thing** · M · both shells
       why: "output" and "coin", "your wallet" and "this wallet", "Txid" and "Transaction id",

@@ -7,6 +7,7 @@ import { ADDRESS_TYPE_LABELS, errorMessage, NETWORK_LABELS } from "../../types";
 import { banner, el } from "../../ui/dom";
 import { shortId } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { forgetWarning } from "../../ui/text";
 import { body, button, confirmDanger, header, historyReset, spacer, withBusy } from "../ui";
 
 export function renderUnlock(): HTMLElement {
@@ -54,7 +55,7 @@ export function renderUnlock(): HTMLElement {
     // this is, so it names every way back rather than promising a recovery
     // phrase a single-key or watch-only wallet never had. A passphrase and a
     // bare xpub are two of those ways, and the app offers both.
-    text: "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.",
+    text: forgetWarning(null),
     confirm: "Delete it",
     onConfirm: async () => {
       alert.hide();

@@ -94,11 +94,11 @@ function buttons(root: ParentNode, name: string | RegExp): HTMLButtonElement[] {
   });
 }
 
-/** Which of the three actions the screen offers. The phone names its bump by its rate. */
+/** Which of the three actions the screen offers, named as both shells name them. */
 function offered(screen: HTMLElement): string[] {
   return [
     buttons(screen, "Speed up").length > 0 ? "Speed up" : null,
-    buttons(screen, /^Bump (fee|to )/).length > 0 ? "Bump fee" : null,
+    buttons(screen, "Bump fee").length > 0 ? "Bump fee" : null,
     buttons(screen, "Cancel").length > 0 ? "Cancel" : null,
   ].filter((name) => name !== null);
 }
@@ -153,7 +153,7 @@ const PHONE: Shell = {
   speedUpText: () => [
     "1-block estimate 5.0 sat/vB",
     `${n(1_114)} sat`,
-    "5.0 sat/vB for both",
+    "5.0 sat/vB for the two together",
     `${n(28_886)} of ${n(30_000)} sat`,
   ],
 };
@@ -292,7 +292,7 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
 
     buttonNamed(screen, "Cancel").click();
     await settle();
-    expect(buttons(screen, /^Bump to /)).toHaveLength(0);
+    expect(buttons(screen, "Bump fee")).toHaveLength(0);
     const folded = buttons(screen, /Pay more to confirm sooner/);
     expect(folded).toHaveLength(1);
 
@@ -300,7 +300,7 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     await settle();
 
     expect(screen.textContent).not.toContain("back to your wallet");
-    expect(buttons(screen, /^Bump to /)).toHaveLength(1);
+    expect(buttons(screen, "Bump fee")).toHaveLength(1);
     expect(buttonNamed(screen, "Cancel")).toBeTruthy();
     const dropped = await buildCancel.mock.results[0]?.value;
     await expect(api.signAndBroadcast(dropped.psbt_id)).rejects.toMatchObject({
@@ -326,6 +326,6 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     type(rate, "7.5");
     await settle();
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.5]);
-    expect(screen.textContent).toContain("7.5 sat/vB for both");
+    expect(screen.textContent).toContain("7.5 sat/vB for the two together");
   });
 });

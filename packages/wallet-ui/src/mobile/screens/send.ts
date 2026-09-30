@@ -23,6 +23,7 @@ import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui
 import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
 import { feeLine, formatRate, formatSats } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { maxModeNote } from "../../ui/text";
 import {
   body,
   button,
@@ -197,7 +198,7 @@ export function renderSend(): HTMLElement {
       only.amount.value = formatAmount(preview.total_out_sat, currentUnit);
       only.touched.amount = true;
       max.setAttribute("aria-pressed", "true");
-      maxNote.textContent = `Everything: ${formatSats(preview.total_out_sat + preview.fee_sat)} minus the ${formatSats(preview.fee_sat)} fee. Edit the amount to leave Max.`;
+      maxNote.textContent = maxModeNote(preview.total_out_sat + preview.fee_sat, preview.fee_sat);
       refresh();
     } catch (e) {
       alert.show("error", errorMessage(e));
@@ -495,7 +496,7 @@ export function renderSend(): HTMLElement {
       reticle(),
       lede("Point the camera at an address or a bitcoin: QR code."),
     ]),
-    button("Cancel", () => stopScan?.(), { block: true }),
+    button("Stop scanning", () => stopScan?.(), { block: true }),
   );
   const scanNote = lede("Address filled in from a scan.");
 
@@ -658,7 +659,7 @@ export function renderSend(): HTMLElement {
           ])
         : recipientList(to, feeText, total),
       confirm,
-      button("Cancel", clearPreview, { variant: "quiet" }),
+      button("Edit", clearPreview, { variant: "quiet" }),
     );
     sheet.classList.add("m-confirm-neutral");
     reviewHost.replaceChildren(sheet);

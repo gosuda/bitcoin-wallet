@@ -155,7 +155,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(buildTransfer).toHaveBeenCalledTimes(1);
     expect(buildDrain).toHaveBeenCalledTimes(1);
     expect(screen.querySelector(".banner-visible")).toBeNull();
-    expect(buttonNamed(screen, "Confirm & broadcast")).toBeTruthy();
+    expect(buttonNamed(screen, "Confirm and send")).toBeTruthy();
     expect(screen.textContent).toContain((1000).toLocaleString());
   });
 

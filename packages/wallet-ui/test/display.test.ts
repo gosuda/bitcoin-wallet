@@ -9,18 +9,21 @@ vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
 vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
 
 import { api } from "../src/api";
+import { renderResult as renderPhoneResult } from "../src/mobile/screens/result";
 import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
 import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderUnlock as renderPhoneUnlock } from "../src/mobile/screens/unlock";
 import { renderWallet as renderPhoneWallet } from "../src/mobile/screens/wallet";
 import { platform, setPlatform } from "../src/platform";
 import { renderDashboard } from "../src/screens/dashboard";
+import { renderResult } from "../src/screens/result";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
 import type { RememberedWallet, TxDetail } from "../src/types";
 import { formatTime, shortId } from "../src/ui/format";
+import { forgetWarning, SENT_LINE, SENT_TITLE } from "../src/ui/text";
 import { fake } from "./fakes";
-import { at, mount, settle, useScreenHarness } from "./harness";
+import { at, buttonNamed, mount, settle, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -178,5 +181,45 @@ describe("pending, confirmations and time (7.5)", () => {
 
     expect(desktop.textContent).toContain(said);
     expect(phone.textContent).toContain(said);
+  });
+});
+
+describe("one word for each action (7.6)", () => {
+  const saved: RememberedWallet = {
+    wallet_id: "testnet4-p2wpkh-fake",
+    address: fake.ADDRESS,
+    network: "testnet4",
+    address_type: "p2wpkh",
+  };
+
+  // The desktop's Unlock asked "Really forget?" with no warning, and its way
+  // out said "key" where the phone's said "wallet".
+  it("offers the same way out and the same Forget on both Unlock screens", () => {
+    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => saved });
+    session.remembered = saved;
+    at("unlock");
+
+    for (const render of [renderUnlock, renderPhoneUnlock]) {
+      const screen = mount(render());
+      expect(buttonNamed(screen, "Use a different wallet")).toBeTruthy();
+      buttonNamed(screen, "Forget this wallet").click();
+      expect(screen.textContent).toContain(forgetWarning(null));
+      expect(buttonNamed(screen, "Delete it")).toBeTruthy();
+      expect(buttonNamed(screen, "Keep it")).toBeTruthy();
+    }
+    session.remembered = null;
+  });
+
+  it("says the same on both Sent screens", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("result");
+
+    for (const render of [renderResult, renderPhoneResult]) {
+      session.lastResult = { txid: SENT, persist_error: null, explorer_url: null };
+      const screen = mount(render());
+      expect(screen.textContent).toContain(SENT_TITLE);
+      expect(screen.textContent).toContain(SENT_LINE);
+      expect(buttonNamed(screen, "Copy transaction id")).toBeTruthy();
+    }
   });
 });

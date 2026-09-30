@@ -34,6 +34,7 @@ import {
   withBusy,
 } from "../ui/dom";
 import { feeLine } from "../ui/format";
+import { maxModeNote } from "../ui/text";
 
 interface RecipientRow {
   node: HTMLElement;
@@ -282,7 +283,10 @@ export function renderSend(): HTMLElement {
         row.amount.value = formatAmount(preview.total_out_sat, row.unit);
         row.touched.amount = true;
         row.max.classList.add("max-on");
-        row.maxHint.textContent = `Everything: ${formatSats(preview.total_out_sat + preview.fee_sat)} minus the ${formatSats(preview.fee_sat)} fee. Editing the amount leaves Max; Max needs a single recipient.`;
+        row.maxHint.textContent = maxModeNote(
+          preview.total_out_sat + preview.fee_sat,
+          preview.fee_sat,
+        );
         refreshRow(row);
         syncRowChrome();
       } catch (e) {
@@ -488,7 +492,7 @@ export function renderSend(): HTMLElement {
     preview = p;
     previewBox.className = "card review-card";
     const confirmBtn = button(
-      "Confirm & broadcast",
+      "Confirm and send",
       () =>
         withBusy(confirmBtn, async () => {
           alert.hide();
@@ -532,7 +536,7 @@ export function renderSend(): HTMLElement {
     previewBox.replaceChildren(
       sectionLabel("Review"),
       kv([
-        ["Total out", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
+        ["Amount", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
         ["Fee", el("span", { className: "mono", text: feeLine(p.fee_sat, p.vsize) })],
         [
           "Change",
@@ -542,7 +546,7 @@ export function renderSend(): HTMLElement {
           ]),
         ],
         [
-          "Total spent",
+          "Total",
           el("span", { className: "mono strong", text: formatSats(p.total_out_sat + p.fee_sat) }),
         ],
       ]),
@@ -599,7 +603,7 @@ export function renderSend(): HTMLElement {
   };
   window.addEventListener("hashchange", discardOnLeave);
 
-  const cancelBtn = button("Cancel", () => navigate("dashboard"));
+  const cancelBtn = button("Back", () => navigate("dashboard"));
 
   // After `reviewBtn` exists: the first row immediately reports its validity.
   addRow();

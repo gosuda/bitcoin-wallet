@@ -643,7 +643,7 @@ export function renderDashboard(): HTMLElement {
       ]),
     ];
     const actions = el("div", { className: "tx-detail-actions" }, [
-      copyButton(() => d.txid, "Copy txid", "sm"),
+      copyButton(() => d.txid, "Copy transaction id", "sm"),
     ]);
     if (explorer !== null) {
       actions.appendChild(
@@ -937,7 +937,7 @@ export function renderDashboard(): HTMLElement {
           el("div", { className: "field" }, [
             el("label", {
               className: "field-label",
-              text: "Request amount (optional)",
+              text: "Request an amount (optional)",
               attrs: { for: requestAmount.id },
             }),
             el("div", { className: "request-row" }, [requestAmount, units.node, uriNote]),

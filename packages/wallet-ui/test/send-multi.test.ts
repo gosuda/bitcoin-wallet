@@ -230,7 +230,7 @@ describe("several recipients on the phone (6.9)", () => {
     type(nth(amounts(screen), 0), "30000");
 
     await pressScan(screen, 1);
-    buttonNamed(screen, "Cancel").click();
+    buttonNamed(screen, "Stop scanning").click();
     await settle();
 
     expect(lens.scanQr.mock.calls[0]?.[0]?.aborted).toBe(true);
