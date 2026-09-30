@@ -56,7 +56,7 @@
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label">Balance</span>
     <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="hint">Last synced 14:32:07</span>
+      <span class="hint">Synced 14:32</span>
       <span class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"></path><path d="M4 4v4h4"></path><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"></path><path d="M20 20v-4h-4"></path></svg> Sync</span>
       <span class="btn btn-primary">Send <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span>
     </div>
@@ -81,13 +81,13 @@
         <span class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy</span>
         <span class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg> New address</span>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Request amount (optional)</span><div style="display: flex; gap: 4px; align-items: center;"><span class="input mono" style="width: 140px; justify-content: flex-end;">10,000</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span><span class="hint mono" style="margin-left: 8px;">bitcoin:tb1q4xp7va00…?amount=0.0001</span></div><span class="hint">With an amount the QR is a bitcoin: link; without one it is the bare address.</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Request an amount (optional)</span><div style="display: flex; gap: 4px; align-items: center;"><span class="input mono" style="width: 140px; justify-content: flex-end;">10,000</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span><span class="hint mono" style="margin-left: 8px;">bitcoin:tb1q4xp7va00…?amount=0.0001</span></div><span class="hint">With an amount the QR is a bitcoin: link; without one it is the bare address.</span></div>
     </div>
   </div>
 </section>
 <section class="card">
   <div style="display: flex; align-items: center; justify-content: space-between;">
-    <span class="label">Unspent outputs</span>
+    <span class="label">Coins</span>
     <span class="hint">3 outputs</span>
   </div>
   <table>
@@ -101,17 +101,17 @@
     <span class="hint">4 · newest first · click a row for detail</span>
   </div>
   <table>
-    <thead><tr><th style="width: 24px;"></th><th>Txid</th><th class="num">Amount (sat)</th><th class="num">Conf.</th><th class="num">When</th><th class="num" style="width: 24px;"></th></tr></thead>
+    <thead><tr><th style="width: 24px;"></th><th>Transaction id</th><th class="num">Amount (sat)</th><th class="num">Conf.</th><th class="num">When</th><th class="num" style="width: 24px;"></th></tr></thead>
     <tbody><tr><td><span style="display: inline-flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></span></td><td class="mono">e19f4a7d05…b2c8d4a0</td><td class="num mono" style="color: #1A1A1A; font-weight: 500;">−50,141</td><td class="num mono" style="color: #6B6B66;">pending</td><td class="num" style="color: #6B6B66;">2 min ago</td><td class="num"><span style="display: inline-flex; transform: rotate(90deg);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A19F97" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></span></td></tr><tr><td colspan="6" style="padding: 0 8px 12px 32px; white-space: normal; border-bottom: 1px solid #E4E3DF;">
   <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; background: #F4F4F2; border-radius: 4px;">
     <dl class="kv" style="margin: 0;">
-      <dt>Txid</dt><dd class="mono" style="font-size: 12px;">e19f4a7d05c3b8a2f6d1e0c9b7a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b2c8</dd>
+      <dt>Transaction id</dt><dd class="mono" style="font-size: 12px;">e19f4a7d05c3b8a2f6d1e0c9b7a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b2c8</dd>
       <dt>Fee</dt><dd class="mono">141 sat · 1.0 sat/vB · 141 vB</dd>
       <dt>To</dt><dd class="mono">tb1p5n82a6xmp47yhkkc007d… <span style="font-weight: 500;">50,000 sat</span></dd>
       <dt>Change</dt><dd class="mono">tb1q4xp7va00fsud6u5yca6q… <span style="font-weight: 500;">199,859 sat</span> <span class="hint">back to this wallet</span></dd>
     </dl>
     <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy txid</span>
+      <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg> Copy transaction id</span>
       <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"></path><path d="M20 4l-9 9"></path><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"></path></svg> Open in explorer</span>
       <span style="margin-left: auto; display: flex; align-items: center; gap: 8px;"><span class="hint">Bump to</span><span class="input mono" style="width: 56px; min-height: 28px; padding: 4px 8px; font-size: 12px; justify-content: flex-end;">2.4</span><span class="hint">sat/vB</span><span class="btn btn-sm btn-primary"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"></path><path d="M4 4v4h4"></path><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"></path><path d="M20 20v-4h-4"></path></svg> Bump fee</span></span>
     </div>
