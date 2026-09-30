@@ -29,7 +29,13 @@ import {
 } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
-import { copyDescriptorsLabel, forgetWarning, PUBLIC_KEYS_NOTE, RESCAN_HINT } from "../ui/text";
+import {
+  copyDescriptorsLabel,
+  forgetWarning,
+  PSBT_LEDE,
+  PUBLIC_KEYS_NOTE,
+  RESCAN_HINT,
+} from "../ui/text";
 
 /** A setting: what it is, what it is set to, and what can be done about it. */
 function settingRow(label: string, value: Node | string, action?: HTMLElement): HTMLElement {
@@ -318,7 +324,7 @@ export function renderSettings(): HTMLElement {
         sectionLabel("PSBT"),
         el("span", {
           className: "hint",
-          text: "Sign or send a transaction that another wallet or device made.",
+          text: PSBT_LEDE,
         }),
         el("a", { className: "link-button", attrs: { href: "#/psbt" } }, [
           "Import PSBT",

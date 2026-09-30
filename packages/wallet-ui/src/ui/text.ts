@@ -82,6 +82,14 @@ export function forgetWarning(wallet: Pick<WalletInfo, "is_watch_only" | "is_hd"
 export const OPENED_WITH =
   "what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor";
 
+/** What Import PSBT is for: under its heading, and on the desktop Settings card that opens it. */
+export const PSBT_LEDE = "Sign or send a transaction that another wallet or device made.";
+
+/** When the system would not open the block explorer, on every screen that offers it. */
+export function explorerFailed(reason: string): string {
+  return `Could not open the explorer: ${reason}`;
+}
+
 /** Under Setup's heading on both shells. */
 export const SETUP_LEDE =
   "Which chain, and which Esplora server to read it from. Both are kept on this device and can change later.";

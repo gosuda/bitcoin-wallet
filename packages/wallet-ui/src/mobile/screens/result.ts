@@ -5,7 +5,7 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel } from "../../ui/dom";
 import { icon } from "../../ui/icons";
-import { SENT_LINE, SENT_TITLE, sentNotSaved } from "../../ui/text";
+import { explorerFailed, SENT_LINE, SENT_TITLE, sentNotSaved } from "../../ui/text";
 import { body, button, card, header, spacer } from "../ui";
 
 export function renderResult(): HTMLElement {
@@ -54,7 +54,7 @@ export function renderResult(): HTMLElement {
               try {
                 await platform().openUrl(result.explorer_url ?? "");
               } catch (e) {
-                alert.show("warn", errorMessage(e));
+                alert.show("warn", explorerFailed(errorMessage(e)));
               }
             },
             { icon: "external" },

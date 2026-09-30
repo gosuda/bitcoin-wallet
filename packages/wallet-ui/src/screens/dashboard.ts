@@ -54,7 +54,7 @@ import {
 } from "../ui/dom";
 import { feeLine, formatRate, formatTime, formatWhen, shortId, shortOutpoint } from "../ui/format";
 import { icon } from "../ui/icons";
-import { FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, whoseInputs } from "../ui/text";
+import { explorerFailed, FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, whoseInputs } from "../ui/text";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
@@ -656,7 +656,7 @@ export function renderDashboard(): HTMLElement {
           () =>
             void platform()
               .openUrl(explorer)
-              .catch((e: unknown) => alert.show("error", errorMessage(e))),
+              .catch((e: unknown) => alert.show("warn", explorerFailed(errorMessage(e)))),
           "default",
           "sm",
           { name: "external", size: 14 },

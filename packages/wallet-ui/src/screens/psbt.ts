@@ -4,7 +4,7 @@ import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
 import { formatRate, formatVsize, outputRole, shortOutpoint } from "../ui/format";
 import { feeRate, psbtFlow, signedLine } from "../ui/psbt";
-import { whoseInputs } from "../ui/text";
+import { PSBT_LEDE, whoseInputs } from "../ui/text";
 
 /** Beside Sign and Broadcast until the PSBT can go out, as 7 says it. */
 const WAITS = "Broadcast waits until every input is signed and the PSBT is finalized.";
@@ -193,7 +193,7 @@ export function renderPsbt(): HTMLElement {
       el("h1", { text: "Import PSBT" }),
       el("p", {
         className: "muted small",
-        text: "Sign or send a transaction made in another wallet",
+        text: PSBT_LEDE,
       }),
     ]),
     alert.node,
@@ -202,7 +202,7 @@ export function renderPsbt(): HTMLElement {
         el("label", { className: "section-label", text: "PSBT", attrs: { for: field.id } }),
         el("span", {
           className: "hint",
-          text: "Base64. Described as soon as it parses.",
+          text: "Base64 or hex. Described as soon as it parses.",
           attrs: { id: "psbt-hint" },
         }),
       ]),

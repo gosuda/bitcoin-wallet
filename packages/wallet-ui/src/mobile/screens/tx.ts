@@ -27,7 +27,7 @@ import {
   outputRole,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
-import { estimateUnavailable, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
+import { estimateUnavailable, explorerFailed, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
 import {
   body,
   button,
@@ -203,7 +203,7 @@ export function renderTransaction(): HTMLElement {
             try {
               await platform().openUrl(explorerUrl);
             } catch (e) {
-              alert.show("warn", errorMessage(e));
+              alert.show("warn", explorerFailed(errorMessage(e)));
             }
           },
           { icon: "external" },

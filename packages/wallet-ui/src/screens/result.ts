@@ -5,7 +5,7 @@ import { errorMessage } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, readout, sectionLabel, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
-import { SENT_LINE, SENT_TITLE, sentNotSaved } from "../ui/text";
+import { explorerFailed, SENT_LINE, SENT_TITLE, sentNotSaved } from "../ui/text";
 
 export function renderResult(): HTMLElement {
   const result = session.lastResult;
@@ -30,7 +30,7 @@ export function renderResult(): HTMLElement {
             try {
               await platform().openUrl(explorer);
             } catch (e) {
-              alert.show("error", `Could not open ${explorer}: ${errorMessage(e)}`);
+              alert.show("warn", explorerFailed(errorMessage(e)));
             }
           }),
         "primary",
