@@ -1,4 +1,4 @@
-import { formatNumber, formatRate, formatSats } from "./ui/format";
+import { formatNumber, formatRate, formatSats, typeableRate } from "./ui/format";
 
 export const NETWORKS = ["bitcoin", "testnet3", "testnet4", "signet", "regtest"] as const;
 export type Network = (typeof NETWORKS)[number];
@@ -394,8 +394,10 @@ function detailedMessage(value: AppError): string | null {
         ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
         : null;
     case "fee_too_low":
+      // Rounded up, as a fee field is: the core's minimum has three decimals
+      // ("2.004"), and to the nearest tenth it would name a rate refused again.
       if (isFiniteNumber(d?.required_sat_vb)) {
-        return `The fee rate must be at least ${formatRate(d.required_sat_vb)} to replace the original.`;
+        return `The fee rate must be at least ${formatRate(typeableRate(d.required_sat_vb))} to replace the original.`;
       }
       if (isFiniteNumber(d?.required_sat)) {
         return `The fee must be at least ${formatSats(d.required_sat)} to replace the original.`;

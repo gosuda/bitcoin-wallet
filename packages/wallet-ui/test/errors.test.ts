@@ -109,6 +109,14 @@ describe("errorMessage", () => {
     });
     expect(errorMessage(byRate)).toContain("4.5 sat/vB");
 
+    // BDK's floor for a 141 vB send paid at 1 sat/vB: 501 sat/kwu. Rounded
+    // to the nearest tenth it read "2.0", which the core refuses again.
+    const byKwu = new WalletError("fee_too_low", "x", {
+      required_sat_vb: 501 / 250,
+      required_sat: null,
+    });
+    expect(errorMessage(byKwu)).toContain("at least 2.1 sat/vB");
+
     const byAmount = new WalletError("fee_too_low", "x", {
       required_sat_vb: null,
       required_sat: 2000,
