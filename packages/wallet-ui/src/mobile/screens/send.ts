@@ -607,8 +607,11 @@ export function renderSend(): HTMLElement {
         if (to === null) return;
         try {
           const seq = formSeq;
+          // The rate Review names; a Max preview was built at it too, since
+          // changing the rate leaves Max.
+          const at = rate;
           // In Max mode the preview already exists and is exactly the amount shown.
-          const preview = drain ?? (await api.buildTransfer(to, rate, heldTo(coins)));
+          const preview = drain ?? (await api.buildTransfer(to, at, heldTo(coins)));
           if (seq !== formSeq || !onScreen()) {
             // The form changed or the screen went away while this was building.
             // Showing it would offer the previous recipients and amounts;
@@ -616,7 +619,7 @@ export function renderSend(): HTMLElement {
             if (preview !== drain) void api.discardTx(preview.psbt_id);
             return;
           }
-          showPreview(preview, to);
+          showPreview(preview, to, at);
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
         }
@@ -624,7 +627,11 @@ export function renderSend(): HTMLElement {
     { variant: "primary", block: true },
   );
 
-  function showPreview(preview: TxPreview, to: readonly Recipient[]): void {
+  /**
+   * `rate` is the one it was built at, which Review names: BDK charges by
+   * weight, and the fee over the rounded-up size reads a tenth under it.
+   */
+  function showPreview(preview: TxPreview, to: readonly Recipient[], rate: number): void {
     pendingPreview = preview;
     const confirm = button(
       "Confirm and send",
@@ -649,7 +656,7 @@ export function renderSend(): HTMLElement {
     );
 
     const total = preview.total_out_sat + preview.fee_sat;
-    const feeText = feeLine(preview.fee_sat, preview.vsize);
+    const feeText = feeLine(preview.fee_sat, preview.vsize, rate);
     const sheet = card(
       sectionLabel("Review"),
       to.length === 1

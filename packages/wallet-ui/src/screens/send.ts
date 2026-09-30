@@ -489,7 +489,11 @@ export function renderSend(): HTMLElement {
     updateReview();
   };
 
-  const showPreview = (p: TxPreview) => {
+  /**
+   * `rate` is the one it was built at, which Review names: BDK charges by
+   * weight, and the fee over the rounded-up size reads a tenth under it.
+   */
+  const showPreview = (p: TxPreview, rate: number) => {
     preview = p;
     previewBox.className = "card review-card";
     const confirmBtn = button(
@@ -538,7 +542,7 @@ export function renderSend(): HTMLElement {
       sectionLabel("Review"),
       kv([
         ["Amount", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
-        ["Fee", el("span", { className: "mono", text: feeLine(p.fee_sat, p.vsize) })],
+        ["Fee", el("span", { className: "mono", text: feeLine(p.fee_sat, p.vsize, rate) })],
         [
           "Change",
           el("span", { className: "mono" }, [
@@ -585,7 +589,7 @@ export function renderSend(): HTMLElement {
             return;
           }
           setFormLocked(true);
-          showPreview(p);
+          showPreview(p, rate);
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
         }
