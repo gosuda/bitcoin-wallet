@@ -98,6 +98,17 @@ describe("guardRoute", () => {
     expect(guardRoute("settings", configured, shell)).toBe("setup");
   });
 
+  // A watch-only wallet signs nothing, but can send what was signed elsewhere.
+  it.each(SHELLS)(
+    "opens Import PSBT with a wallet, watch-only too, never without (%s)",
+    (shell) => {
+      expect(guardRoute("psbt", open, shell)).toBe("psbt");
+      expect(guardRoute("psbt", watching, shell)).toBe("psbt");
+      expect(guardRoute("psbt", configured, shell)).toBe("setup");
+      expect(guardRoute("psbt", fresh, shell)).toBe("setup");
+    },
+  );
+
   it.each(SHELLS)("never offers Send to a wallet that only watches (%s)", (shell) => {
     expect(guardRoute("send", open, shell)).toBe("send");
     expect(guardRoute("send", watching, shell)).toBe("dashboard");

@@ -308,6 +308,17 @@ export function renderSettings(): HTMLElement {
         }),
         keysSlot,
       ]),
+      el("section", { className: "card" }, [
+        sectionLabel("PSBT"),
+        el("span", {
+          className: "hint",
+          text: "Sign or send a transaction that another wallet or device made.",
+        }),
+        el("a", { className: "link-button", attrs: { href: "#/psbt" } }, [
+          "Import PSBT",
+          icon("arrow", 14),
+        ]),
+      ]),
     ]),
     el("div", { className: "actions actions-split" }, [closeBtn, forgetBtn]),
     forgetSlot,

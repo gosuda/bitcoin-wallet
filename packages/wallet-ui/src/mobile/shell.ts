@@ -19,6 +19,7 @@ import { renderCoins } from "./screens/coins";
 import { renderCreate } from "./screens/create";
 import { renderExport } from "./screens/export";
 import { renderKey } from "./screens/key";
+import { renderPsbt } from "./screens/psbt";
 import { renderReceive } from "./screens/receive";
 import { renderRestore } from "./screens/restore";
 import { renderResult } from "./screens/result";
@@ -45,6 +46,7 @@ const SCREENS: Record<Route, () => HTMLElement> = {
   tx: renderTransaction,
   export: renderExport,
   coins: renderCoins,
+  psbt: renderPsbt,
 };
 
 /** Routes that are places rather than steps, and so carry the tab bar. */

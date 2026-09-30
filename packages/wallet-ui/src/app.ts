@@ -6,6 +6,7 @@ import { currentRoute, navigate, type Route } from "./router";
 import { renderCreate } from "./screens/create";
 import { renderDashboard } from "./screens/dashboard";
 import { renderKey } from "./screens/key";
+import { renderPsbt } from "./screens/psbt";
 import { renderRestore } from "./screens/restore";
 import { renderResult } from "./screens/result";
 import { renderSend } from "./screens/send";
@@ -45,8 +46,8 @@ function stepIndicator(active: number): HTMLElement {
   return nav;
 }
 
-/** The wallet's own pages, which link to Settings from the top bar. */
-const SETTINGS_LINKED: ReadonlySet<Route> = new Set<Route>(["dashboard", "settings"]);
+/** The wallet's own pages, which link to Settings from the top bar; 7 carries the gear too. */
+const SETTINGS_LINKED: ReadonlySet<Route> = new Set<Route>(["dashboard", "settings", "psbt"]);
 
 function topbar(route: Route): HTMLElement {
   const meta = el("div", { className: "topbar-meta" });
@@ -94,6 +95,7 @@ const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   send: renderSend,
   result: renderResult,
   settings: renderSettings,
+  psbt: renderPsbt,
 };
 
 /** The rules live in `guards.ts`; this is where the desktop reads its state. */

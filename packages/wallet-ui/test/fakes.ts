@@ -74,6 +74,21 @@ const state: FakeState = freshState();
 /** Every call the fake core received, oldest first: its name, then its arguments. */
 const calls: unknown[][] = [];
 let syncGate: Promise<void> = Promise.resolve();
+/** Set by `holdPsbt`: the next `import_psbt` or `sign_psbt` waits on it, once. */
+let psbtGate: Promise<void> | null = null;
+
+/**
+ * What `import_psbt` and `sign_psbt` answer: `psbtReview` as it was when the
+ * call was made, once any hold on the call is released.
+ */
+async function answerPsbt(): Promise<PsbtReview> {
+  const review = state.psbtReview;
+  const gate = psbtGate;
+  psbtGate = null;
+  if (gate) await gate;
+  if (!review) throw new WalletError("psbt", "psbt error: not a psbt");
+  return { ...review };
+}
 
 class FakeWallet {
   static async open(): Promise<FakeWallet> {
@@ -179,13 +194,11 @@ class FakeWallet {
   }
   async import_psbt(psbt: string): Promise<PsbtReview> {
     calls.push(["import_psbt", psbt]);
-    if (!state.psbtReview) throw new WalletError("psbt", "psbt error: not a psbt");
-    return { ...state.psbtReview };
+    return answerPsbt();
   }
   async sign_psbt(psbt: string): Promise<PsbtReview> {
     calls.push(["sign_psbt", psbt]);
-    if (!state.psbtReview) throw new WalletError("psbt", "psbt error: not a psbt");
-    return { ...state.psbtReview };
+    return answerPsbt();
   }
   async broadcast(signed: string) {
     calls.push(["broadcast", signed]);
@@ -211,11 +224,24 @@ export const fake = {
     });
     return release;
   },
+  /**
+   * Holds the next `import_psbt` or `sign_psbt` open until `release` is
+   * called; later ones answer at once. It answers with what `psbtReview` held
+   * when it was asked, so a later call can be given another answer meanwhile.
+   */
+  holdPsbt(): () => void {
+    let release = (): void => {};
+    psbtGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return release;
+  },
   /** Back to an empty wallet with no call recorded; every test starts here. */
   reset(): void {
     Object.assign(state, freshState());
     calls.length = 0;
     syncGate = Promise.resolve();
+    psbtGate = null;
   },
 };
 

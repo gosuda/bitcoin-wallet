@@ -43,10 +43,14 @@ export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
   "coins",
 ]);
 
-/** Screens with nothing to show, configure or scan into without an open wallet. */
+/**
+ * Screens with nothing to show, configure or scan into without an open
+ * wallet. Import PSBT is one on both shells, a watch-only wallet included:
+ * it can still broadcast what was signed elsewhere.
+ */
 const NEEDS_WALLET: Record<Shell, ReadonlySet<Route>> = {
-  desktop: new Set<Route>(["dashboard", "send", "settings"]),
-  phone: new Set<Route>(["dashboard", "send", "settings", ...PHONE_ONLY]),
+  desktop: new Set<Route>(["dashboard", "send", "settings", "psbt"]),
+  phone: new Set<Route>(["dashboard", "send", "settings", "psbt", ...PHONE_ONLY]),
 };
 
 /**

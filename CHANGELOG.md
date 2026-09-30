@@ -36,6 +36,12 @@ pull requests a change arrived in.
   WebCrypto), and only the encrypted key is kept, in the browser's IndexedDB. Unlock asks
   for the password and says so under the field when it is wrong. The desktop and phone apps
   keep the OS key store and ask for no password. (#39)
+- A PSBT made by another wallet or device can be imported from Settings, on the desktop and
+  the phone: pasted, loaded from a `.psbt` file on the desktop, or scanned on the phone when
+  it fits one QR code. It is described before anything is signed: whose each input is and
+  whether it is signed, where each output goes, and the fee. Sign signs the inputs this
+  wallet holds keys for, and Broadcast waits until every input is signed; a watch-only
+  wallet can broadcast a PSBT signed elsewhere. (#39)
 
 ### Fixed
 

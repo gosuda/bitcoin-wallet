@@ -1021,9 +1021,32 @@ items before it change no screen, so they land while that batch is reviewed.
       mempool.space. A 10,000 sat send from the phone offered Cancel for 251 sat, paying 29,290
       back, and the node replaced the send with it
 
-- [ ] **6.15 PSBT import on screen** · M · both shells · after 6.5 and 6.6
-      why: 6.5 has no way to be used · done when: a PSBT can be pasted (or scanned, when it fits
-      one code), is described, signed and broadcast; checked on the emulator
+- [x] **6.15 PSBT import on screen** · M · both shells · after 6.5 and 6.6
+      why: 6.5 has no way to be used · done: 2026-09-30 — the desktop has Import PSBT (7), from
+      a PSBT card in Settings beside Public keys, with the top bar's gear; the phone has it
+      (M14) from a Settings row after Coins. Both need an open wallet, watch-only included. A
+      PSBT pasted, typed or taken from the clipboard is described as soon as it parses: each
+      input's outpoint and value, whether it is this wallet's and whether it is signed, each
+      output with change marked, and the fee with its rate once the size is known, or
+      "unknown". The desktop's Load file… sends a binary `.psbt` (the magic `70 73 62 74 ff`
+      first) as base64 and any other file as its trimmed text; the phone scans a PSBT that fits
+      one QR code and refuses a BC-UR code as not supported yet. Text that is not a PSBT reads
+      "This is not a PSBT the wallet can read." under the field; a refusal at broadcast, which
+      the core gives the same code, keeps its own reason. Sign signs this wallet's inputs,
+      leaves the result in the field to pass on, and says so when the wallet holds no key for
+      any; a watch-only wallet has no Sign. Broadcast stays off until every input is final,
+      then keeps the result and opens Result as Send does. An answer for a PSBT since replaced,
+      read or signed, is dropped. 37 jsdom tests in `psbt.test.ts` drive both shells over the
+      fake core; `guards.test.ts` gains two cases, `errors.test.ts` a refusal in the core's
+      words and `desktop-shell.test.ts` the gear on 7. Breaking the order check, the file
+      magic, the BC-UR refusal, the copy, the Broadcast gate, the result, the watch-only Sign,
+      the no-key note, the field after Sign, the guard or either Settings entry fails at least
+      one of them. In the browser build, a binary `.psbt` from `btcw send --dry-run`, its
+      signature stripped, was described as one input of this wallet's and two outputs, 281 sat
+      at 2.0 sat/vB, and Sign made a PSBT byte for byte the one the CLI had signed. On the
+      Android emulator against public signet, the same PSBT pasted into the field with
+      Android's own paste was described, signed and broadcast: the network took
+      71cdd756…9d7037, the txid the dry run had named
 
 ## Later — not picked
 

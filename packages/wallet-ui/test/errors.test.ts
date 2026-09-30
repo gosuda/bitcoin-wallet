@@ -97,6 +97,14 @@ describe("errorMessage", () => {
     expect(errorMessage(new WalletError("wrong_password", "x"))).toBe("Wrong password.");
   });
 
+  // The code refuses a PSBT at broadcast as well as at import, so only Import
+  // PSBT, which knows the text failed to parse, says it in words of its own.
+  it("passes a PSBT refusal on in the core's words, which say why", () => {
+    const why =
+      "psbt error: input 0 is not signed: a transaction goes out only once every input is final";
+    expect(errorMessage(new WalletError("psbt", why))).toBe(why);
+  });
+
   it("falls back to the message when details are missing or the wrong shape", () => {
     expect(errorMessage(new WalletError("insufficient_funds", "insufficient funds"))).toBe(
       "insufficient funds",

@@ -194,6 +194,7 @@ export function renderSettings(): HTMLElement {
         rescanBlock,
         item("Export public keys", "xpub · descriptors", () => navigate("export")),
         item("Coins", coinCount, () => navigate("coins")),
+        item("Import PSBT", null, () => navigate("psbt")),
       ),
       listCard(
         item("Wallet", kind),

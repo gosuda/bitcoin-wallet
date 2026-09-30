@@ -381,7 +381,8 @@ select[disabled] {
   opacity: 0.6;
 }
 
-input.input-invalid {
+input.input-invalid,
+textarea.input-invalid {
   border-color: var(--danger);
 }
 
@@ -1021,6 +1022,11 @@ tr.tx-detail td {
   cursor: default;
 }
 
+/* The same, where it is a link to another page (Import PSBT). */
+a.link-button {
+  text-decoration: none;
+}
+
 .danger-card {
   border-color: var(--danger);
 }
@@ -1135,6 +1141,70 @@ tr.tx-detail td {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* Import PSBT (7): the PSBT as pasted, what it spends and pays, and whether it can go */
+
+/* Base64 runs unbroken, so it wraps at the box's edge, set small as the board sets it. */
+.psbt-field {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+/* The first column says what a row is. */
+.psbt-what {
+  width: 72px;
+  color: var(--muted);
+}
+
+/* Whose a row is may wrap, as the board lets it. An address is where a payment
+   goes, so it is shown whole: a narrow window breaks it rather than cut it. */
+.psbt-where,
+.psbt-whose {
+  white-space: normal;
+}
+
+.psbt-where {
+  overflow-wrap: anywhere;
+}
+
+.psbt-unsigned {
+  color: var(--pending);
+}
+
+/* How far signing has got, with Sign and Broadcast across from it. */
+.psbt-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Across from the status, and still on the right while there is none. */
+.psbt-foot .actions {
+  margin-left: auto;
+}
+
+.psbt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Both shells: the dot beside "Signed 0 of 2 inputs", green once every input is. */
+.psbt-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--pending);
+}
+
+.psbt-dot-done {
+  background: var(--ok);
 }
 
 /* Unlock */

@@ -34,6 +34,13 @@ describe("the desktop's top bar (6.8)", () => {
     expect(root.querySelector("h1")?.textContent).toBe("Settings");
     expect(link()?.getAttribute("aria-current")).toBe("page");
 
+    // 7 · Import PSBT carries the same gear, unlit.
+    leaveTo("psbt");
+    await settle();
+    expect(root.querySelector("h1")?.textContent).toBe("Import PSBT");
+    expect(link()?.getAttribute("href")).toBe("#/settings");
+    expect(link()?.getAttribute("aria-current")).toBeNull();
+
     // Send has a job to finish; it does not lead elsewhere.
     leaveTo("send");
     await settle();
