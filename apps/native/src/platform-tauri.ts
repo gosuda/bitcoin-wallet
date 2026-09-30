@@ -140,6 +140,14 @@ async function authenticate(reason: string): Promise<void> {
   await prompt(reason, { allowDeviceCredential: true });
 }
 
+/**
+ * How the clipboard plugin (2.3) says there is no text to paste: "Clipboard
+ * is empty" on Android and iOS, "Clipboard content reader not implemented"
+ * for an Android clip that is not plain text, and on the desktop arboard's
+ * "…not available in the requested format or the clipboard is empty".
+ */
+const NO_CLIPBOARD_TEXT = /clipboard is empty|content reader not implemented/i;
+
 export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Platform {
   return {
     canRememberWallet,
@@ -177,9 +185,14 @@ export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Plat
     forgetSecret: (walletId) => invoke<void>("forget_secret", { walletId }),
 
     writeClipboard: (text) => writeText(text),
-    // The plugin rejects when the clipboard holds no text; the capability
-    // grants the read, so that is what a rejection here means.
-    readClipboard: () => readText().catch(() => ""),
+    // The plugin rejects when there is no text to read, which is an empty
+    // clipboard to Paste; any other rejection is one it cannot read, and is
+    // passed on so Paste can say so.
+    readClipboard: () =>
+      readText().catch((e: unknown) => {
+        if (NO_CLIPBOARD_TEXT.test(messageOf(e) ?? "")) return "";
+        throw e;
+      }),
     openUrl: (url) => openUrl(url),
   };
 }
