@@ -57,6 +57,11 @@ describe("canPayForParent", () => {
     expect(canPayForParent(tx({ net_sat: -1000 }), [coin({})])).toBe(true);
   });
 
+  // The core prices the child against what the parent already pays.
+  it("refuses a parent whose fee is not known", () => {
+    expect(canPayForParent(tx({ fee_sat: null }), [coin({})])).toBe(false);
+  });
+
   it("refuses a mined transaction, one that left us nothing, and a frozen coin", () => {
     expect(canPayForParent(tx({ confirmations: 1 }), [coin({ confirmations: 1 })])).toBe(false);
     expect(canPayForParent(tx({}), [coin({ txid: "b".repeat(64) })])).toBe(false);
