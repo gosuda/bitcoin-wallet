@@ -979,7 +979,12 @@ items before it change no screen, so they land while that batch is reviewed.
       drive the screens on a browser-like platform and on a keychain one, which shows no
       password field anywhere. Breaking the round count, its ceiling, the wallet binding, the
       format check, the gate, the wipe, where the error is said, the password's way to the
-      store or Forget fails at least one of them. Not yet tried in a browser
+      store or Forget fails at least one of them. Tried in a browser (WebKit, the built app on
+      localhost): Remember kept one record in `bitcoin-wallet-keystore`, version 1 at 600,000
+      rounds with a 16-byte salt and a 12-byte IV, and the password nowhere in storage. A
+      wrong password said "Wrong password." under the field, the right one opened the wallet,
+      and Forget left no record. A reload landed on Setup rather than Unlock, until the route
+      guard sent a wallet's page to Unlock whenever a wallet is remembered
 
 - [x] **6.13 Coin control on screen** · M · both shells · after 6.3 and 6.6
       why: 6.3 has no way to be used · done: 2026-09-30 — the desktop's Unspent outputs card

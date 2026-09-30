@@ -68,8 +68,11 @@ export function guardRoute(route: Route, s: GuardState, shell: Shell): Route {
 
 /** One rule's answer: another route, or `route` itself when no rule applies. */
 function step(route: Route, s: GuardState, shell: Shell): Route {
-  if (shell === "desktop" && PHONE_ONLY.has(route)) return s.wallet ? "dashboard" : "setup";
-  if (NEEDS_WALLET[shell].has(route) && !s.wallet) return "setup";
+  if (shell === "desktop" && PHONE_ONLY.has(route)) return "dashboard";
+  // A wallet's page with no wallet open — a reload in the browser, or a
+  // bookmark — goes where a fresh start would: to Unlock when a wallet is
+  // remembered here, to Setup when none is.
+  if (NEEDS_WALLET[shell].has(route) && !s.wallet) return s.unlockable ? "unlock" : "setup";
   // Setup rewrites the network under a live wallet handle, so it is reached
   // from Settings, which asks and closes the wallet first.
   if (route === "setup" && s.wallet) return "settings";
@@ -78,7 +81,7 @@ function step(route: Route, s: GuardState, shell: Shell): Route {
   // The transaction screen is reached from a row, never typed; without one
   // chosen there is nothing to show.
   if (route === "tx" && !s.hasTxid) return "dashboard";
-  if (route === "result" && !s.hasResult) return s.wallet ? "dashboard" : "setup";
+  if (route === "result" && !s.hasResult) return "dashboard";
   // A config saved before P2PK stopped being openable can still name it, and
   // Setup, which never offers it, is where a type is chosen again.
   if (KEY_ROUTES.has(route) && (s.configType === null || !isOpenable(s.configType))) {

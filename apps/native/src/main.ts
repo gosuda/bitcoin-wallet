@@ -26,7 +26,7 @@ const MOBILE = PLATFORM === "ios" || PLATFORM === "android";
  * Both entries matter: `getCurrent` covers a link that launched the app, and
  * `onOpenUrl` covers one that arrives while it is already running. A link that
  * lands before a wallet is open is deliberately dropped rather than queued —
- * the route guard would bounce it to setup anyway, and a payment silently
+ * the route guard would bounce it to Unlock or Setup anyway, and a payment silently
  * reappearing several screens later is worse than nothing.
  */
 async function wireDeepLinks(): Promise<void> {
@@ -39,7 +39,7 @@ async function wireDeepLinks(): Promise<void> {
     const payment = urls?.map(parsePaymentUri).find((p) => p !== null);
     if (!payment) return;
     // Dropping it means dropping it. Prefilling first and letting the route
-    // guard bounce to setup leaves the payment in a module-global that the
+    // guard bounce it leaves the payment in a module-global that the
     // next Send screen picks up — the recipient reappearing later, unasked.
     if (!session.wallet) return;
     prefillSend({

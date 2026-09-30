@@ -48,6 +48,18 @@ describe("guardRoute", () => {
     expect(guardRoute("send", configured, shell)).toBe("setup");
   });
 
+  // A reload in the browser, or a bookmark, asks for a wallet's page with none
+  // open; a remembered one is unlocked from there, as on a fresh start.
+  it.each(SHELLS)("sends a wallet's page to Unlock when a wallet is remembered (%s)", (shell) => {
+    const locked: GuardState = { ...configured, unlockable: true };
+    for (const route of ["dashboard", "send", "settings", "result", ...PHONE_ONLY] as const) {
+      expect(guardRoute(route, locked, shell), route).toBe("unlock");
+    }
+    // Setup stays reachable: it is where the network is changed.
+    expect(guardRoute("setup", locked, shell)).toBe("setup");
+    expect(guardRoute("key", locked, shell)).toBe("key");
+  });
+
   it.each(SHELLS)("offers Unlock only when there is something to unlock (%s)", (shell) => {
     expect(guardRoute("unlock", configured, shell)).toBe("key");
     expect(guardRoute("unlock", { ...configured, unlockable: true }, shell)).toBe("unlock");
