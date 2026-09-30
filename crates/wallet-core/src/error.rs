@@ -35,13 +35,17 @@ pub enum Error {
     ///
     /// `frozen_sat` is what the coins frozen with `set_frozen` hold, which a
     /// send the wallet chose coins for left out: without it, "need 11 more"
-    /// reads as a wallet with nothing in it. It is 0 for a send held to
-    /// chosen coins, which names its coins itself.
+    /// reads as a wallet with nothing in it. `all_frozen` says no other coin
+    /// was left: a coin too small to pay for its own input leaves nothing
+    /// available too, so `available_sat` of 0 does not say it. They are 0
+    /// and false for a send held to chosen coins, which names its coins
+    /// itself.
     #[error("insufficient funds: need {needed_sat} sat, have {available_sat} sat{}", frozen_note(*frozen_sat))]
     InsufficientFunds {
         needed_sat: u64,
         available_sat: u64,
         frozen_sat: u64,
+        all_frozen: bool,
     },
     /// A fee rate that is not a plausible sat/vB value: not finite, negative,
     /// or past the ceiling. Kept apart from [`Error::BuildTx`] because it is
@@ -140,10 +144,12 @@ impl Error {
                 needed_sat,
                 available_sat,
                 frozen_sat,
+                all_frozen,
             } => Some(json!({
                 "needed_sat": needed_sat,
                 "available_sat": available_sat,
                 "frozen_sat": frozen_sat,
+                "all_frozen": all_frozen,
             })),
             Error::Dust { output } => Some(json!({ "output": output })),
             Error::FeeTooLow {
@@ -163,8 +169,9 @@ impl Error {
     }
 
     /// For a send the wallet chose coins for: what the frozen coins it left
-    /// out hold. Every other error passes through as it is.
-    pub(crate) fn with_frozen(self, frozen: u64) -> Self {
+    /// out hold, and whether they were all it had. Every other error passes
+    /// through as it is.
+    pub(crate) fn with_frozen(self, frozen_sat: u64, all_frozen: bool) -> Self {
         match self {
             Error::InsufficientFunds {
                 needed_sat,
@@ -173,7 +180,8 @@ impl Error {
             } => Error::InsufficientFunds {
                 needed_sat,
                 available_sat,
-                frozen_sat: frozen,
+                frozen_sat,
+                all_frozen,
             },
             other => other,
         }
@@ -276,9 +284,10 @@ mod tests {
                     needed_sat: 10,
                     available_sat: 5,
                     frozen_sat: 0,
+                    all_frozen: false,
                 },
                 "insufficient_funds",
-                Some(["needed_sat", "available_sat", "frozen_sat"].as_slice()),
+                Some(["needed_sat", "available_sat", "frozen_sat", "all_frozen"].as_slice()),
                 "insufficient funds: need 10 sat, have 5 sat",
             ),
             (
@@ -438,13 +447,14 @@ mod tests {
     }
 
     /// The table's row has nothing frozen; with frozen coins the message says
-    /// what they hold, so a log or the CLI shows why a full wallet fell short.
+    /// what they hold, so a log shows why a full wallet fell short.
     #[test]
     fn a_shortfall_with_frozen_coins_says_what_they_hold() {
         let err = Error::InsufficientFunds {
             needed_sat: 10,
             available_sat: 0,
             frozen_sat: 29_290,
+            all_frozen: true,
         };
         assert_eq!(
             err.to_string(),
@@ -458,13 +468,19 @@ mod tests {
             needed_sat: 100,
             available_sat: 40,
             frozen_sat: 7,
+            all_frozen: false,
         };
         let payload = ErrorPayload::from(&err);
         assert_eq!(payload.code, "insufficient_funds");
         assert_eq!(payload.message, err.to_string());
         assert_eq!(
             payload.details,
-            Some(json!({ "needed_sat": 100, "available_sat": 40, "frozen_sat": 7 }))
+            Some(json!({
+                "needed_sat": 100,
+                "available_sat": 40,
+                "frozen_sat": 7,
+                "all_frozen": false,
+            }))
         );
 
         let plain = Error::InvalidKey("bad".into());

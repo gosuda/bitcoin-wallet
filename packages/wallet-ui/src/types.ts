@@ -376,8 +376,10 @@ function detailedMessage(value: AppError): string | null {
       if (!isFiniteNumber(d?.needed_sat) || !isFiniteNumber(d?.available_sat)) return null;
       // What frozen coins hold, when the wallet chose the coins: they were
       // left out, and "Need 11 more sat." alone reads as an empty wallet.
+      // Every coin is frozen only when the core says so: a coin too small to
+      // pay for its own input leaves nothing available as well.
       const frozen = isFiniteNumber(d?.frozen_sat) ? d.frozen_sat : 0;
-      if (d.available_sat === 0 && frozen > 0) {
+      if (d.available_sat === 0 && d.all_frozen === true) {
         return "Every coin is frozen. Unfreeze one to spend it.";
       }
       const short = `Need ${formatNumber(d.needed_sat - d.available_sat)} more sat.`;

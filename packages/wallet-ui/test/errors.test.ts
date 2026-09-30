@@ -72,19 +72,34 @@ describe("errorMessage", () => {
   // Frozen coins are left out of a send the wallet chooses for; saying only
   // the shortfall reads as an empty wallet.
   it("says what frozen coins hold when the wallet chose and fell short", () => {
-    const short = (available_sat: number, frozen_sat: number) =>
+    const short = (available_sat: number, frozen_sat: number, all_frozen = false) =>
       errorMessage(
         new WalletError("insufficient_funds", "x", {
           needed_sat: 100,
           available_sat,
           frozen_sat,
+          all_frozen,
         }),
       );
     expect(short(40, 0)).toBe("Need 60 more sat.");
     expect(short(40, 50_000)).toBe(
       `Need 60 more sat. Frozen coins hold ${(50_000).toLocaleString()} sat.`,
     );
-    expect(short(0, 29_290)).toBe("Every coin is frozen. Unfreeze one to spend it.");
+    expect(short(0, 29_290, true)).toBe("Every coin is frozen. Unfreeze one to spend it.");
+  });
+
+  // Nothing available is not every coin frozen: a coin too small to pay for
+  // its own input is left out too.
+  it("says every coin is frozen only when the core says so", () => {
+    const err = new WalletError("insufficient_funds", "x", {
+      needed_sat: 5_830,
+      available_sat: 0,
+      frozen_sat: 100_000,
+      all_frozen: false,
+    });
+    expect(errorMessage(err)).toBe(
+      `Need ${(5_830).toLocaleString()} more sat. Frozen coins hold ${(100_000).toLocaleString()} sat.`,
+    );
   });
 
   it("names the required rate or fee for fee_too_low", () => {

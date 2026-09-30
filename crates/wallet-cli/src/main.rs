@@ -554,6 +554,7 @@ mod tests {
                 needed_sat: 10,
                 available_sat: 5,
                 frozen_sat: 0,
+                all_frozen: false,
             },
             Error::InvalidFeeRate("x".into()),
             Error::Sign("x".into()),

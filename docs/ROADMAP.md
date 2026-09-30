@@ -1084,14 +1084,18 @@ in two beside "Copy transaction id" on the phone, both fixed in their own commit
 
 - [x] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
       why: with every coin frozen, Max said "Need 11 more sat." · done: 2026-09-30 —
-      `InsufficientFunds` carries `frozen_sat`, which a transfer or a drain the wallet chose
-      coins for fills with what the frozen coins hold; a send held to chosen coins leaves it at
-      0, since it names its coins itself. Both shells say "Every coin is frozen. Unfreeze one
-      to spend it." when nothing else was left, and "Need 60 more sat. Frozen coins hold 50,000
-      sat." otherwise; the CLI's message adds "(50000 sat more is frozen)".
+      `InsufficientFunds` carries `frozen_sat` and `all_frozen`, which a transfer or a drain
+      the wallet chose coins for fills with what the frozen coins hold and whether no other
+      coin was left; a send held to chosen coins leaves them at 0 and false, since it names its
+      coins itself. Both shells say "Every coin is frozen. Unfreeze one to spend it." when the
+      core says no other coin was left, and "Need 60 more sat. Frozen coins hold 50,000 sat."
+      otherwise; the core's own message adds "(50000 sat more is frozen)". Nothing available is
+      not the same thing: a coin too small to pay for its own input is left out too, which
+      review found the first version took for every coin frozen.
       `a_shortfall_says_what_frozen_coins_hold` covers a payment, Max with every coin frozen,
-      and a send held to chosen coins; the error table, a message test and the copy test pin
-      the details and the words
+      and a send held to chosen coins, and `a_coin_too_small_to_spend_is_not_a_frozen_one` the
+      coin too small to spend; the error table, a message test and the copy tests pin the
+      details and the words
 
 - [x] **7.2 The history reset says frozen coins go with it** · S · `ui/reset.ts`, `gen.py`
       why: the reset also unfreezes every coin, and its words said only history was deleted ·
