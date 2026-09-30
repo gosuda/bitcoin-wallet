@@ -185,6 +185,20 @@ describe("pending, confirmations and time (7.5)", () => {
     expect(texts(phone, ".m-txmeta").join(" ")).toContain("Pending");
   });
 
+  // The phone's detail said "0 — in the mempool" under a "Pending" pill.
+  it("says Pending in the phone's detail, never a count of 0", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    fake.state.details[SENT] = { ...sent, confirmations: null, block_height: null };
+    showTransaction(SENT);
+    const screen = mount(renderTransaction());
+    await settle();
+
+    const row = [...screen.querySelectorAll(".m-item")].find(
+      (i) => i.firstElementChild?.textContent === "Confirmations",
+    );
+    expect(row?.querySelector(".m-item-value")?.textContent).toBe("Pending");
+  });
+
   it("says when it last synced the same way on both shells", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const at14 = new Date(2026, 8, 30, 14, 32, 7);

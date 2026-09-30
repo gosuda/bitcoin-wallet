@@ -164,8 +164,9 @@ export function renderTransaction(): HTMLElement {
     hero.classList.add("m-tx-hero");
 
     const fee = feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb);
+    // Pending, as the pill above says: not a count of 0.
     const confirmations = pending
-      ? "0 — in the mempool"
+      ? formatConfirmations(null)
       : `${formatNumber(d.confirmations ?? 0)}${d.block_height === null ? "" : ` · block ${formatNumber(d.block_height)}`}`;
     const facts = listCard(item("Fee", fee, undefined), item("Confirmations", confirmations));
 
