@@ -6,6 +6,8 @@
   "exports": {
     ".": "./src/app.ts",
     "./platform": "./src/platform/index.ts",
+    "./sealed": "./src/platform/sealed.ts",
+    "./sealed-secrets": "./src/persist/sealed-secrets.ts",
     "./net": "./src/net.ts",
     "./types": "./src/types.ts",
     "./bip21": "./src/bip21.ts",

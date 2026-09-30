@@ -16,10 +16,12 @@ import type {
   AppConfig,
   Balance,
   BroadcastResult,
+  CoinId,
   FeeEstimate,
   GeneratedKey,
   GeneratedMnemonic,
   Network,
+  PsbtReview,
   PublicDescriptors,
   Recipient,
   RememberedWallet,
@@ -29,7 +31,7 @@ import type {
   Utxo,
   WalletInfo,
 } from "./types";
-import { MAX_FEE_RATE_SAT_VB, WalletError } from "./types";
+import { historyResetFixes, MAX_FEE_RATE_SAT_VB, NETWORK_LABELS, WalletError } from "./types";
 import type { BuiltTx } from "./wasm";
 import {
   explorerTxUrl,
@@ -60,10 +62,10 @@ async function requireConfig(): Promise<AppConfig> {
 /**
  * Drops the open wallet and everything derived from it.
  *
- * The sync time and the last broadcast belong to a particular wallet, so they
- * are dropped here rather than by each caller. Eight call sites cleared them by
- * hand and the one behind "Forget this wallet" did not, which is how a fresh
- * wallet came up wearing the previous one's sync time.
+ * The sync time, the last broadcast and any coins chosen for a send belong to a
+ * particular wallet, so they are dropped here rather than by each caller. Eight
+ * call sites cleared them by hand and the one behind "Forget this wallet" did
+ * not, which is how a fresh wallet came up wearing the previous one's sync time.
  */
 function releaseWallet(): void {
   const wallet = session.handle;
@@ -71,8 +73,35 @@ function releaseWallet(): void {
   session.wallet = null;
   session.lastSyncedAt = null;
   session.lastResult = null;
+  session.chosenCoins = null;
   pending.clear();
   wallet?.free();
+}
+
+/**
+ * Syncs, rescans and broadcasts still running. Closing the wallet under one
+ * pulls the handle out from under it: a sync loses what it found, and a
+ * broadcast can reach the network without reaching this device's record. The
+ * background lock waits for them (`whenIdle`); Close wallet, which the user
+ * asks for, does not.
+ */
+const unfinished = new Set<Promise<unknown>>();
+
+/** Runs `work`, counted among the unfinished until it settles. */
+async function holdOpen<T>(work: () => Promise<T>): Promise<T> {
+  const running = work();
+  unfinished.add(running);
+  try {
+    return await running;
+  } finally {
+    unfinished.delete(running);
+  }
+}
+
+/** Resolves once no sync, rescan or broadcast is running: at once when none is. */
+export async function whenIdle(): Promise<void> {
+  // One can start as another ends, so this waits until none is left.
+  while (unfinished.size > 0) await Promise.allSettled(unfinished);
 }
 
 /** Ordinal of the most recently started `install` call; only the newest may commit. */
@@ -162,13 +191,16 @@ async function install(
  * Opens the wallet the user just entered, optionally saving its key.
  *
  * "Remember" stores the passphrase with the words: the two are one wallet's
- * identity, and the OS keystore already guards the words.
+ * identity, and the key store already guards the words. In the browser that
+ * store seals both under `appPassword`, which is not the BIP39 passphrase:
+ * it locks only this browser's copy.
  */
 async function openWallet(
   secret: string,
   addressType: AddressType,
   remember: boolean,
   passphrase?: string,
+  appPassword?: string,
 ): Promise<WalletInfo> {
   const { network } = await requireConfig();
   const { info, attempt } = await install(secret, network, addressType, passphrase);
@@ -185,7 +217,7 @@ async function openWallet(
       if (!stillCurrent(attempt)) {
         throw new WalletError("superseded", "a newer wallet-open request replaced this one");
       }
-      await platform().rememberSecret(info.wallet_id, secret, passphrase);
+      await platform().rememberSecret(info.wallet_id, secret, passphrase, appPassword);
       if (!stillCurrent(attempt)) {
         // The entry just written above can only be this attempt's own -
         // nothing else could have raced to write it while this turn held
@@ -209,23 +241,90 @@ async function openWallet(
 }
 
 /**
- * Opens the remembered wallet with the key loaded from the OS keystore. The
- * stored entry carries the passphrase too, so unlocking never asks for one.
+ * Runs `open`, and when what stops it is the wallet's saved history on this
+ * device (`historyResetFixes`), deletes that history, nothing else, and runs
+ * it once more. The key and the settings stay; the next sync downloads the
+ * history back.
+ *
+ * `open` goes first so that only a record which has just failed to read is
+ * ever deleted, whatever a screen holds by the time its reset is confirmed:
+ * a readable record is left alone, and so is one a newer version saved.
  */
-async function unlockWallet(): Promise<WalletInfo> {
+async function withHistoryReset(
+  walletId: () => Promise<string>,
+  open: () => Promise<WalletInfo>,
+): Promise<WalletInfo> {
+  try {
+    return await open();
+  } catch (e) {
+    if (!historyResetFixes(e)) throw e;
+  }
+  await deleteWalletState(await walletId());
+  return open();
+}
+
+/** `openWallet`, resetting the wallet's saved history here if it cannot be read. */
+async function resetHistoryAndOpen(
+  secret: string,
+  addressType: AddressType,
+  remember: boolean,
+  passphrase?: string,
+  appPassword?: string,
+): Promise<WalletInfo> {
+  return withHistoryReset(
+    async () => walletIdForKey(secret, (await requireConfig()).network, addressType, passphrase),
+    () => openWallet(secret, addressType, remember, passphrase, appPassword),
+  );
+}
+
+/**
+ * Whether Unlock can open the remembered wallet now: this device keeps keys,
+ * one is remembered, and it is on the network the settings name. The settings
+ * hold one server, so a wallet remembered on another network would otherwise
+ * be opened against a server for the wrong chain.
+ */
+export function canUnlockHere(): boolean {
+  const record = session.remembered;
+  return (
+    platform().canRememberWallet && record !== null && record.network === session.config?.network
+  );
+}
+
+/**
+ * Opens the remembered wallet with the key loaded from the key store. The
+ * stored entry carries the BIP39 passphrase too, so unlocking never asks for
+ * that one. The browser's store opens only with `appPassword`, and a wrong one
+ * fails as `wrong_password` before anything is opened.
+ *
+ * `resetHistory` is `withHistoryReset` around the open. It is decided here,
+ * past the keystore read, so a reset reads the key once: one OS prompt, or one
+ * app password check.
+ */
+async function unlockWallet(resetHistory: boolean, appPassword?: string): Promise<WalletInfo> {
   const notRemembered = () =>
     new WalletError("not_remembered", "no wallet is saved on this device");
   const record = await platform().getRemembered();
   if (!record) throw notRemembered();
-  const stored = await platform().loadSecret(record.wallet_id);
+  // `install` keeps the settings' server and swaps only the network in, so a
+  // wallet from another network would sync against the wrong chain.
+  const config = await requireConfig();
+  if (record.network !== config.network) {
+    const saved = NETWORK_LABELS[record.network];
+    throw new WalletError(
+      "wrong_network",
+      `The wallet saved on this device is on ${saved}. Choose ${saved} in Setup to open it.`,
+    );
+  }
+  // Only a password actually given is passed on: an OS keystore is asked for
+  // the key by wallet id alone, exactly as before there were app passwords.
+  const stored = await (appPassword === undefined
+    ? platform().loadSecret(record.wallet_id)
+    : platform().loadSecret(record.wallet_id, appPassword));
   if (!stored?.secret) throw notRemembered();
-  const { info } = await install(
-    stored.secret,
-    record.network,
-    record.address_type,
-    stored.passphrase ?? undefined,
-  );
-  return info;
+  const { secret, passphrase } = stored;
+  const open = async () =>
+    (await install(secret, record.network, record.address_type, passphrase ?? undefined)).info;
+  return resetHistory ? withHistoryReset(async () => record.wallet_id, open) : open();
 }
 
 /** Removes the keystore entry, the local wallet state and the remembered record. */
@@ -253,6 +352,12 @@ async function newAddress(): Promise<string> {
 async function syncWallet(): Promise<Balance> {
   const wallet = requireWallet();
   await wallet.sync();
+  return wallet.balance();
+}
+
+async function rescanWallet(stopGap: number): Promise<Balance> {
+  const wallet = requireWallet();
+  await wallet.rescan(stopGap);
   return wallet.balance();
 }
 
@@ -285,15 +390,40 @@ function requireRate(feeRateSatVb: number): void {
   }
 }
 
-async function buildTransfer(recipients: Recipient[], feeRateSatVb: number): Promise<TxPreview> {
+/**
+ * A payment. With `coins`, it is funded by those coins and no others, and
+ * every one of them is spent.
+ */
+async function buildTransfer(
+  recipients: Recipient[],
+  feeRateSatVb: number,
+  coins?: readonly CoinId[],
+): Promise<TxPreview> {
   requireRate(feeRateSatVb);
-  return retainPsbt(await requireWallet().build_transfer(recipients, feeRateSatVb));
+  const wallet = requireWallet();
+  return retainPsbt(
+    await (coins
+      ? wallet.build_transfer_from(coins, recipients, feeRateSatVb)
+      : wallet.build_transfer(recipients, feeRateSatVb)),
+  );
 }
 
-/** Everything to one address. The preview's `total_out_sat` is what arrives. */
-async function buildDrain(address: string, feeRateSatVb: number): Promise<TxPreview> {
+/**
+ * Everything to one address — or, with `coins`, all of those coins. The
+ * preview's `total_out_sat` is what arrives.
+ */
+async function buildDrain(
+  address: string,
+  feeRateSatVb: number,
+  coins?: readonly CoinId[],
+): Promise<TxPreview> {
   requireRate(feeRateSatVb);
-  return retainPsbt(await requireWallet().build_drain(address, feeRateSatVb));
+  const wallet = requireWallet();
+  return retainPsbt(
+    await (coins
+      ? wallet.build_drain_from(coins, address, feeRateSatVb)
+      : wallet.build_drain(address, feeRateSatVb)),
+  );
 }
 
 /**
@@ -305,6 +435,24 @@ async function buildFeeBump(txid: string, feeRateSatVb: number): Promise<TxPrevi
   return retainPsbt(await requireWallet().build_fee_bump(txid, feeRateSatVb));
 }
 
+/**
+ * Takes back an unconfirmed send: a replacement paying all of it, less the
+ * fee, to us. Its preview has `total_out_sat` 0 and everything in `change_sat`.
+ */
+async function buildCancel(txid: string, feeRateSatVb: number): Promise<TxPreview> {
+  requireRate(feeRateSatVb);
+  return retainPsbt(await requireWallet().build_cancel(txid, feeRateSatVb));
+}
+
+/**
+ * Speeds up an unconfirmed transaction, incoming ones included, with a child
+ * that spends our output of it: the two together pay `packageRateSatVb`.
+ */
+async function buildCpfp(txid: string, packageRateSatVb: number): Promise<TxPreview> {
+  requireRate(packageRateSatVb);
+  return retainPsbt(await requireWallet().build_cpfp(txid, packageRateSatVb));
+}
+
 async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
   const wallet = requireWallet();
   const psbt = pending.get(psbtId);
@@ -312,7 +460,11 @@ async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
     throw new WalletError("unknown_psbt", "transaction preview expired; build it again");
   }
   pending.delete(psbtId);
-  const signed = await wallet.sign(psbt);
+  return broadcastSigned(wallet, await wallet.sign(psbt));
+}
+
+/** Sends a final PSBT; the core refuses one with an input still unsigned. */
+async function broadcastSigned(wallet: WalletApi, signed: string): Promise<BroadcastResult> {
   // Network acceptance and local persistence are reported separately by the
   // core: a persist failure must not be shown as a failed send.
   const out = await wallet.broadcast(signed);
@@ -334,19 +486,39 @@ export const api = {
     wordCount: number,
   ): Promise<GeneratedMnemonic> => generateMnemonic(network, addressType, wordCount),
   validateMnemonic: (words: string): Promise<void> => validateMnemonic(words),
-  openWallet: (secret: string, addressType: AddressType, remember: boolean, passphrase?: string) =>
-    openWallet(secret, addressType, remember, passphrase),
+  /**
+   * `appPassword` seals the key when `remember` is set on a platform that
+   * `needsAppPassword` (the browser); an OS keystore ignores it.
+   */
+  openWallet: (
+    secret: string,
+    addressType: AddressType,
+    remember: boolean,
+    passphrase?: string,
+    appPassword?: string,
+  ) => openWallet(secret, addressType, remember, passphrase, appPassword),
+  /**
+   * `openWallet` for a wallet whose saved history here cannot be read: that
+   * history is deleted and the wallet opened again. The key store and the
+   * settings are not touched.
+   */
+  resetHistoryAndOpen: (
+    secret: string,
+    addressType: AddressType,
+    remember: boolean,
+    passphrase?: string,
+    appPassword?: string,
+  ) => resetHistoryAndOpen(secret, addressType, remember, passphrase, appPassword),
   closeWallet: async (): Promise<void> => releaseWallet(),
   getRemembered: (): Promise<RememberedWallet | null> => platform().getRemembered(),
-  unlockWallet: () => unlockWallet(),
+  /** `appPassword` is the browser's, typed on Unlock; an OS keystore needs none. */
+  unlockWallet: (appPassword?: string) => unlockWallet(false, appPassword),
+  /** `unlockWallet` for such a wallet, the same way; its key stays in the keystore. */
+  resetHistoryAndUnlock: (appPassword?: string) => unlockWallet(true, appPassword),
   forgetWallet: () => forgetWallet(),
-  sync: (): Promise<Balance> => syncWallet(),
+  sync: (): Promise<Balance> => holdOpen(syncWallet),
   /** Look `stopGap` unused addresses past the last used one, then re-read the balance. */
-  rescan: async (stopGap: number): Promise<Balance> => {
-    const wallet = requireWallet();
-    await wallet.rescan(stopGap);
-    return wallet.balance();
-  },
+  rescan: (stopGap: number): Promise<Balance> => holdOpen(() => rescanWallet(stopGap)),
   newAddress: (): Promise<string> => newAddress(),
   publicDescriptors: (): Promise<PublicDescriptors> => requireWallet().public_descriptors(),
   transaction: (txid: string): Promise<TxDetail | null> => requireWallet().transaction(txid),
@@ -357,13 +529,26 @@ export const api = {
   },
   getBalance: async (): Promise<Balance> => requireWallet().balance(),
   listUtxos: async (): Promise<Utxo[]> => requireWallet().list_utxos(),
+  /** A frozen coin stays out of every send, and of the spendable balance, until unfrozen. */
+  setFrozen: async (coin: CoinId, frozen: boolean): Promise<void> =>
+    requireWallet().set_frozen(coin, frozen),
   listTransactions: async (): Promise<TxSummary[]> => requireWallet().list_transactions(),
   estimateFee: async (): Promise<FeeEstimate> => requireWallet().estimate_fee(),
-  buildTransfer: (recipients: Recipient[], feeRateSatVb: number) =>
-    buildTransfer(recipients, feeRateSatVb),
-  buildDrain: (address: string, feeRateSatVb: number) => buildDrain(address, feeRateSatVb),
+  buildTransfer: (recipients: Recipient[], feeRateSatVb: number, coins?: readonly CoinId[]) =>
+    buildTransfer(recipients, feeRateSatVb, coins),
+  buildDrain: (address: string, feeRateSatVb: number, coins?: readonly CoinId[]) =>
+    buildDrain(address, feeRateSatVb, coins),
   buildFeeBump: (txid: string, feeRateSatVb: number) => buildFeeBump(txid, feeRateSatVb),
-  signAndBroadcast: (psbtId: string) => signAndBroadcast(psbtId),
+  buildCancel: (txid: string, feeRateSatVb: number) => buildCancel(txid, feeRateSatVb),
+  buildCpfp: (txid: string, packageRateSatVb: number) => buildCpfp(txid, packageRateSatVb),
+  signAndBroadcast: (psbtId: string) => holdOpen(() => signAndBroadcast(psbtId)),
+  /** Reads a PSBT made elsewhere, pasted as base64 or hex. Signs nothing. */
+  importPsbt: async (psbt: string): Promise<PsbtReview> => requireWallet().import_psbt(psbt),
+  /** Signs every input of ours; the review says whether it can go out yet. */
+  signPsbt: async (psbt: string): Promise<PsbtReview> => requireWallet().sign_psbt(psbt),
+  /** Sends an imported PSBT once every input is final. */
+  broadcastPsbt: (psbt: string): Promise<BroadcastResult> =>
+    holdOpen(async () => broadcastSigned(requireWallet(), psbt)),
   discardTx: async (psbtId: string): Promise<void> => {
     pending.delete(psbtId);
   },

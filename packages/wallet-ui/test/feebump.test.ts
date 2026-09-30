@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isBumpable, suggestBumpRate } from "../src/feebump";
-import { rateForTarget, type TxDetail, type TxSummary } from "../src/types";
+import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../src/feebump";
+import { rateForTarget, type TxDetail, type TxSummary, type Utxo } from "../src/types";
 
 const tx = (t: Partial<TxSummary>): TxSummary => ({
   txid: "a".repeat(64),
@@ -37,6 +37,36 @@ describe("isBumpable", () => {
       net_sat: -1000,
     };
     expect(isBumpable(detail)).toBe(true);
+  });
+});
+
+describe("canPayForParent", () => {
+  const coin = (c: Partial<Utxo>): Utxo => ({
+    txid: "a".repeat(64),
+    vout: 0,
+    value: 50_000,
+    confirmations: null,
+    address: "tb1q",
+    frozen: false,
+    ...c,
+  });
+
+  // The case replacement cannot reach: someone else's payment, stuck.
+  it("takes an unconfirmed payment that left us a coin, incoming or not", () => {
+    expect(canPayForParent(tx({ net_sat: 50_000 }), [coin({})])).toBe(true);
+    expect(canPayForParent(tx({ net_sat: -1000 }), [coin({})])).toBe(true);
+  });
+
+  // The core prices the child against what the parent already pays.
+  it("refuses a parent whose fee is not known", () => {
+    expect(canPayForParent(tx({ fee_sat: null }), [coin({})])).toBe(false);
+  });
+
+  it("refuses a mined transaction, one that left us nothing, and a frozen coin", () => {
+    expect(canPayForParent(tx({ confirmations: 1 }), [coin({ confirmations: 1 })])).toBe(false);
+    expect(canPayForParent(tx({}), [coin({ txid: "b".repeat(64) })])).toBe(false);
+    expect(canPayForParent(tx({}), [])).toBe(false);
+    expect(canPayForParent(tx({}), [coin({ frozen: true })])).toBe(false);
   });
 });
 
@@ -89,6 +119,28 @@ describe("suggestBumpRate", () => {
   it("shows what a backend's float noise costs at the floor", () => {
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1.0000000000000002 } })).toBe(1.1);
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1 } })).toBe(1);
+  });
+});
+
+describe("suggestPackageRate", () => {
+  const estimate = { sat_per_vb_by_target: { "1": 12.3, "3": 6, "6": 2 } };
+
+  it("asks the rate for the target chosen", () => {
+    expect(suggestPackageRate(estimate, 1, 1)).toBe(12.3);
+    expect(suggestPackageRate(estimate, 3, 1)).toBe(6);
+  });
+
+  // A pair at or under the parent's own rate leaves the parent where it was:
+  // the child pays only its relay minimum, and nothing is sped up.
+  it("offers more than the parent pays alone when the target's rate does not", () => {
+    expect(suggestPackageRate(estimate, 6, 2)).toBe(3);
+    expect(suggestPackageRate(estimate, 6, 5)).toBe(6);
+  });
+
+  it("starts from the parent's rate with no estimate, and from the target's without that", () => {
+    expect(suggestPackageRate(null, 1, 4)).toBe(5);
+    expect(suggestPackageRate(estimate, 6, null)).toBe(2);
+    expect(suggestPackageRate(null, 6)).toBe(1);
   });
 });
 

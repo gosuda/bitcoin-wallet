@@ -1,20 +1,25 @@
 import { api } from "../../api";
-import { isBumpable, suggestBumpRate } from "../../feebump";
+import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../../feebump";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
+  type BroadcastResult,
   errorMessage,
+  FEE_TARGETS,
+  type FeeEstimate,
+  type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   type TxDetail,
   type TxOutput,
+  type TxPreview,
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
-import { banner, el, formatNumber, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
 import { icon } from "../../ui/icons";
-import { body, button, card, header, item, lede, listCard, row, withBusy } from "../ui";
+import { body, button, card, chips, header, item, lede, listCard, row, withBusy } from "../ui";
 
 /**
  * Which transaction to show. Routes carry no parameters, so a history row
@@ -31,6 +36,14 @@ export function showTransaction(txid: string): void {
 export function currentTxid(): string | null {
   return current;
 }
+
+/**
+ * What the screen offers besides copy and link: replace our own unconfirmed
+ * send (Bump fee or Cancel), give a payment a child (Speed up), or nothing.
+ */
+type Offer = "replace" | "child" | "none";
+
+type SpeedChoice = `${FeeTarget}` | "custom";
 
 function short(address: string): string {
   return `${address.slice(0, 8)}…${address.slice(-6)}`;
@@ -54,6 +67,7 @@ function outputLabel(d: TxDetail, o: TxOutput): string {
 
 export function renderTransaction(): HTMLElement {
   const onScreen = screenGuard();
+  const sameWallet = sameWalletGuard();
   const info = session.wallet;
   const txid = current;
   const host = el("main");
@@ -67,7 +81,66 @@ export function renderTransaction(): HTMLElement {
   host.appendChild(header("Transaction", { back: "dashboard" }));
   host.appendChild(content);
 
-  const paint = (d: TxDetail, explorerUrl: string | null): void => {
+  // --- the preview this screen holds -----------------------------------------
+  //
+  // Speed up and Cancel each show a built preview before anything is signed,
+  // and a transaction offers one or the other, so there is at most one
+  // preview: dropped when it is replaced, when Cancel is called off and when
+  // the screen goes. `previewGen` moves on with every drop, so a build still
+  // running then is discarded when it lands instead of being offered.
+  let heldPreview: TxPreview | null = null;
+  let previewGen = 0;
+
+  const dropPreview = (): void => {
+    previewGen += 1;
+    if (heldPreview) void api.discardTx(heldPreview.psbt_id);
+    heldPreview = null;
+  };
+
+  /**
+   * Builds the preview the screen offers, in place of any held before. `null`
+   * when the screen or a newer build moved on first; a failure is thrown only
+   * while this build is still the one that counts.
+   */
+  const holdPreview = async (build: () => Promise<TxPreview>): Promise<TxPreview | null> => {
+    dropPreview();
+    const gen = previewGen;
+    const counts = () => gen === previewGen && onScreen();
+    let preview: TxPreview;
+    try {
+      preview = await build();
+    } catch (e) {
+      if (counts()) throw e;
+      return null;
+    }
+    if (!counts()) {
+      void api.discardTx(preview.psbt_id);
+      return null;
+    }
+    heldPreview = preview;
+    return preview;
+  };
+
+  /** Hands the held preview over to be signed, which uses it up either way. */
+  const takePreview = (): TxPreview | null => {
+    const preview = heldPreview;
+    heldPreview = null;
+    return preview;
+  };
+
+  /**
+   * After a broadcast from this screen. It went out, so it is recorded for
+   * this wallet whichever screen is on top by now — never for another wallet,
+   * whose Result screen would read it as its own — and shown only while this
+   * screen is still the one open.
+   */
+  const broadcastDone = (result: BroadcastResult): void => {
+    if (!sameWallet()) return;
+    session.lastResult = result;
+    if (onScreen()) navigate("result");
+  };
+
+  const paint = (d: TxDetail, explorerUrl: string | null, offer: Offer): void => {
     const incoming = d.net_sat >= 0;
     const dot = el("span", { className: "m-dirdot" }, [icon(incoming ? "down" : "up", 22)]);
     dot.classList.add(incoming ? "m-tx-in" : "m-tx-out");
@@ -139,16 +212,15 @@ export function renderTransaction(): HTMLElement {
       ),
     );
 
-    // Only our own unconfirmed sends can be replaced, and only with a key.
-    const bumpable = isBumpable(d) && !info.is_watch_only;
-    content.replaceChildren(
-      alert.node,
-      hero,
-      facts,
-      flow,
-      ident,
-      ...(bumpable ? [bumpCard(d.txid, d.fee_rate_sat_vb)] : []),
-    );
+    const actions: HTMLElement[] = [];
+    if (offer === "replace") {
+      const bump = bumpCard(d.txid, d.fee_rate_sat_vb);
+      actions.push(bump, cancelControl(d, bump));
+    } else if (offer === "child") {
+      actions.push(speedUpCard(d));
+    }
+    // Above the Transaction id card, so an action shows without scrolling (M11b).
+    content.replaceChildren(alert.node, hero, facts, flow, ...actions, ident);
   };
 
   const bumpCard = (id: string, originalRate: number | null): HTMLElement => {
@@ -221,6 +293,288 @@ export function renderTransaction(): HTMLElement {
     return sheet;
   };
 
+  /**
+   * Cancel (M11c): a replacement that pays everything back to this wallet, at
+   * a fee that outbids the original — the core raises it to what BIP125 asks.
+   * Two taps, like Forget: the first builds the preview the card shows, the
+   * second sends it. Bump fee folds away while the card is open, and opening
+   * it again calls the cancel off.
+   */
+  const cancelControl = (d: TxDetail, bump: HTMLElement): HTMLElement => {
+    const host = el("div");
+    const folded = el(
+      "button",
+      { className: "m-card m-fold", attrs: { type: "button", "aria-expanded": "false" } },
+      [
+        sectionLabel("Bump fee"),
+        el("span", { className: "m-fold-hint" }, [
+          el("span", { className: "hint", text: "Pay more to confirm sooner" }),
+          el("span", { className: "m-fold-chev" }, [icon("chevron", 17)]),
+        ]),
+      ],
+    );
+
+    /** Back to Bump fee and the Cancel button, with nothing held. */
+    const close = (): void => {
+      dropPreview();
+      host.replaceChildren(trigger);
+      folded.replaceWith(bump);
+    };
+    folded.addEventListener("click", close);
+
+    const confirm = async (): Promise<void> => {
+      const built = takePreview();
+      if (!built) {
+        close();
+        return;
+      }
+      alert.hide();
+      try {
+        broadcastDone(await api.signAndBroadcast(built.psbt_id));
+      } catch (e) {
+        if (!onScreen()) return;
+        // Signing used the preview up whether or not it went out, so the card
+        // has nothing left to send; asking again builds another.
+        close();
+        alert.show("error", errorMessage(e));
+      }
+    };
+
+    const ask = async (): Promise<void> => {
+      alert.hide();
+      let estimate: FeeEstimate | null = null;
+      try {
+        estimate = await api.estimateFee();
+      } catch {
+        // The original's own rate still sets the floor.
+      }
+      if (!onScreen()) return;
+      try {
+        const built = await holdPreview(() =>
+          api.buildCancel(d.txid, suggestBumpRate(estimate, d.fee_rate_sat_vb)),
+        );
+        if (!built) return;
+        const go = button("Cancel transaction", () => withBusy(go, confirm), {
+          variant: "danger",
+          block: true,
+        });
+        const sheet = card(
+          sectionLabel("Cancel"),
+          lede(
+            `Replace it with a transaction that pays ${formatNumber(built.change_sat)} sat back to your wallet. Fee ${formatNumber(built.fee_sat)} sat.`,
+          ),
+          go,
+          button("Keep it", close, { variant: "quiet" }),
+        );
+        sheet.classList.add("m-confirm", "m-cancel");
+        host.replaceChildren(sheet);
+        bump.replaceWith(folded);
+      } catch (e) {
+        alert.show("error", errorMessage(e));
+      }
+    };
+
+    const trigger = button("Cancel", () => withBusy(trigger, ask), {
+      variant: "danger",
+      block: true,
+    });
+    host.appendChild(trigger);
+    return host;
+  };
+
+  /**
+   * Speed up (M11b): a child that spends this payment on to us, with a fee
+   * that brings the two to the chosen rate, so the fee comes out of the
+   * payment. The preview is built as soon as the card shows and again for
+   * each choice, and the button sends the one on screen.
+   */
+  const speedUpCard = (d: TxDetail): HTMLElement => {
+    const parentRate = d.fee_rate_sat_vb;
+    // `undefined` until the estimate answers, `null` if it could not.
+    let estimate: FeeEstimate | null | undefined;
+    // What the last build asked for; Custom starts from it.
+    let rate = suggestPackageRate(null, 1, parentRate);
+
+    const note = el("span", { className: "hint", text: "Fetching the estimate…" });
+    const custom = textInput({ type: "number", mono: true, name: "speedup_rate" });
+    custom.min = "1";
+    custom.max = String(MAX_FEE_RATE_SAT_VB);
+    custom.step = "0.1";
+    custom.setAttribute("inputmode", "decimal");
+    custom.setAttribute("aria-label", "Rate for both, in sat/vB");
+    const customRow = el("div", { className: "m-rate-row" }, [
+      custom,
+      el("span", { className: "m-rate-unit", text: "sat/vB" }),
+    ]);
+    // Holds the rate field only while Custom is chosen.
+    const customSlot = el("div", { className: "slot" });
+    const customErr = el("span", { className: "m-err", attrs: { role: "status" } });
+    const fee = el("span", { className: "mono" });
+    const pays = el("span", { className: "mono" });
+    const keep = el("span", { className: "mono" });
+    const numbers = kv([
+      ["Fee", fee],
+      ["Rate", pays],
+      ["You keep", keep],
+    ]);
+    numbers.classList.add("m-kv");
+
+    /** Nothing on screen that could be sent, yet or at all. */
+    const blank = (mark: string): void => {
+      dropPreview();
+      fee.textContent = mark;
+      pays.textContent = mark;
+      keep.textContent = mark;
+    };
+
+    /** Works out the rate the choice stands for and builds at it, or says why not. */
+    const refresh = async (): Promise<void> => {
+      customErr.textContent = "";
+      const choice = target.value();
+      let shown: string;
+      if (choice === "custom") {
+        note.textContent = "Your rate";
+        const typed = Number(custom.value);
+        const problem =
+          feeRateError(typed) ??
+          (parentRate !== null && typed <= parentRate
+            ? `It pays ${parentRate.toFixed(1)} sat/vB alone already; a child helps only above that.`
+            : null);
+        if (problem !== null) {
+          customErr.textContent = problem;
+          blank("—");
+          return;
+        }
+        rate = typed;
+        shown = String(typed);
+      } else if (estimate === undefined) {
+        // Built once the estimate answers.
+        note.textContent = "Fetching the estimate…";
+        blank("…");
+        return;
+      } else {
+        const blocks = Number(choice);
+        rate = suggestPackageRate(estimate, blocks, parentRate);
+        shown = rate.toFixed(1);
+        if (estimate === null) {
+          note.textContent = `Estimate unavailable — starting at ${shown} sat/vB`;
+        } else if (rate > suggestPackageRate(estimate, blocks)) {
+          // The estimate alone would offer a rate the transaction pays already.
+          note.textContent = `Raised above the ${(parentRate ?? 0).toFixed(1)} sat/vB it pays alone`;
+        } else {
+          note.textContent = `${blocks}-block estimate ${shown} sat/vB`;
+        }
+      }
+      pays.textContent = `${shown} sat/vB for both`;
+      fee.textContent = "…";
+      keep.textContent = "…";
+      const at = rate;
+      try {
+        const built = await holdPreview(() => api.buildCpfp(d.txid, at));
+        if (!built) return;
+        fee.textContent = `${formatNumber(built.fee_sat)} sat`;
+        // The child spends our coins from this payment and nothing else, so
+        // they come to what it keeps plus its fee.
+        keep.textContent = `${formatNumber(built.change_sat)} of ${formatNumber(built.change_sat + built.fee_sat)} sat`;
+      } catch (e) {
+        fee.textContent = "—";
+        keep.textContent = "—";
+        alert.show("error", errorMessage(e));
+      }
+    };
+
+    const target = chips<SpeedChoice>(
+      [
+        ...FEE_TARGETS.map((t) => ({
+          value: `${t}` as SpeedChoice,
+          label: `${t} block${t > 1 ? "s" : ""}`,
+        })),
+        { value: "custom", label: "Custom" },
+      ],
+      "1",
+      (choice) => {
+        alert.hide();
+        if (choice === "custom") {
+          // Starts from the rate on screen, as Send's Custom does.
+          custom.value = String(rate);
+          customSlot.replaceChildren(customRow);
+        } else {
+          customSlot.replaceChildren();
+        }
+        void refresh();
+      },
+      { tight: true, label: "Fee target" },
+    );
+    custom.addEventListener("input", () => void refresh());
+
+    const send = async (): Promise<void> => {
+      const built = takePreview();
+      // Nothing built to send: the last build failed, or is still running.
+      if (!built) {
+        await refresh();
+        return;
+      }
+      alert.hide();
+      try {
+        broadcastDone(await api.signAndBroadcast(built.psbt_id));
+      } catch (e) {
+        if (!onScreen()) return;
+        alert.show("error", errorMessage(e));
+        // Signing used the preview up whether or not it went out; build
+        // another, so what the button would send is on screen again.
+        await refresh();
+      }
+    };
+    const go = button("Speed up", () => withBusy(go, send), { variant: "primary", block: true });
+
+    void refresh();
+    void (async () => {
+      try {
+        estimate = await api.estimateFee();
+      } catch {
+        estimate = null;
+      }
+      // A rate typed into Custom meanwhile stands; the estimate is for the chips.
+      if (onScreen() && target.value() !== "custom") await refresh();
+    })();
+
+    const sheet = card(
+      el("div", { className: "m-bump-head" }, [sectionLabel("Speed up"), note]),
+      el("p", {
+        className: "m-card-text",
+        text: "Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).",
+      }),
+      target.node,
+      customSlot,
+      customErr,
+      numbers,
+      go,
+    );
+    // M11b frames it exactly as M11 frames Bump fee.
+    sheet.classList.add("m-bump");
+    return sheet;
+  };
+
+  /**
+   * Nothing can be signed without a key, and nothing confirmed needs speeding
+   * up. Our own unconfirmed send is sped up by replacing it, or taken back; a
+   * child is for what replacement cannot reach, a payment someone else sent
+   * above all.
+   */
+  const offerFor = async (d: TxDetail): Promise<Offer> => {
+    if (info.is_watch_only || d.confirmations !== null) return "none";
+    if (isBumpable(d)) return "replace";
+    return canPayForParent(d, await api.listUtxos()) ? "child" : "none";
+  };
+
+  // Screens are rebuilt on every navigation, so a preview still held when
+  // this one goes away is unreachable, stranded in the core's pending map.
+  const discardOnLeave = (): void => {
+    dropPreview();
+    window.removeEventListener("hashchange", discardOnLeave);
+  };
+  window.addEventListener("hashchange", discardOnLeave);
+
   void (async () => {
     try {
       const detail = await api.transaction(txid);
@@ -232,8 +586,9 @@ export function renderTransaction(): HTMLElement {
       // Asked for once, here, so the button below is only built when there is
       // somewhere for it to go.
       const explorerUrl = await api.explorerUrl(detail.txid).catch(() => null);
+      const offer = await offerFor(detail);
       if (!onScreen()) return;
-      paint(detail, explorerUrl);
+      paint(detail, explorerUrl, offer);
     } catch (e) {
       content.replaceChildren(alert.node);
       alert.show("error", errorMessage(e));

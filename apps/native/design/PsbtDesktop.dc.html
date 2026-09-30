@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #FAFAF9; color: #1A1A1A; font-family: "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+    a { color: #C2410C; } a:hover { color: #A3360A; }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B6B66; }
+    .card { background: #FFFFFF; border: 1px solid #E4E3DF; border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; font-weight: 500; font-size: 14px; white-space: nowrap; }
+    .btn-primary { background: #C2410C; border-color: #C2410C; color: #FFFFFF; }
+    .btn-quiet { border-color: transparent; background: transparent; color: #6B6B66; }
+    .btn-danger { color: #B91C1C; border-color: #E4E3DF; }
+    .btn-sm { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+    .input { display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; color: #1A1A1A; }
+    .input.placeholder { color: #A19F97; }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 12px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF; }
+    .chip.on { border-color: #1A1A1A; background: #F4F4F2; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #A19F97; background: #FFFFFF; box-sizing: border-box; }
+    .chip.on .dot { border: 4px solid #C2410C; }
+    .hint { font-size: 12px; color: #6B6B66; }
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 24px; align-items: baseline; }
+    .kv dt { color: #6B6B66; font-size: 12px; } .kv dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid #E4E3DF; white-space: nowrap; }
+    th { color: #6B6B66; font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    td.num, th.num { text-align: right; }
+    tr:last-child td { border-bottom: none; }
+  </style>
+</helmet>
+<div style="width: 960px; min-height: 760px; background: #FAFAF9; display: flex; flex-direction: column;">
+<header style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 16px; border-bottom: 1px solid #E4E3DF; background: #FFFFFF;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="width: 20px; height: 20px; border-radius: 5px; background: #C2410C; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="9" r="5.5" stroke="#FFFFFF" stroke-width="2.4"></circle><path d="M9.5 13.5h5L16 22H8z" fill="#FFFFFF"></path></svg></div>
+    <span style="font-weight: 600; font-size: 14px;">Bitcoin Wallet</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 12px; font-weight: 500; color: #6B6B66;">Setup</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 500; color: #6B6B66;">Key</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9C7C1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg><span style="font-size: 12px; font-weight: 600; color: #1A1A1A;">Wallet</span></div>
+  <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B6B66;">
+    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid #E4E3DF; border-radius: 999px; background: #F4F4F2;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #166534;"></span>Signet · mempool.space</span><span style="display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; font-weight: 500; color: #1A1A1A;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"></path></svg>Settings</span>
+  </div>
+</header>
+<main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
+  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Import PSBT</h1>
+  <p style="margin: 0; font-size: 12px; color: #6B6B66;">Sign or send a transaction made in another wallet</p>
+</div>
+<section class="card">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">PSBT</span>
+    <span class="hint">Base64. Described as soon as it parses.</span>
+  </div>
+  <div class="input mono" style="display: block; white-space: normal; word-break: break-all; font-size: 12px; line-height: 1.6; padding: 8px 12px;">cHNidP8BAKYCAAAAAqez4c6ud4mmc9q4x1ecJ7yzkymt0vusyRIhcWM9U/dXAAAAAAD9////GwshIwQ51hnBlIcQvnzsOQnc4csPsk8/qoBfI2oT4poBAAAAAP3///8CQJwAAAAAAAAiUSCkzq7o2w18S9rYe/zTQXxbFRxjMfGAh81cQ6G0z4U91bs5AAAAAAAAFgAUz8tr9Cr+ErDP0GAVRUu5vNYmcSsAAAAAAAEBHzB1AAAAAAAAFgAUqYPmde9MON1yhMd0CGpr7LSuni0AAQEfqGEAAAAAAAAWABSpg+Z170w43XKEx3QIamvstK6eLQAAAA==</div>
+  <div style="display: flex; gap: 8px;">
+    <span class="btn btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"></rect><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"></path></svg> Paste</span>
+    <span class="btn btn-sm">Load file…</span>
+  </div>
+</section>
+<section class="card">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <span class="label">What it spends and pays</span>
+    <span class="hint">2 inputs, both yours · 2 outputs</span>
+  </div>
+  <table>
+    <thead><tr><th style="width: 72px;"></th><th>Outpoint or address</th><th></th><th class="num">Value (sat)</th></tr></thead>
+    <tbody>
+      <tr><td style="color: #6B6B66;">Input 1</td><td class="mono">57f7533d63…cee1b3a7:0</td><td style="white-space: normal;">This wallet · <span style="color: #B45309;">not signed</span></td><td class="num mono">30,000</td></tr>
+      <tr><td style="color: #6B6B66;">Input 2</td><td class="mono">9ae2136a23…23210b1b:1</td><td style="white-space: normal;">This wallet · <span style="color: #B45309;">not signed</span></td><td class="num mono">25,000</td></tr>
+      <tr><td style="color: #6B6B66;">Output 1</td><td class="mono">tb1p5n82a6xmp47yhkkc007d…</td><td style="white-space: normal;">Recipient</td><td class="num mono">40,000</td></tr>
+      <tr><td style="color: #6B6B66;">Output 2</td><td class="mono">tb1qel9khap2lcftpn7svq25…</td><td style="white-space: normal;">Change <span class="hint">· back to this wallet</span></td><td class="num mono">14,779</td></tr>
+      <tr><td style="color: #6B6B66;">Fee</td><td class="mono">1.0 sat/vB · 221 vB</td><td style="white-space: normal;"></td><td class="num mono">221</td></tr>
+    </tbody>
+  </table>
+</section>
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <span style="display: inline-flex; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B45309;"></span>Signed 0 of 2 inputs</span>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span class="hint">Broadcast waits until every input is signed and the PSBT is finalized.</span>
+    <span class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path></svg> Sign</span>
+    <span class="btn" style="opacity: 0.45;">Broadcast</span>
+  </div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":760}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

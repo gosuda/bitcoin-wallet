@@ -2,8 +2,9 @@
  * The Tauri shell's half of the platform seam.
  *
  * The native side owns exactly two things: the config store (`get_config` /
- * `set_config`, plus the plugin store that holds the remembered-wallet record)
- * and the OS keystore (`remember_secret` / `load_secret` / `forget_secret`).
+ * `set_config`, plus the plugin store that holds the remembered-wallet record
+ * and the lock time) and the OS keystore (`remember_secret` / `load_secret` /
+ * `forget_secret`).
  * Nothing wallet-shaped crosses the IPC boundary.
  */
 
@@ -11,12 +12,14 @@ import { installChainFetch } from "@bitcoin-wallet/ui/net";
 import type { Platform } from "@bitcoin-wallet/ui/platform";
 import {
   type AppConfig,
+  type LockAfter,
+  lockAfterFrom,
   messageOf,
   type RememberedWallet,
   type StoredSecret,
 } from "@bitcoin-wallet/ui/types";
 import { invoke } from "@tauri-apps/api/core";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
@@ -46,6 +49,7 @@ export function installNativeFetch(): void {
 
 const STORE_FILE = "config.json";
 const REMEMBERED_KEY = "remembered_wallet";
+const LOCK_AFTER_KEY = "lock_after";
 
 /**
  * Asks the native side whether the OS credential store actually works here.
@@ -136,6 +140,14 @@ async function authenticate(reason: string): Promise<void> {
   await prompt(reason, { allowDeviceCredential: true });
 }
 
+/**
+ * How the clipboard plugin (2.3) says there is no text to paste: "Clipboard
+ * is empty" on Android and iOS, "Clipboard content reader not implemented"
+ * for an Android clip that is not plain text, and on the desktop arboard's
+ * "…not available in the requested format or the clipboard is empty".
+ */
+const NO_CLIPBOARD_TEXT = /clipboard is empty|content reader not implemented/i;
+
 export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Platform {
   return {
     canRememberWallet,
@@ -156,12 +168,31 @@ export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Plat
       await store.save();
     },
 
+    async getLockAfter(): Promise<LockAfter> {
+      const store = await loadStore(STORE_FILE);
+      return lockAfterFrom(await store.get(LOCK_AFTER_KEY));
+    },
+
+    async setLockAfter(choice): Promise<void> {
+      const store = await loadStore(STORE_FILE);
+      await store.set(LOCK_AFTER_KEY, choice);
+      await store.save();
+    },
+
     rememberSecret: (walletId, secret, passphrase) =>
       invoke<void>("remember_secret", { walletId, secret, passphrase: passphrase ?? null }),
     loadSecret: (walletId) => invoke<StoredSecret | null>("load_secret", { walletId }),
     forgetSecret: (walletId) => invoke<void>("forget_secret", { walletId }),
 
     writeClipboard: (text) => writeText(text),
+    // The plugin rejects when there is no text to read, which is an empty
+    // clipboard to Paste; any other rejection is one it cannot read, and is
+    // passed on so Paste can say so.
+    readClipboard: () =>
+      readText().catch((e: unknown) => {
+        if (NO_CLIPBOARD_TEXT.test(messageOf(e) ?? "")) return "";
+        throw e;
+      }),
     openUrl: (url) => openUrl(url),
   };
 }

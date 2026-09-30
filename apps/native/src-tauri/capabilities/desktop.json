@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop",
-  "description": "Desktop window: IPC, config store, clipboard write, explorer links, chain requests.",
+  "description": "Desktop window: IPC, config store, clipboard, explorer links, chain requests.",
   "windows": [
     "main"
   ],
@@ -14,6 +14,7 @@
     "core:default",
     "store:default",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

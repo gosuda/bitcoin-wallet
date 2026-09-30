@@ -6,6 +6,7 @@ import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
+import { historyReset } from "../ui/reset";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
 
@@ -57,9 +58,10 @@ export function renderCreate(): HTMLElement {
   phrase = null;
 
   const alert = banner();
+  const offer = historyReset(alert);
   const phraseBox = el("div", {}, [el("p", { className: "empty", text: "Generating…" })]);
   const confirmBox = el("div", {}, [el("p", { className: "empty", text: "Generating…" })]);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => refresh());
 
   // Optional and not shown again: the phrase above is only half the backup when
   // one is set, so the hint says what losing it costs. Left empty it means no
@@ -97,10 +99,10 @@ export function renderCreate(): HTMLElement {
     });
 
   const refresh = () => {
-    createBtn.disabled = phrase === null || !confirmed();
+    createBtn.disabled = phrase === null || !confirmed() || !remember.ready();
   };
 
-  const submit = async () => {
+  const submit = async (reset = false): Promise<void> => {
     alert.hide();
     const secret = phrase;
     if (!secret) {
@@ -111,13 +113,16 @@ export function renderCreate(): HTMLElement {
       alert.show("error", "The words you typed do not match the phrase.");
       return;
     }
+    if (!remember.ready()) return;
     const willRemember = remember.checked();
     try {
-      const info = await api.openWallet(
+      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
+      const info = await open(
         secret,
         cfg.address_type,
         willRemember,
         passphrase.value || undefined,
+        remember.appPassword(),
       );
       phrase = null;
       passphrase.value = "";
@@ -126,7 +131,7 @@ export function renderCreate(): HTMLElement {
       // check to misfire against the `session.wallet` that `api.openWallet` set.
       if (onScreen()) navigate("dashboard");
     } catch (e) {
-      if (onScreen()) alert.show("error", errorMessage(e));
+      if (onScreen()) offer.report(e, () => submit(true));
     }
   };
 
@@ -187,6 +192,7 @@ export function renderCreate(): HTMLElement {
       }),
     ]),
     alert.node,
+    offer.node,
     el("section", { className: "card secret-box" }, [
       el("div", { className: "card-head" }, [
         sectionLabel("Recovery phrase — shown once"),

@@ -1,19 +1,40 @@
 /**
- * Replace-by-fee, as far as a screen needs to know it.
+ * Speeding a transaction up, or taking it back, as far as a screen needs to
+ * know it.
  *
  * Every transaction the core builds signals replaceability, so the only
- * questions here are which rows can be bumped and what rate to start from.
+ * questions here are which rows can be replaced or given a child, and what
+ * rate to start from.
  */
 
-import { type FeeEstimate, rateForTarget, type TxSummary } from "./types";
+import { type FeeEstimate, rateForTarget, type TxSummary, type Utxo } from "./types";
 
 /**
- * Only our own unconfirmed sends can be replaced; everything else is settled.
- * Takes a list row or a detail alike. Whether this wallet can sign the
- * replacement is the caller's other question.
+ * Only our own unconfirmed sends can be replaced or cancelled; a child can
+ * speed up others too (`canPayForParent`). Takes a list row or a detail
+ * alike. Whether this wallet can sign the replacement is the caller's other
+ * question.
  */
 export function isBumpable(tx: Pick<TxSummary, "confirmations" | "net_sat">): boolean {
   return tx.confirmations === null && tx.net_sat < 0;
+}
+
+/**
+ * Whether a child can speed this transaction up: it is unconfirmed, its fee
+ * is known, and it left an unspent, unfrozen coin of ours to spend. A payment
+ * someone else sent qualifies too, which is the case replacement cannot reach.
+ * The child is priced against the fee the parent already pays, so without it
+ * the core refuses to build one, and the offer would fail on its first press.
+ */
+export function canPayForParent(
+  tx: Pick<TxSummary, "txid" | "confirmations" | "fee_sat">,
+  coins: readonly Utxo[],
+): boolean {
+  return (
+    tx.confirmations === null &&
+    tx.fee_sat !== null &&
+    coins.some((c) => c.txid === tx.txid && !c.frozen)
+  );
 }
 
 /**
@@ -55,12 +76,34 @@ export function suggestBumpRate(
   estimate: FeeEstimate | null,
   originalRateSatVb?: number | null,
 ): number {
-  const market = estimate ? rateForTarget(estimate, 1) : null;
-  const mustBeatOriginal =
-    originalRateSatVb != null && Number.isFinite(originalRateSatVb) && originalRateSatVb > 0
-      ? originalRateSatVb + REPLACEMENT_MARGIN_SAT_VB
+  return outbid(estimate ? rateForTarget(estimate, 1) : null, originalRateSatVb);
+}
+
+/**
+ * The rate Speed up offers for `target` blocks: what the child and the
+ * transaction it spends are built to pay together.
+ *
+ * A child helps only when the pair pays more than the parent already does on
+ * its own. At or under that rate the core still builds one, at the relay
+ * minimum, and the parent is no nearer a block. So the parent's rate is a
+ * floor here as the original's is for a bump, with the same margin, and a
+ * target whose estimate falls under it is offered the floor instead.
+ */
+export function suggestPackageRate(
+  estimate: FeeEstimate | null,
+  target: number,
+  parentRateSatVb?: number | null,
+): number {
+  return outbid(estimate ? rateForTarget(estimate, target) : null, parentRateSatVb);
+}
+
+/** The market rate, or the one to beat plus the margin when that is higher. */
+function outbid(market: number | null, toBeatSatVb?: number | null): number {
+  const mustBeat =
+    toBeatSatVb != null && Number.isFinite(toBeatSatVb) && toBeatSatVb > 0
+      ? toBeatSatVb + REPLACEMENT_MARGIN_SAT_VB
       : 0;
-  const rate = Math.max(market ?? 1, mustBeatOriginal);
+  const rate = Math.max(market ?? 1, mustBeat);
   // Rounded up to a tenth so the value is typeable, floored at the relay minimum.
   return Math.max(1, Math.ceil(rate * 10) / 10);
 }

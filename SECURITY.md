@@ -57,9 +57,18 @@ Anything that could lose or expose funds, or make the wallet lie about them:
   iOS Keychain (`protected`), Android Keystore. On a phone it is reopened behind Face
   ID or the device unlock. Nothing else is persisted: the wallet's chain state is a
   BDK changeset in IndexedDB, which holds public data only.
-- **Browser.** There is no key store. The tab reports `canRememberWallet: false`, so
-  "Remember on this device" is not offered, no key is written anywhere, and the wallet
-  lives exactly as long as the tab.
+- **Browser.** There is no OS keychain, so "Remember on this device" asks for an app
+  password — not the BIP39 passphrase — and keeps the key only under it. The key, with
+  any BIP39 passphrase, is encrypted with AES-256-GCM under a key derived from the app
+  password by PBKDF2-HMAC-SHA256 over 600,000 rounds, both from WebCrypto, with a random
+  16-byte salt and 12-byte IV of its own. The record (format version, round count, salt,
+  IV and ciphertext; never the password) is kept in the browser's IndexedDB, in a
+  database of its own, `bitcoin-wallet-keystore`; the wallet's public record (address,
+  network, id) sits in `localStorage`. A wrong password fails GCM's check and is
+  reported as such. The password cannot be reset: forgetting it means restoring the
+  wallet from its recovery phrase. Without "Remember" no key is written anywhere and the
+  wallet lives exactly as long as the tab, and a page served from anywhere but https or
+  localhost, which has no WebCrypto, does not offer it.
 - **CLI.** `btcw` keeps state in memory for the run and persists nothing.
 
 The type a wallet is opened and operated with zeroizes on drop, redacts its `Debug`,
@@ -93,6 +102,12 @@ Stated because you should know them, not because they are acceptable:
   has no matching revoke, so an origin stays reachable for the rest of the process even
   after the backend is pointed elsewhere — narrower than "any host" by a lot, but not the
   same as "only the current one." A fresh launch starts from nothing again.
+- **A key remembered in the browser is as strong as its app password.** Anyone with a
+  copy of the browser profile can try passwords against it offline, as fast as their
+  hardware allows and with no limit on attempts; the 600,000 rounds slow each guess, but
+  a short or common password still falls. Nor does the password stand between the key
+  and anything running in the page — an extension with access to it, or a tampered
+  build — which sees the password as it is typed and the key once it is opened.
 - **Backups are your problem.** Losing a recovery phrase, or a passphrase set on one,
   loses the wallet. "Forget this wallet" deletes the stored key immediately.
 - **Not audited against side channels.** Signing uses `rust-secp256k1`; nothing here

@@ -1,120 +1,10 @@
 /** @vitest-environment jsdom */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-/*
- * Real screens, rendered in jsdom over the real `api`, `session` and route
- * guards. Only what jsdom cannot provide is replaced: the WebAssembly wrapper
- * (a fake wallet whose `sync` can be held open) and the IndexedDB persister.
- * So what fails here is the screens' own handling of secrets and of work
- * that outlives them.
- */
+vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
+vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
 
-const fake = vi.hoisted(() => {
-  const ADDRESS = "tb1q4gp4z4utc286kcdpdsj3qwgpefcf9u4mv9a0d5";
-  const built = (total: number) => ({
-    psbt_base64: `psbt-${total}`,
-    fee_sat: 141,
-    vsize: 141,
-    total_out_sat: total,
-    change_sat: 0,
-    input_count: 1,
-  });
-  let syncGate: Promise<void> = Promise.resolve();
-
-  class FakeWallet {
-    static async open(): Promise<FakeWallet> {
-      return new FakeWallet();
-    }
-    get id(): string {
-      return "testnet4-p2wpkh-fake";
-    }
-    get network(): string {
-      return "testnet4";
-    }
-    get address_type(): string {
-      return "p2wpkh";
-    }
-    get isHd(): boolean {
-      return true;
-    }
-    get isRanged(): boolean {
-      return true;
-    }
-    get isWatchOnly(): boolean {
-      return false;
-    }
-    async address(): Promise<string> {
-      return ADDRESS;
-    }
-    async newAddress(): Promise<string> {
-      return ADDRESS;
-    }
-    async sync(): Promise<void> {
-      await syncGate;
-    }
-    async rescan(): Promise<void> {}
-    async public_descriptors() {
-      return { external: "wpkh(fake/0/*)", internal: null, account_xpub: null, fingerprint: null };
-    }
-    async transaction(): Promise<null> {
-      return null;
-    }
-    async balance() {
-      return { confirmed: 50_000, trusted_pending: 0, untrusted_pending: 0, immature: 0 };
-    }
-    async list_utxos(): Promise<never[]> {
-      return [];
-    }
-    async list_transactions(): Promise<never[]> {
-      return [];
-    }
-    async estimate_fee() {
-      return { sat_per_vb_by_target: { "6": 2 } };
-    }
-    async build_transfer(recipients: { amount_sat: number }[]) {
-      return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0));
-    }
-    async build_drain() {
-      return built(49_859);
-    }
-    free(): void {}
-  }
-
-  return {
-    ADDRESS,
-    FakeWallet,
-    /** Holds every `sync` open until `release` is called. */
-    holdSync(): () => void {
-      let release = (): void => {};
-      syncGate = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      return release;
-    },
-  };
-});
-
-vi.mock("../src/wasm", () => ({
-  WalletApi: fake.FakeWallet,
-  walletIdForKey: async () => "testnet4-p2wpkh-fake",
-  explorerTxUrl: async () => null,
-  generateKey: async () => {
-    throw new Error("not used here");
-  },
-  generateMnemonic: async () => ({
-    words:
-      "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-    address: fake.ADDRESS,
-  }),
-  validateMnemonic: async () => undefined,
-}));
-
-vi.mock("../src/persist/indexeddb", () => ({
-  makePersister: () => ({ initialize: async () => null, persist: async () => undefined }),
-  deleteWalletState: async () => undefined,
-}));
-
-import { api } from "../src/api";
+import { api, canUnlockHere } from "../src/api";
 import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
 import { renderScan as renderPhoneScan } from "../src/mobile/screens/scan";
@@ -122,85 +12,29 @@ import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
 import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
 import { renderSetup as renderPhoneSetup } from "../src/mobile/screens/setup";
 import { platform, setPlatform } from "../src/platform";
-import type { Route } from "../src/router";
 import { renderCreate } from "../src/screens/create";
 import { renderDashboard } from "../src/screens/dashboard";
 import { renderKey } from "../src/screens/key";
 import { renderRestore } from "../src/screens/restore";
 import { renderSend } from "../src/screens/send";
+import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
-import type { AppConfig } from "../src/types";
+import { NETWORK_LABELS, type Network, type RememberedWallet } from "../src/types";
+import { fake } from "./fakes";
+import {
+  at,
+  buttonNamed,
+  CONFIG,
+  find,
+  leaveTo,
+  mount,
+  settle,
+  type,
+  useScreenHarness,
+} from "./harness";
 
-// jsdom does no layout, so it has nothing to scroll; the preview asks it to.
-Element.prototype.scrollIntoView = vi.fn();
-
-const CONFIG: AppConfig = {
-  network: "testnet4",
-  address_type: "p2wpkh",
-  backend: { kind: "esplora", url: "https://mempool.space/testnet4/api" },
-};
-
-/** Where the shell would be when it renders a screen: no event, just the URL. */
-function at(route: Route): void {
-  window.history.replaceState(null, "", `#/${route}`);
-}
-
-/** The user moves on: the URL changes and the one `hashchange` fires. */
-function leaveTo(route: Route): void {
-  at(route);
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
-}
-
-function mount(screen: HTMLElement): HTMLElement {
-  document.body.replaceChildren(screen);
-  return screen;
-}
-
-function find<T extends Element>(root: ParentNode, selector: string): T {
-  const found = root.querySelector<T>(selector);
-  if (!found) throw new Error(`nothing matches ${selector}`);
-  return found;
-}
-
-function buttonNamed(root: ParentNode, name: string): HTMLButtonElement {
-  const found = [...root.querySelectorAll("button")].find((b) => b.textContent?.trim() === name);
-  if (!found) throw new Error(`no button named ${name}`);
-  return found;
-}
-
-function type(field: HTMLInputElement | HTMLTextAreaElement, value: string): void {
-  field.value = value;
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-/** Lets every promise already queued settle, the async screen work included. */
-async function settle(): Promise<void> {
-  for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-beforeEach(() => {
-  setPlatform({
-    canRememberWallet: false,
-    getConfig: async () => CONFIG,
-    setConfig: async () => undefined,
-    getRemembered: async () => null,
-    setRemembered: async () => undefined,
-    rememberSecret: async () => undefined,
-    loadSecret: async () => null,
-    forgetSecret: async () => undefined,
-    writeClipboard: async () => undefined,
-    openUrl: async () => undefined,
-  });
-  session.config = CONFIG;
-});
-
-afterEach(async () => {
-  await api.closeWallet();
-  vi.restoreAllMocks();
-  document.body.replaceChildren();
-  at("setup");
-});
+useScreenHarness();
 
 describe("secrets do not outlive their screen (1.3)", () => {
   it("Key clears a typed private key and a pasted descriptor", () => {
@@ -430,7 +264,9 @@ describe("every choice group has a name (3.9)", () => {
     at("dashboard");
     const dashboard = mount(renderDashboard());
     await settle();
-    expect(groupNames(dashboard)).toEqual(["Amount unit", "Address gap"]);
+    expect(groupNames(dashboard)).toEqual(["Amount unit"]);
+    at("settings");
+    expect(groupNames(mount(renderSettings()))).toEqual(["Address gap"]);
   });
 
   it("on the phone", async () => {
@@ -449,5 +285,135 @@ describe("every choice group has a name (3.9)", () => {
     expect(groupNames(mount(renderPhoneSettings()))).toEqual(["Address gap"]);
     at("receive");
     expect(groupNames(mount(renderPhoneReceive()))).toEqual(["Amount unit"]);
+  });
+});
+
+describe("a remembered wallet is reachable after Setup (6.2)", () => {
+  const SAVED: RememberedWallet = {
+    wallet_id: "testnet4-p2wpkh-fake",
+    address: fake.ADDRESS,
+    network: "testnet4",
+    address_type: "p2wpkh",
+  };
+
+  /** A device that keeps keys, with SAVED remembered on it; returns the key loader. */
+  function rememberSaved() {
+    const loadSecret = vi.fn(async () => ({ secret: "abandon abandon abandon", passphrase: null }));
+    setPlatform({
+      ...platform(),
+      canRememberWallet: true,
+      getRemembered: async () => SAVED,
+      loadSecret,
+    });
+    session.remembered = SAVED;
+    return loadSecret;
+  }
+
+  afterEach(() => {
+    session.remembered = null;
+  });
+
+  const SHELL_SETUPS = [
+    {
+      shell: "desktop",
+      render: renderSetup,
+      choose: (screen: HTMLElement, network: Network) =>
+        find<HTMLInputElement>(screen, `input[type=radio][value=${network}]`).click(),
+    },
+    {
+      shell: "phone",
+      render: renderPhoneSetup,
+      choose: (screen: HTMLElement, network: Network) =>
+        buttonNamed(
+          find(screen, "[role=radiogroup][aria-label=Network]"),
+          NETWORK_LABELS[network],
+        ).click(),
+    },
+  ] as const;
+
+  /** Chooses a network on Setup, presses Continue, and says where it went. */
+  async function continueOn(
+    setup: (typeof SHELL_SETUPS)[number],
+    network: Network,
+  ): Promise<string> {
+    at("setup");
+    const screen = mount(setup.render());
+    setup.choose(screen, network);
+    buttonNamed(screen, "Continue").click();
+    await settle();
+    return window.location.hash;
+  }
+
+  it.each(SHELL_SETUPS)(
+    "$shell Setup continues to Unlock on the wallet's own network",
+    async (setup) => {
+      rememberSaved();
+      expect(await continueOn(setup, "testnet4")).toBe("#/unlock");
+    },
+  );
+
+  it.each(SHELL_SETUPS)("$shell Setup continues to Key on any other network", async (setup) => {
+    rememberSaved();
+    expect(await continueOn(setup, "signet")).toBe("#/key");
+  });
+
+  it("Unlock is open only for a wallet saved on the chosen network, on a device that keeps keys", () => {
+    expect(canUnlockHere()).toBe(false);
+    rememberSaved();
+    expect(canUnlockHere()).toBe(true);
+    session.config = { ...CONFIG, network: "signet" };
+    expect(canUnlockHere()).toBe(false);
+    session.config = CONFIG;
+    setPlatform({ ...platform(), canRememberWallet: false });
+    expect(canUnlockHere()).toBe(false);
+  });
+
+  it("Unlock refuses a wallet saved on another network before it reads the key", async () => {
+    const loadSecret = rememberSaved();
+    session.config = {
+      ...CONFIG,
+      network: "signet",
+      backend: { kind: "esplora", url: "https://mempool.space/signet/api" },
+    };
+    await expect(api.unlockWallet()).rejects.toMatchObject({
+      code: "wrong_network",
+      message:
+        "The wallet saved on this device is on Testnet4. Choose Testnet4 in Setup to open it.",
+    });
+    expect(loadSecret).not.toHaveBeenCalled();
+    expect(session.wallet).toBeNull();
+  });
+
+  it("Unlock opens a wallet saved on the chosen network", async () => {
+    const loadSecret = rememberSaved();
+    const info = await api.unlockWallet();
+    expect(loadSecret).toHaveBeenCalledWith(SAVED.wallet_id);
+    expect(info.network).toBe("testnet4");
+    expect(session.wallet?.network).toBe("testnet4");
+  });
+});
+
+describe("coin control reaches the core (6.3)", () => {
+  it("a build with chosen coins takes the coin-control path, and one without does not", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    fake.calls.length = 0;
+    const coin = { txid: "ab".repeat(32), vout: 1 };
+    const pay = [{ address: fake.ADDRESS, amount_sat: 1000 }];
+
+    await api.buildTransfer(pay, 2, [coin]);
+    await api.buildDrain(fake.ADDRESS, 2, [coin]);
+    await api.buildTransfer(pay, 2);
+    await api.buildDrain(fake.ADDRESS, 2);
+    await api.setFrozen(coin, true);
+
+    const coinControl = new Set(["build_transfer_from", "build_drain_from", "set_frozen"]);
+    const coinCalls = fake.calls
+      .filter((c) => coinControl.has(String(c[0])))
+      .map((c) => (c[0] === "set_frozen" ? c : c.slice(0, 2)));
+    expect(coinCalls).toEqual([
+      ["build_transfer_from", [coin]],
+      ["build_drain_from", [coin]],
+      ["set_frozen", coin, true],
+    ]);
   });
 });

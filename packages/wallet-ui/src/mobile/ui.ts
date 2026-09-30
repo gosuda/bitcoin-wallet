@@ -7,8 +7,10 @@
  */
 
 import { navigate, type Route } from "../router";
-import { el } from "../ui/dom";
+import { errorMessage, historyResetFixes } from "../types";
+import { type Banner, el } from "../ui/dom";
 import { type IconName, icon } from "../ui/icons";
+import { type HistoryReset, RESET_CONFIRM, RESET_TEXT, RESET_TRIGGER } from "../ui/reset";
 
 export type Child = Node | string | null | undefined;
 
@@ -110,15 +112,20 @@ export function row(...children: Child[]): HTMLElement {
   return node;
 }
 
-/** A tappable full-width row: label on the left, value and chevron on the right. */
+/**
+ * A tappable full-width row: label on the left, value and chevron on the right.
+ * A value the screen fills in later is passed as the node it will write to.
+ */
 export function item(
   label: string,
-  value: string | null,
+  value: string | Node | null,
   onClick?: () => void,
   opts: { danger?: boolean } = {},
 ): HTMLElement {
   const right = el("span", { className: "m-item-value" });
-  if (value !== null) right.appendChild(el("span", { text: value }));
+  if (value !== null) {
+    right.appendChild(typeof value === "string" ? el("span", { text: value }) : value);
+  }
   if (onClick) right.appendChild(icon("chevron", 17));
   const node = el(onClick ? "button" : "div", {
     className: "m-item",
@@ -255,6 +262,89 @@ export function confirmDanger(opts: {
   );
   host.appendChild(arm);
   return host;
+}
+
+/**
+ * The phone's `historyReset` (see `ui/reset.ts`), as the canvas draws it on
+ * Unlock: a card with the error and its trigger, then the second step in the
+ * accent, two taps as with `confirmDanger`.
+ */
+export function historyReset(alert: Banner): HistoryReset {
+  const node = el("div", { className: "m-reset" });
+  return {
+    node,
+    report(error, reset) {
+      if (!historyResetFixes(error)) {
+        node.replaceChildren();
+        alert.show("error", errorMessage(error));
+        return false;
+      }
+      alert.hide();
+      const step = el("div", { className: "slot" });
+      const trigger = button(
+        RESET_TRIGGER,
+        () => {
+          const go = button(RESET_CONFIRM, () => withBusy(go, reset), {
+            variant: "primary",
+            block: true,
+          });
+          const keep = button(
+            "Keep it",
+            () => {
+              step.replaceChildren();
+              trigger.focus();
+            },
+            { variant: "quiet" },
+          );
+          const sheet = card(lede(RESET_TEXT), go, keep);
+          sheet.classList.add("m-confirm", "m-confirm-accent");
+          step.replaceChildren(sheet);
+          go.focus();
+        },
+        { block: true },
+      );
+      const offer = card(
+        el("p", { className: "m-reset-message", attrs: { role: "alert" } }, [
+          icon("alert", 20),
+          el("span", { text: errorMessage(error) }),
+        ]),
+        trigger,
+      );
+      offer.classList.add("m-reset-card");
+      node.replaceChildren(offer, step);
+      return true;
+    },
+  };
+}
+
+/** The four corners a QR code is aimed into. */
+export function reticle(): HTMLElement {
+  return el("div", { className: "m-reticle" }, [el("span"), el("span"), el("span"), el("span")]);
+}
+
+/** Marks handed out so far; each one carries its own number. */
+let marks = 0;
+
+/**
+ * Turns the page see-through while a camera runs: the OS draws the preview
+ * behind the webview, not in it, so the page has to let it show
+ * (`data-scanning` on the root element).
+ *
+ * A screen replaced mid-scan hears that it has left only after the new one
+ * has rendered, so clearing leaves alone a mark some other screen has set
+ * since.
+ */
+export function seeThroughMark(): { set(): void; clear(): void } {
+  const root = document.documentElement;
+  const id = String(++marks);
+  return {
+    set: () => {
+      root.dataset.scanning = id;
+    },
+    clear: () => {
+      if (root.dataset.scanning === id) delete root.dataset.scanning;
+    },
+  };
 }
 
 /** Pushes everything after it to the bottom of the scroll area. */

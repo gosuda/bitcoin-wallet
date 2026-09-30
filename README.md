@@ -19,7 +19,8 @@ read it before opening an issue asking for something that is already listed ther
 passphrase if you want one), a single private key (hex or WIF), or an xpub or public
 descriptor to follow a wallet you cannot spend from. The desktop and phone apps can
 remember a wallet in the OS key store; on a phone it then reopens with Face ID or the
-device unlock.
+device unlock. The browser build remembers one behind an app password, which encrypts
+the key it keeps in the browser's storage.
 
 **Receive** on a fresh address each time (single-key wallets have the one address, and
 say so). The QR encodes a `bitcoin:` link, with an amount if you ask for one.
@@ -65,15 +66,17 @@ crates/wallet-wasm   # wasm-bindgen bindings: the same core for browser and Taur
 crates/wallet-cli    # `btcw` developer CLI
 packages/wallet-ui   # the whole frontend: screens, router, wasm glue, IndexedDB — no platform APIs
 apps/native          # Tauri v2 shell: desktop window, iOS and Android — no wallet logic
-apps/web             # browser shell: static bundle, keys in memory for the tab
+apps/web             # browser shell: static bundle, keys in memory or sealed under an app password
 ```
 
 **One frontend, two shells.** `packages/wallet-ui` is the app; each shell supplies a
 `Platform` (config, remembered-wallet record, key store, clipboard, open-url) and calls
 `boot()`. The native shell answers with Tauri IPC and the OS keychain; the browser shell
-answers with `localStorage` and reports `canRememberWallet: false`, so "Remember on this
-device" is not offered, no key is written anywhere, and the wallet lives only as long as
-the tab.
+answers with `localStorage`, and with a key store of its own that reports
+`needsAppPassword`: "Remember on this device" asks for an app password, which seals the
+key (PBKDF2-SHA256, then AES-GCM, from WebCrypto) before it is written to IndexedDB.
+Without "Remember" no key is written anywhere, and the wallet lives only as long as the
+tab.
 
 **One frontend, two layouts.** The layout is chosen when the app is built, not by
 viewport: the native entry point reads `TAURI_ENV_PLATFORM` and mounts the phone shell
@@ -103,7 +106,8 @@ backend origin as that backend is configured, and no other origin.
 **Persistence.** The core never picks a database: it stages BDK `ChangeSet`s through a
 `Persister` the platform supplies. Browser and desktop both use the same IndexedDB store
 and the same JSON format; the CLI keeps state in memory. Secrets never go through that
-boundary — they live behind `Keystore` (OS keychain on native).
+boundary — they live behind `Keystore` (OS keychain on native), or in the browser sealed
+under the app password, in an IndexedDB database of their own.
 
 **Single-key or HD.** A private key (hex or WIF) opens a single-address wallet: one key,
 one address, and change comes straight back to it. A BIP39 mnemonic opens an HD wallet
@@ -129,7 +133,10 @@ $btcw balance -n signet                            # Esplora (mempool.space by d
 $btcw balance -n signet -u https://blockstream.info/signet/api
 $btcw send -n signet --to tb1q...:10000 --dry-run  # build + sign, print PSBT
 $btcw send -n signet --to tb1q...:10000            # broadcast; fee = 6-block estimate, floor 1 sat/vB
+$btcw send -n signet --max --to tb1q... --dry-run  # everything to one address, no change output
 $btcw history -n signet                            # transactions, newest first
+$btcw tx -n signet <txid>                          # one transaction: amounts, fee, inputs, outputs
+$btcw rescan -n signet --gap 100                   # look further past the last used address
 $btcw bump -n signet --txid <txid> -f 8            # re-send an unconfirmed tx at a higher fee
 ```
 

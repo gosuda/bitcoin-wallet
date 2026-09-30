@@ -787,23 +787,279 @@ new feature.
 
 ## Round 6 — Product
 
-Listed, not scheduled. Each goes to the design canvas first unless marked otherwise; the next
-one starts when it is picked.
+Branch `round-6-product`. Picked on 2026-09-30: finish what exists, security, and power
+features. Every screen goes to the design canvas first, in one batch (6.6). The core and CLI
+items before it change no screen, so they land while that batch is reviewed.
 
-- "Reset local history, keep the key" on the Unlock, Key and Restore error banners — the
-  action that consumes 1.6's `corrupt_state`
+- [x] **6.1 CLI `rescan`, `send --max`, `tx <txid>`** · S · `crates/wallet-cli/src/main.rs`
+  (no canvas)
+      why: the core has `rescan(stop_gap)`, `build_drain` and `transaction(txid)`, and the CLI
+      reaches none of them · done: 2026-09-30 — `btcw rescan`, `btcw tx <txid>` and `btcw send
+      --max --to ADDRESS` reach them. From this Mac on signet, with the BIP39 test phrase:
+      `rescan --gap 30` found 281 transactions and 1,313,215 sat; `tx` printed a received
+      transaction (block 324051, 53,457 sat to the wallet); `send --max --dry-run` signed a
+      5-input PSBT sending 1,312,642 sat with a 573 sat fee, the whole balance, and
+      `change_sat` 0. `--max` takes exactly one `--to` and no amount. The CLI's tests cover
+      those rules, how the new commands parse, and a rescan gap out of range exiting with the
+      core's code (21)
+
+- [x] **6.2 A remembered wallet is reachable after Setup** · S · `guards.ts`, `api.ts`, both
+  Setup screens (no canvas: routing only)
+      why: Setup always continues to Key and Key never links to Unlock, so a remembered wallet
+      is reachable only by restarting the app; and Unlock pairs the remembered wallet's
+      network with the current config's server · done: 2026-09-30 — both Setups continue to
+      Unlock when this device keeps a wallet for the network chosen there, and to Key
+      otherwise. Boot and both shells' guards ask the same question (`canUnlockHere`), so
+      Unlock is closed for a wallet saved on another network. Unlock itself refuses one before
+      it reads the key: "The wallet saved on this device is on Testnet4. Choose Testnet4 in
+      Setup to open it." (`wrong_network`). Seven jsdom tests cover both Setups, the guard's
+      input, the refusal and a matching unlock; breaking the routing, the network check or
+      the refusal fails four of them
+
+- [x] **6.3 Coin control in the core** · M · `wallet.rs`, `wallet-wasm`, `wasm/index.ts`,
+  `api.ts`
+      why: sends choose coins on their own, and no coin can be kept out of them · done:
+      2026-09-30 — `set_frozen` locks and unlocks a coin with BDK's `lock_outpoint`, saved in
+      the ChangeSet: a handle reopened from the same store sees the freeze, and then sees it
+      lifted. BDK's selection already leaves locked coins out of automatic sends and Max, but
+      its `balance()` counts them. So the balance now has a `frozen` part of its own: out of
+      spendable, still in the total. `build_transfer_from` and `build_drain_from` spend exactly
+      the chosen coins (`add_utxos` + `manually_selected_only`) and refuse a frozen one. A
+      chosen coin that is spent or not ours fails with the new `unknown_coin` (CLI exit 28).
+      The wasm bindings, the TS wrapper and `api` carry it all (`setFrozen`, and `coins` on
+      both builds), and `Utxo` and `Balance` say what is frozen. Four core tests and two UI
+      tests cover it. The regtest case `chosen_coins_move_and_a_frozen_one_stays` runs in CI's
+      regtest job, since this Mac cannot run bitcoind
+
+- [x] **6.4 CPFP and cancel in the core** · M · `wallet.rs`, `wallet-wasm`, `api.ts`,
+  `feebump.ts`
+      why: only an outgoing transaction can be sped up, and nothing can take one back · done:
+      2026-09-30 — `build_cpfp` spends our unspent, unfrozen outputs of an unconfirmed
+      transaction back to us, with a fee that brings the pair to the chosen rate and never
+      leaves the child under the relay minimum. It works for incoming payments too: their fee
+      is known from the previous outputs Esplora reports. `build_cancel` replaces an
+      unconfirmed send with one paying everything back to us. BDK checks a replacement's rate
+      or its fee, never both, so the cancel pays the larger of the rate over its own size and
+      the original's fee plus 1 sat/vB of that size (BIP125 rules 3 and 4). Both come back as
+      an ordinary preview (`api.buildCpfp`, `api.buildCancel`), signed and broadcast like any
+      send, and `canPayForParent` says when a child can help. Four core tests: the pair lands
+      within 0.05 sat/vB of the target, and a cancel at 22 sat/vB of a 20 sat/vB send pays the
+      original's fee plus its own size, where the rate alone would have paid less. The regtest
+      cases `a_child_pays_for_a_payment_someone_else_sent` and `a_cancel_takes_a_send_back`
+      run in CI's regtest job
+
+- [x] **6.5 PSBT import in the core** · L · `wallet.rs`, `wallet-wasm`, `api.ts`
+      why: a transaction made elsewhere cannot be signed or sent here, and a watch-only wallet
+      cannot send what another device signed · done: 2026-09-30 — `import_psbt` reads a PSBT
+      in base64 or hex. It writes this wallet's own record of every coin of ours being spent
+      over whatever the PSBT claims, and finalizes signatures made elsewhere that our
+      descriptors can complete. Then it describes the result: each input ours or not (by our
+      own history) and final or not, the outputs, the fee, the size once known, and the net
+      effect on this wallet. It also says whether the PSBT can go out and whether this wallet
+      can still sign. `sign_psbt` signs our inputs and leaves anyone else's alone.
+      `extract_tx`, and with it `broadcast`, now refuses a PSBT with any input not final.
+      Before, `Psbt::extract_tx` handed the backend a transaction with an empty signature. A
+      review carries a txid only once final, since a legacy or nested segwit signature changes
+      it. Six core tests: a watch-only copy's PSBT signed by the keys and sent by the copy, for
+      all four address types; partial signatures finalized on import; someone else's input
+      left unsigned; an unsigned PSBT refused; hex read like base64. `api.importPsbt`,
+      `signPsbt` and `broadcastPsbt` carry it to the screens. The regtest round trip
+      `a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_out` runs in CI's regtest job
+
+- [x] **6.6 The Round 6 screens on the canvas** · M · `apps/native/design/`, a new Design
+  canvas · **canvas review**
+      why: the canvas these screens were drawn on is gone, and every screen below needs one ·
+      done: 2026-09-30 — a new canvas, made from Claude's Design type, holds all 37 boards:
+      the 23 existing ones, and 14 new ones for 6.7–6.15 with a note beside each. The five open
+      choices sat in a brief above them. `gen.py` now writes the canvas's own index format and
+      ends each board with the logic block the canvas reads. So the published files are the
+      committed ones, and reading the live canvas back matched all 38 files. The user reviewed
+      it and said to go ahead; the decisions are below. 3 · Wallet gave Public keys and Rescan
+      to Settings, and the brief now records the answers
+
+- [x] **6.7 Reset local history, keep the key** · M · `api.ts`, `persist/indexeddb.ts`, the
+  Unlock, Key, Restore and Create screens · after 6.6
+      why: a wallet whose saved state cannot be read shows `corrupt_state` and a dead end; on
+      Unlock the only way out also deletes the key · done: 2026-09-30 — when the key opens but
+      the history saved on this device cannot be read, Unlock, Key, Restore and Create say so
+      on both shells and offer "Reset this device's history", with a second step as Forget
+      has. Confirming deletes that wallet's IndexedDB record and nothing else, then opens the
+      wallet the way the screen was opening it; the key, the remembered record and the
+      settings stay. `api.resetHistoryAndOpen` and `resetHistoryAndUnlock` try the open first
+      and delete only a record that has just failed to read, so a readable one is never
+      touched. A record from a newer version asks for an update and offers no reset, as
+      decided. On the phone's Unlock the reset stands where the Unlock button was, as the
+      board draws it. 38 jsdom tests in `reset.test.ts` open all ten ways in on both shells:
+      the first step deletes nothing, confirming deletes only that history and opens the
+      wallet, and a newer version's record offers no reset. In the browser build, a wallet
+      whose saved record was overwritten with broken JSON offered the reset from Key; its
+      first step left the record alone, and Reset history opened the wallet over a fresh
+      record, where a sync brought its signet coin back
+
+- [x] **6.8 Desktop Settings** · M · new `screens/settings.ts`, `guards.ts`, `app.ts` · after 6.6
+      why: changing network, server or address type on the desktop means Close wallet, then
+      Key, then Back · done: 2026-09-30 — a gear in the top bar of the Wallet page opens
+      Settings, and is lit there. It offers what the phone's Settings does. Network, server
+      and address type each ask first, then close the wallet and open Setup. It also has
+      where a remembered key is kept, Rescan with its gap, the public keys (shown when asked,
+      with their copy buttons), Close wallet, and Forget with its second step. Rescan and
+      Public keys left the Wallet page, as decided on the canvas. On both shells the guard now
+      sends Setup under an open wallet to Settings. Six jsdom tests cover the screen, and one
+      boots the whole desktop shell for the top bar; the guard tests follow. The browser
+      build was checked against the board
+
+- [x] **6.9 Several recipients on the phone** · M · `mobile/screens/send.ts` · after 6.6
+      why: the phone sends to one address; the api and desktop take several · done: 2026-09-30 —
+      Add recipient turns Send into a card per recipient, with its address, scan button, amount
+      and a × that is gone while only one is left. A lone recipient keeps the To and Amount
+      cards, and Max with them; adding a second leaves Max and discards its drain. One sat/BTC
+      choice below the cards covers every row and converts them all. Review lists each
+      recipient by both ends of its address with its amount, then the fee and the total, and
+      one transaction pays them all. A row's scan button now opens the camera on Send itself,
+      so the rows already filled in survive it; the code fills the last row without an address,
+      or the pressed one when none is empty, as decided. The scan button is the 48px square the
+      boards draw: a rule for rows of buttons had stretched it to half the row. Ten jsdom tests
+      in `send-multi.test.ts` cover adding and removing, Max, the unit, both reviews, a
+      prefilled payment, where a scan lands, a cancelled or unreadable scan, and leaving
+      mid-scan; breaking where a scan lands, Max, the unit, the build or the review fails at
+      least one of them
+
+- [x] **6.10 Focus rings on the phone** · S · `ui/mobile.css`, `ui/app.css` · after 6.6
+      why: rows, tabs and the primary button have no visible focus, and textareas none on either
+      shell · done: 2026-09-30 — on keyboard focus only (`:focus-visible`), a phone row or tab
+      takes the accent ring inside its edge, so the card and the tab bar cannot clip it. The
+      primary button takes a ring in the text colour 2px outside its accent fill (the Scan
+      screen's light text colour on that dark screen). Textareas now take the ring every other
+      field has, on both shells. A test reads both stylesheets, so a control that loses its
+      ring fails. On the Android emulator with a keyboard, Tab put the drawn ring on a Settings
+      row (its corners turning with the card), on the Wallet tab and on the Send button, and
+      taps drew none
+
+- [x] **6.11 Lock in the background** · M · new `ui/autolock.ts`, `app.ts` · after 6.6 ·
+  **decision** (how long, and what happens to a wallet that is not remembered)
+      why: an open wallet stays open however long the app sits in the background · done:
+      2026-09-30 — `ui/autolock.ts` starts at boot, once for both shells, and watches the
+      page's visibility. Hidden, it notes the time and sets a timer, which locks at the
+      deadline where timers run, as in a desktop window; on return it checks the clock too,
+      since a phone suspends the page. Past the limit, the remembered wallet on a device that
+      keeps keys closes to Unlock; any other wallet stays open. `whenIdle` in `api.ts` settles
+      once no sync, rescan or broadcast is running, and the lock waits for it. Settings offers
+      1, 5, 15 or 60 minutes or Never, 5 by default: a select in the desktop's Security card,
+      chips beside Remembered on the phone, and "Not available here" where no key can be kept.
+      The platform saves the choice (`lock_after` in the plugin store, or localStorage), and a
+      missing or unknown value reads as 5 minutes. Eighteen jsdom tests drive it with fake
+      timers and visibility events: both ways of locking, a return in time, a wallet not
+      remembered, a sync and a broadcast past the deadline, Never, the saved choice and both
+      Settings rows; one boots the phone shell. Breaking the timer, the check on return, the
+      wait, the remembered check or the saved choice fails at least one of them. On the
+      Android emulator with 1 min chosen, the wallet came back on Unlock after 87 seconds in
+      the background, and stayed open after 27
+
+- [x] **6.12 A browser keystore** · L · `apps/web/src/platform-browser.ts`, `platform/index.ts`,
+  `ui/remember.ts`, desktop Unlock · after 6.6 · **decision** (key derivation, naming)
+      why: the browser build cannot remember a wallet at all · done: 2026-09-30 — the browser
+      build remembers a wallet behind an app password. `platform/sealed.ts` derives a key from
+      it with PBKDF2-SHA256 over 600,000 rounds and a random 16-byte salt, as decided, and
+      seals the key and any BIP39 passphrase with AES-256-GCM under a random 12-byte IV, all
+      from WebCrypto. The record holds its format version, round count, salt, IV and
+      ciphertext, never the password, in an IndexedDB database of its own
+      (`bitcoin-wallet-keystore`, by wallet id). A wrong password fails GCM's check and is
+      `wrong_password`, "Wrong password." under the field; a record in a format this version
+      does not know is `unknown_secret_format`, refused before anything is derived. The
+      platform says `needsAppPassword`; `rememberSecret`, `loadSecret` and the api's opens
+      and unlocks carry the password, and an OS keystore is asked exactly what it was. On
+      Key, Create and Restore a ticked Remember reveals App password and Confirm app
+      password with the board's warning, and the button waits until the two match; Unlock
+      asks for it as 2e draws it, and Forget deletes the sealed record too. Settings says
+      "in this browser, encrypted with your app password". Fourteen Node tests in
+      `sealed.test.ts` cover the round trip, a wrong password, fresh salts and IVs, a changed
+      ciphertext, IV or salt, a record moved to another wallet's slot (GCM's additional data
+      is the wallet id), unknown formats, the round count and its ceiling of ten times the
+      default, and the key store over a map. Fifteen jsdom tests in `app-password.test.ts`
+      drive the screens on a browser-like platform and on a keychain one, which shows no
+      password field anywhere. Breaking the round count, its ceiling, the wallet binding, the
+      format check, the gate, the wipe, where the error is said, the password's way to the
+      store or Forget fails at least one of them. Tried in a browser (WebKit, the built app on
+      localhost): Remember kept one record in `bitcoin-wallet-keystore`, version 1 at 600,000
+      rounds with a 16-byte salt and a 12-byte IV, and the password nowhere in storage. A
+      wrong password said "Wrong password." under the field, the right one opened the wallet,
+      and Forget left no record. A reload landed on Setup rather than Unlock, until the route
+      guard sent a wallet's page to Unlock whenever a wallet is remembered
+
+- [x] **6.13 Coin control on screen** · M · both shells · after 6.3 and 6.6
+      why: 6.3 has no way to be used · done: 2026-09-30 — the desktop's Unspent outputs card
+      gives each coin a tick box and a Frozen switch, as 3b draws them. Its head counts the
+      outputs, the frozen ones and the ticked ones with their sum, beside Send selected, which
+      shows only while a coin is ticked. The phone has Coins (M13), from a Settings row that
+      counts the coins and the frozen ones. The switch freezes or unfreezes the coin in the
+      core, then the coins and the balance are read again; a frozen coin is dimmed and cannot
+      be ticked. Send selected hands the ticked coins to Send through the session, and Send
+      takes them as it opens. It says "Paying from 2 chosen coins · 61,234 sat", builds and
+      drains with exactly those coins, and Let the wallet choose drops them; so does leaving
+      Send, sending, or closing the wallet. The desktop's Balance card shows a Frozen stat
+      while anything is frozen. 21 jsdom tests in `coins.test.ts` drive both shells over the
+      fake core: the list, freezing and unfreezing, ticking, a payment and Max with and
+      without the chosen coins, leaving Send, a watch-only wallet, and keyboard focus kept
+      through a redraw. Breaking the builds, the hand-over, its release with the wallet, the
+      tick or the redraw fails at least one of them. Tried on a signet coin of 29,290 sat in
+      the browser build and on the Android emulator: freezing it moved it to the desktop's
+      Frozen stat and the phone's "1 · 1 frozen", dimmed it and took its tick away, with focus
+      kept on the switch. Send selected opened Send "Paying from 1 chosen coin · 29,290 sat",
+      where Max came to 29,180 sat (a 110 sat fee) from that coin alone, and Let the wallet
+      choose took Max off and the line away
+
+- [x] **6.14 CPFP and cancel on screen** · M · both shells · after 6.4 and 6.6
+      why: 6.4 has no way to be used · done: 2026-09-30 — on both shells, an unconfirmed
+      payment that left us a coin offers Speed up, and our own unconfirmed send keeps Bump fee
+      and adds Cancel. Confirmed transactions and watch-only wallets offer neither. Each is
+      built as a preview first and sent only from its own button. Speed up runs at the
+      estimate for the chosen target, raised past the parent's own rate when that is higher.
+      Cancel asks first, at a rate past the original's that the core raises to the fee BIP125
+      needs. 19 jsdom tests and 3 rate cases cover it. On the Android emulator against public
+      signet, a 1 sat/vB payment to the phone offered Speed up at 2.1 sat/vB for the pair. The
+      child it broadcast (459 sat fee) confirmed with its parent, 2.10 sat/vB for both, per
+      mempool.space. A 10,000 sat send from the phone offered Cancel for 251 sat, paying 29,290
+      back, and the node replaced the send with it
+
+- [x] **6.15 PSBT import on screen** · M · both shells · after 6.5 and 6.6
+      why: 6.5 has no way to be used · done: 2026-09-30 — the desktop has Import PSBT (7), from
+      a PSBT card in Settings beside Public keys, with the top bar's gear; the phone has it
+      (M14) from a Settings row after Coins. Both need an open wallet, watch-only included. A
+      PSBT pasted, typed or taken from the clipboard is described as soon as it parses: each
+      input's outpoint and value, whether it is this wallet's and whether it is signed, each
+      output with change marked, and the fee with its rate once the size is known, or
+      "unknown". The desktop's Load file… sends a binary `.psbt` (the magic `70 73 62 74 ff`
+      first) as base64 and any other file as its trimmed text; the phone scans a PSBT that fits
+      one QR code and refuses a BC-UR code as not supported yet. Text that is not a PSBT reads
+      "This is not a PSBT the wallet can read." under the field; a refusal at broadcast, which
+      the core gives the same code, keeps its own reason. Sign signs this wallet's inputs,
+      leaves the result in the field to pass on, and says so when the wallet holds no key for
+      any; a watch-only wallet has no Sign. Broadcast stays off until every input is final,
+      then keeps the result and opens Result as Send does. An answer for a PSBT since replaced,
+      read or signed, is dropped. 37 jsdom tests in `psbt.test.ts` drive both shells over the
+      fake core; `guards.test.ts` gains two cases, `errors.test.ts` a refusal in the core's
+      words and `desktop-shell.test.ts` the gear on 7. Breaking the order check, the file
+      magic, the BC-UR refusal, the copy, the Broadcast gate, the result, the watch-only Sign,
+      the no-key note, the field after Sign, the guard or either Settings entry fails at least
+      one of them. In the browser build, a binary `.psbt` from `btcw send --dry-run`, its
+      signature stripped, was described as one input of this wallet's and two outputs, 281 sat
+      at 2.0 sat/vB, and Sign made a PSBT byte for byte the one the CLI had signed. On the
+      Android emulator against public signet, the same PSBT pasted into the field with
+      Android's own paste was described, signed and broadcast: the network took
+      71cdd756…9d7037, the txid the dry run had named. The screen's own Paste was refused by
+      the webview there until the apps read the clipboard through the shell; then it filled the
+      field and the PSBT was described
+
+## Later — not picked
+
+Listed, not scheduled; each goes to the design canvas first unless marked otherwise.
+
+- Localization, Korean first, with a locale-aware number formatter
+- Labels and contacts (BIP21 `label` is parsed, then dropped)
 - The phone shell in the browser build on narrow, coarse-pointer viewports (no canvas — the
   boards exist)
-- A desktop Settings screen (today: Close wallet, then Key → Back)
-- Multi-recipient send on the phone
-- UTXO list and coin control on the phone
-- Focus rings in the phone stylesheet
-- CLI `rescan`, `send --max`, `tx <txid>` (no canvas)
-- Localization, Korean first, with a locale-aware number formatter
-- A browser keystore (WebCrypto with a password) so the web build can remember a wallet
-- Labels and contacts (BIP21 `label` is parsed, then dropped)
-- CPFP; cancel-by-replacement; PSBT import; auto-lock on background; fiat display; a theme
-  toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the signing key first)
+- Fiat display; a theme toggle; non-English BIP39 wordlists; a desktop auto-updater (needs the
+  signing key first); animated QR (BC-UR) for PSBTs too large for one code
 
 ## Decisions
 
@@ -821,6 +1077,23 @@ one starts when it is picked.
   Rust while dropping Go and Python (4.7).
 - 2026-09-29 — Bugs come first: the three found around the first tag are Round 5, and the
   product list moves to Round 6.
+- 2026-09-30 — Round 6 takes three bundles: finish what exists, security, power features.
+  Korean localization and the rest wait under "Later".
+- 2026-09-30 — The v0.1.0 draft release, which predates Round 5, is left as it is for now.
+- 2026-09-30 — The Round 6 canvas was reviewed and approved ("go ahead"). No choice was
+  picked by name, so each of the five open choices takes the recommendation it was offered
+  with. Any of them can still be overruled.
+- 2026-09-30 — A reset of local history is offered only for saved data that cannot be read.
+  Data saved by a newer app version asks for an update instead: a reset would lose what that
+  version keeps, such as frozen coins (6.7).
+- 2026-09-30 — A wallet locks after 5 minutes in the background by default. A wallet that is
+  not remembered stays open, since closing it means typing the recovery phrase again (6.11).
+- 2026-09-30 — The browser keystore derives its key with PBKDF2-SHA256 over 600,000 rounds and
+  encrypts with AES-GCM, both from WebCrypto. The password is called the "App password", to
+  keep it apart from the BIP39 passphrase (6.12).
+- 2026-09-30 — Several recipients on the phone share one amount unit, and a scan fills the
+  last empty row (6.9).
+- 2026-09-30 — Rescan and Public keys move from the desktop Wallet page to Settings (6.8).
 
 ## Not doing
 

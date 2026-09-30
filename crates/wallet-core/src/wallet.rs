@@ -8,11 +8,13 @@
 use std::str::FromStr;
 
 use async_lock::Mutex;
+use bdk_wallet::bitcoin::hex::FromHex;
 use bdk_wallet::bitcoin::key::Secp256k1;
 use bdk_wallet::bitcoin::{
-    Address, Amount, FeeRate, NetworkKind, Psbt, ScriptBuf, Sequence, Transaction, Weight,
+    Address, Amount, FeeRate, NetworkKind, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, Txid,
+    Weight,
 };
-use bdk_wallet::chain::{ChainPosition, Merge};
+use bdk_wallet::chain::{CanonicalizationParams, ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::descriptor::{ExtendedDescriptor, IntoWalletDescriptor};
 use bdk_wallet::error::CreateTxError;
@@ -58,16 +60,21 @@ pub struct Balance {
     pub trusted_pending: u64,
     pub untrusted_pending: u64,
     pub immature: u64,
+    /// Coins frozen with [`WalletHandle::set_frozen`], whatever their state.
+    /// Counted here and in none of the four above, so no send can promise
+    /// them.
+    pub frozen: u64,
 }
 
 impl Balance {
-    /// Confirmed plus change we are waiting on (BDK "trusted spendable").
+    /// Confirmed plus change we are waiting on (BDK "trusted spendable"),
+    /// frozen coins left out.
     pub fn spendable(&self) -> u64 {
         self.confirmed + self.trusted_pending
     }
 
     pub fn total(&self) -> u64 {
-        self.confirmed + self.trusted_pending + self.untrusted_pending + self.immature
+        self.confirmed + self.trusted_pending + self.untrusted_pending + self.immature + self.frozen
     }
 }
 
@@ -79,6 +86,79 @@ pub struct Utxo {
     /// `None` while unconfirmed.
     pub confirmations: Option<u32>,
     pub address: String,
+    /// Kept out of every send until unfrozen; see [`WalletHandle::set_frozen`].
+    pub frozen: bool,
+}
+
+/// One coin, named the way [`Utxo`] names it: the transaction that made it
+/// and the index of the output.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CoinId {
+    pub txid: String,
+    pub vout: u32,
+}
+
+impl CoinId {
+    fn outpoint(&self) -> Result<OutPoint> {
+        Ok(OutPoint::new(parse_txid(&self.txid)?, self.vout))
+    }
+}
+
+fn parse_txid(txid: &str) -> Result<Txid> {
+    Txid::from_str(txid).map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))
+}
+
+/// A PSBT in base64, or in hex as some tools write it.
+fn parse_psbt(text: &str) -> Result<Psbt> {
+    let text = text.trim();
+    // "psbt" and 0xff, the magic every PSBT starts with.
+    if text
+        .get(..10)
+        .is_some_and(|magic| magic.eq_ignore_ascii_case("70736274ff"))
+    {
+        let bytes = Vec::<u8>::from_hex(text).map_err(|e| Error::Psbt(e.to_string()))?;
+        return Psbt::deserialize(&bytes).map_err(|e| Error::Psbt(e.to_string()));
+    }
+    Psbt::from_str(text).map_err(|e| Error::Psbt(e.to_string()))
+}
+
+/// Puts this wallet's own record of each coin of ours a PSBT spends into it,
+/// over whatever the PSBT said: the whole previous transaction, and the
+/// output itself for a segwit spend. What a signature of ours commits to
+/// then comes from our history, not from whoever made the PSBT.
+///
+/// The previous transaction goes in for taproot too, where BDK's own builder
+/// leaves it out. Signing checks every input's previous transaction against
+/// its txid, so a PSBT mixing a taproot coin of ours with anyone's older
+/// segwit input would otherwise be refused.
+fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
+    let graph = wallet.tx_graph();
+    for (txin, input) in psbt.unsigned_tx.input.iter().zip(psbt.inputs.iter_mut()) {
+        let prev = txin.previous_output;
+        let Some(prev_tx) = graph.get_tx(prev.txid) else {
+            continue;
+        };
+        let Some(txout) = prev_tx.output.get(prev.vout as usize) else {
+            continue;
+        };
+        let Some(&(keychain, _)) = wallet.spk_index().index_of_spk(txout.script_pubkey.clone())
+        else {
+            continue;
+        };
+        let segwit = wallet
+            .public_descriptor(keychain)
+            .desc_type()
+            .segwit_version();
+        if segwit.is_some() {
+            input.witness_utxo = Some(txout.clone());
+        } else {
+            // A legacy coin is valued by the transaction that made it, filled
+            // in below. A `witness_utxo` here is a claim nothing checks, and
+            // `Psbt::fee` would read it first.
+            input.witness_utxo = None;
+        }
+        input.non_witness_utxo = Some(prev_tx.as_ref().clone());
+    }
 }
 
 /// One wallet-relevant transaction, as shown in history.
@@ -186,6 +266,45 @@ pub struct TxDetail {
     pub vsize: u64,
     pub inputs: Vec<TxInput>,
     pub outputs: Vec<TxOutput>,
+}
+
+/// One input of a PSBT under review.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PsbtInput {
+    pub txid: String,
+    pub vout: u32,
+    /// From this wallet's own history for an input of ours; for anyone
+    /// else's, what the PSBT claims, or `None` where it says nothing.
+    pub value_sat: Option<u64>,
+    /// Spends a coin of this wallet's, going by its own history rather than
+    /// by anything the PSBT claims.
+    pub ours: bool,
+    /// Carries its final script: nothing is left to sign on it.
+    pub finalized: bool,
+}
+
+/// What a PSBT made elsewhere would do, as far as this wallet can tell.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PsbtReview {
+    /// The PSBT with this wallet's part added: its record of the coins of
+    /// ours being spent, and every signature it made or could finalize.
+    pub psbt_base64: String,
+    /// Known once every input is final. Before that it can still change: a
+    /// legacy or nested segwit input's signature is part of it.
+    pub txid: Option<String>,
+    pub inputs: Vec<PsbtInput>,
+    pub outputs: Vec<TxOutput>,
+    /// Inputs less outputs; `None` unless every input's value is known.
+    pub fee_sat: Option<u64>,
+    /// Exact once every input is final, an upper bound while every input is
+    /// ours, `None` otherwise.
+    pub vsize: Option<u64>,
+    /// What it does to this wallet: its outputs of ours less its inputs of ours.
+    pub net_sat: i64,
+    /// Every input is final, so it can be broadcast.
+    pub finalized: bool,
+    /// An input of ours is still unsigned, and this wallet holds keys.
+    pub signable: bool,
 }
 
 /// What a build aimed to pay, as the builder knows it.
@@ -340,6 +459,12 @@ pub fn fee_rate_from_sat_vb(sat_per_vb: f64) -> Result<FeeRate> {
     }
     let clamped = sat_per_vb.max(MIN_FEE_RATE_SAT_VB);
     Ok(FeeRate::from_sat_per_kwu((clamped * 250.0).ceil() as u64))
+}
+
+/// What `vsize` virtual bytes cost at `rate`, rounded up to a whole sat.
+fn fee_at(rate: FeeRate, vsize: u64) -> u64 {
+    // 4 weight units to the virtual byte, 1000 to the kwu.
+    (rate.to_sat_per_kwu() * vsize * 4).div_ceil(1000)
 }
 
 impl WalletHandle {
@@ -648,13 +773,37 @@ impl WalletHandle {
         Self::persist(&mut inner).await
     }
 
+    /// BDK's balance with frozen coins taken out of its four parts and
+    /// counted on their own: BDK's own `balance()` ignores locks, though its
+    /// coin selection honours them.
     pub async fn balance(&self) -> Balance {
-        let b = self.inner.lock().await.wallet.balance();
+        let inner = self.inner.lock().await;
+        let wallet = &inner.wallet;
+        let chain = wallet.local_chain();
+        // What `Wallet::balance` computes, over the coins that are not frozen.
+        let b = wallet.tx_graph().balance(
+            chain,
+            chain.tip().block_id(),
+            CanonicalizationParams::default(),
+            wallet
+                .spk_index()
+                .outpoints()
+                .iter()
+                .filter(|(_, outpoint)| !wallet.is_outpoint_locked(*outpoint))
+                .cloned(),
+            |&(keychain, _), _| keychain == KeychainKind::Internal,
+        );
+        let frozen = wallet
+            .list_unspent()
+            .filter(|o| wallet.is_outpoint_locked(o.outpoint))
+            .map(|o| o.txout.value.to_sat())
+            .sum();
         Balance {
             confirmed: b.confirmed.to_sat(),
             trusted_pending: b.trusted_pending.to_sat(),
             untrusted_pending: b.untrusted_pending.to_sat(),
             immature: b.immature.to_sat(),
+            frozen,
         }
     }
 
@@ -677,10 +826,51 @@ impl WalletHandle {
                 },
                 address: script_display(&o.txout.script_pubkey, net)
                     .unwrap_or_else(|| o.txout.script_pubkey.to_hex_string()),
+                frozen: inner.wallet.is_outpoint_locked(o.outpoint),
             })
             .collect();
         utxos.sort_by(|a, b| b.value.cmp(&a.value).then_with(|| a.txid.cmp(&b.txid)));
         utxos
+    }
+
+    /// Freeze a coin, or unfreeze it. A frozen coin stays out of every send,
+    /// Max and a fee bump's extra inputs included, and out of the spendable
+    /// balance, until it is unfrozen. The choice is saved with the wallet.
+    ///
+    /// Only an unspent coin of this wallet can be frozen. Unfreezing is
+    /// always accepted, so a coin spent while frozen can still be cleared.
+    pub async fn set_frozen(&self, coin: &CoinId, frozen: bool) -> Result<()> {
+        let outpoint = coin.outpoint()?;
+        let mut inner = self.inner.lock().await;
+        if frozen {
+            if inner.wallet.get_utxo(outpoint).is_none() {
+                return Err(Error::UnknownCoin(outpoint.to_string()));
+            }
+            inner.wallet.lock_outpoint(outpoint);
+        } else {
+            inner.wallet.unlock_outpoint(outpoint);
+        }
+        Self::persist(&mut inner).await
+    }
+
+    /// The outpoints of `coins`, each an unspent coin of this wallet that is
+    /// not frozen: a send held to chosen coins spends exactly these.
+    fn chosen_outpoints(wallet: &Wallet, coins: &[CoinId]) -> Result<Vec<OutPoint>> {
+        coins
+            .iter()
+            .map(|coin| {
+                let outpoint = coin.outpoint()?;
+                if wallet.get_utxo(outpoint).is_none() {
+                    return Err(Error::UnknownCoin(outpoint.to_string()));
+                }
+                if wallet.is_outpoint_locked(outpoint) {
+                    return Err(Error::BuildTx(format!(
+                        "{outpoint} is frozen; unfreeze it to spend it"
+                    )));
+                }
+                Ok(outpoint)
+            })
+            .collect()
     }
 
     /// Wallet history, newest first: unconfirmed transactions, then confirmed
@@ -739,8 +929,7 @@ impl WalletHandle {
     /// Everything the wallet knows about one of its transactions, or `None`
     /// when the txid is not in its history.
     pub async fn transaction(&self, txid: &str) -> Result<Option<TxDetail>> {
-        let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
+        let txid = parse_txid(txid)?;
         let inner = self.inner.lock().await;
         let Some(d) = inner.wallet.tx_details(txid) else {
             return Ok(None);
@@ -813,6 +1002,28 @@ impl WalletHandle {
         recipients: &[Recipient],
         fee_rate_sat_vb: f64,
     ) -> Result<BuiltTx> {
+        self.transfer(None, recipients, fee_rate_sat_vb).await
+    }
+
+    /// [`Self::build_transfer`] funded by `coins` and nothing else. Every
+    /// chosen coin is spent; what the payment and the fee leave of them comes
+    /// back as change.
+    pub async fn build_transfer_from(
+        &self,
+        coins: &[CoinId],
+        recipients: &[Recipient],
+        fee_rate_sat_vb: f64,
+    ) -> Result<BuiltTx> {
+        self.transfer(Some(coins), recipients, fee_rate_sat_vb)
+            .await
+    }
+
+    async fn transfer(
+        &self,
+        coins: Option<&[CoinId]>,
+        recipients: &[Recipient],
+        fee_rate_sat_vb: f64,
+    ) -> Result<BuiltTx> {
         if recipients.is_empty() {
             return Err(Error::BuildTx("no recipients".into()));
         }
@@ -830,8 +1041,17 @@ impl WalletHandle {
         let destinations = outputs.clone();
 
         let mut inner = self.inner.lock().await;
+        let chosen = coins
+            .map(|coins| Self::chosen_outpoints(&inner.wallet, coins))
+            .transpose()?;
         let psbt = {
             let mut builder = inner.wallet.build_tx();
+            if let Some(chosen) = &chosen {
+                builder
+                    .add_utxos(chosen)
+                    .map_err(|e| Error::UnknownCoin(e.to_string()))?
+                    .manually_selected_only();
+            }
             builder
                 .set_recipients(outputs)
                 .fee_rate(rate)
@@ -854,15 +1074,51 @@ impl WalletHandle {
     /// back from [`BuiltTx::total_out_sat`] is exactly what arrives. Guessing
     /// that number from an assumed size and subtracting is off by a few sats
     /// either way — it then fails to build, or leaves dust behind.
+    ///
+    /// Frozen coins are not part of it: BDK's selection leaves locked
+    /// outpoints out of `drain_wallet`.
     pub async fn build_drain(&self, address: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        self.drain(None, address, fee_rate_sat_vb).await
+    }
+
+    /// [`Self::build_drain`] of `coins` alone: every chosen coin, less the
+    /// fee, to one address, with no change.
+    pub async fn build_drain_from(
+        &self,
+        coins: &[CoinId],
+        address: &str,
+        fee_rate_sat_vb: f64,
+    ) -> Result<BuiltTx> {
+        self.drain(Some(coins), address, fee_rate_sat_vb).await
+    }
+
+    async fn drain(
+        &self,
+        coins: Option<&[CoinId]>,
+        address: &str,
+        fee_rate_sat_vb: f64,
+    ) -> Result<BuiltTx> {
         let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let addr = self.recipient_address(address)?;
         let destination = addr.script_pubkey();
         let mut inner = self.inner.lock().await;
+        let chosen = coins
+            .map(|coins| Self::chosen_outpoints(&inner.wallet, coins))
+            .transpose()?;
         let psbt = {
             let mut builder = inner.wallet.build_tx();
+            match &chosen {
+                Some(chosen) => {
+                    builder
+                        .add_utxos(chosen)
+                        .map_err(|e| Error::UnknownCoin(e.to_string()))?
+                        .manually_selected_only();
+                }
+                None => {
+                    builder.drain_wallet();
+                }
+            }
             builder
-                .drain_wallet()
                 .drain_to(destination.clone())
                 .fee_rate(rate)
                 .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
@@ -890,14 +1146,146 @@ impl WalletHandle {
     /// to replace the original.
     pub async fn build_fee_bump(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
         let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
-        let txid = bdk_wallet::bitcoin::Txid::from_str(txid)
-            .map_err(|e| Error::InvalidTxid(format!("{txid}: {e}")))?;
+        let txid = parse_txid(txid)?;
         let mut inner = self.inner.lock().await;
         let psbt = {
             let mut builder = inner.wallet.build_fee_bump(txid).map_err(bump_error)?;
             builder.fee_rate(rate);
             builder.finish().map_err(build_error)?
         };
+        Self::persist(&mut inner).await?;
+        Self::summarize(&inner, psbt, Paid::Rebuilt)
+    }
+
+    /// Take back an unconfirmed send: a replacement that spends the same
+    /// coins and pays all of it, less the fee, to an address of ours.
+    ///
+    /// BDK checks a replacement's rate against the original's, or its
+    /// absolute fee, never both. A cancel is smaller than what it replaces,
+    /// having one output, so a higher rate alone can still mean a lower fee,
+    /// which nodes refuse (BIP125 rule 3). The fee here is the larger of
+    /// `fee_rate_sat_vb` over the replacement's size and the original's fee
+    /// plus the incremental relay fee over that size (rule 4).
+    pub async fn build_cancel(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
+        let txid = parse_txid(txid)?;
+        let mut inner = self.inner.lock().await;
+        let original = inner
+            .wallet
+            .get_tx(txid)
+            .ok_or_else(|| Error::NotReplaceable(format!("{txid} is not in this wallet")))?
+            .tx_node
+            .tx;
+        let graph = inner.wallet.tx_graph();
+        let all_ours = original.input.iter().all(|i| {
+            graph
+                .get_txout(i.previous_output)
+                .is_some_and(|o| inner.wallet.is_mine(o.script_pubkey.clone()))
+        });
+        if !all_ours {
+            return Err(Error::NotReplaceable(format!(
+                "{txid} spends coins this wallet does not hold, so it cannot take it back"
+            )));
+        }
+        let original_fee = inner
+            .wallet
+            .calculate_fee(&original)
+            .map_err(|e| Error::BuildTx(e.to_string()))?;
+        let own = inner
+            .wallet
+            .next_unused_address(KeychainKind::Internal)
+            .script_pubkey();
+        let build = |wallet: &mut Wallet, fee: Option<Amount>| -> Result<Psbt> {
+            let mut builder = wallet.build_fee_bump(txid).map_err(bump_error)?;
+            builder
+                .set_recipients(Vec::new())
+                .drain_to(own.clone())
+                .manually_selected_only()
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
+            match fee {
+                Some(fee) => builder.fee_absolute(fee),
+                // BDK's own floor: at least the original's rate plus 1 sat/vB.
+                None => builder.fee_rate(rate),
+            };
+            builder.finish().map_err(build_error)
+        };
+        // Built once at the rate to learn its size, then again at the fee.
+        let probe = build(&mut inner.wallet, None)?;
+        let vsize = Self::signed_vsize(&inner, &probe.unsigned_tx)?;
+        let fee =
+            fee_at(rate, vsize).max(original_fee.to_sat() + fee_at(FeeRate::BROADCAST_MIN, vsize));
+        let psbt = build(&mut inner.wallet, Some(Amount::from_sat(fee)))?;
+        Self::persist(&mut inner).await?;
+        Self::summarize(&inner, psbt, Paid::Rebuilt)
+    }
+
+    /// Speed up an unconfirmed transaction by spending an output of ours
+    /// from it: child pays for parent. Miners weigh the two together, so the
+    /// child's fee is set for the pair to pay `package_rate_sat_vb`:
+    /// (parent fee + child fee) / (parent size + child size), never less than
+    /// the relay minimum for the child itself.
+    ///
+    /// Works on any unconfirmed transaction with an unspent, unfrozen output
+    /// of ours, incoming or not. The child spends those outputs and nothing
+    /// else, back to an address of ours; when they cannot cover its fee the
+    /// build fails as short of funds. Only the parent is counted: an
+    /// unconfirmed ancestor of the parent's is not.
+    pub async fn build_cpfp(&self, txid: &str, package_rate_sat_vb: f64) -> Result<BuiltTx> {
+        let rate = fee_rate_from_sat_vb(package_rate_sat_vb)?;
+        let txid = parse_txid(txid)?;
+        let mut inner = self.inner.lock().await;
+        let parent = inner
+            .wallet
+            .get_tx(txid)
+            .ok_or_else(|| Error::NotReplaceable(format!("{txid} is not in this wallet")))?;
+        if parent.chain_position.is_confirmed() {
+            return Err(Error::NotReplaceable(format!(
+                "{txid} is already confirmed"
+            )));
+        }
+        let parent = parent.tx_node.tx;
+        // Esplora reports every input's previous output, so this is known
+        // for a payment from someone else too.
+        let parent_fee = inner.wallet.calculate_fee(&parent).map_err(|_| {
+            Error::BuildTx(format!(
+                "the fee {txid} pays is not known, so no child can be priced against it"
+            ))
+        })?;
+        let ours: Vec<OutPoint> = (0..parent.output.len() as u32)
+            .map(|vout| OutPoint::new(txid, vout))
+            .filter(|&o| inner.wallet.get_utxo(o).is_some() && !inner.wallet.is_outpoint_locked(o))
+            .collect();
+        if ours.is_empty() {
+            return Err(Error::BuildTx(format!(
+                "{txid} has no unspent, unfrozen output of this wallet to spend"
+            )));
+        }
+        let own = inner
+            .wallet
+            .next_unused_address(KeychainKind::Internal)
+            .script_pubkey();
+        let build = |wallet: &mut Wallet, fee: Option<Amount>| -> Result<Psbt> {
+            let mut builder = wallet.build_tx();
+            builder
+                .add_utxos(&ours)
+                .map_err(|e| Error::UnknownCoin(e.to_string()))?
+                .manually_selected_only()
+                .drain_to(own.clone())
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
+            match fee {
+                Some(fee) => builder.fee_absolute(fee),
+                None => builder.fee_rate(rate),
+            };
+            builder.finish().map_err(build_error)
+        };
+        // Built once at the rate to learn its size, then again at the fee.
+        let probe = build(&mut inner.wallet, None)?;
+        let child_vsize = Self::signed_vsize(&inner, &probe.unsigned_tx)?;
+        let package_fee = fee_at(rate, parent.vsize() as u64 + child_vsize);
+        let fee = package_fee
+            .saturating_sub(parent_fee.to_sat())
+            .max(fee_at(FeeRate::BROADCAST_MIN, child_vsize));
+        let psbt = build(&mut inner.wallet, Some(Amount::from_sat(fee)))?;
         Self::persist(&mut inner).await?;
         Self::summarize(&inner, psbt, Paid::Rebuilt)
     }
@@ -970,14 +1358,19 @@ impl WalletHandle {
         Ok((tx.weight() + satisfaction * tx.input.len() as u64 + segwit).to_vbytes_ceil())
     }
 
-    /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
-    pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
+    fn require_keys(&self) -> Result<()> {
         if self.watch_only {
             return Err(Error::Unsupported(
                 "a watch-only wallet cannot sign: it holds no private keys".into(),
             ));
         }
-        let mut psbt = Psbt::from_str(psbt_base64).map_err(|e| Error::Psbt(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
+    pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
+        self.require_keys()?;
+        let mut psbt = parse_psbt(psbt_base64)?;
         let inner = self.inner.lock().await;
         // External keychain first, then change — the order the deprecated
         // wallet-owned `Wallet::sign` used internally.
@@ -994,9 +1387,127 @@ impl WalletHandle {
         Ok(psbt.to_string())
     }
 
-    /// Extract the transaction from a finalized PSBT.
+    /// Read a PSBT made elsewhere: by another wallet, a coordinator, or this
+    /// wallet's own watch-only copy.
+    ///
+    /// This wallet's record of the coins of ours it spends goes in, and every
+    /// signature already on it that our descriptors can complete is
+    /// finalized, so a watch-only wallet can broadcast what the device that
+    /// holds the keys signed. Nothing is signed here.
+    pub async fn import_psbt(&self, psbt: &str) -> Result<PsbtReview> {
+        let mut psbt = parse_psbt(psbt)?;
+        let inner = self.inner.lock().await;
+        fill_ours(&inner.wallet, &mut psbt);
+        inner
+            .wallet
+            .finalize_psbt(&mut psbt, SignOptions::default())
+            .map_err(|e| Error::Psbt(e.to_string()))?;
+        self.review(&inner, psbt)
+    }
+
+    /// Sign every input of ours in a PSBT made elsewhere, and finalize what
+    /// can be. Inputs that are not ours are left to their owners, so the
+    /// result may be final or still waiting on someone else: the review says
+    /// which.
+    pub async fn sign_psbt(&self, psbt: &str) -> Result<PsbtReview> {
+        self.require_keys()?;
+        let mut psbt = parse_psbt(psbt)?;
+        let inner = self.inner.lock().await;
+        fill_ours(&inner.wallet, &mut psbt);
+        let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
+        // BDK's default refuses any input whose whole previous transaction is
+        // missing or does not hash to its txid. That is the defence against
+        // the segwit fee attack (CVE-2020-14199): without it, a coin of ours
+        // this wallet has not synced yet would be signed at whatever amount
+        // the PSBT claims. So it stays on, even though that means a PSBT
+        // must carry the previous transaction of everyone's inputs.
+        inner
+            .wallet
+            .sign_with_signers(&mut psbt, &signers, SignOptions::default())
+            .map_err(|e| Error::Sign(e.to_string()))?;
+        self.review(&inner, psbt)
+    }
+
+    fn review(&self, inner: &Inner, psbt: Psbt) -> Result<PsbtReview> {
+        let wallet = &inner.wallet;
+        let graph = wallet.tx_graph();
+        let net = bdk_wallet::bitcoin::Network::from(self.network);
+        // Ours by our own history, valued by it too.
+        let own_values: Vec<Option<u64>> = psbt
+            .unsigned_tx
+            .input
+            .iter()
+            .map(|i| {
+                graph
+                    .get_txout(i.previous_output)
+                    .filter(|o| wallet.is_mine(o.script_pubkey.clone()))
+                    .map(|o| o.value.to_sat())
+            })
+            .collect();
+        let inputs: Vec<PsbtInput> = psbt
+            .unsigned_tx
+            .input
+            .iter()
+            .zip(&psbt.inputs)
+            .zip(&own_values)
+            .enumerate()
+            .map(|(n, ((txin, input), own))| PsbtInput {
+                txid: txin.previous_output.txid.to_string(),
+                vout: txin.previous_output.vout,
+                value_sat: own.or_else(|| psbt.spend_utxo(n).ok().map(|o| o.value.to_sat())),
+                ours: own.is_some(),
+                finalized: input.final_script_sig.is_some() || input.final_script_witness.is_some(),
+            })
+            .collect();
+        let outputs: Vec<TxOutput> = psbt
+            .unsigned_tx
+            .output
+            .iter()
+            .map(|o| TxOutput {
+                address: script_display(&o.script_pubkey, net),
+                value_sat: o.value.to_sat(),
+                ours: wallet.is_mine(o.script_pubkey.clone()),
+            })
+            .collect();
+        let spent: u64 = own_values.iter().flatten().sum();
+        let received: u64 = outputs.iter().filter(|o| o.ours).map(|o| o.value_sat).sum();
+        let finalized = !inputs.is_empty() && inputs.iter().all(|i| i.finalized);
+        let tx = finalized.then(|| psbt.clone().extract_tx_unchecked_fee_rate());
+        let vsize = match &tx {
+            Some(tx) => Some(tx.vsize() as u64),
+            None if inputs.iter().all(|i| i.ours) => {
+                Some(Self::signed_vsize(inner, &psbt.unsigned_tx)?)
+            }
+            None => None,
+        };
+        Ok(PsbtReview {
+            txid: tx.map(|tx| tx.compute_txid().to_string()),
+            fee_sat: psbt.fee().ok().map(|f| f.to_sat()),
+            vsize,
+            net_sat: received as i64 - spent as i64,
+            finalized,
+            signable: !self.watch_only && inputs.iter().any(|i| i.ours && !i.finalized),
+            inputs,
+            outputs,
+            psbt_base64: psbt.to_string(),
+        })
+    }
+
+    /// Extract the transaction from a finalized PSBT, refusing one that is
+    /// not. `Psbt::extract_tx` does not check: it takes an input with no
+    /// final script as it stands, and the node then rejects a transaction
+    /// with a missing signature.
     pub fn extract_tx(psbt_base64: &str) -> Result<Transaction> {
-        let psbt = Psbt::from_str(psbt_base64).map_err(|e| Error::Psbt(e.to_string()))?;
+        let psbt = parse_psbt(psbt_base64)?;
+        if let Some(n) = psbt
+            .inputs
+            .iter()
+            .position(|i| i.final_script_sig.is_none() && i.final_script_witness.is_none())
+        {
+            return Err(Error::Psbt(format!(
+                "input {n} is not signed: a transaction goes out only once every input is final"
+            )));
+        }
         psbt.extract_tx().map_err(|e| Error::Psbt(e.to_string()))
     }
 
@@ -1647,28 +2158,28 @@ mod tests {
         assert!(fee_rate_from_sat_vb(MAX_FEE_RATE_SAT_VB).is_ok());
     }
 
+    /// Persister sharing one aggregated changeset between handles, so a
+    /// second handle opens what the first one saved.
+    #[derive(Clone, Default)]
+    struct SharedPersister(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
+
+    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+    impl crate::persist::Persister for SharedPersister {
+        async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
+            Ok(self.0.lock().unwrap().clone())
+        }
+
+        async fn persist(&mut self, delta: &bdk_wallet::ChangeSet) -> Result<()> {
+            self.0.lock().unwrap().merge(delta.clone());
+            Ok(())
+        }
+    }
+
     /// State persisted through the portable boundary reloads into a new handle
     /// — the same path IndexedDB takes: one aggregated changeset per wallet.
     #[tokio::test]
     async fn persists_and_reloads_through_persister() {
-        /// Persister sharing one aggregated changeset between handles.
-        #[derive(Clone, Default)]
-        struct SharedPersister(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
-
-        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-        impl crate::persist::Persister for SharedPersister {
-            async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
-                Ok(self.0.lock().unwrap().clone())
-            }
-
-            async fn persist(&mut self, delta: &bdk_wallet::ChangeSet) -> Result<()> {
-                use bdk_wallet::chain::Merge;
-                self.0.lock().unwrap().merge(delta.clone());
-                Ok(())
-            }
-        }
-
         let key = KeyMaterial::PrivHex(SK_HEX.into());
         let store = SharedPersister::default();
 
@@ -1790,6 +2301,627 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(err.code(), "not_replaceable");
+    }
+
+    fn coin_id(u: &Utxo) -> CoinId {
+        CoinId {
+            txid: u.txid.clone(),
+            vout: u.vout,
+        }
+    }
+
+    async fn coin_ids(handle: &WalletHandle) -> Vec<CoinId> {
+        handle.list_utxos().await.iter().map(coin_id).collect()
+    }
+
+    /// Coins as sortable pairs: BDK shuffles a transaction's inputs.
+    fn sorted<'a>(coins: impl IntoIterator<Item = &'a CoinId>) -> Vec<(String, u32)> {
+        let mut pairs: Vec<(String, u32)> = coins
+            .into_iter()
+            .map(|c| (c.txid.clone(), c.vout))
+            .collect();
+        pairs.sort();
+        pairs
+    }
+
+    /// The coins a built transaction spends.
+    fn spent(built: &BuiltTx) -> Vec<(String, u32)> {
+        let psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let coins: Vec<CoinId> = psbt
+            .unsigned_tx
+            .input
+            .iter()
+            .map(|i| CoinId {
+                txid: i.previous_output.txid.to_string(),
+                vout: i.previous_output.vout,
+            })
+            .collect();
+        sorted(&coins)
+    }
+
+    fn pay(amount_sat: u64) -> Vec<Recipient> {
+        vec![Recipient {
+            address: dest(AddressType::P2wpkh),
+            amount_sat,
+        }]
+    }
+
+    /// Freezing moves a coin out of what can be spent and into a part of the
+    /// balance of its own: every automatic path leaves it alone, a chosen one
+    /// is refused, and the total still counts it.
+    #[tokio::test]
+    async fn a_frozen_coin_stays_out_of_every_send_and_of_the_spendable_balance() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund_with_outputs(&handle, 3, 50_000).await;
+        let coins = coin_ids(&handle).await;
+        let before = handle.balance().await;
+        assert_eq!(before.frozen, 0);
+
+        handle.set_frozen(&coins[0], true).await.unwrap();
+        let frozen: Vec<CoinId> = handle
+            .list_utxos()
+            .await
+            .iter()
+            .filter(|u| u.frozen)
+            .map(coin_id)
+            .collect();
+        assert_eq!(frozen, vec![coins[0].clone()]);
+        let after = handle.balance().await;
+        assert_eq!(after.frozen, 50_000);
+        assert_eq!(after.total(), before.total(), "a frozen coin is still ours");
+        assert_eq!(after.total() - after.frozen, 100_000);
+
+        let max = handle
+            .build_drain(&dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap();
+        assert_eq!(spent(&max), sorted(&coins[1..]));
+        assert_eq!(max.total_out_sat + max.fee_sat, 100_000);
+
+        // Two coins' worth: selection has exactly the two unfrozen ones.
+        let auto = handle.build_transfer(&pay(60_000), 2.0).await.unwrap();
+        assert_eq!(spent(&auto), sorted(&coins[1..]));
+        let over = handle.build_transfer(&pay(120_000), 2.0).await.unwrap_err();
+        assert_eq!(over.code(), "insufficient_funds");
+
+        let chosen = handle
+            .build_transfer_from(&coins[..1], &pay(10_000), 2.0)
+            .await
+            .unwrap_err();
+        assert_eq!(chosen.code(), "build_tx");
+        assert!(chosen.to_string().contains("frozen"), "{chosen}");
+
+        handle.set_frozen(&coins[0], false).await.unwrap();
+        assert_eq!(handle.balance().await, before);
+        let max = handle
+            .build_drain(&dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap();
+        assert_eq!(spent(&max), sorted(&coins));
+    }
+
+    /// Coin control: a send held to chosen coins spends each of them and
+    /// nothing else, whether fewer would have done or not.
+    #[tokio::test]
+    async fn a_send_held_to_chosen_coins_spends_exactly_those() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund_with_outputs(&handle, 3, 50_000).await;
+        let coins = coin_ids(&handle).await;
+
+        let one = handle
+            .build_transfer_from(&coins[1..2], &pay(10_000), 2.0)
+            .await
+            .unwrap();
+        assert_eq!(spent(&one), sorted(&coins[1..2]));
+        assert_eq!(one.change_sat, 50_000 - 10_000 - one.fee_sat);
+
+        let two = [coins[0].clone(), coins[2].clone()];
+        let both = handle
+            .build_transfer_from(&two, &pay(10_000), 2.0)
+            .await
+            .unwrap();
+        assert_eq!(
+            spent(&both),
+            sorted(&two),
+            "both are spent, though one would do"
+        );
+
+        let twice = [coins[1].clone(), coins[1].clone()];
+        let once = handle
+            .build_transfer_from(&twice, &pay(10_000), 2.0)
+            .await
+            .unwrap();
+        assert_eq!(once.input_count, 1, "a coin chosen twice is spent once");
+
+        let short = handle
+            .build_transfer_from(&coins[..1], &pay(60_000), 2.0)
+            .await
+            .unwrap_err();
+        assert_eq!(short.code(), "insufficient_funds", "no other coin steps in");
+
+        let drain = handle
+            .build_drain_from(&coins[..2], &dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap();
+        assert_eq!(spent(&drain), sorted(&coins[..2]));
+        assert_eq!(drain.change_sat, 0);
+        assert_eq!(drain.total_out_sat + drain.fee_sat, 100_000);
+        handle.sign(&drain.psbt_base64).await.unwrap();
+
+        let none = handle
+            .build_transfer_from(&[], &pay(10_000), 2.0)
+            .await
+            .unwrap_err();
+        assert_eq!(none.code(), "no_utxos");
+        let stranger = [CoinId {
+            txid: "22".repeat(32),
+            vout: 0,
+        }];
+        let err = handle
+            .build_transfer_from(&stranger, &pay(10_000), 2.0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "unknown_coin");
+        let err = handle
+            .build_drain_from(&stranger, &dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "unknown_coin");
+        let garbled = [CoinId {
+            txid: "zz".into(),
+            vout: 0,
+        }];
+        let err = handle
+            .build_transfer_from(&garbled, &pay(10_000), 2.0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+    }
+
+    async fn open_from(store: &SharedPersister) -> WalletHandle {
+        WalletHandle::open_with(
+            cfg(AddressType::P2wpkh),
+            &KeyMaterial::PrivHex(SK_HEX.into()),
+            Box::new(MockBackend::default()),
+            Box::new(store.clone()),
+        )
+        .await
+        .unwrap()
+    }
+
+    /// A freeze is part of the wallet's saved state: the next handle opened
+    /// from the same store sees it, and sees it lifted.
+    #[tokio::test]
+    async fn a_freeze_is_saved_with_the_wallet() {
+        let store = SharedPersister::default();
+        let first = open_from(&store).await;
+        fund_with_outputs(&first, 2, 50_000).await;
+        let coins = coin_ids(&first).await;
+        first.set_frozen(&coins[0], true).await.unwrap();
+        drop(first);
+
+        let second = open_from(&store).await;
+        let frozen: Vec<CoinId> = second
+            .list_utxos()
+            .await
+            .iter()
+            .filter(|u| u.frozen)
+            .map(coin_id)
+            .collect();
+        assert_eq!(frozen, vec![coins[0].clone()]);
+        assert_eq!(second.balance().await.frozen, 50_000);
+        second.set_frozen(&coins[0], false).await.unwrap();
+        drop(second);
+
+        let third = open_from(&store).await;
+        assert!(third.list_utxos().await.iter().all(|u| !u.frozen));
+        assert_eq!(third.balance().await.frozen, 0);
+    }
+
+    #[tokio::test]
+    async fn only_an_unspent_coin_of_ours_can_be_frozen() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        // The funding transaction's own input: seen, but never ours.
+        for stranger in ["11", "22"] {
+            let coin = CoinId {
+                txid: stranger.repeat(32),
+                vout: 0,
+            };
+            let err = handle.set_frozen(&coin, true).await.unwrap_err();
+            assert_eq!(err.code(), "unknown_coin");
+            // Lifting a freeze that is not there is no error, so a coin spent
+            // while frozen can always be cleared.
+            handle.set_frozen(&coin, false).await.unwrap();
+        }
+        let garbled = CoinId {
+            txid: "zz".into(),
+            vout: 0,
+        };
+        let err = handle.set_frozen(&garbled, true).await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+        assert_eq!(handle.balance().await.frozen, 0);
+    }
+
+    /// An unconfirmed payment of `sats` to us from someone else's coin,
+    /// paying `fee`. The fee is known because the spent output is, as it is
+    /// after an Esplora sync, which reports every input's previous output.
+    /// Its input differs from `fund`'s, so the two do not conflict.
+    async fn receive_paying_fee(handle: &WalletHandle, sats: u64, fee: u64) -> (String, u64) {
+        let mut inner = handle.inner.lock().await;
+        let mut tx = funding_tx(receiving_script(&inner.wallet), sats);
+        tx.input[0].previous_output = OutPoint {
+            txid: Txid::from_str(&"33".repeat(32)).unwrap(),
+            vout: 0,
+        };
+        let mut stranger = vec![0x00, 0x14];
+        stranger.extend([0x55; 20]);
+        inner.wallet.insert_txout(
+            tx.input[0].previous_output,
+            TxOut {
+                value: Amount::from_sat(sats + fee),
+                script_pubkey: ScriptBuf::from_bytes(stranger),
+            },
+        );
+        let (txid, vsize) = (tx.compute_txid().to_string(), tx.vsize() as u64);
+        inner.wallet.apply_unconfirmed_txs([(tx, 1)]);
+        WalletHandle::persist(&mut inner).await.unwrap();
+        (txid, vsize)
+    }
+
+    /// The fee over the size, both as the review reports them.
+    fn rate(fee_sat: u64, vsize: u64) -> f64 {
+        fee_sat as f64 / vsize as f64
+    }
+
+    /// A payment stuck at a low fee is sped up by a child spending our output
+    /// of it: the pair pays the chosen rate, and the child touches nothing
+    /// else of ours.
+    #[tokio::test]
+    async fn a_child_brings_its_parent_up_to_the_package_rate() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 500_000).await;
+        let (parent, parent_vsize) = receive_paying_fee(&handle, 100_000, 100).await;
+
+        let child = handle.build_cpfp(&parent, 10.0).await.unwrap();
+        assert_eq!(spent(&child), vec![(parent.clone(), 0)]);
+        assert_eq!(child.total_out_sat, 0, "nothing leaves the wallet");
+        assert_eq!(child.change_sat + child.fee_sat, 100_000);
+        let package = rate(100 + child.fee_sat, parent_vsize + child.vsize);
+        assert!(
+            (10.0..10.05).contains(&package),
+            "package rate {package}, child fee {}",
+            child.fee_sat
+        );
+        assert!(
+            rate(child.fee_sat, child.vsize) > 10.0,
+            "the child pays for the parent's shortfall too"
+        );
+        handle.sign(&child.psbt_base64).await.unwrap();
+
+        // Asked for less than the parent already pays, the child pays only
+        // the relay minimum for itself.
+        let modest = handle.build_cpfp(&parent, 1.0).await.unwrap();
+        assert_eq!(modest.fee_sat, modest.vsize);
+    }
+
+    #[tokio::test]
+    async fn a_child_needs_a_known_fee_and_an_output_of_ours() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        // `fund`'s input is nowhere to be seen, so its fee cannot be known.
+        fund(&handle, 100_000).await;
+        let unpriced = handle.list_utxos().await[0].txid.clone();
+        let err = handle.build_cpfp(&unpriced, 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "build_tx");
+        assert!(err.to_string().contains("not known"), "{err}");
+
+        let (parent, _) = receive_paying_fee(&handle, 50_000, 100).await;
+        let coin = CoinId {
+            txid: parent.clone(),
+            vout: 0,
+        };
+        handle.set_frozen(&coin, true).await.unwrap();
+        let err = handle.build_cpfp(&parent, 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "build_tx");
+        assert!(err.to_string().contains("unfrozen"), "{err}");
+
+        let err = handle.build_cpfp(&"22".repeat(32), 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
+        let err = handle.build_cpfp("zz", 5.0).await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+    }
+
+    /// Our own send, broadcast at `rate_sat_vb`: its txid, fee and inputs.
+    async fn sent_at(handle: &WalletHandle, rate_sat_vb: f64) -> (String, u64, Vec<(String, u32)>) {
+        let built = handle
+            .build_transfer(&pay(40_000), rate_sat_vb)
+            .await
+            .unwrap();
+        let signed = handle.sign(&built.psbt_base64).await.unwrap();
+        let sent = handle.broadcast(&signed).await.unwrap();
+        (sent.txid, built.fee_sat, spent(&built))
+    }
+
+    /// A cancel spends what the send spent and pays all of it back to us.
+    /// Asked for a rate just past the original's, its smaller size alone
+    /// would make the fee fall below the original's, which nodes refuse; the
+    /// fee is raised to the original's plus 1 sat/vB of its own size instead.
+    #[tokio::test]
+    async fn a_cancel_pays_everything_back_at_a_fee_nodes_accept() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let (txid, original_fee, inputs) = sent_at(&handle, 20.0).await;
+
+        // BDK's floor is the original's effective rate plus 1 sat/vB, a
+        // little over 21 here: 22 is just past it.
+        let cancel = handle.build_cancel(&txid, 22.0).await.unwrap();
+        assert_eq!(
+            spent(&cancel),
+            inputs,
+            "the same coins, so the two conflict"
+        );
+        assert_eq!(cancel.total_out_sat, 0, "nothing leaves the wallet");
+        assert_eq!(cancel.change_sat + cancel.fee_sat, 100_000);
+        assert!(
+            22 * cancel.vsize < original_fee,
+            "the case in point: the rate alone would lower the fee"
+        );
+        assert_eq!(
+            cancel.fee_sat,
+            original_fee + cancel.vsize,
+            "BIP125 rules 3 and 4"
+        );
+        handle.sign(&cancel.psbt_base64).await.unwrap();
+
+        // Where the rate asks for more, the rate decides.
+        let generous = handle.build_cancel(&txid, 60.0).await.unwrap();
+        assert!(rate(generous.fee_sat, generous.vsize) >= 60.0);
+        assert!(generous.fee_sat > original_fee + generous.vsize);
+    }
+
+    #[tokio::test]
+    async fn only_our_own_unconfirmed_send_can_be_cancelled() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let (txid, ..) = sent_at(&handle, 5.0).await;
+
+        // BDK's own floor for a replacement: the original's rate plus 1 sat/vB.
+        let err = handle.build_cancel(&txid, 5.5).await.unwrap_err();
+        assert_eq!(err.code(), "fee_too_low");
+
+        let (incoming, _) = receive_paying_fee(&handle, 50_000, 100).await;
+        let err = handle.build_cancel(&incoming, 10.0).await.unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
+        assert!(err.to_string().contains("does not hold"), "{err}");
+
+        let err = handle
+            .build_cancel(&"22".repeat(32), 10.0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "not_replaceable");
+        let err = handle.build_cancel("zz", 10.0).await.unwrap_err();
+        assert_eq!(err.code(), "invalid_txid");
+    }
+
+    /// An HD wallet and a watch-only copy of it, both seeing the same
+    /// 100,000 sat coin; the copy's backend records what it broadcasts.
+    async fn keys_and_watcher(t: AddressType) -> (WalletHandle, WalletHandle, Arc<MockBackend>) {
+        let (keys, _) = open_hd(t).await;
+        let descriptor = keys.public_descriptors().await.external;
+        let (watcher, mock) = open_key(t, KeyMaterial::parse(&descriptor)).await;
+        assert!(watcher.is_watch_only(), "{descriptor}");
+        fund(&keys, 100_000).await;
+        fund(&watcher, 100_000).await;
+        (keys, watcher, mock)
+    }
+
+    /// The round trip PSBT import exists for: a watch-only copy makes the
+    /// transaction, the wallet holding the keys reads and signs it, and the
+    /// copy sends what came back. Every address type, since each fills in
+    /// its inputs differently.
+    #[tokio::test]
+    async fn a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_back() {
+        for t in [
+            AddressType::P2wpkh,
+            AddressType::P2tr,
+            AddressType::NestedP2wpkh,
+            AddressType::P2pkh,
+        ] {
+            let (keys, watcher, mock) = keys_and_watcher(t).await;
+            let unsigned = watcher.build_transfer(&pay(40_000), 2.0).await.unwrap();
+
+            let review = keys.import_psbt(&unsigned.psbt_base64).await.unwrap();
+            assert!(
+                review.inputs.iter().all(|i| i.ours && !i.finalized),
+                "{t:?}"
+            );
+            assert!(review.signable && !review.finalized, "{t:?}");
+            assert_eq!(review.txid, None, "{t:?}: not known until final");
+            assert_eq!(review.fee_sat, Some(unsigned.fee_sat), "{t:?}");
+            assert_eq!(review.vsize, Some(unsigned.vsize), "{t:?}");
+            assert_eq!(
+                review.net_sat,
+                -((40_000 + unsigned.fee_sat) as i64),
+                "{t:?}"
+            );
+            let paid: Vec<u64> = review
+                .outputs
+                .iter()
+                .filter(|o| !o.ours)
+                .map(|o| o.value_sat)
+                .collect();
+            assert_eq!(paid, vec![40_000], "{t:?}");
+            let err = watcher.sign_psbt(&review.psbt_base64).await.unwrap_err();
+            assert_eq!(err.code(), "unsupported", "{t:?}");
+
+            let signed = keys.sign_psbt(&review.psbt_base64).await.unwrap();
+            assert!(signed.finalized && !signed.signable, "{t:?}");
+            let exact = signed.vsize.expect("a final PSBT has an exact size");
+            assert!(
+                exact <= unsigned.vsize,
+                "{t:?}: the estimate is an upper bound"
+            );
+
+            let back = watcher.import_psbt(&signed.psbt_base64).await.unwrap();
+            assert!(back.finalized && !back.signable, "{t:?}");
+            let sent = watcher.broadcast(&back.psbt_base64).await.unwrap();
+            assert_eq!(Some(sent.txid), signed.txid, "{t:?}");
+            assert_eq!(mock.broadcasts.lock().unwrap().len(), 1, "{t:?}");
+        }
+    }
+
+    /// A hardware signer hands back signatures rather than final scripts.
+    /// Importing completes them from our own descriptor, so the watch-only
+    /// copy can send what the device signed.
+    #[tokio::test]
+    async fn signatures_made_elsewhere_are_finalized_on_import() {
+        let (keys, watcher, _) = keys_and_watcher(AddressType::P2wpkh).await;
+        let unsigned = watcher.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&unsigned.psbt_base64).unwrap();
+        {
+            let inner = keys.inner.lock().await;
+            let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
+            let options = SignOptions {
+                try_finalize: false,
+                ..SignOptions::default()
+            };
+            let done = inner
+                .wallet
+                .sign_with_signers(&mut psbt, &signers, options)
+                .unwrap();
+            assert!(!done);
+        }
+        assert!(
+            psbt.inputs
+                .iter()
+                .all(|i| !i.partial_sigs.is_empty() && i.final_script_witness.is_none())
+        );
+
+        let review = watcher.import_psbt(&psbt.to_string()).await.unwrap();
+        assert!(review.finalized);
+        watcher.broadcast(&review.psbt_base64).await.unwrap();
+    }
+
+    /// `Psbt::extract_tx` takes an unsigned input as it stands; the backend
+    /// is never asked to relay one.
+    #[tokio::test]
+    async fn broadcast_refuses_a_psbt_that_is_not_final() {
+        let (handle, mock) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let err = handle.broadcast(&built.psbt_base64).await.unwrap_err();
+        assert_eq!(err.code(), "psbt");
+        assert!(err.to_string().contains("not signed"), "{err}");
+        assert!(mock.broadcasts.lock().unwrap().is_empty());
+    }
+
+    /// An input that is not ours is described by what the PSBT claims and
+    /// left unsigned; ours is signed, and the whole cannot go out yet.
+    #[tokio::test]
+    async fn someone_elses_input_is_described_and_left_to_them() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let mut stranger = vec![0x00, 0x14];
+        stranger.extend([0x66; 20]);
+        // Their coin, with the whole transaction that made it, as a PSBT
+        // must carry it for this wallet to sign alongside.
+        let mut theirs = funding_tx(ScriptBuf::from_bytes(stranger.clone()), 1_000);
+        theirs.output.push(TxOut {
+            value: Amount::from_sat(30_000),
+            script_pubkey: ScriptBuf::from_bytes(stranger),
+        });
+        psbt.unsigned_tx.input.push(TxIn {
+            previous_output: OutPoint {
+                txid: theirs.compute_txid(),
+                vout: 1,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            witness: Witness::new(),
+        });
+        psbt.inputs.push(bdk_wallet::bitcoin::psbt::Input {
+            witness_utxo: Some(theirs.output[1].clone()),
+            non_witness_utxo: Some(theirs),
+            ..Default::default()
+        });
+
+        let review = handle.sign_psbt(&psbt.to_string()).await.unwrap();
+        let (ours, theirs) = (&review.inputs[0], &review.inputs[1]);
+        assert!(ours.ours && ours.finalized);
+        assert!(!theirs.ours && !theirs.finalized);
+        assert_eq!(theirs.value_sat, Some(30_000), "as the PSBT claims");
+        assert!(!review.finalized && !review.signable);
+        assert_eq!(review.vsize, None, "their input's size is not ours to know");
+        assert_eq!(review.fee_sat, Some(built.fee_sat + 30_000));
+        assert_eq!(review.net_sat, -((40_000 + built.fee_sat) as i64));
+        let err = handle.broadcast(&review.psbt_base64).await.unwrap_err();
+        assert_eq!(err.code(), "psbt");
+    }
+
+    /// The segwit fee attack (CVE-2020-14199): a PSBT names a coin of ours
+    /// that this wallet has not seen, with only a claimed output to vouch for
+    /// its amount. Signing refuses rather than sign whatever amount it says.
+    #[tokio::test]
+    async fn an_unseen_coin_of_ours_is_not_signed_on_the_psbts_word() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        psbt.unsigned_tx.input[0].previous_output = OutPoint {
+            txid: Txid::from_str(&"77".repeat(32)).unwrap(),
+            vout: 0,
+        };
+        psbt.inputs[0].non_witness_utxo = None;
+        assert!(
+            psbt.inputs[0].witness_utxo.is_some(),
+            "the claim stands alone"
+        );
+        let err = handle.sign_psbt(&psbt.to_string()).await.unwrap_err();
+        assert_eq!(err.code(), "sign");
+    }
+
+    /// A legacy coin's value is in the transaction that made it, which this
+    /// wallet holds. A `witness_utxo` beside it is a claim nothing checks, and
+    /// `Psbt::fee` reads it first; legacy signatures do not commit to the
+    /// amount, so a forged one would put a false fee on the review.
+    #[tokio::test]
+    async fn a_legacy_coin_of_ours_sets_the_fee_by_its_own_transaction() {
+        let (handle, _) = open_hd(AddressType::P2pkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let real = psbt.spend_utxo(0).unwrap().clone();
+        psbt.inputs[0].witness_utxo = Some(TxOut {
+            value: real.value + Amount::from_sat(25_000),
+            script_pubkey: real.script_pubkey,
+        });
+
+        let review = handle.import_psbt(&psbt.to_string()).await.unwrap();
+        assert_eq!(review.inputs[0].value_sat, Some(100_000));
+        assert_eq!(review.fee_sat, Some(built.fee_sat), "not the claim's");
+
+        // Signing goes by the same transaction, where BDK would refuse the
+        // claim for disagreeing with it.
+        let signed = handle.sign_psbt(&psbt.to_string()).await.unwrap();
+        assert!(signed.finalized);
+        assert_eq!(signed.fee_sat, Some(built.fee_sat));
+    }
+
+    #[tokio::test]
+    async fn a_psbt_reads_from_hex_as_from_base64() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let hex = Psbt::from_str(&built.psbt_base64).unwrap().serialize_hex();
+        let from_hex = handle.import_psbt(&format!(" {hex}\n")).await.unwrap();
+        let from_base64 = handle.import_psbt(&built.psbt_base64).await.unwrap();
+        assert_eq!(from_hex, from_base64);
+        for garbage in ["", "not a psbt", "70736274ff00"] {
+            let err = handle.import_psbt(garbage).await.unwrap_err();
+            assert_eq!(err.code(), "psbt", "{garbage:?}");
+        }
     }
 
     #[tokio::test]

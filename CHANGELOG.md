@@ -7,8 +7,58 @@ pull requests a change arrived in.
 
 ## [Unreleased]
 
+### Added
+
+- `btcw rescan` looks further past the last used address, `btcw tx <txid>` shows one
+  transaction in full, and `btcw send --max` sends everything to one address with no change
+  left over. (#39)
+- The desktop app has a Settings page, opened from the gear in the top bar. It changes the
+  network, server or address type (asking first, since that closes the wallet), rescans,
+  shows the public keys, and closes or forgets the wallet. Rescan and the public keys moved
+  there from the Wallet page. (#39)
+- The phone sends to several recipients in one transaction, as the desktop does. Add
+  recipient gives each a card of its own, one sat/BTC choice covers them all, and the review
+  lists every recipient before the fee and the total. Scanning from Send opens the camera
+  there, so the recipients already filled in stay; a scan fills the last empty row. (#39)
+- A wallet remembered on this device closes to Unlock after five minutes in the background,
+  never in the middle of a sync or a send. Settings changes the time to 1, 5 or 15 minutes,
+  an hour, or never. A wallet that is not remembered stays open. (#39)
+- A payment stuck in the mempool can be sped up from its detail, with a transaction that
+  pays for both, and an unconfirmed send of yours can be cancelled, paying everything back
+  to your wallet. Each shows what it will cost before anything is signed. (#39)
+- Coins can be frozen, and chosen for a send. The desktop's Unspent outputs card has a tick
+  box and a Frozen switch for each coin, and the phone has a Coins screen, opened from
+  Settings. A frozen coin stays out of every send, of Max and of the spendable balance until
+  it is unfrozen. Send selected opens Send paying from the ticked coins alone, Max included,
+  until Let the wallet choose hands the choice back. (#39)
+- The browser build can remember a wallet too, behind an app password of your choosing. The
+  password encrypts the key (PBKDF2-SHA256 over 600,000 rounds, then AES-GCM, both from
+  WebCrypto), and only the encrypted key is kept, in the browser's IndexedDB. Unlock asks
+  for the password and says so under the field when it is wrong. The desktop and phone apps
+  keep the OS key store and ask for no password. (#39)
+- A PSBT made by another wallet or device can be imported from Settings, on the desktop and
+  the phone: pasted, loaded from a `.psbt` file on the desktop, or scanned on the phone when
+  it fits one QR code. It is described before anything is signed: whose each input is and
+  whether it is signed, where each output goes, and the fee. Sign signs the inputs this
+  wallet holds keys for, and Broadcast waits until every input is signed; a watch-only
+  wallet can broadcast a PSBT signed elsewhere. (#39)
+
 ### Fixed
 
+- The phone shows where keyboard focus is on every control: rows and tabs are ringed inside
+  their edge, and the primary button in a colour its fill does not hide. Textareas show
+  the ring on both shells. (#39)
+- The phone's Send shows the Custom fee rate field only when Custom is chosen. (#39)
+- A wallet remembered on this device can be opened again after Setup: Setup now continues to
+  Unlock when the network chosen there is the wallet's own. Unlock refuses a wallet saved on
+  another network, which it used to open against the wrong chain's server. (#39)
+- A wallet whose history saved on this device cannot be read can be opened again. Unlock,
+  Key, Restore and Create offer to reset this device's history, which deletes only that
+  history and keeps the key and the settings; the next sync downloads it back. On Unlock the
+  only way out used to be Forget, which deletes the key too. History saved by a newer version
+  of the app asks for an update instead. (#39)
+- Leaving Unlock, or the phone's Create or Restore, while a wallet is still opening no longer
+  pulls you back to it once it opens. (#39)
 - A wallet with a long history can finish its first sync on a slow connection. A scan is no
   longer cut off after 180 s; each request to the server has 30 s instead, so a server that
   stops answering is still caught, and sooner. (#38)

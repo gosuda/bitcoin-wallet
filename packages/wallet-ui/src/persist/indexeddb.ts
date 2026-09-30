@@ -3,7 +3,9 @@
  *
  * One record per wallet id in `bitcoin-wallet` / `wallet_state`, holding the
  * aggregated BDK changeset as JSON exactly as the core hands it over. Nothing
- * secret is written here — keys live in the OS keystore, behind Tauri.
+ * secret is written here — keys live in the OS keystore, behind Tauri, or in
+ * the browser sealed under the app password, in a database of their own
+ * (`sealed-secrets.ts`).
  *
  * Raw IndexedDB wrapped in promises; no dependency, and writes resolve only
  * once the transaction has committed.
@@ -96,7 +98,7 @@ export function makePersister(walletId: string): WalletPersister {
   };
 }
 
-/** Drops a wallet's stored state; used when the wallet is forgotten. */
+/** Drops a wallet's stored state: when it is forgotten, or reset because it cannot be read. */
 export async function deleteWalletState(walletId: string): Promise<void> {
   await withStore("readwrite", (store) => store.delete(walletId));
 }

@@ -5,6 +5,7 @@ import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount } from "../types";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
+import { historyReset } from "../ui/reset";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../ui/words";
 
 /** Quiet period after a keystroke before the phrase is checked again. */
@@ -48,9 +49,10 @@ export function renderRestore(): HTMLElement {
   const onScreen = routeGuard();
 
   const alert = banner();
+  const offer = historyReset(alert);
   const errorLine = el("p", { className: "field-error", attrs: { role: "status" } });
   const gridBox = el("div");
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => update());
 
   // Optional, and part of the wallet's identity rather than a lock on it: the
   // phrase is valid with or without one, and each passphrase restores a
@@ -77,7 +79,7 @@ export function renderRestore(): HTMLElement {
   const complete = (): boolean => boxes.length > 0 && boxes.every((b) => b.value.trim() !== "");
 
   const update = () => {
-    restoreBtn.disabled = !valid;
+    restoreBtn.disabled = !valid || !remember.ready();
   };
 
   const validate = async () => {
@@ -179,20 +181,23 @@ export function renderRestore(): HTMLElement {
     return el("label", { className: "radio" }, [input, `${value} words`]);
   };
 
-  const submit = async () => {
+  const submit = async (reset = false): Promise<void> => {
     alert.hide();
     if (!valid) {
       alert.show("error", "Enter a valid recovery phrase first.");
       return;
     }
+    if (!remember.ready()) return;
     const secret = words().join(" ");
     const willRemember = remember.checked();
     try {
-      const info = await api.openWallet(
+      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
+      const info = await open(
         secret,
         cfg.address_type,
         willRemember,
         passphrase.value || undefined,
+        remember.appPassword(),
       );
       for (const box of boxes) box.value = "";
       passphrase.value = "";
@@ -201,7 +206,7 @@ export function renderRestore(): HTMLElement {
       // check to misfire against the `session.wallet` that `api.openWallet` set.
       if (onScreen()) navigate("dashboard");
     } catch (e) {
-      if (onScreen()) alert.show("error", errorMessage(e));
+      if (onScreen()) offer.report(e, () => submit(true));
     }
   };
 
@@ -234,6 +239,7 @@ export function renderRestore(): HTMLElement {
       }),
     ]),
     alert.node,
+    offer.node,
     el("section", { className: "card card-loose" }, [
       el("div", { className: "card-head" }, [
         sectionLabel("Recovery phrase"),

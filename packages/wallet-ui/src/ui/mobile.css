@@ -230,6 +230,11 @@ body {
   flex: 1;
 }
 
+/* A square keeps its size in a row, where buttons otherwise share the width. */
+.m-row > .m-btn-square {
+  flex: none;
+}
+
 /* 16px is the floor: below it iOS zooms the page when the field takes focus. */
 .m-body input[type="text"],
 .m-body input[type="password"],
@@ -357,6 +362,113 @@ body {
 .m-row > input {
   flex: 1;
   min-width: 0;
+}
+
+/* Send to several --------------------------------------------------------- */
+
+.m-recipients {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Cards that stack, one per recipient, drawn tighter than a card on its own. */
+.m-recipient {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.m-recipient-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 20px;
+}
+
+/* The × is drawn small; its target overhangs the row rather than growing it. */
+.m-recipient-remove {
+  width: 40px;
+  height: 40px;
+  margin: -10px -11px -10px 0;
+  color: var(--muted);
+}
+
+/* Every row shares one unit, so each amount names it inside its field. */
+.m-amount-field {
+  position: relative;
+}
+
+.m-body .m-amount-field input {
+  padding-right: 56px;
+}
+
+.m-amount-unit {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--faint);
+  pointer-events: none;
+}
+
+/* Add recipient, and a send held to chosen coins with its way back to letting
+   the wallet choose: a line of note and button, sized alike. */
+.m-add-line,
+.m-coins-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-add-line .m-btn,
+.m-coins-line .m-btn {
+  flex: none;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.m-unit-line {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-unit-line .m-chips {
+  flex-wrap: nowrap;
+}
+
+/* The review of a send to several: each recipient, then the fee and the total. */
+.m-review {
+  display: grid;
+  grid-template-columns: 1fr max-content;
+  gap: 6px var(--space-4);
+  align-items: baseline;
+  margin: 0;
+  font-size: 15px;
+}
+
+.m-review dt {
+  color: var(--muted);
+}
+
+.m-review dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.m-review .m-review-to {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.m-review .m-review-total {
+  font-weight: 600;
 }
 
 /* Balance ----------------------------------------------------------------- */
@@ -490,6 +602,61 @@ button.m-txrow:active {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+/* The words under an action card's heading (M11b). */
+.m-card-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* A preview's numbers on an action card (M11b): the key/value grid, phone-sized. */
+.kv.m-kv {
+  gap: var(--space-1) var(--space-4);
+  font-size: 15px;
+}
+
+.kv.m-kv dt {
+  font-size: 15px;
+}
+
+/* Cancel's second step (M11c) is the two-tap confirm, its heading red too. */
+.m-cancel .section-label {
+  color: var(--danger);
+}
+
+/* An action card folded to one row while another is open (M11c); a tap opens it again. */
+.m-fold {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px var(--space-4);
+  font: inherit;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.m-fold:active {
+  background: var(--subtle);
+}
+
+.m-fold .section-label {
+  color: var(--accent-deep);
+}
+
+.m-fold-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.m-fold-chev {
+  display: inline-flex;
+  transform: rotate(90deg);
+  color: var(--faint);
 }
 
 .m-dirdot {
@@ -634,6 +801,10 @@ button.m-txrow:active {
   font-size: 16px;
 }
 
+.m-block:last-child {
+  border-bottom: none;
+}
+
 .m-block-head {
   display: flex;
   align-items: center;
@@ -667,6 +838,41 @@ button.m-txrow:active {
   border-color: var(--fg);
 }
 
+/* The history reset's second step: it keeps the key, so the accent, not the danger. */
+.m-confirm-accent {
+  border-color: var(--accent);
+}
+
+/* A wallet whose saved history cannot be read: why, and the reset in two taps. */
+.m-reset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.m-reset:empty {
+  display: none;
+}
+
+.m-reset-card {
+  border-color: var(--danger);
+}
+
+.m-reset-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--danger);
+}
+
+/* Level with the first line of the text beside it. */
+.m-reset-message .icon {
+  margin-top: 2px;
+}
+
 .m-centre-text {
   text-align: center;
 }
@@ -678,6 +884,243 @@ button.m-txrow:active {
 
 .m-centre-items > .m-row {
   align-self: stretch;
+}
+
+/* Coins (M13) ------------------------------------------------------------- */
+
+.m-coins {
+  gap: 0;
+  padding: var(--space-1) var(--space-4);
+}
+
+.m-coins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 var(--space-1);
+}
+
+/* A coin runs the card's width inside its padding, as M13 draws it. */
+.m-coin {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.m-coin:last-child {
+  border-bottom: none;
+}
+
+.m-coin-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.m-coin-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.m-coin-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.m-coin-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.m-coin-unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.m-coin-age {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.m-coin-outpoint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.m-coin-freeze {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-coin-tag {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* A frozen coin is dimmed; "pending" keeps its colour, and the Frozen tag its own. */
+.m-coin-frozen .m-coin-value,
+.m-coin-frozen .m-coin-age,
+.m-coin-frozen .m-coin-outpoint {
+  color: var(--faint);
+}
+
+/* The tick at a thumb's size; a frozen coin shows a lock in its place. */
+.m-body .tick-box {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.m-coin-lock {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+}
+
+.m-body .switch {
+  width: 42px;
+  height: 24px;
+}
+
+.m-body .switch::after {
+  width: 20px;
+  height: 20px;
+}
+
+.m-body .switch[aria-checked="true"]::after {
+  left: 20px;
+}
+
+/* Drawn 24px tall, the switch still takes a thumb's 48px: its target reaches
+   past the track, into the row's padding. */
+.m-body .switch::before {
+  content: "";
+  position: absolute;
+  inset: -12px -3px;
+}
+
+.m-coins-hint {
+  padding: 0 var(--space-1);
+}
+
+/* Import PSBT (M14) ------------------------------------------------------- */
+
+/* The PSBT's card: the field, then Paste and Scan at the board's 44px. */
+.m-psbt-source {
+  gap: 10px;
+}
+
+.m-psbt-source .m-btn {
+  min-height: 44px;
+}
+
+/* Base64 runs unbroken, so it wraps at the box's edge. The text stays at the
+   16px floor rather than the board's 12px: anything smaller zooms iOS in. */
+.m-body .m-psbt-field {
+  word-break: break-all;
+}
+
+.m-body textarea.input-invalid {
+  border-color: var(--danger);
+}
+
+.m-psbt {
+  gap: var(--space-2);
+}
+
+.m-psbt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.m-psbt-outputs {
+  margin-top: 6px;
+}
+
+/* An input or an output: where, a note under it, and its value across from it. */
+.m-io {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.m-io-where {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.m-io-addr {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.m-io-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.m-io-value {
+  flex: none;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+
+.m-psbt-fee {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: 2px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  font-size: 15px;
+}
+
+.m-psbt-fee > :first-child {
+  color: var(--muted);
+}
+
+.m-psbt-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 15px;
+}
+
+/* Sign and Broadcast share the row; a watch-only wallet's Broadcast takes all of it. */
+.m-psbt-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.m-psbt-actions .m-btn {
+  flex: 1;
 }
 
 /* Tab bar ----------------------------------------------------------------- */
@@ -821,4 +1264,69 @@ html[data-scanning] .m-scanner {
   align-items: center;
   justify-content: center;
   color: var(--accent);
+}
+
+/* Focus ------------------------------------------------------------------- */
+
+/**
+ * Rings for keyboard focus: every rule here is `:focus-visible`, so a tap on a
+ * row, tab or button draws nothing. Fields, textareas, chips and the other
+ * buttons keep the ring app.css gives both shells, 2px of accent 1px outside,
+ * since each has room around it; a field shows it on a tap too, because
+ * browsers count a focused text field as keyboard focus. Rows, tabs and the
+ * primary button take the rings drawn on the M15 board instead.
+ */
+
+/* A row runs edge to edge in its card, so a ring outside it would sit on the
+   card's border and across the rows beside it. It goes inside. A button that
+   ends a flush card as its last row (Show all) is a row here too. */
+.m-item:focus-visible,
+button.m-txrow:focus-visible,
+.m-card-flush > .m-btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* Where a row meets the card's rounded corner its ring turns with it, since a
+   square one would poke out past the card's edge. The row sits inside the
+   card's 1px border, hence 1px less than the card's radius. */
+.m-card-flush > :first-child:focus-visible {
+  border-top-left-radius: calc(var(--radius-lg) - 1px);
+  border-top-right-radius: calc(var(--radius-lg) - 1px);
+}
+
+.m-card-flush > :last-child:focus-visible {
+  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+}
+
+/* A tab's ring floats inside the tab: one drawn outside would run over the
+   bar's top edge, and the screen's edge would cut it off the first and last
+   tab. The board sets it 4px in all round on a taller tab; on this 56px one
+   that would put it against the top of the gear icon, so it comes 2px in at
+   the top and bottom. */
+.m-tab:focus-visible {
+  position: relative;
+  outline: none;
+}
+
+.m-tab:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 2px 4px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* An accent ring vanishes against the primary button's accent fill, so this
+   one is in the text colour and stands 2px off. */
+.m-btn-primary:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* The Scan screen is dark in either theme, and the light theme's text colour
+   would vanish against it. */
+.m-scanner .m-btn-primary:focus-visible {
+  outline-color: var(--scan-fg);
 }

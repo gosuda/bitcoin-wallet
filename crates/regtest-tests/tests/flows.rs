@@ -1,7 +1,9 @@
 //! The flows the app ships beyond a plain send, against a real node:
-//! a two-recipient send and the detail view of it, a drain, and a
-//! watch-only copy of a wallet. `send.rs` covers the plain send, fee bump and
-//! reopen; `hd.rs` the account layout and a passphrase's separate wallet.
+//! a two-recipient send and the detail view of it, a drain, a watch-only copy
+//! of a wallet, coin control, a child paying for its parent, a cancel, and a
+//! PSBT signed by one wallet for another. `send.rs` covers the plain send, fee
+//! bump and reopen; `hd.rs` the account layout and a passphrase's separate
+//! wallet.
 
 // Only ever compiled as a test. Saying so lets clippy's test exemption
 // reach the helpers here, not just the #[test] functions.
@@ -13,7 +15,7 @@ use std::time::Duration;
 use bdk_testenv::TestEnv;
 use wallet_core::bitcoin::{Address, Amount, Txid};
 use wallet_core::{
-    AddressType, BackendConfig, BuiltTx, KeyMaterial, MemoryPersister, Network, Recipient,
+    AddressType, BackendConfig, BuiltTx, CoinId, KeyMaterial, MemoryPersister, Network, Recipient,
     WalletConfig, WalletHandle,
 };
 
@@ -294,6 +296,260 @@ async fn a_watch_only_copy_mirrors_the_full_wallet() -> anyhow::Result<()> {
         .await?;
     let refused = watcher.sign(&unsigned.psbt_base64).await.unwrap_err();
     assert_eq!(refused.code(), "unsupported");
+
+    Ok(())
+}
+
+/// The wallet's coin worth exactly `value_sat`.
+async fn coin_worth(wallet: &WalletHandle, value_sat: u64) -> CoinId {
+    let utxo = wallet
+        .list_utxos()
+        .await
+        .into_iter()
+        .find(|u| u.value == value_sat)
+        .unwrap_or_else(|| panic!("no coin of {value_sat} sat"));
+    CoinId {
+        txid: utxo.txid,
+        vout: utxo.vout,
+    }
+}
+
+/// Coin control on a real chain: a send held to one chosen coin spends that
+/// coin alone, a frozen coin stays where it is through a Max, and once
+/// unfrozen it is spendable again.
+#[tokio::test]
+async fn chosen_coins_move_and_a_frozen_one_stays() -> anyhow::Result<()> {
+    const SECOND_FUNDING_SAT: u64 = 75_000;
+    const THIRD_FUNDING_SAT: u64 = 50_000;
+    const SEND_SAT: u64 = 20_000;
+    let (env, url) = start()?;
+    let wallet = new_hd_wallet(&url).await?;
+    fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    fund(&env, &wallet.new_address().await?, SECOND_FUNDING_SAT)?;
+    fund(&env, &wallet.new_address().await?, THIRD_FUNDING_SAT)?;
+    confirm(&env)?;
+    wallet.sync().await?;
+    assert_eq!(wallet.list_utxos().await.len(), 3);
+
+    let big = coin_worth(&wallet, FUNDING_SAT).await;
+    wallet.set_frozen(&big, true).await?;
+    let balance = wallet.balance().await;
+    assert_eq!(balance.frozen, FUNDING_SAT);
+    assert_eq!(balance.spendable(), SECOND_FUNDING_SAT + THIRD_FUNDING_SAT);
+
+    // --- a send held to the smallest coin, though either other would do
+    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let small = coin_worth(&wallet, THIRD_FUNDING_SAT).await;
+    let built = wallet
+        .build_transfer_from(
+            std::slice::from_ref(&small),
+            &[Recipient {
+                address: destination.address().await,
+                amount_sat: SEND_SAT,
+            }],
+            2.0,
+        )
+        .await?;
+    let txid = send(&env, &wallet, &built).await?;
+    confirm(&env)?;
+    wallet.sync().await?;
+    let detail = wallet
+        .transaction(&txid)
+        .await?
+        .expect("the send is in the wallet's history");
+    let spent: Vec<(String, u32)> = detail
+        .inputs
+        .iter()
+        .map(|i| (i.txid.clone(), i.vout))
+        .collect();
+    assert_eq!(spent, vec![(small.txid.clone(), small.vout)]);
+
+    // --- Max: everything but the frozen coin
+    let max = wallet
+        .build_drain(&destination.address().await, 2.0)
+        .await?;
+    assert_eq!(max.input_count, 2, "the second funding and the change");
+    send(&env, &wallet, &max).await?;
+    confirm(&env)?;
+    wallet.sync().await?;
+    let left = wallet.list_utxos().await;
+    assert_eq!(left.len(), 1, "{left:?}");
+    assert_eq!(
+        (&left[0].txid, left[0].vout, left[0].frozen),
+        (&big.txid, big.vout, true)
+    );
+    let balance = wallet.balance().await;
+    assert_eq!((balance.frozen, balance.spendable()), (FUNDING_SAT, 0));
+
+    destination.sync().await?;
+    assert_eq!(
+        destination.balance().await.confirmed,
+        SEND_SAT + max.total_out_sat
+    );
+
+    // --- unfrozen, it counts again
+    wallet.set_frozen(&big, false).await?;
+    let balance = wallet.balance().await;
+    assert_eq!((balance.frozen, balance.confirmed), (0, FUNDING_SAT));
+
+    Ok(())
+}
+
+/// A payment someone else sent, still unconfirmed, is sped up by a child
+/// that spends our output of it. The node takes the child, the pair pays at
+/// least the rate asked for, and both confirm together. The payer's fee is
+/// known only because Esplora reports the inputs they spent: this is that
+/// path, not a test double of it.
+#[tokio::test]
+async fn a_child_pays_for_a_payment_someone_else_sent() -> anyhow::Result<()> {
+    const PACKAGE_RATE: f64 = 50.0;
+    let (env, url) = start()?;
+    let wallet = new_hd_wallet(&url).await?;
+    fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    wallet.sync().await?;
+    let parent = wallet
+        .list_transactions()
+        .await
+        .into_iter()
+        .next()
+        .expect("the payment is in the history");
+    let parent = wallet
+        .transaction(&parent.txid)
+        .await?
+        .expect("the payment has a detail");
+    assert_eq!(parent.confirmations, None);
+    let parent_fee = parent
+        .fee_sat
+        .expect("Esplora reports the payer's inputs, so their fee is known");
+    assert!(
+        parent.fee_rate_sat_vb.is_some_and(|r| r < PACKAGE_RATE),
+        "the node pays well below the rate asked for: {:?}",
+        parent.fee_rate_sat_vb
+    );
+
+    let built = wallet.build_cpfp(&parent.txid, PACKAGE_RATE).await?;
+    assert_eq!(built.total_out_sat, 0, "nothing leaves the wallet");
+    let child_txid = send(&env, &wallet, &built).await?;
+    let child = wallet
+        .transaction(&child_txid)
+        .await?
+        .expect("the child is in the history");
+    let child_fee = child.fee_sat.expect("the child spends only our coin");
+    let package = (parent_fee + child_fee) as f64 / (parent.vsize + child.vsize) as f64;
+    assert!(package >= PACKAGE_RATE, "package rate {package}");
+
+    confirm(&env)?;
+    wallet.sync().await?;
+    for txid in [&parent.txid, &child_txid] {
+        let detail = wallet.transaction(txid).await?.expect("still in history");
+        assert_eq!(detail.confirmations, Some(1), "{txid} confirmed");
+    }
+    assert_eq!(wallet.balance().await.confirmed, FUNDING_SAT - child_fee);
+
+    Ok(())
+}
+
+/// An unconfirmed send is taken back. Asked for a rate just past the
+/// original's, the replacement's fee still has to outbid the original's in
+/// sats (BIP125 rule 3), which BDK does not check and the node does: it takes
+/// the replacement, and the recipient ends up with nothing.
+#[tokio::test]
+async fn a_cancel_takes_a_send_back() -> anyhow::Result<()> {
+    const SEND_SAT: u64 = 40_000;
+    let (env, url) = start()?;
+    let wallet = new_hd_wallet(&url).await?;
+    fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    confirm(&env)?;
+    wallet.sync().await?;
+
+    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let original = wallet
+        .build_transfer(
+            &[Recipient {
+                address: destination.address().await,
+                amount_sat: SEND_SAT,
+            }],
+            20.0,
+        )
+        .await?;
+    let first = send(&env, &wallet, &original).await?;
+
+    let cancel = wallet.build_cancel(&first, 22.0).await?;
+    assert_eq!(cancel.total_out_sat, 0, "nothing leaves the wallet");
+    assert!(
+        cancel.fee_sat >= original.fee_sat + cancel.vsize,
+        "{} over {} replaced",
+        cancel.fee_sat,
+        original.fee_sat
+    );
+    let replacement = send(&env, &wallet, &cancel).await?;
+    assert_ne!(replacement, first);
+
+    confirm(&env)?;
+    wallet.sync().await?;
+    destination.sync().await?;
+    assert_eq!(destination.balance().await.total(), 0, "nothing arrived");
+    assert_eq!(
+        wallet.balance().await.confirmed,
+        FUNDING_SAT - cancel.fee_sat
+    );
+    let history = wallet.list_transactions().await;
+    assert!(history.iter().all(|t| t.txid != first), "the send is gone");
+
+    Ok(())
+}
+
+/// PSBT import, end to end: a watch-only copy makes a payment, the wallet
+/// holding the keys signs it from the PSBT alone, and the copy broadcasts
+/// what came back. The node judges the signatures.
+#[tokio::test]
+async fn a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_out() -> anyhow::Result<()> {
+    const SEND_SAT: u64 = 40_000;
+    let (env, url) = start()?;
+    let keys = new_hd_wallet(&url).await?;
+    fund(&env, &keys.address().await, FUNDING_SAT)?;
+    confirm(&env)?;
+    keys.sync().await?;
+    let descriptor = keys.public_descriptors().await.external;
+    let watcher = open(&url, &KeyMaterial::parse(&descriptor)).await?;
+    assert!(watcher.is_watch_only());
+    watcher.sync().await?;
+
+    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let unsigned = watcher
+        .build_transfer(
+            &[Recipient {
+                address: destination.address().await,
+                amount_sat: SEND_SAT,
+            }],
+            2.0,
+        )
+        .await?;
+    let refused = watcher.broadcast(&unsigned.psbt_base64).await.unwrap_err();
+    assert_eq!(
+        refused.code(),
+        "psbt",
+        "an unsigned PSBT never reaches the node"
+    );
+
+    let review = keys.import_psbt(&unsigned.psbt_base64).await?;
+    assert!(review.signable && !review.finalized);
+    let signed = keys.sign_psbt(&review.psbt_base64).await?;
+    assert!(signed.finalized);
+
+    let back = watcher.import_psbt(&signed.psbt_base64).await?;
+    let sent = watcher.broadcast(&back.psbt_base64).await?;
+    assert_eq!(Some(sent.txid.clone()), back.txid);
+    env.wait_until_electrum_sees_txid(Txid::from_str(&sent.txid)?, TIMEOUT)?;
+    confirm(&env)?;
+
+    destination.sync().await?;
+    assert_eq!(destination.balance().await.confirmed, SEND_SAT);
+    keys.sync().await?;
+    assert_eq!(
+        keys.balance().await.confirmed,
+        FUNDING_SAT - SEND_SAT - unsigned.fee_sat
+    );
 
     Ok(())
 }

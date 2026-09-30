@@ -1,19 +1,21 @@
 import "./ui/tokens.css";
 import "./ui/app.css";
-import { api } from "./api";
+import { api, canUnlockHere } from "./api";
 import { guardRoute, KEY_ROUTES } from "./guards";
-import { platform } from "./platform";
 import { currentRoute, navigate, type Route } from "./router";
 import { renderCreate } from "./screens/create";
 import { renderDashboard } from "./screens/dashboard";
 import { renderKey } from "./screens/key";
+import { renderPsbt } from "./screens/psbt";
 import { renderRestore } from "./screens/restore";
 import { renderResult } from "./screens/result";
 import { renderSend } from "./screens/send";
+import { renderSettings } from "./screens/settings";
 import { renderSetup } from "./screens/setup";
 import { renderUnlock } from "./screens/unlock";
 import { session } from "./session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "./types";
+import { startAutolock } from "./ui/autolock";
 import { banner, clear, el, queueNotice } from "./ui/dom";
 import { brandMark, icon } from "./ui/icons";
 
@@ -44,6 +46,9 @@ function stepIndicator(active: number): HTMLElement {
   return nav;
 }
 
+/** The wallet's own pages, which link to Settings from the top bar; 7 carries the gear too. */
+const SETTINGS_LINKED: ReadonlySet<Route> = new Set<Route>(["dashboard", "settings", "psbt"]);
+
 function topbar(route: Route): HTMLElement {
   const meta = el("div", { className: "topbar-meta" });
   const cfg = session.config;
@@ -53,6 +58,21 @@ function topbar(route: Route): HTMLElement {
         el("span", { className: "pill-dot" }),
         `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`,
       ]),
+    );
+  }
+  if (session.wallet && SETTINGS_LINKED.has(route)) {
+    meta.appendChild(
+      el(
+        "a",
+        {
+          className: "topbar-link",
+          attrs: {
+            href: "#/settings",
+            ...(route === "settings" ? { "aria-current": "page" } : {}),
+          },
+        },
+        [icon("gear", 16), "Settings"],
+      ),
     );
   }
   return el("header", { className: "topbar" }, [
@@ -74,6 +94,8 @@ const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   dashboard: renderDashboard,
   send: renderSend,
   result: renderResult,
+  settings: renderSettings,
+  psbt: renderPsbt,
 };
 
 /** The rules live in `guards.ts`; this is where the desktop reads its state. */
@@ -83,7 +105,7 @@ function guard(route: Route): Route {
     {
       wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
       configType: session.config?.address_type ?? null,
-      unlockable: platform().canRememberWallet && session.remembered !== null,
+      unlockable: canUnlockHere(),
       hasResult: session.lastResult !== null,
       hasTxid: false,
     },
@@ -147,12 +169,15 @@ export async function boot(options: BootOptions = {}): Promise<void> {
       session.remembered = null;
     }
   }
+  // Once, for both shells, before either mounts: Settings shows the saved
+  // lock time from the first screen on.
+  await startAutolock();
   if (options.mount) {
     options.mount();
     return;
   }
   window.addEventListener("hashchange", render);
-  if (session.remembered && currentRoute() === "setup") navigate("unlock");
+  if (canUnlockHere() && currentRoute() === "setup") navigate("unlock");
   else render();
 }
 

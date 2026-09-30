@@ -57,7 +57,7 @@ export interface WalletInfo {
   is_watch_only: boolean;
 }
 
-/** Non-secret record of the wallet whose key is kept in the OS keystore. */
+/** Non-secret record of the wallet whose key is kept in the key store. */
 export interface RememberedWallet {
   wallet_id: string;
   address: string;
@@ -71,7 +71,8 @@ export interface RememberedWallet {
  *
  * The BIP39 passphrase is stored alongside the words because it is part of the
  * same wallet's identity — the words on their own open a different wallet — and
- * the OS keystore is already the boundary that protects them.
+ * the key store is already the boundary that protects them: the OS keystore, or
+ * in the browser the seal of the app password.
  */
 export interface StoredSecret {
   secret: string;
@@ -84,14 +85,22 @@ export interface Balance {
   trusted_pending: number;
   untrusted_pending: number;
   immature: number;
+  /** Frozen coins, whatever their state; counted here and in none of the four above. */
+  frozen: number;
 }
 
-export interface Utxo {
+/** One coin, named the way `Utxo` names it. */
+export interface CoinId {
   txid: string;
   vout: number;
+}
+
+export interface Utxo extends CoinId {
   value: number;
   confirmations: number | null;
   address: string;
+  /** Kept out of every send until unfrozen. */
+  frozen: boolean;
 }
 
 /** One wallet-relevant transaction, newest first from `list_transactions`. */
@@ -156,6 +165,37 @@ export interface TxDetail {
   outputs: TxOutput[];
 }
 
+export interface PsbtInput {
+  txid: string;
+  vout: number;
+  /** From our own history for an input of ours; what the PSBT claims for anyone else's. */
+  value_sat: number | null;
+  /** Going by this wallet's own history, never by what the PSBT claims. */
+  ours: boolean;
+  /** Carries its final script: nothing is left to sign on it. */
+  finalized: boolean;
+}
+
+/** What a PSBT made elsewhere would do, as far as this wallet can tell. */
+export interface PsbtReview {
+  /** The PSBT with this wallet's part added; pass it on or broadcast it. */
+  psbt_base64: string;
+  /** Known once every input is final; signing can still change it before that. */
+  txid: string | null;
+  inputs: PsbtInput[];
+  outputs: TxOutput[];
+  /** `null` unless every input's value is known. */
+  fee_sat: number | null;
+  /** Exact once final, an upper bound while every input is ours, else `null`. */
+  vsize: number | null;
+  /** Our outputs less our inputs. */
+  net_sat: number;
+  /** Every input is final, so it can be broadcast. */
+  finalized: boolean;
+  /** An input of ours is still unsigned, and this wallet holds keys. */
+  signable: boolean;
+}
+
 /** The confirmation targets Send offers, in blocks. */
 export const FEE_TARGETS = [1, 3, 6] as const;
 export type FeeTarget = (typeof FEE_TARGETS)[number];
@@ -166,6 +206,34 @@ export const DEFAULT_FEE_TARGET: FeeTarget = 6;
 /** The address gaps a rescan offers; the first is the core's own default. */
 export const RESCAN_GAPS = [20, 100, 500] as const;
 export type RescanGap = (typeof RESCAN_GAPS)[number];
+
+/**
+ * How long the app may sit in the background before a remembered wallet
+ * closes to Unlock, in minutes (6.11). Nothing shorter than a minute: fetching
+ * an address from another app must not close the Send it was fetched for.
+ */
+export const LOCK_AFTER_CHOICES = [1, 5, 15, 60, "never"] as const;
+export type LockAfter = (typeof LOCK_AFTER_CHOICES)[number];
+
+/** Until another is chosen: five minutes, as decided on 2026-09-30. */
+export const DEFAULT_LOCK_AFTER: LockAfter = 5;
+
+export const LOCK_AFTER_LABELS: Record<LockAfter, string> = {
+  1: "1 min",
+  5: "5 min",
+  15: "15 min",
+  60: "1 hour",
+  never: "Never",
+};
+
+/**
+ * The choice `value` names, read back from storage or from a control. Nothing
+ * saved, or anything this build does not offer — edited by hand, or written by
+ * another version — is the default, so a damaged record errs towards locking.
+ */
+export function lockAfterFrom(value: unknown): LockAfter {
+  return LOCK_AFTER_CHOICES.find((c) => c === value || `${c}` === value) ?? DEFAULT_LOCK_AFTER;
+}
 
 /**
  * Best known rate for `target` blocks (mirrors `FeeEstimate::for_target`):
@@ -325,10 +393,14 @@ function detailedMessage(value: AppError): string | null {
       return null;
     case "not_replaceable":
       return "This transaction can no longer be replaced.";
+    case "wrong_password":
+      // The canvas's words (2e), said under the App password field.
+      return "Wrong password.";
     case "corrupt_state":
-      return typeof d?.reason === "string"
-        ? `The saved wallet data could not be read (${d.reason}).`
-        : "The saved wallet data could not be read.";
+      // Not unreadable, only ahead of this version: an update reads it.
+      return d?.reason === "future_version"
+        ? "The saved wallet data on this device is from a newer version of the app. Update the app to open it."
+        : "The saved wallet data on this device can't be read.";
     default:
       return null;
   }
@@ -349,6 +421,19 @@ export function messageOf(value: unknown): string | null {
 export function errorMessage(value: unknown): string {
   if (isAppError(value)) return detailedMessage(value) ?? value.message;
   return messageOf(value) ?? "unexpected error";
+}
+
+/**
+ * Whether deleting the wallet's saved history on this device fixes `value`:
+ * the record could not be read, and the next sync downloads the history back.
+ * A record from a newer version of the app is not one of these. An update
+ * reads it, and a reset would lose what that version keeps, such as frozen
+ * coins.
+ */
+export function historyResetFixes(value: unknown): boolean {
+  if (!isAppError(value) || value.code !== "corrupt_state") return false;
+  const reason = value.details?.reason;
+  return reason === "malformed" || reason === "mismatch";
 }
 
 export const NETWORK_LABELS: Record<Network, string> = {

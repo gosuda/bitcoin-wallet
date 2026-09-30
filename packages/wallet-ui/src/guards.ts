@@ -38,15 +38,19 @@ export const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>([
 export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
   "receive",
   "scan",
-  "settings",
   "tx",
   "export",
+  "coins",
 ]);
 
-/** Screens with nothing to show, configure or scan into without an open wallet. */
+/**
+ * Screens with nothing to show, configure or scan into without an open
+ * wallet. Import PSBT is one on both shells, a watch-only wallet included:
+ * it can still broadcast what was signed elsewhere.
+ */
 const NEEDS_WALLET: Record<Shell, ReadonlySet<Route>> = {
-  desktop: new Set<Route>(["dashboard", "send"]),
-  phone: new Set<Route>(["dashboard", "send", ...PHONE_ONLY]),
+  desktop: new Set<Route>(["dashboard", "send", "settings", "psbt"]),
+  phone: new Set<Route>(["dashboard", "send", "settings", "psbt", ...PHONE_ONLY]),
 };
 
 /**
@@ -68,17 +72,20 @@ export function guardRoute(route: Route, s: GuardState, shell: Shell): Route {
 
 /** One rule's answer: another route, or `route` itself when no rule applies. */
 function step(route: Route, s: GuardState, shell: Shell): Route {
-  if (shell === "desktop" && PHONE_ONLY.has(route)) return s.wallet ? "dashboard" : "setup";
-  if (NEEDS_WALLET[shell].has(route) && !s.wallet) return "setup";
-  // Setup rewrites the network under a live wallet handle. The desktop closes
-  // the wallet from the dashboard; the phone does it from Settings.
-  if (route === "setup" && s.wallet) return shell === "desktop" ? "dashboard" : "settings";
+  if (shell === "desktop" && PHONE_ONLY.has(route)) return "dashboard";
+  // A wallet's page with no wallet open — a reload in the browser, or a
+  // bookmark — goes where a fresh start would: to Unlock when a wallet is
+  // remembered here, to Setup when none is.
+  if (NEEDS_WALLET[shell].has(route) && !s.wallet) return s.unlockable ? "unlock" : "setup";
+  // Setup rewrites the network under a live wallet handle, so it is reached
+  // from Settings, which asks and closes the wallet first.
+  if (route === "setup" && s.wallet) return "settings";
   // A watch-only wallet has nothing to sign with; the screen is not offered.
   if (route === "send" && s.wallet?.watchOnly) return "dashboard";
   // The transaction screen is reached from a row, never typed; without one
   // chosen there is nothing to show.
   if (route === "tx" && !s.hasTxid) return "dashboard";
-  if (route === "result" && !s.hasResult) return s.wallet ? "dashboard" : "setup";
+  if (route === "result" && !s.hasResult) return "dashboard";
   // A config saved before P2PK stopped being openable can still name it, and
   // Setup, which never offers it, is where a type is chosen again.
   if (KEY_ROUTES.has(route) && (s.configType === null || !isOpenable(s.configType))) {

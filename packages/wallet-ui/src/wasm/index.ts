@@ -17,17 +17,26 @@ import type {
   AddressType,
   AppConfig,
   Balance,
+  CoinId,
   FeeEstimate,
   GeneratedKey,
   GeneratedMnemonic,
   Network,
+  PsbtReview,
   PublicDescriptors,
   Recipient,
   TxDetail,
   TxSummary,
   Utxo,
 } from "../types";
-import { toFeeEstimate, toPublicDescriptors, toTxDetail, toTxSummary, toUtxo } from "./normalize";
+import {
+  toFeeEstimate,
+  toPsbtReview,
+  toPublicDescriptors,
+  toTxDetail,
+  toTxSummary,
+  toUtxo,
+} from "./normalize";
 import init, {
   explorer_tx_url,
   generate_key,
@@ -169,6 +178,11 @@ export class WalletApi {
     return rows.map(toUtxo);
   }
 
+  /** Freeze a coin or unfreeze it; the choice is saved with the wallet. */
+  set_frozen(coin: CoinId, frozen: boolean): Promise<void> {
+    return this.inner.set_frozen(coin.txid, coin.vout, frozen);
+  }
+
   async list_transactions(): Promise<TxSummary[]> {
     const rows = (await this.inner.list_transactions()) as unknown[];
     return rows.map(toTxSummary);
@@ -182,12 +196,30 @@ export class WalletApi {
     return (await this.inner.build_transfer(recipients, feeRateSatVb)) as BuiltTx;
   }
 
+  /** `build_transfer` funded by `coins` alone; every one of them is spent. */
+  async build_transfer_from(
+    coins: readonly CoinId[],
+    recipients: Recipient[],
+    feeRateSatVb: number,
+  ): Promise<BuiltTx> {
+    return (await this.inner.build_transfer_from(coins, recipients, feeRateSatVb)) as BuiltTx;
+  }
+
   /**
    * Everything the wallet has, to one address, minus the fee. `total_out_sat`
    * is exactly what arrives: there is no change output to absorb a rounding.
    */
   async build_drain(address: string, feeRateSatVb: number): Promise<BuiltTx> {
     return (await this.inner.build_drain(address, feeRateSatVb)) as BuiltTx;
+  }
+
+  /** `build_drain` of `coins` alone: all of them, less the fee, to one address. */
+  async build_drain_from(
+    coins: readonly CoinId[],
+    address: string,
+    feeRateSatVb: number,
+  ): Promise<BuiltTx> {
+    return (await this.inner.build_drain_from(coins, address, feeRateSatVb)) as BuiltTx;
   }
 
   /**
@@ -198,8 +230,28 @@ export class WalletApi {
     return (await this.inner.build_fee_bump(txid, feeRateSatVb)) as BuiltTx;
   }
 
+  /** A replacement paying all of an unconfirmed send back to us. */
+  async build_cancel(txid: string, feeRateSatVb: number): Promise<BuiltTx> {
+    return (await this.inner.build_cancel(txid, feeRateSatVb)) as BuiltTx;
+  }
+
+  /** A child spending our output of `txid`, so the pair pays the package rate. */
+  async build_cpfp(txid: string, packageRateSatVb: number): Promise<BuiltTx> {
+    return (await this.inner.build_cpfp(txid, packageRateSatVb)) as BuiltTx;
+  }
+
   sign(psbtBase64: string): Promise<string> {
     return this.inner.sign(psbtBase64);
+  }
+
+  /** Reads a PSBT made elsewhere (base64 or hex). Signs nothing. */
+  async import_psbt(psbt: string): Promise<PsbtReview> {
+    return toPsbtReview(await this.inner.import_psbt(psbt));
+  }
+
+  /** Signs every input of ours in a PSBT made elsewhere, and finalizes what it can. */
+  async sign_psbt(psbt: string): Promise<PsbtReview> {
+    return toPsbtReview(await this.inner.sign_psbt(psbt));
   }
 
   async broadcast(signedPsbtBase64: string): Promise<Broadcast> {

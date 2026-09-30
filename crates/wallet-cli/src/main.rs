@@ -98,6 +98,27 @@ enum Cmd {
     Balance(BackendArgs),
     /// Sync and show transaction history, newest first
     History(BackendArgs),
+    /// Scan the chain looking further past the last used address than a sync
+    /// does, then show the balance
+    ///
+    /// For a wallet restored from a phrase that spread its funds more than 20
+    /// unused addresses apart, which a sync never finds. The CLI keeps no state
+    /// between runs, so this is the run's first scan, with a wider gap.
+    Rescan {
+        #[command(flatten)]
+        backend: BackendArgs,
+        /// Unused addresses to look past the last used one (1-1000)
+        #[arg(long, default_value_t = 100)]
+        gap: u32,
+    },
+    /// Sync and show one transaction of this wallet: amounts, fee, inputs and
+    /// outputs
+    Tx {
+        #[command(flatten)]
+        backend: BackendArgs,
+        /// Transaction id
+        txid: String,
+    },
     /// Re-send an unconfirmed transaction of yours at a higher fee rate
     Bump {
         #[command(flatten)]
@@ -121,11 +142,15 @@ enum Cmd {
     Send {
         #[command(flatten)]
         backend: BackendArgs,
-        /// Recipients as ADDRESS:SATS (repeatable)
+        /// Recipients as ADDRESS:SATS (repeatable); with --max, one ADDRESS
         ///
         /// No short flag: `-t` is already the global `--address-type`.
         #[arg(long = "to", required = true)]
         to: Vec<String>,
+        /// Send everything this wallet can spend to the one --to ADDRESS, less
+        /// the fee, with no change output
+        #[arg(long)]
+        max: bool,
         /// Fee rate in sat/vB (default: backend estimate for 6 blocks, floor 1)
         #[arg(short, long)]
         fee_rate: Option<f64>,
@@ -170,7 +195,7 @@ impl CliError {
     /// Stable across runs, so a script can branch on `$?` instead of
     /// matching stderr text. 1 is a CLI-level failure with no code of its
     /// own; every `wallet_core::Error` variant gets its own number, in the
-    /// order [`Error::code`] itself documents them.
+    /// order the variants were added, so a number once given never changes.
     fn exit_code(&self) -> u8 {
         let CliError::Core(e) = self else {
             return 1;
@@ -194,6 +219,7 @@ impl CliError {
             Error::InvalidTxid(_) => 25,
             Error::NotReplaceable(_) => 26,
             Error::CorruptState { .. } => 27,
+            Error::UnknownCoin(_) => 28,
         }
     }
 }
@@ -254,6 +280,18 @@ async fn open(
     Ok(WalletHandle::open(cfg, &key, Box::new(MemoryPersister::new())).await?)
 }
 
+/// The one address `send --max` drains to. Everything goes there, so an
+/// amount, or a second recipient, would be a mistake to guess around.
+fn drain_destination(to: &[String]) -> Result<&str, String> {
+    match to {
+        [address] if !address.contains(':') => Ok(address),
+        [_] => {
+            Err("with --max, --to takes an address without an amount: all of it goes there".into())
+        }
+        _ => Err(format!("--max takes exactly one --to, got {}", to.len())),
+    }
+}
+
 fn parse_recipient(s: &str) -> Result<Recipient, String> {
     let (addr, sats) = s
         .rsplit_once(':')
@@ -311,6 +349,24 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
             w.sync().await?;
             Ok(serde_json::json!({ "transactions": w.list_transactions().await }))
         }
+        Cmd::Rescan { backend, gap } => {
+            let w = open(network, address_type, &backend).await?;
+            w.rescan(gap).await?;
+            let balance = w.balance().await;
+            Ok(serde_json::json!({
+                "gap": gap, "balance": balance, "spendable": balance.spendable(),
+                "transactions": w.list_transactions().await.len(),
+            }))
+        }
+        Cmd::Tx { backend, txid } => {
+            let w = open(network, address_type, &backend).await?;
+            w.sync().await?;
+            let detail = w
+                .transaction(&txid)
+                .await?
+                .ok_or_else(|| format!("{txid} is not a transaction of this wallet"))?;
+            Ok(serde_json::json!(detail))
+        }
         Cmd::Bump {
             backend,
             txid,
@@ -352,13 +408,21 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
         Cmd::Send {
             backend,
             to,
+            max,
             fee_rate,
             dry_run,
         } => {
-            let recipients = to
-                .iter()
-                .map(|s| parse_recipient(s))
-                .collect::<Result<Vec<_>, _>>()?;
+            // Checked before the wallet is opened, so a mistyped command costs
+            // no sync.
+            let (recipients, drain_to) = if max {
+                (Vec::new(), Some(drain_destination(&to)?))
+            } else {
+                let recipients = to
+                    .iter()
+                    .map(|s| parse_recipient(s))
+                    .collect::<Result<Vec<_>, _>>()?;
+                (recipients, None)
+            };
             let w = open(network, address_type, &backend).await?;
             w.sync().await?;
             let rate = match fee_rate {
@@ -369,7 +433,10 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
                     .for_target(wallet_core::wallet::DEFAULT_FEE_TARGET)
                     .unwrap_or(wallet_core::wallet::MIN_FEE_RATE_SAT_VB),
             };
-            let built = w.build_transfer(&recipients, rate).await?;
+            let built = match drain_to {
+                Some(address) => w.build_drain(address, rate).await?,
+                None => w.build_transfer(&recipients, rate).await?,
+            };
             let signed = w.sign(&built.psbt_base64).await?;
             let tx = WalletHandle::extract_tx(&signed)?;
             let (txid, persist_error) = if dry_run {
@@ -385,7 +452,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
             }
             Ok(serde_json::json!({
                 "txid": txid, "broadcast": !dry_run, "persist_error": persist_error, "fee_sat": built.fee_sat, "fee_rate_sat_vb": rate,
-                "vsize": tx.vsize(), "change_sat": built.change_sat, "inputs": built.input_count,
+                "vsize": tx.vsize(), "sent_sat": built.total_out_sat, "change_sat": built.change_sat, "inputs": built.input_count,
                 "explorer": network.explorer_tx_url(&backend_url(network, &backend), &txid), "psbt": if dry_run { Some(signed) } else { None },
             }))
         }
@@ -504,6 +571,7 @@ mod tests {
                 found: None,
                 supported: None,
             },
+            Error::UnknownCoin("x".into()),
         ]
     }
 
@@ -530,5 +598,55 @@ mod tests {
     #[test]
     fn a_cli_level_error_always_exits_1() {
         assert_eq!(CliError::from("bad args".to_string()).exit_code(), 1);
+    }
+
+    #[test]
+    fn send_max_takes_one_address_and_nothing_more() {
+        assert_eq!(drain_destination(&["tb1qdest".into()]), Ok("tb1qdest"));
+        assert!(
+            drain_destination(&["tb1qdest:1000".into()]).is_err(),
+            "an amount"
+        );
+        assert!(
+            drain_destination(&["tb1qa".into(), "tb1qb".into()]).is_err(),
+            "two"
+        );
+        assert!(drain_destination(&[]).is_err(), "none");
+    }
+
+    #[test]
+    fn the_new_commands_parse_as_their_help_says() {
+        let cli = Cli::try_parse_from(["btcw", "send", "--max", "--to", "tb1qdest", "--dry-run"])
+            .unwrap();
+        assert!(matches!(
+            cli.cmd,
+            Cmd::Send {
+                max: true,
+                dry_run: true,
+                ..
+            }
+        ));
+        let cli = Cli::try_parse_from(["btcw", "rescan"]).unwrap();
+        assert!(matches!(cli.cmd, Cmd::Rescan { gap: 100, .. }));
+        let cli = Cli::try_parse_from(["btcw", "tx", "ab12"]).unwrap();
+        assert!(matches!(cli.cmd, Cmd::Tx { ref txid, .. } if txid == "ab12"));
+        assert!(
+            Cli::try_parse_from(["btcw", "send", "--max"]).is_err(),
+            "--max still needs its --to"
+        );
+    }
+
+    /// Opening the wallet needs no network, and the gap is checked before the
+    /// scan starts, so this runs offline and still goes through `run`.
+    #[tokio::test]
+    async fn a_rescan_gap_out_of_range_exits_with_the_cores_code() {
+        let cli =
+            Cli::try_parse_from(["btcw", "rescan", "--gap", "0", "--key", TEST_WORDS]).unwrap();
+        let err = run(cli).await.unwrap_err();
+        assert!(
+            matches!(err, CliError::Core(Error::Unsupported(_))),
+            "{err:?}"
+        );
+        assert_eq!(err.exit_code(), 21);
     }
 }

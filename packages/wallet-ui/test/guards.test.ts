@@ -48,6 +48,25 @@ describe("guardRoute", () => {
     expect(guardRoute("send", configured, shell)).toBe("setup");
   });
 
+  // A reload in the browser, or a bookmark, asks for a wallet's page with none
+  // open; a remembered one is unlocked from there, as on a fresh start.
+  it.each(SHELLS)("sends a wallet's page to Unlock when a wallet is remembered (%s)", (shell) => {
+    const locked: GuardState = { ...configured, unlockable: true };
+    for (const route of [
+      "dashboard",
+      "send",
+      "settings",
+      "psbt",
+      "result",
+      ...PHONE_ONLY,
+    ] as const) {
+      expect(guardRoute(route, locked, shell), route).toBe("unlock");
+    }
+    // Setup stays reachable: it is where the network is changed.
+    expect(guardRoute("setup", locked, shell)).toBe("setup");
+    expect(guardRoute("key", locked, shell)).toBe("key");
+  });
+
   it.each(SHELLS)("offers Unlock only when there is something to unlock (%s)", (shell) => {
     expect(guardRoute("unlock", configured, shell)).toBe("key");
     expect(guardRoute("unlock", { ...configured, unlockable: true }, shell)).toBe("unlock");
@@ -75,10 +94,27 @@ describe("guardRoute", () => {
     }
   });
 
-  it("closes the wallet before Setup: from the dashboard on desktop, Settings on a phone", () => {
-    expect(guardRoute("setup", open, "desktop")).toBe("dashboard");
-    expect(guardRoute("setup", open, "phone")).toBe("settings");
+  // Settings asks, closes the wallet and then opens Setup, on both shells.
+  it.each(SHELLS)("sends Setup under an open wallet to Settings (%s)", (shell) => {
+    expect(guardRoute("setup", open, shell)).toBe("settings");
   });
+
+  it.each(SHELLS)("opens Settings with a wallet, and never without one (%s)", (shell) => {
+    expect(guardRoute("settings", open, shell)).toBe("settings");
+    expect(guardRoute("settings", watching, shell)).toBe("settings");
+    expect(guardRoute("settings", configured, shell)).toBe("setup");
+  });
+
+  // A watch-only wallet signs nothing, but can send what was signed elsewhere.
+  it.each(SHELLS)(
+    "opens Import PSBT with a wallet, watch-only too, never without (%s)",
+    (shell) => {
+      expect(guardRoute("psbt", open, shell)).toBe("psbt");
+      expect(guardRoute("psbt", watching, shell)).toBe("psbt");
+      expect(guardRoute("psbt", configured, shell)).toBe("setup");
+      expect(guardRoute("psbt", fresh, shell)).toBe("setup");
+    },
+  );
 
   it.each(SHELLS)("never offers Send to a wallet that only watches (%s)", (shell) => {
     expect(guardRoute("send", open, shell)).toBe("send");
@@ -99,7 +135,7 @@ describe("guardRoute", () => {
   });
 
   it("opens the phone's own screens with a wallet, and a transaction only once one is picked", () => {
-    for (const route of ["receive", "scan", "settings", "export"] as const) {
+    for (const route of ["receive", "scan", "settings", "export", "coins"] as const) {
       expect(guardRoute(route, open, "phone"), route).toBe(route);
       expect(guardRoute(route, configured, "phone"), route).toBe("setup");
     }

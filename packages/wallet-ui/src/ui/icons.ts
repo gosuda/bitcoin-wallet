@@ -18,7 +18,10 @@ export type IconName =
   | "up"
   | "down"
   | "share"
-  | "faceid";
+  | "faceid"
+  | "alert"
+  | "lock"
+  | "clipboard";
 
 type Shape =
   | readonly ["path", string]
@@ -106,6 +109,19 @@ const SHAPES: Record<IconName, readonly Shape[]> = {
   arrow: [
     ["path", "M5 12h14"],
     ["path", "M13 6l6 6-6 6"],
+  ],
+  alert: [
+    ["circle", "12", "12", "9"],
+    ["path", "M12 7.5v5.5"],
+    ["path", "M12 16.5v.01"],
+  ],
+  lock: [
+    ["rect", "5", "11", "14", "10", "2"],
+    ["path", "M8 11V8a4 4 0 0 1 8 0v3"],
+  ],
+  clipboard: [
+    ["rect", "8", "3", "8", "4", "1"],
+    ["path", "M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"],
   ],
 };
 

@@ -104,6 +104,26 @@ body {
   background: var(--ok);
 }
 
+/* The gear that opens Settings; lit on Settings itself. */
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--space-1);
+  font-weight: 500;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.topbar-link svg {
+  color: var(--muted);
+}
+
+.topbar-link[aria-current="page"],
+.topbar-link[aria-current="page"] svg {
+  color: var(--accent);
+}
+
 /* Screen layout */
 
 .screen {
@@ -192,6 +212,13 @@ p {
   gap: var(--space-2);
 }
 
+/* A card head's note with the action beside it (3b). */
+.card-head-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .section-label,
 .field-label {
   font-size: var(--text-xs);
@@ -225,9 +252,13 @@ p {
   gap: 6px;
 }
 
+/* The focus ring both shells share. The phone draws its own for rows, tabs
+   and the primary button, in mobile.css. */
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 button:focus-visible,
+a:focus-visible,
 .radio:focus-within,
 .unit-chip:focus-within {
   outline: 2px solid var(--accent);
@@ -350,7 +381,8 @@ select[disabled] {
   opacity: 0.6;
 }
 
-input.input-invalid {
+input.input-invalid,
+textarea.input-invalid {
   border-color: var(--danger);
 }
 
@@ -671,6 +703,115 @@ tr:last-child td {
   font-size: var(--text-sm);
 }
 
+/* Coins (3b, M13): a tick chooses one for a send, a switch freezes it */
+
+.coin-pick {
+  width: 16px;
+}
+
+/* A frozen coin is dimmed; the Frozen tag beside its switch is not. */
+tr.coin-frozen td {
+  color: var(--faint);
+}
+
+.coin-freeze {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  vertical-align: middle;
+}
+
+.coin-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--muted);
+}
+
+.tick {
+  display: inline-flex;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+/* The checkbox stays in the tab order and drives `:checked`; the box after it
+   is the skin, drawn in tokens so its check shows in either theme. */
+.tick-input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin: 0;
+  opacity: 0;
+}
+
+.tick-box {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--faint);
+  border-radius: var(--radius);
+  background: var(--surface);
+  /* The check is drawn in currentColor, so it shows only once ticked. */
+  color: transparent;
+}
+
+.tick-input:checked + .tick-box {
+  border-color: var(--fg);
+  background: var(--fg);
+  color: var(--surface);
+}
+
+.tick-input:disabled + .tick-box {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The ring every other field has, drawn on the box the checkbox shows through. */
+.tick-input:focus-visible + .tick-box {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Frozen or not: on, the track takes the text colour and the knob moves over. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 28px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--rule);
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: left 120ms ease;
+}
+
+.switch[aria-checked="true"] {
+  background: var(--fg);
+}
+
+.switch[aria-checked="true"]::after {
+  left: 14px;
+}
+
 /* Transaction history */
 
 .tx-dir {
@@ -762,9 +903,142 @@ tr.tx-detail td {
   text-align: right;
 }
 
+/* An action drawn inside the detail it acts on (3c): Speed up, or Cancel asking first. */
+.tx-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.tx-card .section-label {
+  color: var(--accent-deep);
+}
+
+.tx-card-danger {
+  border-color: var(--danger);
+}
+
+.tx-card-danger .section-label {
+  color: var(--danger);
+}
+
+.tx-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.tx-card-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tx-card-numbers {
+  font-size: 13px;
+}
+
 /* Public keys */
 .pubkeys .kv dd {
   overflow-wrap: anywhere;
+}
+
+/* Settings: cards of rows, each a setting, its value and what to do about it */
+.card-rows {
+  gap: var(--space-1);
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 200px 1fr max-content;
+  gap: var(--space-4);
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-key {
+  color: var(--muted);
+}
+
+/* A select drawn as the board's input: the browser's own arrow gives way to
+   the app's chevron, turned to point down. */
+.select-box {
+  position: relative;
+  display: inline-flex;
+  width: 220px;
+}
+
+.select-box select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--space-8);
+  cursor: pointer;
+}
+
+.select-box .icon {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%) rotate(90deg);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.settings-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+/* An action that reads as a link, where it leads on rather than commits. */
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.link-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The same, where it is a link to another page (Import PSBT). */
+a.link-button {
+  text-decoration: none;
+}
+
+.danger-card {
+  border-color: var(--danger);
+}
+
+/* A second step that keeps the key, where Forget's deletes it. */
+.accent-card {
+  border-color: var(--accent);
+}
+
+/* A place a confirm appears in; empty, it must not add a gap of its own. */
+.slot:empty {
+  display: none;
 }
 
 /* Max is a mode: lit while the amount is the whole balance. */
@@ -861,6 +1135,78 @@ tr.tx-detail td {
   align-items: center;
 }
 
+/* A send held to chosen coins: which pay, and the way back to letting the wallet choose. */
+.coins-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Import PSBT (7): the PSBT as pasted, what it spends and pays, and whether it can go */
+
+/* Base64 runs unbroken, so it wraps at the box's edge, set small as the board sets it. */
+.psbt-field {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+/* The first column says what a row is. */
+.psbt-what {
+  width: 72px;
+  color: var(--muted);
+}
+
+/* Whose a row is may wrap, as the board lets it. An address is where a payment
+   goes, so it is shown whole: a narrow window breaks it rather than cut it. */
+.psbt-where,
+.psbt-whose {
+  white-space: normal;
+}
+
+.psbt-where {
+  overflow-wrap: anywhere;
+}
+
+.psbt-unsigned {
+  color: var(--pending);
+}
+
+/* How far signing has got, with Sign and Broadcast across from it. */
+.psbt-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Across from the status, and still on the right while there is none. */
+.psbt-foot .actions {
+  margin-left: auto;
+}
+
+.psbt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Both shells: the dot beside "Signed 0 of 2 inputs", green once every input is. */
+.psbt-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--pending);
+}
+
+.psbt-dot-done {
+  background: var(--ok);
+}
+
 /* Unlock */
 
 .unlock-card {
@@ -906,6 +1252,108 @@ tr.tx-detail td {
   gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--danger);
+}
+
+.unlock-password {
+  width: 320px;
+  max-width: 100%;
+}
+
+/* App password, the browser's (2e, 2f): masked, with the eye that shows it
+   inside the box, as the boards draw it. */
+.password-box {
+  position: relative;
+  display: flex;
+}
+
+.password-box input {
+  padding-right: calc(var(--space-3) + 16px + var(--space-2));
+}
+
+.password-box input[type="password"] {
+  letter-spacing: 0.18em;
+}
+
+.password-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-eye[aria-pressed="true"] {
+  color: var(--fg);
+}
+
+/* Remember on this device, in the browser: once ticked, the app password and
+   its confirmation hang from the box on a rule. */
+.remember {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.remember-password {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-left: 7px;
+  padding-left: 17px;
+  border-left: 2px solid var(--border);
+}
+
+.remember-password-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  /* A field that reports an error grows downwards; its neighbour stays put. */
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .remember-password-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.remember-warning {
+  font-size: var(--text-sm);
+  color: var(--accent-deep);
+}
+
+/* A wallet whose saved history cannot be read: why, and the reset in two steps. */
+.reset-offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.reset-offer:empty {
+  display: none;
+}
+
+.reset-message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-weight: 500;
+  color: var(--danger);
+}
+
+/* Level with the first line of the text beside it. */
+.reset-message .icon {
+  margin-top: 2px;
 }
 
 /* Result */
@@ -956,6 +1404,18 @@ tr.tx-detail td {
 .hidden {
   display: none;
 }
+
+/*
+ * The `hidden` attribute hides an element only through the browser's own
+ * `display: none`, which any class that sets `display` outranks: the phone's
+ * Custom rate row stayed on screen for every fee target that way. Both shells
+ * load this file, so here it wins over every component's layout.
+ */
+/* biome-ignore-start lint/complexity/noImportantStyles: `hidden` has to beat every component's own display, however specific its selector */
+[hidden] {
+  display: none !important;
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: see above */
 
 .ok {
   color: var(--ok);
