@@ -151,6 +151,11 @@ fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
             .segwit_version();
         if segwit.is_some() {
             input.witness_utxo = Some(txout.clone());
+        } else {
+            // A legacy coin is valued by the transaction that made it, filled
+            // in below. A `witness_utxo` here is a claim nothing checks, and
+            // `Psbt::fee` would read it first.
+            input.witness_utxo = None;
         }
         input.non_witness_utxo = Some(prev_tx.as_ref().clone());
     }
@@ -2875,6 +2880,33 @@ mod tests {
         );
         let err = handle.sign_psbt(&psbt.to_string()).await.unwrap_err();
         assert_eq!(err.code(), "sign");
+    }
+
+    /// A legacy coin's value is in the transaction that made it, which this
+    /// wallet holds. A `witness_utxo` beside it is a claim nothing checks, and
+    /// `Psbt::fee` reads it first; legacy signatures do not commit to the
+    /// amount, so a forged one would put a false fee on the review.
+    #[tokio::test]
+    async fn a_legacy_coin_of_ours_sets_the_fee_by_its_own_transaction() {
+        let (handle, _) = open_hd(AddressType::P2pkh).await;
+        fund(&handle, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let real = psbt.spend_utxo(0).unwrap().clone();
+        psbt.inputs[0].witness_utxo = Some(TxOut {
+            value: real.value + Amount::from_sat(25_000),
+            script_pubkey: real.script_pubkey,
+        });
+
+        let review = handle.import_psbt(&psbt.to_string()).await.unwrap();
+        assert_eq!(review.inputs[0].value_sat, Some(100_000));
+        assert_eq!(review.fee_sat, Some(built.fee_sat), "not the claim's");
+
+        // Signing goes by the same transaction, where BDK would refuse the
+        // claim for disagreeing with it.
+        let signed = handle.sign_psbt(&psbt.to_string()).await.unwrap();
+        assert!(signed.finalized);
+        assert_eq!(signed.fee_sat, Some(built.fee_sat));
     }
 
     #[tokio::test]
