@@ -212,8 +212,9 @@ export function renderTransaction(): HTMLElement {
     } else if (offer === "child") {
       actions.push(speedUpCard(d));
     }
-    // Above the Transaction id card, so an action shows without scrolling (M11b).
-    content.replaceChildren(alert.node, hero, facts, flow, outputs, ...actions, ident);
+    // Above the outputs and the Transaction id card, so an action shows
+    // without scrolling (M11b): whole addresses make the outputs tall.
+    content.replaceChildren(alert.node, hero, facts, flow, ...actions, outputs, ident);
   };
 
   const bumpCard = (id: string, originalRate: number | null): HTMLElement => {

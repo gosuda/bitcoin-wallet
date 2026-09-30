@@ -270,7 +270,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
 });
 
 describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
-  it("puts the action card above the Transaction id card, to show without scrolling", async () => {
+  it("puts the action card above the outputs and the Transaction id, to show without scrolling", async () => {
     history(payment(), sent());
     for (const [txid, action] of [
       [INCOMING, "Speed up"],
@@ -282,6 +282,12 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
         cards.findIndex((c) => c.querySelector(".section-label")?.textContent === label);
       expect(place(action), action).toBeGreaterThan(0);
       expect(place(action), action).toBeLessThan(place("Transaction id"));
+      // Found in review: with every address whole, the outputs pushed Bump
+      // fee below the fold of a 375×667 phone.
+      const outputs = cards.findIndex((c) =>
+        c.querySelector(".section-label")?.textContent?.startsWith("Outputs"),
+      );
+      expect(place(action), action).toBeLessThan(outputs);
     }
   });
 
