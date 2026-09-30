@@ -85,6 +85,13 @@ export function typeableRate(rateSatPerVb: number): number {
   return Math.max(1, Math.ceil(rateSatPerVb * 10) / 10);
 }
 
+/**
+ * A space that does not break. A time is one phrase, and so is each part of a
+ * fee line: a row that wraps beside a wide amount put "Today" on one line and
+ * "07:44" on the next, and a phone's review broke "141 vB" in two.
+ */
+const NBSP = "\u00a0";
+
 /** A transaction's size in virtual bytes: "141 vB". */
 export function formatVsize(vbytes: number): string {
   return `${formatNumber(vbytes)} vB`;
@@ -94,6 +101,7 @@ export function formatVsize(vbytes: number): string {
  * What a transaction pays, as every screen that describes one writes it:
  * "141 sat · 1.0 sat/vB · 141 vB". The rate is worked out from the fee and
  * the size when it is not given, and a part that is not known is left out.
+ * Where it wraps, it breaks only after a "·".
  */
 export function feeLine(
   feeSat: number | null,
@@ -107,7 +115,8 @@ export function feeLine(
     vsize === null ? null : formatVsize(vsize),
   ]
     .filter((part) => part !== null)
-    .join(" · ");
+    .map((part) => part.replace(/ /g, NBSP))
+    .join(`${NBSP}· `);
 }
 
 /**
@@ -149,12 +158,6 @@ export function formatTime(date: Date): string {
 export function formatWhen(timestamp: number, now: Date = new Date()): string {
   return whenWords(new Date(timestamp * 1000), now).replace(/ /g, NBSP);
 }
-
-/**
- * A time is one phrase: a row that wraps beside a wide amount put "Today" on
- * one line and "07:44" on the next, so its spaces do not break.
- */
-const NBSP = "\u00a0";
 
 function whenWords(date: Date, now: Date): string {
   const age = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));

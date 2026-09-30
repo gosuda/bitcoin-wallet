@@ -445,7 +445,9 @@ body {
 /* The review of a send to several: each recipient, then the fee and the total. */
 .m-review {
   display: grid;
-  grid-template-columns: 1fr max-content;
+  /* Values take what the labels leave, and wrap there: the fee line is too
+     long for a phone's width beside "Fee". */
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: 6px var(--space-4);
   align-items: baseline;
   margin: 0;
@@ -460,12 +462,20 @@ body {
   margin: 0;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* A payee, whole as the display standard has it, takes a row of its own and
+   its amount the row under it: beside a value, an address wraps a few
+   characters to a line. */
+.m-review .m-review-to,
+.m-review .m-review-to + dd {
+  grid-column: 1 / -1;
 }
 
 .m-review .m-review-to {
   font-family: var(--font-mono);
   font-size: 13px;
-  /* The payee whole, as the display standard has it: it wraps rather than shortens. */
   overflow-wrap: anywhere;
 }
 

@@ -226,7 +226,10 @@ const PHONE: Shell = {
         const where = e.querySelector(".m-io-addr")?.textContent;
         return `${where}${note ? ` (${note})` : ""} | ${e.querySelector(".m-io-value")?.textContent}`;
       }
-      return [...e.children].map((c) => c.textContent).join(" | ") || (e.textContent ?? "");
+      return (
+        [...e.children].map((c) => c.textContent?.replace(/\u00a0/g, " ")).join(" | ") ||
+        (e.textContent ?? "")
+      );
     };
     return [
       ...(card === null ? [] : [...card.children].map(line)),

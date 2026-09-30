@@ -96,14 +96,26 @@ describe("rates, sizes and fees", () => {
   });
 
   // One line for every screen that describes a fee, on both shells.
+  const spaced = (text: string) => text.replace(/\u00a0/g, " ");
+
   it("says a fee as amount, rate and size, working the rate out when it is not given", () => {
-    expect(feeLine(141, 141)).toBe("141 sat · 1.0 sat/vB · 141 vB");
-    expect(feeLine(153, 150, 1.02)).toBe("153 sat · 1.0 sat/vB · 150 vB");
+    expect(spaced(feeLine(141, 141))).toBe("141 sat · 1.0 sat/vB · 141 vB");
+    expect(spaced(feeLine(153, 150, 1.02))).toBe("153 sat · 1.0 sat/vB · 150 vB");
+  });
+
+  // A phone's review is too narrow for it whole: it wraps after a "·", never
+  // between a number and its unit.
+  it("breaks only after a separator", () => {
+    expect(feeLine(141, 141).split(" ")).toEqual([
+      "141\u00a0sat\u00a0·",
+      "1.0\u00a0sat/vB\u00a0·",
+      "141\u00a0vB",
+    ]);
   });
 
   it("leaves out what is not known", () => {
-    expect(feeLine(null, 141)).toBe("141 vB");
-    expect(feeLine(221, null)).toBe("221 sat");
+    expect(spaced(feeLine(null, 141))).toBe("141 vB");
+    expect(spaced(feeLine(221, null))).toBe("221 sat");
   });
 });
 
