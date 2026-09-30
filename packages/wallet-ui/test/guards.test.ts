@@ -52,7 +52,14 @@ describe("guardRoute", () => {
   // open; a remembered one is unlocked from there, as on a fresh start.
   it.each(SHELLS)("sends a wallet's page to Unlock when a wallet is remembered (%s)", (shell) => {
     const locked: GuardState = { ...configured, unlockable: true };
-    for (const route of ["dashboard", "send", "settings", "result", ...PHONE_ONLY] as const) {
+    for (const route of [
+      "dashboard",
+      "send",
+      "settings",
+      "psbt",
+      "result",
+      ...PHONE_ONLY,
+    ] as const) {
       expect(guardRoute(route, locked, shell), route).toBe("unlock");
     }
     // Setup stays reachable: it is where the network is changed.
