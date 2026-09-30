@@ -19,12 +19,13 @@ function txRow(tx: TxSummary): HTMLElement {
   const dot = el("span", { className: "m-dirdot" }, [glyph]);
   dot.classList.add(incoming ? "m-tx-in" : "m-tx-out");
 
-  const meta = [
-    formatConfirmations(tx.confirmations),
-    tx.timestamp === null ? "" : formatWhen(tx.timestamp),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Pending in the pending colour, as the coin list and the desktop say it.
+  const status = el("span", { text: formatConfirmations(tx.confirmations) });
+  if (tx.confirmations === null) status.classList.add("m-pending");
+  const meta = el("span", { className: "m-txmeta" }, [
+    status,
+    tx.timestamp === null ? "" : ` · ${formatWhen(tx.timestamp)}`,
+  ]);
   const amount = el("span", {
     className: "m-amt",
     text: `${incoming ? "+" : "−"}${formatSats(Math.abs(tx.net_sat))}`,
@@ -42,7 +43,7 @@ function txRow(tx: TxSummary): HTMLElement {
       dot,
       el("span", { className: "m-txmain" }, [
         el("span", { className: "m-txtitle", text: incoming ? "Received" : "Sent" }),
-        el("span", { className: "m-txmeta", text: meta }),
+        meta,
       ]),
       amount,
       el("span", { className: "m-chev" }, [icon("chevron", 16)]),

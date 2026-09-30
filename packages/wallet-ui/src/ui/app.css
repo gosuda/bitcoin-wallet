@@ -714,9 +714,14 @@ tr:last-child td {
   width: 16px;
 }
 
-/* A frozen coin is dimmed; the Frozen tag beside its switch is not. */
+/* A frozen coin is dimmed; the Frozen tag beside its switch is not, and
+   Pending keeps its colour, as on the phone. */
 tr.coin-frozen td {
   color: var(--faint);
+}
+
+tr.coin-frozen td.pending {
+  color: var(--pending);
 }
 
 .coin-freeze {

@@ -206,7 +206,7 @@ describe("pending, confirmations and time (7.5)", () => {
 
     const phone = mount(renderPhoneWallet());
     await settle();
-    expect(texts(phone, ".m-txmeta").join(" ")).toContain("Pending");
+    expect(texts(phone, ".m-txmeta .m-pending")).toEqual(["Pending"]);
   });
 
   // The phone's detail said "0 — in the mempool" under a "Pending" pill.
