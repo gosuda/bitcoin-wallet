@@ -172,17 +172,33 @@ function whenWords(date: Date, now: Date): string {
   return date.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+    ...(sameYear(date, now) ? {} : { year: "numeric" }),
   });
 }
 
-/** When a transaction happened, in its detail: "Aug 27, 14:02", on the same clock as `formatTime`. */
-export function formatDateTime(timestamp: number): string {
-  return new Date(timestamp * 1000).toLocaleString(undefined, {
+/**
+ * When a transaction happened, in its detail: "Aug 27, 14:02", on the same
+ * clock as `formatTime`, and with the year when it is not this one, as the
+ * list says it.
+ */
+export function formatDateTime(timestamp: number, now: Date = new Date()): string {
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
+    ...(sameYear(date, now) ? {} : { year: "numeric" }),
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
   });
+}
+
+/**
+ * Whether two dates fall in one year as the device's calendar counts them,
+ * the calendar its dates are written in: a Persian year does not begin on
+ * January 1, so comparing Gregorian years left out a year that differs.
+ */
+function sameYear(a: Date, b: Date): boolean {
+  const year = new Intl.DateTimeFormat(undefined, { year: "numeric" });
+  return year.format(a) === year.format(b);
 }

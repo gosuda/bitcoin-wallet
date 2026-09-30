@@ -136,6 +136,49 @@ describe("pending, confirmations and time", () => {
   // A time is one phrase: its spaces do not break, so a wrapping row keeps it whole.
   const whole = (text: string) => text.replace(/ /g, "\u00a0");
 
+  // Found in review: a row reading "Dec 31, 2025" opened a detail without it.
+  it("names a past year in a transaction's detail, as the list does", () => {
+    const lastYear = new Date(2025, 11, 31, 9, 5);
+    expect(formatDateTime(lastYear.getTime() / 1000, now)).toContain("2025");
+    const thisYear = new Date(2026, 7, 27, 14, 2);
+    expect(formatDateTime(thisYear.getTime() / 1000, now)).not.toContain("2026");
+  });
+
+  // Found in review: Jan 5, 2026 is 15 Dey 1404 in the Persian calendar, a
+  // year before now's 8 Mehr 1405, and it was written without its year.
+  it("reads the year in the device's own calendar", () => {
+    const device = "fa-IR";
+    const toDate = Date.prototype.toLocaleDateString;
+    const BaseFormat = Intl.DateTimeFormat;
+    // As setup-locale.ts makes the device German for numbers: the code under
+    // test names no locale, and here its dates are Persian.
+    class DeviceFormat extends BaseFormat {
+      constructor(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+        super(locales ?? device, options);
+      }
+    }
+    vi.spyOn(Date.prototype, "toLocaleDateString").mockImplementation(function (
+      this: Date,
+      locales?: Intl.LocalesArgument,
+      options?: Intl.DateTimeFormatOptions,
+    ) {
+      return toDate.call(this, locales ?? device, options);
+    });
+    Object.defineProperty(Intl, "DateTimeFormat", { value: DeviceFormat, configurable: true });
+    try {
+      const jan5 = new Date(2026, 0, 5, 12, 0);
+      const withYear = toDate.call(jan5, device, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      expect(formatWhen(jan5.getTime() / 1000, now)).toBe(whole(withYear));
+    } finally {
+      Object.defineProperty(Intl, "DateTimeFormat", { value: BaseFormat, configurable: true });
+      vi.restoreAllMocks();
+    }
+  });
+
   it("says a recent time relatively, then the time today, then the date", () => {
     expect(formatWhen(secondsAgo(30), now)).toBe(whole("just now"));
     expect(formatWhen(secondsAgo(12 * 60), now)).toBe(whole("12 min ago"));
