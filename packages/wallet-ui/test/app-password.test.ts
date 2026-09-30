@@ -184,6 +184,29 @@ describe("remembering in the browser takes an app password (6.12)", () => {
     expect(session.remembered?.wallet_id).toBe(WALLET_ID);
   });
 
+  // No minimum length: the owner's call (docs/ROADMAP.md, Decisions). The
+  // warning under the fields and SECURITY.md say what a short one risks.
+  it("takes an app password of any length, a single character included", async () => {
+    const browser = inTheBrowser();
+    const panel = singleKey();
+    type(find(panel, "input[name=secret]"), KEY);
+    find<HTMLInputElement>(panel, "input[name=remember]").click();
+    const [password, confirm] = passwordPair(panel);
+    type(password, "x");
+    type(confirm, "x");
+    const open = buttonNamed(panel, "Open wallet");
+    expect(open.disabled).toBe(false);
+    expect(errorUnder(confirm)).toBe("");
+
+    open.click();
+    await landsOn("dashboard");
+
+    expect(await unseal(WALLET_ID, browser.records.get(WALLET_ID), "x")).toEqual({
+      secret: KEY,
+      passphrase: null,
+    });
+  });
+
   it("nothing is kept when Remember is left unticked", async () => {
     const browser = inTheBrowser();
     const panel = singleKey();
