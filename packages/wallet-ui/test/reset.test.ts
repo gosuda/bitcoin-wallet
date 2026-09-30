@@ -126,7 +126,7 @@ const OPENERS: readonly Opener[] = [
     name: "phone Unlock",
     route: "unlock",
     remembered: true,
-    press: "Open wallet",
+    press: "Unlock",
     render: async () => mount(renderPhoneUnlock()),
   },
   {
@@ -272,7 +272,7 @@ describe("a wallet whose saved history cannot be read offers a reset (6.7)", () 
     const phoneUnlock = OPENERS.find((o) => o.name === "phone Unlock");
     if (!phoneUnlock) throw new Error("no phone Unlock case");
     const { screen } = await failToOpen(phoneUnlock, "malformed");
-    expect(hasButton(screen, "Open wallet")).toBe(false);
+    expect(hasButton(screen, "Unlock")).toBe(false);
     expect(hasButton(screen, "Use a different wallet")).toBe(true);
 
     // Saved again by a newer version before the reset is confirmed: the
@@ -285,7 +285,7 @@ describe("a wallet whose saved history cannot be read offers a reset (6.7)", () 
     expect(fake.callNames()).not.toContain("deleteWalletState");
     expect(find(screen, ".banner-visible").textContent).toContain("Update the app");
     expect(hasButton(screen, TRIGGER)).toBe(false);
-    expect(hasButton(screen, "Open wallet")).toBe(true);
+    expect(hasButton(screen, "Unlock")).toBe(true);
   });
 });
 

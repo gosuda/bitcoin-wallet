@@ -90,7 +90,7 @@ const OPENERS: readonly Opener[] = [
   {
     name: "phone Unlock",
     route: "unlock",
-    press: "Open wallet",
+    press: "Unlock",
     hold: unlocking,
     render: async () => mount(renderPhoneUnlock()),
   },

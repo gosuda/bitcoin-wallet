@@ -11,6 +11,7 @@ import {
   type Network,
 } from "../../types";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
+import { SETUP_LEDE } from "../../ui/text";
 import { body, button, card, chips, header, labelled, lede, spacer } from "../ui";
 
 /** Networks worth offering on a phone; regtest needs a node on localhost. */
@@ -80,7 +81,7 @@ export function renderSetup(): HTMLElement {
     header("Setup"),
     body(
       alert.node,
-      lede("Which chain, and where to read it from. Both can change later."),
+      lede(SETUP_LEDE),
       card(sectionLabel("Network"), network.node),
       card(labelled("Esplora server", url), url),
       card(sectionLabel("Address type"), addressType.node),

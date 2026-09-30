@@ -17,6 +17,7 @@ import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobi
 import { renderResult as renderPhoneResult } from "../src/mobile/screens/result";
 import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
 import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
+import { renderSetup as renderPhoneSetup } from "../src/mobile/screens/setup";
 import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderUnlock as renderPhoneUnlock } from "../src/mobile/screens/unlock";
 import { renderWallet as renderPhoneWallet } from "../src/mobile/screens/wallet";
@@ -27,6 +28,7 @@ import { renderRestore } from "../src/screens/restore";
 import { renderResult } from "../src/screens/result";
 import { renderSend } from "../src/screens/send";
 import { renderSettings } from "../src/screens/settings";
+import { renderSetup } from "../src/screens/setup";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
 import { type RememberedWallet, type TxDetail, WalletError } from "../src/types";
@@ -42,6 +44,7 @@ import {
   RESCAN_HINT,
   SENT_LINE,
   SENT_TITLE,
+  SETUP_LEDE,
 } from "../src/ui/text";
 import { fake } from "./fakes";
 import { at, buttonNamed, find, mount, settle, useScreenHarness } from "./harness";
@@ -394,6 +397,15 @@ describe("one name for each thing (7.7)", () => {
     const phone = mount(renderPhoneReceive());
     await settle();
     expect(phone.textContent).toContain(RECEIVE_QR_NOTE);
+  });
+
+  // Found in review: "Esplora endpoint" on one shell, where the other asked
+  // which chain and where to read it from.
+  it("says what Setup chooses alike on both shells", () => {
+    at("setup");
+    for (const render of [renderSetup, renderPhoneSetup]) {
+      expect(mount(render()).textContent).toContain(SETUP_LEDE);
+    }
   });
 
   it("says what Rescan is for alike in both Settings", async () => {

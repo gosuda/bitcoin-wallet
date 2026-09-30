@@ -29,7 +29,7 @@ export function renderUnlock(): HTMLElement {
     try {
       // The key lives in the OS key store either way; this only gates
       // reading it, so a device without biometrics still opens normally.
-      if (auth) await auth("Unlock your wallet");
+      if (auth) await auth("Unlock this wallet");
       await (reset ? api.resetHistoryAndUnlock() : api.unlockWallet());
       if (onScreen()) navigate("dashboard");
     } catch (e) {
@@ -40,7 +40,8 @@ export function renderUnlock(): HTMLElement {
       else offer.node.replaceWith(unlock);
     }
   };
-  const unlock = button(auth ? "Unlock" : "Open wallet", () => withBusy(unlock, attempt), {
+  // Unlock with or without biometrics, as the desktop's says.
+  const unlock = button("Unlock", () => withBusy(unlock, attempt), {
     variant: "primary",
     block: true,
     icon: auth ? "faceid" : "key",

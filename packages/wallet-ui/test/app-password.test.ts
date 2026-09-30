@@ -41,7 +41,7 @@ const BROWSER_HINT = "· encrypted with an app password and kept in this browser
 const WARNING =
   "Anyone with this browser's files and this password can spend. It cannot be recovered.";
 const FORGOTTEN =
-  "Forgotten it? It cannot be reset. Forget this wallet here and restore it from its recovery phrase.";
+  "Forgotten it? It cannot be reset. Forget this wallet here, and open it again with what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.";
 const MISMATCH = "The passwords do not match.";
 
 /**

@@ -15,7 +15,7 @@ import { shortId } from "../ui/format";
 import { icon } from "../ui/icons";
 import { appPasswordField, KEYCHAIN_NAME } from "../ui/remember";
 import { historyReset } from "../ui/reset";
-import { forgetWarning, sentence } from "../ui/text";
+import { forgetWarning, OPENED_WITH, sentence } from "../ui/text";
 
 export function renderUnlock(): HTMLElement {
   const cfg = session.config;
@@ -173,7 +173,7 @@ export function renderUnlock(): HTMLElement {
       password
         ? el("span", {
             className: "hint",
-            text: "Forgotten it? It cannot be reset. Forget this wallet here and restore it from its recovery phrase.",
+            text: `Forgotten it? It cannot be reset. Forget this wallet here, and open it again with ${OPENED_WITH}.`,
           })
         : null,
     ]),

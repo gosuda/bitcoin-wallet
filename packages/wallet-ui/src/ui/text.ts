@@ -65,7 +65,7 @@ export function sentNotSaved(reason: string): string {
  */
 export function forgetWarning(wallet: Pick<WalletInfo, "is_watch_only" | "is_hd"> | null): string {
   if (wallet === null) {
-    return "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.";
+    return `The saved key and this device's copy of the wallet history will be deleted. You will need ${OPENED_WITH}.`;
   }
   if (wallet.is_watch_only) {
     return "The saved descriptor and this device's copy of the wallet history will be deleted. You will need that xpub or descriptor to follow it again.";
@@ -74,6 +74,17 @@ export function forgetWarning(wallet: Pick<WalletInfo, "is_watch_only" | "is_hd"
     ? "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase restores it — together with the passphrase, if you set one."
     : "The saved key and this device's copy of the wallet history will be deleted. You will need that private key to open it again.";
 }
+
+/**
+ * Every way back to a wallet, where nothing says which kind it is: only a
+ * wallet made from words has a recovery phrase to restore it from.
+ */
+export const OPENED_WITH =
+  "what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor";
+
+/** Under Setup's heading on both shells. */
+export const SETUP_LEDE =
+  "Which chain, and which Esplora server to read it from. Both are kept on this device and can change later.";
 
 /** Under an amount in Max mode: what it sends, and how to leave the mode. */
 export function maxModeNote(everything: number, fee: number): string {

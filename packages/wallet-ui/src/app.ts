@@ -18,6 +18,7 @@ import { backendHost, errorMessage, NETWORK_LABELS } from "./types";
 import { startAutolock } from "./ui/autolock";
 import { banner, clear, el, queueNotice } from "./ui/dom";
 import { brandMark, icon } from "./ui/icons";
+import { OPENED_WITH } from "./ui/text";
 
 const STEPS = ["Setup", "Key", "Wallet"] as const;
 
@@ -164,7 +165,7 @@ export async function boot(options: BootOptions = {}): Promise<void> {
       console.error("could not read the remembered wallet:", e);
       queueNotice(
         "error",
-        `The wallet saved on this device could not be read (${errorMessage(e)}). Open it again with its recovery phrase or key.`,
+        `The wallet saved on this device could not be read (${errorMessage(e)}). Open it again with ${OPENED_WITH}.`,
       );
       session.remembered = null;
     }
