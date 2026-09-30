@@ -1,4 +1,5 @@
 import { type IconName, icon } from "./icons";
+import { sentence } from "./text";
 
 type Child = Node | string | null | undefined | false;
 
@@ -223,7 +224,8 @@ export function banner(): Banner {
     node,
     show(kind, message) {
       node.className = `banner banner-visible banner-${kind}`;
-      node.textContent = message;
+      // Whoever wrote it: the core's messages and a few of the UI's are lower case.
+      node.textContent = sentence(message);
     },
     hide() {
       node.className = "banner";

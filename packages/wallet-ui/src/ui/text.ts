@@ -7,6 +7,21 @@
 import type { WalletInfo } from "../types";
 import { formatNumber, formatRate, formatSats } from "./format";
 
+/**
+ * A message as a banner or a field shows it, with a capital and a full stop.
+ * The core's messages are lower case, as Rust's are, and so are a few of the
+ * UI's own. Only a short first word of letters is capitalized: a message can
+ * start with an address or an outpoint, which must stay as it is.
+ */
+export function sentence(message: string): string {
+  const text = message.trim();
+  if (text === "") return text;
+  const capital = /^[a-z]{1,15}[\s:,;']/.test(text)
+    ? `${text.charAt(0).toUpperCase()}${text.slice(1)}`
+    : text;
+  return /[.!?…]$/.test(capital) ? capital : `${capital}.`;
+}
+
 /** The Sent screen's first line, and the one after it. */
 export const SENT_TITLE = "Transaction broadcast";
 export const SENT_LINE = "The network has it. It shows as Pending until it is in a block.";

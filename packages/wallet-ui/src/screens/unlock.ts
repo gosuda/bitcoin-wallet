@@ -15,7 +15,7 @@ import { shortId } from "../ui/format";
 import { icon } from "../ui/icons";
 import { appPasswordField, KEYCHAIN_NAME } from "../ui/remember";
 import { historyReset } from "../ui/reset";
-import { forgetWarning } from "../ui/text";
+import { forgetWarning, sentence } from "../ui/text";
 
 export function renderUnlock(): HTMLElement {
   const cfg = session.config;
@@ -52,7 +52,7 @@ export function renderUnlock(): HTMLElement {
       if (!onScreen()) return;
       // A wrong password is said under its field, and nothing else changes.
       if (password && isAppError(e) && e.code === "wrong_password") {
-        password.setError(errorMessage(e));
+        password.setError(sentence(errorMessage(e)));
         password.input.focus();
         password.input.select();
       } else {

@@ -28,6 +28,7 @@ import { renderSettings } from "../src/screens/settings";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
 import type { RememberedWallet, TxDetail } from "../src/types";
+import { banner } from "../src/ui/dom";
 import { formatTime, shortId } from "../src/ui/format";
 import {
   FROZEN_HINT,
@@ -294,6 +295,15 @@ describe("one word for each action (7.6)", () => {
       expect(buttonNamed(screen, "Keep it")).toBeTruthy();
     }
     session.remembered = null;
+  });
+
+  // Found in review: the desktop said "this transaction is not in the
+  // wallet's history" where the phone wrote a sentence, and every message
+  // the core wrote reached a banner in lower case.
+  it("says every banner as a sentence", () => {
+    const alert = banner();
+    alert.show("error", "this transaction is not in the wallet's history");
+    expect(alert.node.textContent).toBe("This transaction is not in the wallet's history.");
   });
 
   it("says the same on both Sent screens", async () => {

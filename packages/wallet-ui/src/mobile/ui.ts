@@ -12,6 +12,7 @@ import { type Banner, el } from "../ui/dom";
 import { outputRole } from "../ui/format";
 import { type IconName, icon } from "../ui/icons";
 import { type HistoryReset, RESET_CONFIRM, RESET_TEXT, RESET_TRIGGER } from "../ui/reset";
+import { sentence } from "../ui/text";
 
 export type Child = Node | string | null | undefined;
 
@@ -338,7 +339,7 @@ export function historyReset(alert: Banner): HistoryReset {
       const offer = card(
         el("p", { className: "m-reset-message", attrs: { role: "alert" } }, [
           icon("alert", 20),
-          el("span", { text: errorMessage(error) }),
+          el("span", { text: sentence(errorMessage(error)) }),
         ]),
         trigger,
       );

@@ -10,6 +10,7 @@
 import { errorMessage, historyResetFixes } from "../types";
 import { type Banner, button, el, withBusy } from "./dom";
 import { icon } from "./icons";
+import { sentence } from "./text";
 
 export const RESET_TRIGGER = "Reset this device's history";
 export const RESET_TEXT =
@@ -63,7 +64,7 @@ export function historyReset(alert: Banner): HistoryReset {
         el("section", { className: "card danger-card" }, [
           el("p", { className: "reset-message", attrs: { role: "alert" } }, [
             icon("alert", 16),
-            el("span", { text: errorMessage(error) }),
+            el("span", { text: sentence(errorMessage(error)) }),
           ]),
           el("div", { className: "actions" }, [trigger]),
         ]),

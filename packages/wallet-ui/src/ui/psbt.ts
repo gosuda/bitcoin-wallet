@@ -13,6 +13,7 @@ import { session } from "../session";
 import { errorMessage, isAppError, type PsbtReview } from "../types";
 import { readClipboard } from "./clipboard";
 import { type Banner, type BannerKind, formatNumber } from "./dom";
+import { sentence } from "./text";
 
 /** "psbt" and 0xff: the five bytes every PSBT starts with (BIP 174). */
 const MAGIC = [0x70, 0x73, 0x62, 0x74, 0xff] as const;
@@ -185,7 +186,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
       if (mine === seq && onScreen()) put(review);
     } catch (e) {
       if (mine !== seq || !onScreen()) return;
-      sayInvalid(isAppError(e) && e.code === "psbt" ? NOT_A_PSBT : errorMessage(e));
+      sayInvalid(isAppError(e) && e.code === "psbt" ? NOT_A_PSBT : sentence(errorMessage(e)));
     }
   };
 

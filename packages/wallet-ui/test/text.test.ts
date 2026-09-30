@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forgetWarning, maxModeNote, sentNotSaved, whoseInputs } from "../src/ui/text";
+import { forgetWarning, maxModeNote, sentence, sentNotSaved, whoseInputs } from "../src/ui/text";
 
 describe("forgetWarning", () => {
   // Only a mnemonic has a recovery phrase: each wallet is told its own way back.
@@ -29,6 +29,25 @@ describe("the sentences both Send screens say", () => {
     expect(sentNotSaved("disk full")).toBe(
       "Sent, but this device could not save it: disk full. The next sync picks it up.",
     );
+  });
+});
+
+// Found in review: the core's words reached the screen in lower case, as did
+// a few of the UI's own.
+describe("sentence", () => {
+  it("writes a message with a capital and a full stop", () => {
+    expect(sentence("backend error: HTTP 503")).toBe("Backend error: HTTP 503.");
+    expect(sentence("no wallet is open")).toBe("No wallet is open.");
+    expect(sentence("PSBT error: input 0 is not signed")).toBe(
+      "PSBT error: input 0 is not signed.",
+    );
+    expect(sentence("Already one. ")).toBe("Already one.");
+  });
+
+  it("leaves an address or an outpoint at the start as it is", () => {
+    expect(sentence("tb1qexample is not valid")).toBe("tb1qexample is not valid.");
+    const outpoint = `${"cd".repeat(32)}:1`;
+    expect(sentence(`${outpoint} is frozen`)).toBe(`${outpoint} is frozen.`);
   });
 });
 
