@@ -62,6 +62,9 @@ export const browserPlatform: Platform = {
   ...sealedKeystore(sealedSecrets),
 
   writeClipboard: (text) => navigator.clipboard.writeText(text),
+  // Refused (`NotAllowedError`) until the site is allowed to read it, which a
+  // browser lets the user change; missing altogether away from https.
+  readClipboard: async () => navigator.clipboard.readText(),
   openUrl: async (url) => {
     window.open(url, "_blank", "noopener");
   },

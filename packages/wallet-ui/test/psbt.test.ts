@@ -464,6 +464,46 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     expect(shell.said(screen)).toEqual(shell.drawnUnsigned);
   });
 
+  // A Tauri webview refuses the page's own read with nothing the user could
+  // allow, so the apps read through the shell, and Paste asks the platform.
+  it("Paste reads through the platform where the page's own clipboard is refused", async () => {
+    fake.state.psbtReview = UNSIGNED;
+    const screen = await shell.open();
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        readText: async () => {
+          throw new DOMException("denied", "NotAllowedError");
+        },
+      },
+      configurable: true,
+    });
+    setPlatform({ ...platform(), readClipboard: async () => UNSIGNED.psbt_base64 });
+
+    try {
+      buttonNamed(screen, "Paste").click();
+      await settle();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+
+    expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
+    expect(shell.said(screen)).toEqual(shell.drawnUnsigned);
+  });
+
+  it("Paste says an empty clipboard is empty, and keeps what is in the field", async () => {
+    fake.state.psbtReview = UNSIGNED;
+    const screen = await shell.open();
+    await paste(screen, UNSIGNED.psbt_base64);
+    setPlatform({ ...platform(), readClipboard: async () => "" });
+
+    buttonNamed(screen, "Paste").click();
+    await settle();
+
+    expect(find(screen, ".banner").textContent).toBe("The clipboard is empty.");
+    expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
+    expect(shell.said(screen)).toEqual(shell.drawnUnsigned);
+  });
+
   it("Paste says so where the clipboard cannot be read, and keeps what is in the field", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     fake.state.psbtReview = UNSIGNED;

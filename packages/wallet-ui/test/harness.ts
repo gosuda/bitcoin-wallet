@@ -83,6 +83,8 @@ export function useScreenHarness(): void {
       loadSecret: async () => null,
       forgetSecret: async () => undefined,
       writeClipboard: async () => undefined,
+      // As the browser reads it; a test gives `navigator` a clipboard to read.
+      readClipboard: async () => navigator.clipboard.readText(),
       openUrl: async () => undefined,
     });
     session.config = CONFIG;

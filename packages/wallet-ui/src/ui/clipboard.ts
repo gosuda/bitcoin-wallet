@@ -5,13 +5,14 @@ import { button, setButtonLabel } from "./dom";
 export type ClipboardRead = { text: string } | { refused: boolean };
 
 /**
- * The clipboard's text, for a Paste button. It fails two ways: access
- * refused, which the user can change, and a build or browser that cannot
- * read it at all, where pasting into the field by hand still works.
+ * The clipboard's text, for a Paste button, read the way this platform reads
+ * it. It fails two ways: access refused, which a browser lets the user change,
+ * and a page that cannot read it at all, where pasting into the field by hand
+ * still works.
  */
 export async function readClipboard(): Promise<ClipboardRead> {
   try {
-    return { text: await navigator.clipboard.readText() };
+    return { text: await platform().readClipboard() };
   } catch (e) {
     console.error("could not read the clipboard:", e);
     return { refused: e instanceof DOMException && e.name === "NotAllowedError" };

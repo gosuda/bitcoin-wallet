@@ -1046,7 +1046,9 @@ items before it change no screen, so they land while that batch is reviewed.
       at 2.0 sat/vB, and Sign made a PSBT byte for byte the one the CLI had signed. On the
       Android emulator against public signet, the same PSBT pasted into the field with
       Android's own paste was described, signed and broadcast: the network took
-      71cdd756…9d7037, the txid the dry run had named
+      71cdd756…9d7037, the txid the dry run had named. The screen's own Paste was refused by
+      the webview there until the apps read the clipboard through the shell; then it filled the
+      field and the PSBT was described
 
 ## Later — not picked
 

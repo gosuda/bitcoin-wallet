@@ -19,7 +19,7 @@ import {
   type StoredSecret,
 } from "@bitcoin-wallet/ui/types";
 import { invoke } from "@tauri-apps/api/core";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { load as loadStore } from "@tauri-apps/plugin-store";
@@ -177,6 +177,9 @@ export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Plat
     forgetSecret: (walletId) => invoke<void>("forget_secret", { walletId }),
 
     writeClipboard: (text) => writeText(text),
+    // The plugin rejects when the clipboard holds no text; the capability
+    // grants the read, so that is what a rejection here means.
+    readClipboard: () => readText().catch(() => ""),
     openUrl: (url) => openUrl(url),
   };
 }

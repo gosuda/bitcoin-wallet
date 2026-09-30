@@ -66,6 +66,13 @@ export interface Platform {
   forgetSecret(walletId: string): Promise<void>;
 
   writeClipboard(text: string): Promise<void>;
+  /**
+   * The clipboard's text, for a Paste button: `""` when it holds none, and a
+   * rejection when it cannot be read at all. A Tauri webview refuses the
+   * page's own `navigator.clipboard` read, with nothing the user could allow,
+   * so the apps read it through the shell.
+   */
+  readClipboard(): Promise<string>;
   openUrl(url: string): Promise<void>;
 
   /**
