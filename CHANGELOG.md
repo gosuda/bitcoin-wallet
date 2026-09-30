@@ -45,9 +45,9 @@ pull requests a change arrived in.
 
 ### Changed
 
-- Addresses and transaction ids are shortened one way everywhere, and the phone shows a
-  payee's address whole in Send's review, a transaction's detail and Import PSBT, as the
-  desktop does: that is where a payment is checked. (#40)
+- Addresses and transaction ids are shortened one way everywhere, and the phone shows every
+  address whole in a transaction's detail, in Import PSBT and in the review of a send to
+  several, as the desktop does: that is where a payment is checked. (#40)
 - Amounts, fee rates and sizes are written one way on both shells: "1,234 sat", a rate
   with one decimal, and a fee as "141 sat · 1.0 sat/vB · 141 vB". The phone's Send names
   the rate it will pay, which on a quiet network used to read below the 1 sat/vB it pays.
@@ -64,6 +64,9 @@ pull requests a change arrived in.
   server". Both shells warn about a passphrase in the same words, the phone's Create
   included, and say the same about freezing, Rescan, a new single key and a fee estimate.
   (#40)
+- Both shells say the same sentences on Setup, Create, the key fields, Public keys, Receive,
+  Unlock and Import PSBT, and every message is written as a sentence, the core's included.
+  (#40)
 
 ### Fixed
 
@@ -71,6 +74,13 @@ pull requests a change arrived in.
   frozen says "Every coin is frozen" instead of asking for 11 more sat. (#40)
 - A payment waiting for a block says when it was first seen. Every sync sees it again, and a
   payment stuck for hours read "just now". (#40)
+- The phone's Restore names an unknown word by its place in the grid, as the desktop does. It
+  showed the core's message, which counts words from 0. (#40)
+- A transaction's detail names its year when it is not this one, as the list does. (#40)
+- A fee rate prefilled from an estimate no longer pays a tenth more for the estimate's float
+  noise. (#40)
+- Unlock, and a saved wallet that could not be read, no longer tell the owner of a single key
+  or a watch-only wallet to restore it from a recovery phrase. (#40)
 - The phone shows where keyboard focus is on every control: rows and tabs are ringed inside
   their edge, and the primary button in a colour its fill does not hide. Textareas show
   the ring on both shells. (#39)

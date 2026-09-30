@@ -1065,12 +1065,13 @@ clearer or safer variant was taken.
   wherever a payment or an output is reviewed or described: Send's review, a transaction's
   detail, Import PSBT.
 - **Amounts.** "1,234 sat", grouped as the device does, except under a table heading that names
-  the unit. Money in is "+", money out "−". A fee rate has one decimal, "2.0 sat/vB"; a size
+  the unit; a count is grouped the same way. Money in is "+", money out "−". A fee rate has one decimal, "2.0 sat/vB"; a size
   is "141 vB".
 - **Status and time.** "Pending" means not yet in a block, on both shells, in the pending
   colour. Confirmations are "N confirmations", or "N conf." where a row is tight. Recent times
   read "just now", "N min ago", "Today 14:02", then "Aug 27"; a transaction's detail says
-  "Aug 27, 14:02"; syncing says "Synced 14:32".
+  "Aug 27, 14:02"; syncing says "Synced 14:32". A date is written in the device's language
+  (3.9), and a pending transaction is dated by when it was first seen.
 - **Words.** One word for each action and each thing, the same on both shells: a "coin" is an
   unspent output, what the wallet owns is "this wallet's", "Cancel" only ever cancels a payment.
   Sentence case, no contractions, "…" and never "...".
@@ -1081,6 +1082,14 @@ detail, Send's review and Settings. The check found three things the tests could
 came out on a Korean device as "Today 오후 12:52", so times use the boards' 24-hour clock
 (7.5); a history row wrapped a time between "Today" and "07:44"; and "Open in explorer" broke
 in two beside "Copy transaction id" on the phone, both fixed in their own commit.
+
+**Reviewed** on 2026-09-30 by four read-only reviews standing in for cubic, whose monthly
+limit had been reached: the core's shortfall, the formats and shared sentences, both shells'
+screens measured in Chrome, and the whole UI against this standard. They found a Max that
+said every coin was frozen with an unfrozen coin left, a fee bump that said nothing of frozen
+coins, a minimum rate named under itself, a phone review whose payees wrapped four characters
+to a line, and some thirty places that still broke the standard or said a thing two ways.
+Each fix is a commit of its own that says so; PR #40 lists what was declined, and why.
 
 - [x] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
       why: with every coin frozen, Max said "Need 11 more sat." · done: 2026-09-30 —
@@ -1111,29 +1120,34 @@ in two beside "Copy transaction id" on the phone, both fixed in their own commit
       why: four ways to shorten an address, and the phone shortened the payee the desktop shows
       whole · done: 2026-09-30 — `ui/format.ts` holds the one rule, `shortId`, first 10 and
       last 8 characters, with `shortOutpoint` and `outputRole` moved beside it; the desktop's
-      `shortTxid` and `shortAddress` and the phone's four `short` helpers are gone. The phone
-      shows the payee whole in Send's review, and every output whole in a transaction's detail
-      and in Import PSBT, through one output line both screens now share. The desktop's coin
-      table and both Unlock screens shorten through `shortId`, the table keeping the whole
-      address on hover. The phone's Result shows the txid in the block Transaction uses, and
-      Settings shows the wallet id in mono. `format.test.ts` pins the helpers;
-      `display.test.ts` renders the phone detail, the desktop table and both Unlock screens;
-      the Send and PSBT tests hold the whole addresses
+      `shortTxid` and `shortAddress` and the phone's four `short` helpers are gone. The phone's
+      review of a send to several lists each payee whole, one to a row; with one recipient the
+      payee is the field above it, on both shells. The phone shows every output whole in a
+      transaction's detail, below its actions, and in Import PSBT, through one output line both
+      screens share; in a detail an output of this wallet's is "received", the desktop's word.
+      The desktop's coin table and both Unlock screens shorten through `shortId`, the table
+      keeping the whole address on hover. The phone's Result shows the txid in the block
+      Transaction uses, and Settings shows the wallet id in mono. `format.test.ts` pins the
+      helpers; `display.test.ts` renders the phone detail, the desktop table and both Unlock
+      screens; the Send and PSBT tests hold the whole addresses
 
 - [x] **7.4 One format for amounts, rates and sizes** · M · `ui/dom.ts`, `ui/format.ts`, both
       shells · done: 2026-09-30 — `formatNumber`, `formatSats` and `formatBtc` moved into
       `ui/format.ts`, `ui/dom.ts` re-exporting them, beside `formatRate` with its one decimal,
-      `formatVsize` and `feeLine`: "141 sat · 1.0 sat/vB · 141 vB", which every fee description
-      on both shells now uses, both reviews, both transaction details and Import PSBT. Every
-      hand-built "N sat" goes through `formatSats`, the phone's history rows and PSBT lists
-      gain their unit, and the error copy formats through the same helpers. The phone's Send
-      prefills and names its rate as the desktop does, rounded up to a tenth and never under 1
-      sat/vB (`typeableRate`, shared with the bump): on signet it named "0.10 sat/vB", a rate
-      the send would not pay. "sats" is gone, the desktop's balance reads "—" until it is read
-      as the phone's does, and the phone's detail colours money in green as both lists do.
-      `format.test.ts` pins rates, sizes and fee lines, `feebump.test.ts` the rounding,
-      `display.test.ts` the phone's rate note and history units; the Send, PSBT and amount
-      tests hold the new text
+      `formatVsize` and `feeLine`: "141 sat · 1.0 sat/vB · 141 vB", which both reviews, both
+      transaction details and the phone's Import PSBT use, breaking only after a "·"; the
+      desktop's PSBT table gives the fee's amount a column of its own. A review names the rate
+      it was built at: the fee over the rounded-up size reads a tenth under it. Every
+      hand-built "N sat" goes through `formatSats`, every count is grouped as the device groups
+      numbers, the phone's history rows and PSBT lists gain their unit, and the error copy
+      formats through the same helpers. The phone's Send prefills and names its rate as the
+      desktop does, rounded up to a tenth once an estimate's float noise is rounded away, and
+      never under 1 sat/vB (`typeableRate`, shared with the bump and with the refusal that
+      names a replacement's minimum): on signet it named "0.10 sat/vB", a rate the send would
+      not pay. "sats" is gone, the desktop's balance reads "—" until it is read as the phone's
+      does, and the phone's detail colours money in green as both lists do. `format.test.ts`
+      pins rates, sizes and fee lines, `feebump.test.ts` the rounding, `display.test.ts` the
+      phone's rate note and history units; the Send, PSBT and amount tests hold the new text
 
 - [x] **7.5 One way to say pending, confirmations and time** · M · both shells
       why: pending was grey on one shell and amber on the other, one screen took 0
@@ -1149,7 +1163,9 @@ in two beside "Copy transaction id" on the phone, both fixed in their own commit
       list no longer takes 0 for pending. The desktop says "Pending" in the pending colour in
       both its tables and its Pending stat, as the phone does, and counts confirmations
       grouped; its local `formatWhen`, and the phone's `whenLabel`, `dateLabel` and `when`, are
-      gone. `format.test.ts` pins the words and times against a fixed now; `display.test.ts`
+      gone. A detail names a year that is not this one, as the list does, both reading years in
+      the device's calendar, and a pending transaction is dated by when it was first seen, not
+      last. `format.test.ts` pins the words and times against a fixed now; `display.test.ts`
       renders both shells for Pending and for the sync time
 
 - [x] **7.6 One word for each action** · M · both shells
@@ -1185,12 +1201,15 @@ in two beside "Copy transaction id" on the phone, both fixed in their own commit
       naming the network as the screens do ("Signet address"), and a bad address says "Not a
       valid Signet address.". One passphrase warning on all four screens, the phone's Create
       included, which had none; one Rescan heading and hint; one warning over a new single key,
-      the desktop's "Kept in memory only." gone; one "Fetching the fee estimate…", failures
-      that start "Estimate unavailable —", one custom-rate note, and "sync failed, retrying" on
-      both; the desktop's public keys add the fingerprint and name each descriptor. The
-      desktop's Key screen is "Start a wallet", as the phone's is, and the phone's watch-only
-      door reads "Follow a wallet". No "can't" is left. The Rescan chips and the desktop's
-      uppercased "(optional)" stay as they are. `text.test.ts` pins `whoseInputs`;
+      the desktop's "Kept in memory only." and "Copy it now; it is not stored anywhere." gone;
+      one "Fetching the fee estimate…", a missing estimate called "Estimate unavailable" on
+      both, with "floor 1.0 sat/vB", one custom-rate note, and "sync failed, retrying" on both;
+      the desktop's public keys add the fingerprint and name each descriptor. The desktop's Key
+      screen is "Start a wallet", as the phone's is, and the phone's watch-only door reads
+      "Follow a wallet". Setup, Create, the key fields, Public keys, Receive, Unlock and Import
+      PSBT say the same sentences on both, kept in `ui/text.ts`, and a banner writes any
+      message as a sentence, the core's included. No "can't" is left. The Rescan chips and the
+      desktop's uppercased "(optional)" stay as they are. `text.test.ts` pins `whoseInputs`;
       `display.test.ts` renders both shells for the coin hints, Rescan and all four passphrase
       warnings; the screen tests use the new names
 
