@@ -214,6 +214,16 @@ describe("typeableRate", () => {
     expect(typeableRate(2.01)).toBe(2.1);
     expect(typeableRate(3)).toBe(3);
   });
+
+  // Found in review: Esplora's estimates carry float noise.
+  it("rounds an estimate's float noise away before rounding up", () => {
+    expect(typeableRate(18.900000000000002)).toBe(18.9);
+    expect(typeableRate(2.004)).toBe(2.1);
+    // Never under a minimum the core reports: every n/250 sat/vB.
+    for (let kwu = 250; kwu <= 25_000; kwu++) {
+      expect(Math.ceil(typeableRate(kwu / 250) * 250 - 1e-9)).toBeGreaterThanOrEqual(kwu);
+    }
+  });
 });
 
 // Found in review: counts beside grouped amounts were not grouped.

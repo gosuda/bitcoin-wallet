@@ -82,7 +82,11 @@ export function formatRate(satPerVb: number): string {
  * rate the transaction does not pay.
  */
 export function typeableRate(rateSatPerVb: number): number {
-  return Math.max(1, Math.ceil(rateSatPerVb * 10) / 10);
+  // An estimate arrives with float noise, 18.900000000000002 for 18.9, which
+  // rounded up to 19.0. Six decimals keep every fraction a rate has; the
+  // core's own minimums are 0.004 sat/vB apart.
+  const tenths = Math.round(rateSatPerVb * 1e6) / 1e5;
+  return Math.max(1, Math.ceil(tenths) / 10);
 }
 
 /**
