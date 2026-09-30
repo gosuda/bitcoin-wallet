@@ -1,0 +1,105 @@
+/** @vitest-environment jsdom */
+/**
+ * The display standard of Round 7 (docs/ROADMAP.md): the same value shown
+ * the same way on both shells.
+ */
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
+vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
+
+import { api } from "../src/api";
+import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
+import { renderUnlock as renderPhoneUnlock } from "../src/mobile/screens/unlock";
+import { platform, setPlatform } from "../src/platform";
+import { renderDashboard } from "../src/screens/dashboard";
+import { renderUnlock } from "../src/screens/unlock";
+import { session } from "../src/session";
+import type { RememberedWallet, TxDetail } from "../src/types";
+import { shortId } from "../src/ui/format";
+import { fake } from "./fakes";
+import { at, mount, settle, useScreenHarness } from "./harness";
+
+useScreenHarness();
+
+const PAYEE = "tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32";
+const SENT = "772eeeec07e1338eb286f2cfc3455011a5fd69335c5b7d07bbcac8eb810de03a";
+
+/** 40,000 sat paid out of this wallet, its change back to it. */
+const sent: TxDetail = {
+  txid: SENT,
+  net_sat: -40_153,
+  sent_sat: 49_580,
+  received_sat: 9_427,
+  fee_sat: 153,
+  fee_rate_sat_vb: 1,
+  confirmations: 3,
+  block_height: 324_051,
+  timestamp: 1_790_000_000,
+  vsize: 153,
+  inputs: [{ txid: "cd".repeat(32), vout: 1, value_sat: 49_580, ours: true }],
+  outputs: [
+    { address: PAYEE, value_sat: 40_000, ours: false },
+    { address: fake.ADDRESS, value_sat: 9_427, ours: true },
+  ],
+};
+
+const texts = (root: ParentNode, selector: string): (string | null)[] =>
+  [...root.querySelectorAll(selector)].map((e) => e.textContent);
+
+describe("ids and addresses (7.3)", () => {
+  // A payee is checked where an output is described; shortened, two addresses
+  // can share both ends.
+  it("lists every output of a transaction whole on the phone", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    fake.state.details[SENT] = sent;
+    showTransaction(SENT);
+    const screen = mount(renderTransaction());
+    await settle();
+
+    expect(texts(screen, ".m-io-addr")).toEqual([PAYEE, fake.ADDRESS]);
+    expect(texts(screen, ".m-io-note")).toEqual(["change, back to you"]);
+  });
+
+  it("shortens a coin's address in the desktop's table, whole on hover", async () => {
+    fake.state.utxos = [
+      {
+        txid: SENT,
+        vout: 1,
+        value: 9_427,
+        confirmations: 3,
+        address: fake.ADDRESS,
+        frozen: false,
+      },
+    ];
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("dashboard");
+    const screen = mount(renderDashboard());
+    await settle();
+
+    const cell = [...screen.querySelectorAll<HTMLElement>("td")].find(
+      (td) => td.title === fake.ADDRESS,
+    );
+    expect(cell?.textContent).toBe(shortId(fake.ADDRESS));
+  });
+
+  it("shortens the saved wallet's address the same way on both Unlock screens", async () => {
+    const saved: RememberedWallet = {
+      wallet_id: "testnet4-p2wpkh-fake",
+      address: fake.ADDRESS,
+      network: "testnet4",
+      address_type: "p2wpkh",
+    };
+    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => saved });
+    session.remembered = saved;
+    at("unlock");
+
+    const desktop = mount(renderUnlock());
+    const shown = texts(desktop, ".mono");
+    const phone = mount(renderPhoneUnlock());
+
+    expect(shown).toContain(shortId(fake.ADDRESS));
+    expect(texts(phone, ".m-address")).toEqual([shortId(fake.ADDRESS)]);
+    session.remembered = null;
+  });
+});

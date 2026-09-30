@@ -66,17 +66,12 @@ interface RecipientRow {
   touched: { address: boolean; amount: boolean };
 }
 
-/** Both ends of an address, which is what tells two apart at a glance. */
-function short(address: string): string {
-  return `${address.slice(0, 8)}…${address.slice(-6)}`;
-}
-
 /** A send to several, reviewed: every recipient, then the fee and the total. */
 function recipientList(to: readonly Recipient[], fee: string, total: number): HTMLElement {
   const list = el("dl", { className: "m-review" });
   for (const r of to) {
     list.append(
-      el("dt", { className: "m-review-to", text: short(r.address) }),
+      el("dt", { className: "m-review-to", text: r.address }),
       el("dd", { text: `${formatNumber(r.amount_sat)} sat` }),
     );
   }

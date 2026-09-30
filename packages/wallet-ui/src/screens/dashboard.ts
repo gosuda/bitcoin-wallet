@@ -33,7 +33,6 @@ import {
   freezeSwitch,
   redrawKeepingFocus,
   sendFrom,
-  shortOutpoint,
   tickBox,
   tickInput,
 } from "../ui/coins";
@@ -54,6 +53,7 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
+import { shortId, shortOutpoint } from "../ui/format";
 import { icon } from "../ui/icons";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
@@ -61,15 +61,6 @@ function stat(label: string, value: string, cls = ""): HTMLElement {
     el("span", { className: "stat-label", text: label }),
     el("span", { className: `stat-value mono ${cls}`.trim(), text: value }),
   ]);
-}
-
-function shortTxid(txid: string): string {
-  return `${txid.slice(0, 10)}…${txid.slice(-8)}`;
-}
-
-/** Both ends of an address, which is how 3b fits it beside the columns coin control adds. */
-function shortAddress(address: string): string {
-  return `${address.slice(0, 16)}…${address.slice(-6)}`;
 }
 
 /**
@@ -111,11 +102,11 @@ function utxoTable(
         el("td", {
           className: "mono",
           text: shortOutpoint(u),
-          attrs: { title: `${u.txid}:${u.vout}` },
+          attrs: { title: coinKey(u) },
         }),
         el("td", {
           className: "mono muted",
-          text: shortAddress(u.address),
+          text: shortId(u.address),
           attrs: { title: u.address },
         }),
         el("td", { className: "num mono", text: formatNumber(u.value) }),
@@ -225,7 +216,7 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
       ]),
       el("td", {
         className: "mono",
-        text: shortTxid(tx.txid),
+        text: shortId(tx.txid),
         attrs: { title: tx.txid },
       }),
       el("td", {
@@ -435,7 +426,7 @@ export function renderDashboard(): HTMLElement {
       // closeDetail/navigate would steal a screen the user has since moved on
       // from. Confirm it landed some other way, or a silent success invites a
       // retry that does it twice.
-      alert.show("ok", `${what} broadcast: ${shortTxid(result.txid)}.`);
+      alert.show("ok", `${what} broadcast: ${shortId(result.txid)}.`);
     }
   };
 

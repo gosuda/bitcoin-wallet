@@ -9,11 +9,11 @@ import {
   freezeSwitch,
   redrawKeepingFocus,
   sendFrom,
-  shortOutpoint,
   tickBox,
   tickInput,
 } from "../../ui/coins";
 import { banner, el, formatNumber, formatSats, sectionLabel } from "../../ui/dom";
+import { shortOutpoint } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { body, button, card, header, lede, listCard, spacer } from "../ui";
 

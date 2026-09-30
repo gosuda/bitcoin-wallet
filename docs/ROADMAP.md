@@ -1094,10 +1094,18 @@ clearer or safer variant was taken.
       record and cannot be read back from a broken one. The reset tests hold the new words on
       all ten ways in, and the canvas generator carries them for the next republish
 
-- [ ] **7.3 One format for ids and addresses** · M · new `ui/format.ts`, both shells
+- [x] **7.3 One format for ids and addresses** · M · new `ui/format.ts`, both shells
       why: four ways to shorten an address, and the phone shortened the payee the desktop shows
-      whole · done when: one helper shortens every id, every review and detail shows the
-      address whole, and tests pin both
+      whole · done: 2026-09-30 — `ui/format.ts` holds the one rule, `shortId`, first 10 and
+      last 8 characters, with `shortOutpoint` and `outputRole` moved beside it; the desktop's
+      `shortTxid` and `shortAddress` and the phone's four `short` helpers are gone. The phone
+      shows the payee whole in Send's review, and every output whole in a transaction's detail
+      and in Import PSBT, through one output line both screens now share. The desktop's coin
+      table and both Unlock screens shorten through `shortId`, the table keeping the whole
+      address on hover. The phone's Result shows the txid in the block Transaction uses, and
+      Settings shows the wallet id in mono. `format.test.ts` pins the helpers;
+      `display.test.ts` renders the phone detail, the desktop table and both Unlock screens;
+      the Send and PSBT tests hold the whole addresses
 
 - [ ] **7.4 One format for amounts, rates and sizes** · M · `ui/dom.ts`, `ui/format.ts`, both
       shells · done when: every amount with a unit goes through one helper, rates have one

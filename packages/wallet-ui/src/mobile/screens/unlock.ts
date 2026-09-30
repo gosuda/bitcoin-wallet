@@ -5,12 +5,9 @@ import { routeGuard } from "../../screen";
 import { session } from "../../session";
 import { ADDRESS_TYPE_LABELS, errorMessage, NETWORK_LABELS } from "../../types";
 import { banner, el } from "../../ui/dom";
+import { shortId } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { body, button, confirmDanger, header, historyReset, spacer, withBusy } from "../ui";
-
-function short(address: string): string {
-  return address.length > 22 ? `${address.slice(0, 12)}…${address.slice(-6)}` : address;
-}
 
 export function renderUnlock(): HTMLElement {
   const record = session.remembered;
@@ -79,7 +76,7 @@ export function renderUnlock(): HTMLElement {
         el("span", { className: "m-badge" }, [icon(auth ? "faceid" : "key", 36)]),
         el("div", {}, [
           el("p", { className: "m-card-title", text: "Wallet saved on this device" }),
-          el("p", { className: "m-address", text: short(record.address) }),
+          el("p", { className: "m-address", text: shortId(record.address) }),
           el("p", {
             className: "m-txmeta",
             text: `${NETWORK_LABELS[record.network]} · ${ADDRESS_TYPE_LABELS[record.address_type]}`,

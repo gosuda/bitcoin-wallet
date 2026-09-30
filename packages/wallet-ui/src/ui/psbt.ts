@@ -10,7 +10,7 @@ import { api } from "../api";
 import { navigate } from "../router";
 import { sameWalletGuard, screenGuard } from "../screen";
 import { session } from "../session";
-import { errorMessage, isAppError, type PsbtInput, type PsbtReview, type TxOutput } from "../types";
+import { errorMessage, isAppError, type PsbtInput, type PsbtReview } from "../types";
 import { readClipboard } from "./clipboard";
 import { type Banner, type BannerKind, formatNumber } from "./dom";
 
@@ -94,15 +94,6 @@ export function whoseInputs(inputs: readonly PsbtInput[]): string {
 export function feeRate(review: PsbtReview): number | null {
   const { fee_sat: fee, vsize } = review;
   return fee === null || vsize === null || vsize === 0 ? null : fee / vsize;
-}
-
-/**
- * What an output is to this wallet. Ours on a spend of ours is change, as the
- * transaction detail says it; ours on anything else is a payment to it.
- */
-export function outputRole(review: PsbtReview, output: TxOutput): "recipient" | "change" | "ours" {
-  if (!output.ours) return "recipient";
-  return review.net_sat < 0 ? "change" : "ours";
 }
 
 /** What to say after Sign that the review does not already show: null when it does. */

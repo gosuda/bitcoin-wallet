@@ -145,12 +145,8 @@ describe("several recipients on the phone (6.9)", () => {
       2,
     ]);
     const review = find(screen, ".m-review");
-    expect(all(review, "dt").map((t) => t.textContent)).toEqual([
-      "tb1p5n82…zr4k32",
-      "tb1qmdpe…us67w0",
-      "Fee",
-      "Total",
-    ]);
+    // Each payee whole: the review is where it is checked before it is signed.
+    expect(all(review, "dt").map((t) => t.textContent)).toEqual([FIRST, SECOND, "Fee", "Total"]);
     expect(all(review, "dd").map((d) => d.textContent)).toEqual([
       `${(30_000).toLocaleString()} sat`,
       `${(18_000).toLocaleString()} sat`,

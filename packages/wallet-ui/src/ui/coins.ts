@@ -10,6 +10,7 @@ import { navigate } from "../router";
 import { session } from "../session";
 import type { CoinId, Utxo } from "../types";
 import { el, formatSats } from "./dom";
+import { shortOutpoint } from "./format";
 import { icon } from "./icons";
 
 /** What Send offers for handing the choice of coins back to the wallet. */
@@ -18,11 +19,6 @@ export const LET_WALLET_CHOOSE = "Let the wallet choose";
 /** A coin's name among the ticked ones. */
 export function coinKey(coin: CoinId): string {
   return `${coin.txid}:${coin.vout}`;
-}
-
-/** Both ends of the txid and the output's index, as the boards write an outpoint. */
-export function shortOutpoint(coin: CoinId): string {
-  return `${coin.txid.slice(0, 10)}…${coin.txid.slice(-8)}:${coin.vout}`;
 }
 
 export function coinsValue(coins: readonly Utxo[]): number {

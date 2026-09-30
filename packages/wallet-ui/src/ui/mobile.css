@@ -465,6 +465,8 @@ body {
 .m-review .m-review-to {
   font-family: var(--font-mono);
   font-size: 13px;
+  /* The payee whole, as the display standard has it: it wraps rather than shortens. */
+  overflow-wrap: anywhere;
 }
 
 .m-review .m-review-total {
@@ -1044,7 +1046,8 @@ button.m-txrow:active {
   border-color: var(--danger);
 }
 
-.m-psbt {
+.m-psbt,
+.m-io-card {
   gap: var(--space-2);
 }
 

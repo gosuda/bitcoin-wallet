@@ -230,7 +230,7 @@ export function renderSettings(): HTMLElement {
             },
           })
         : null,
-      el("p", { className: "m-txmeta m-centre-text", text: info.wallet_id }),
+      el("p", { className: "m-mono-block m-centre-text", text: info.wallet_id }),
     ),
   );
   return host;

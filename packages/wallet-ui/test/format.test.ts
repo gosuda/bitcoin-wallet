@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { outputRole, shortId, shortOutpoint } from "../src/ui/format";
 import { useDeviceLocale } from "./setup-locale";
 
 // `ui/dom.ts` builds its formatters when it loads, as the app does when it
@@ -35,5 +36,36 @@ describe("numbers follow the device", () => {
   // German one back after every test, so no choice leaks into the next.
   it("is back on the German device in a test that chose none", () => {
     expect((1234.5).toLocaleString()).toBe("1.234,5");
+  });
+});
+
+const TXID = "d0ff3c6274ec32caad0106af2f8e7b89e266655a59c71e6ce20890e9679c6d46";
+const ADDRESS = "tb1qxszuw0glm82fqr2yh45zfu872umrnwk9dadtzk";
+
+describe("shortId", () => {
+  // One rule for every id a list or a summary shortens, on both shells.
+  it("keeps the first 10 and the last 8 characters around an ellipsis", () => {
+    expect(shortId(TXID)).toBe("d0ff3c6274…679c6d46");
+    expect(shortId(ADDRESS)).toBe("tb1qxszuw0…k9dadtzk");
+  });
+
+  it("leaves an id alone that would come out no shorter", () => {
+    expect(shortId("tb1qshort")).toBe("tb1qshort");
+    expect(shortId("0123456789012345678")).toBe("0123456789012345678");
+    expect(shortId("01234567890123456789")).toBe("0123456789…23456789");
+  });
+});
+
+describe("shortOutpoint", () => {
+  it("shortens the txid and keeps the output's index", () => {
+    expect(shortOutpoint({ txid: TXID, vout: 3 })).toBe("d0ff3c6274…679c6d46:3");
+  });
+});
+
+describe("outputRole", () => {
+  it("tells someone else's output, change on a spend, and a payment to this wallet apart", () => {
+    expect(outputRole({ net_sat: -1_000 }, { ours: false })).toBe("recipient");
+    expect(outputRole({ net_sat: -1_000 }, { ours: true })).toBe("change");
+    expect(outputRole({ net_sat: 1_000 }, { ours: true })).toBe("ours");
   });
 });

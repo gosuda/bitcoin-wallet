@@ -43,6 +43,12 @@ pull requests a change arrived in.
   wallet holds keys for, and Broadcast waits until every input is signed; a watch-only
   wallet can broadcast a PSBT signed elsewhere. (#39)
 
+### Changed
+
+- Addresses and transaction ids are shortened one way everywhere, and the phone shows a
+  payee's address whole in Send's review, a transaction's detail and Import PSBT, as the
+  desktop does: that is where a payment is checked. (#40)
+
 ### Fixed
 
 - A send that falls short says what frozen coins hold, and Max with every coin frozen says

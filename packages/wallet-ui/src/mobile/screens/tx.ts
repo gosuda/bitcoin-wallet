@@ -13,13 +13,25 @@ import {
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   type TxDetail,
-  type TxOutput,
   type TxPreview,
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
 import { icon } from "../../ui/icons";
-import { body, button, card, chips, header, item, lede, listCard, row, withBusy } from "../ui";
+import {
+  body,
+  button,
+  card,
+  chips,
+  header,
+  ioLine,
+  item,
+  lede,
+  listCard,
+  outputNote,
+  row,
+  withBusy,
+} from "../ui";
 
 /**
  * Which transaction to show. Routes carry no parameters, so a history row
@@ -45,10 +57,6 @@ type Offer = "replace" | "child" | "none";
 
 type SpeedChoice = `${FeeTarget}` | "custom";
 
-function short(address: string): string {
-  return `${address.slice(0, 8)}…${address.slice(-6)}`;
-}
-
 function when(timestamp: number | null): string {
   if (timestamp === null) return "";
   return new Date(timestamp * 1000).toLocaleString(undefined, {
@@ -57,12 +65,6 @@ function when(timestamp: number | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-/** What a row says about an output: ours is change on a send, a receipt otherwise. */
-function outputLabel(d: TxDetail, o: TxOutput): string {
-  if (!o.ours) return "To";
-  return d.net_sat < 0 ? "Change" : "Received";
 }
 
 export function renderTransaction(): HTMLElement {
@@ -176,15 +178,15 @@ export function renderTransaction(): HTMLElement {
     const from = `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${
       ownInputs === d.inputs.length ? " · yours" : ownInputs > 0 ? ` · ${ownInputs} yours` : ""
     }`;
-    const flow = listCard(
-      item("From", from),
+    const flow = listCard(item("From", from));
+    // Each output whole, as Import PSBT lists them: this is where a payee is checked.
+    const outputs = card(
+      sectionLabel(`Outputs · ${formatNumber(d.outputs.length)}`),
       ...d.outputs.map((o) =>
-        item(
-          outputLabel(d, o),
-          `${o.address === null ? "script" : short(o.address)} · ${formatNumber(o.value_sat)} sat`,
-        ),
+        ioLine(o.address ?? "script", `${formatNumber(o.value_sat)} sat`, outputNote(d, o)),
       ),
     );
+    outputs.classList.add("m-io-card");
 
     // Resolved before the button is offered, the way Result and the desktop
     // dashboard do it: on regtest there is no explorer, and a button that only
@@ -220,7 +222,7 @@ export function renderTransaction(): HTMLElement {
       actions.push(speedUpCard(d));
     }
     // Above the Transaction id card, so an action shows without scrolling (M11b).
-    content.replaceChildren(alert.node, hero, facts, flow, ...actions, ident);
+    content.replaceChildren(alert.node, hero, facts, flow, outputs, ...actions, ident);
   };
 
   const bumpCard = (id: string, originalRate: number | null): HTMLElement => {

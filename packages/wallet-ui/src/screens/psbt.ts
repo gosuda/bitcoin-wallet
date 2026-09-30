@@ -1,9 +1,9 @@
 import { navigate } from "../router";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
-import { shortOutpoint } from "../ui/coins";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
-import { feeRate, outputRole, psbtFlow, signedLine, whoseInputs } from "../ui/psbt";
+import { outputRole, shortOutpoint } from "../ui/format";
+import { feeRate, psbtFlow, signedLine, whoseInputs } from "../ui/psbt";
 
 /** Beside Sign and Broadcast until the PSBT can go out, as 7 says it. */
 const WAITS = "Broadcast waits until every input is signed and the PSBT is finalized.";

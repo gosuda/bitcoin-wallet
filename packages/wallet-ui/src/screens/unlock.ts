@@ -11,6 +11,7 @@ import {
   NETWORK_LABELS,
 } from "../types";
 import { banner, button, el, kv, mono, withBusy } from "../ui/dom";
+import { shortId } from "../ui/format";
 import { icon } from "../ui/icons";
 import { appPasswordField, KEYCHAIN_NAME } from "../ui/remember";
 import { historyReset } from "../ui/reset";
@@ -144,7 +145,7 @@ export function renderUnlock(): HTMLElement {
         ]),
       ]),
       kv([
-        ["Address", mono(remembered.address)],
+        ["Address", mono(shortId(remembered.address))],
         [
           "Network",
           `${NETWORK_LABELS[remembered.network]} · ${ADDRESS_TYPE_LABELS[remembered.address_type]}`,

@@ -7,8 +7,9 @@
  */
 
 import { navigate, type Route } from "../router";
-import { errorMessage, historyResetFixes } from "../types";
+import { errorMessage, historyResetFixes, type TxOutput } from "../types";
 import { type Banner, el } from "../ui/dom";
+import { outputRole } from "../ui/format";
 import { type IconName, icon } from "../ui/icons";
 import { type HistoryReset, RESET_CONFIRM, RESET_TEXT, RESET_TRIGGER } from "../ui/reset";
 
@@ -104,6 +105,27 @@ export function button(
   if (label) btn.appendChild(el("span", { text: label }));
   btn.disabled = opts.disabled === true;
   return btn;
+}
+
+/**
+ * One line of a list of inputs or outputs, as Transaction and Import PSBT
+ * draw them (M14): where, whole, with a note under it, and the value across.
+ * An address is never shortened here: this is where a payee is checked.
+ */
+export function ioLine(where: string, value: string, note: string | null): HTMLElement {
+  return el("div", { className: "m-io" }, [
+    el("span", { className: "m-io-where" }, [
+      el("span", { className: "m-io-addr", text: where }),
+      note === null ? null : el("span", { className: "m-io-note", text: note }),
+    ]),
+    el("span", { className: "m-io-value", text: value }),
+  ]);
+}
+
+/** Said under an output that is this wallet's; a payment to someone else needs no note. */
+export function outputNote(owner: { net_sat: number }, output: TxOutput): string | null {
+  const role = outputRole(owner, output);
+  return role === "change" ? "change, back to you" : role === "ours" ? "to you" : null;
 }
 
 export function row(...children: Child[]): HTMLElement {

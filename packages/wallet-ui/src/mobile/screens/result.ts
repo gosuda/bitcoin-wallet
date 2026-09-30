@@ -31,7 +31,7 @@ export function renderResult(): HTMLElement {
       card(
         sectionLabel("Transaction id"),
         el("p", {
-          className: "m-address",
+          className: "m-mono-block",
           text: result.txid,
         }),
       ),
