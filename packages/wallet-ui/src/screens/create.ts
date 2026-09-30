@@ -7,7 +7,7 @@ import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
-import { PASSPHRASE_HINT } from "../ui/text";
+import { PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
 
@@ -197,18 +197,12 @@ export function renderCreate(): HTMLElement {
     el("section", { className: "card secret-box" }, [
       el("div", { className: "card-head" }, [
         sectionLabel("Recovery phrase — shown once"),
-        el("span", {
-          className: "secret-note",
-          text: "Anyone with these words can spend your bitcoin.",
-        }),
+        el("span", { className: "secret-note", text: WORDS_SPEND }),
       ]),
       phraseBox,
       el("div", { className: "actions" }, [
         copyBtn,
-        el("span", {
-          className: "hint",
-          text: "Write them down in order. This wallet cannot show them again.",
-        }),
+        el("span", { className: "hint", text: WORDS_KEEP }),
       ]),
     ]),
     el("section", { className: "card" }, [

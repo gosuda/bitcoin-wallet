@@ -4,7 +4,7 @@
  * apart again, as the Sent screen and Forget's warning had.
  */
 
-import type { WalletInfo } from "../types";
+import type { Network, WalletInfo } from "../types";
 import { formatNumber, formatRate, formatSats } from "./format";
 
 /**
@@ -111,6 +111,26 @@ export const RESCAN_HINT =
 /** Under a BIP39 passphrase field, when creating and when restoring alike. */
 export const PASSPHRASE_HINT =
   "A passphrase creates a different wallet from the same words. Write it down too: without it, the words alone cannot recover this wallet. If you remember this device, it is kept with them.";
+
+/** Over a new recovery phrase on both Create screens: who can spend with it, and how to keep it. */
+export const WORDS_SPEND = "Anyone with these words can spend this wallet's bitcoin.";
+export const WORDS_KEEP =
+  "Write them down in order and keep them offline: this wallet cannot show them again.";
+
+/** What a single key is entered as, and what one key means. */
+export const PRIVATE_KEY_HINT =
+  "A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.";
+export const PRIVATE_KEY_PLACEHOLDER = "64-character hex or WIF";
+
+/**
+ * What a watch-only wallet is followed by, for the network chosen in Setup:
+ * mainnet keys are xpubs at coin type 0, every test network's tpubs at 1.
+ */
+export function watchPlaceholder(network: Network | undefined): string {
+  return network === "bitcoin"
+    ? "xpub… or wpkh([fingerprint/84h/0h/0h]xpub…/0/*)"
+    : "tpub… or wpkh([fingerprint/84h/1h/0h]tpub…/0/*)";
+}
 
 /** Over a newly generated single key, which is shown this once. */
 export const KEY_SHOWN_ONCE =

@@ -5,7 +5,14 @@ import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
 import { banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
-import { KEY_SHOWN_ONCE, PASSPHRASE_HINT, phraseError } from "../../ui/text";
+import {
+  KEY_SHOWN_ONCE,
+  PASSPHRASE_HINT,
+  PRIVATE_KEY_HINT,
+  PRIVATE_KEY_PLACEHOLDER,
+  phraseError,
+  watchPlaceholder,
+} from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
 import {
   body,
@@ -188,7 +195,12 @@ function singleKey(): HTMLElement {
   const alert = banner();
   const offer = historyReset(alert);
   const remember = rememberCheckbox();
-  const secret = textInput({ type: "password", mono: true, name: "secret" });
+  const secret = textInput({
+    type: "password",
+    mono: true,
+    name: "secret",
+    placeholder: PRIVATE_KEY_PLACEHOLDER,
+  });
   secret.setAttribute("autocapitalize", "none");
   secret.setAttribute("autocorrect", "off");
   wipeOnLeave(() => [secret]);
@@ -226,7 +238,7 @@ function singleKey(): HTMLElement {
     header("Single key", { back: "key" }),
     body(
       alert.node,
-      lede("A private key in hex or WIF. One key means one address and no recovery phrase."),
+      lede(PRIVATE_KEY_HINT),
       card(labelled("Private key", secret), secret, generate),
       card(remember.node),
       spacer(),
@@ -250,7 +262,7 @@ function watchOnly(): HTMLElement {
     attrs: {
       rows: "3",
       name: "descriptor",
-      placeholder: "tpub… or wpkh([fingerprint/84h/1h/0h]tpub…/0/*)",
+      placeholder: watchPlaceholder(session.config?.network),
       spellcheck: "false",
       autocapitalize: "off",
       autocomplete: "off",
