@@ -169,8 +169,7 @@ export function renderTransaction(): HTMLElement {
       : `${formatNumber(d.confirmations ?? 0)}${d.block_height === null ? "" : ` · block ${formatNumber(d.block_height)}`}`;
     const facts = listCard(item("Fee", fee, undefined), item("Confirmations", confirmations));
 
-    const _ownInputs = d.inputs.filter((i) => i.ours).length;
-    const from = `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${` · ${whoseInputs(d.inputs)}`}`;
+    const from = `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"} · ${whoseInputs(d.inputs)}`;
     const flow = listCard(item("From", from));
     // Each output whole, as Import PSBT lists them: this is where a payee is checked.
     const outputs = card(

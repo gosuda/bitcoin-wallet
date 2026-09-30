@@ -622,14 +622,13 @@ export function renderDashboard(): HTMLElement {
     offer: Offer,
     ownerDetail: HTMLTableRowElement,
   ): HTMLElement => {
-    const _ownInputs = d.inputs.filter((i) => i.ours).length;
     const muted = (text: string) => el("span", { className: "muted", text });
     const rows: [string, Node | string][] = [
       ["Transaction id", mono(d.txid, "small")],
       ["Fee", feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb)],
       [
         "From",
-        `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${` · ${whoseInputs(d.inputs)}`}`,
+        `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"} · ${whoseInputs(d.inputs)}`,
       ],
       ...d.outputs.map((o): [string, Node] => [
         outputLabel(d, o),
