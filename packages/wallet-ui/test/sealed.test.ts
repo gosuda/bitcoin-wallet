@@ -139,7 +139,11 @@ describe("a secret sealed under an app password (6.12)", () => {
     }
   });
 
-  it("seals with 600,000 rounds, and opens a record with the count it carries", async () => {
+  // One derivation at the real count: about a second alone, and past the
+  // 5 s default on a machine busy running every other test file at once.
+  it("seals with 600,000 rounds, and opens a record with the count it carries", {
+    timeout: 30_000,
+  }, async () => {
     expect(PBKDF2_ITERATIONS).toBe(600_000);
     expect((await seal(WALLET, STORED, PASSWORD)).iterations).toBe(PBKDF2_ITERATIONS);
 
