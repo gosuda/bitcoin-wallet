@@ -184,6 +184,16 @@ describe("amounts and rates (7.4)", () => {
 
   // Found in review: with no rate in the estimate, the desktop said "No
   // estimate available" and the phone named 1.0 sat/vB as if estimated.
+  // Found in review: the desktop's Send said "From" and the wallet's address,
+  // which for a recovery phrase is only the next receiving address.
+  it("heads the desktop's Send with the network and server, as its other screens", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    const screen = mount(renderSend());
+    expect(find(screen, ".screen-head .muted").textContent).not.toContain(fake.ADDRESS);
+    expect(find(screen, ".screen-head .muted").textContent).toContain(" · ");
+  });
+
   it("says an estimate with no rate is unavailable, alike on both Send screens", async () => {
     fake.state.estimate = {};
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);

@@ -613,7 +613,10 @@ export function renderSend(): HTMLElement {
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [
       el("h1", { text: "Send" }),
-      el("p", { className: "muted small", text: `From ${wallet.address}` }),
+      // As every desktop heading says it. A wallet's address was here, which
+      // for a recovery phrase is only the next receiving address, not where
+      // the coins come from.
+      el("p", { className: "muted small", text: `${networkName} · ${host}` }),
     ]),
     alert.node,
     coinsLine,
