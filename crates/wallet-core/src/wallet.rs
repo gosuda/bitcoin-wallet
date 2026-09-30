@@ -176,8 +176,10 @@ pub struct TxSummary {
     pub fee_sat: Option<u64>,
     /// `None` while unconfirmed.
     pub confirmations: Option<u32>,
-    /// Block time when confirmed, else when the transaction was last seen in the
-    /// mempool; seconds since the epoch, `None` if never seen.
+    /// Block time when confirmed, else when the transaction was first seen in
+    /// the mempool; seconds since the epoch, `None` if never seen. Not last
+    /// seen: every sync sees a pending transaction again, and a payment stuck
+    /// for hours read "just now".
     pub timestamp: Option<u64>,
 }
 
@@ -941,7 +943,7 @@ impl WalletHandle {
                     ChainPosition::Unconfirmed {
                         last_seen,
                         first_seen,
-                    } => (1, u32::MAX, last_seen.or(first_seen)),
+                    } => (1, u32::MAX, first_seen.or(last_seen)),
                 };
                 let summary = TxSummary {
                     txid: tx.tx_node.txid.to_string(),
@@ -994,7 +996,7 @@ impl WalletHandle {
             ChainPosition::Unconfirmed {
                 last_seen,
                 first_seen,
-            } => (None, None, last_seen.or(first_seen)),
+            } => (None, None, first_seen.or(last_seen)),
         };
         let inputs =
             d.tx.input
@@ -2649,6 +2651,24 @@ mod tests {
         handle.set_frozen(&coin, false).await.unwrap();
         let bumped = handle.build_fee_bump(&sent.txid, 100.0).await.unwrap();
         assert_eq!(bumped.input_count, 2);
+    }
+
+    /// A pending transaction is dated by when it was first seen, in the list
+    /// and in its detail: every sync sees it again. Found in review.
+    #[tokio::test]
+    async fn a_pending_transaction_is_dated_by_when_it_was_first_seen() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        {
+            let mut inner = handle.inner.lock().await;
+            let spk = receiving_script(&inner.wallet);
+            let tx = funding_tx(spk, 50_000);
+            inner.wallet.apply_unconfirmed_txs([(tx.clone(), 100)]);
+            inner.wallet.apply_unconfirmed_txs([(tx, 5_000)]);
+        }
+        let listed = handle.list_transactions().await;
+        assert_eq!(listed[0].timestamp, Some(100));
+        let detail = handle.transaction(&listed[0].txid).await.unwrap().unwrap();
+        assert_eq!(detail.timestamp, Some(100));
     }
 
     /// Coin control: a send held to chosen coins spends each of them and

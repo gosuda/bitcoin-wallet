@@ -69,6 +69,8 @@ pull requests a change arrived in.
 
 - A send or a fee bump that falls short says what frozen coins hold, and Max with every coin
   frozen says "Every coin is frozen" instead of asking for 11 more sat. (#40)
+- A payment waiting for a block says when it was first seen. Every sync sees it again, and a
+  payment stuck for hours read "just now". (#40)
 - The phone shows where keyboard focus is on every control: rows and tabs are ringed inside
   their edge, and the primary button in a colour its fill does not hide. Textareas show
   the ring on both shells. (#39)
