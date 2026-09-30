@@ -344,10 +344,13 @@ fn script_display(script: &ScriptBuf, net: bdk_wallet::bitcoin::Network) -> Opti
 /// act on differently structured instead of stringified.
 fn build_error(e: CreateTxError) -> Error {
     match e {
+        // What frozen coins hold is filled in by a caller that chose coins
+        // itself (`Error::with_frozen`); this layer cannot see the wallet.
         CreateTxError::CoinSelection(InsufficientFunds { needed, available }) => {
             Error::InsufficientFunds {
                 needed_sat: needed.to_sat(),
                 available_sat: available.to_sat(),
+                frozen_sat: 0,
             }
         }
         CreateTxError::OutputBelowDustLimit(output) => Error::Dust { output },
@@ -793,11 +796,7 @@ impl WalletHandle {
                 .cloned(),
             |&(keychain, _), _| keychain == KeychainKind::Internal,
         );
-        let frozen = wallet
-            .list_unspent()
-            .filter(|o| wallet.is_outpoint_locked(o.outpoint))
-            .map(|o| o.txout.value.to_sat())
-            .sum();
+        let frozen = Self::frozen_total(wallet);
         Balance {
             confirmed: b.confirmed.to_sat(),
             trusted_pending: b.trusted_pending.to_sat(),
@@ -855,6 +854,29 @@ impl WalletHandle {
 
     /// The outpoints of `coins`, each an unspent coin of this wallet that is
     /// not frozen: a send held to chosen coins spends exactly these.
+    /// What the frozen coins of this wallet hold, confirmed or not: the part
+    /// of the balance no send the wallet chooses coins for can use.
+    fn frozen_total(wallet: &Wallet) -> u64 {
+        wallet
+            .list_unspent()
+            .filter(|o| wallet.is_outpoint_locked(o.outpoint))
+            .map(|o| o.txout.value.to_sat())
+            .sum()
+    }
+
+    /// A build's result, with a shortfall told what frozen coins hold when
+    /// the wallet chose the coins (`automatic`). A send held to chosen coins
+    /// names its coins itself, so frozen ones were never its to use.
+    fn short_of_frozen<T>(built: Result<T>, wallet: &Wallet, automatic: bool) -> Result<T> {
+        built.map_err(|e| {
+            if automatic {
+                e.with_frozen(Self::frozen_total(wallet))
+            } else {
+                e
+            }
+        })
+    }
+
     fn chosen_outpoints(wallet: &Wallet, coins: &[CoinId]) -> Result<Vec<OutPoint>> {
         coins
             .iter()
@@ -1060,7 +1082,8 @@ impl WalletHandle {
                 // Set explicitly so replaceability is a property of the code,
                 // not of a default that could change upstream.
                 .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
-            builder.finish().map_err(build_error)?
+            let built = builder.finish().map_err(build_error);
+            Self::short_of_frozen(built, &inner.wallet, chosen.is_none())?
         };
         Self::persist(&mut inner).await?;
 
@@ -1122,7 +1145,8 @@ impl WalletHandle {
                 .drain_to(destination.clone())
                 .fee_rate(rate)
                 .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
-            builder.finish().map_err(build_error)?
+            let built = builder.finish().map_err(build_error);
+            Self::short_of_frozen(built, &inner.wallet, chosen.is_none())?
         };
         Self::persist(&mut inner).await?;
         Self::summarize(&inner, psbt, Paid::Drain(&destination))
@@ -2252,6 +2276,7 @@ mod tests {
             Error::InsufficientFunds {
                 needed_sat,
                 available_sat,
+                ..
             } => {
                 assert!(
                     needed_sat > available_sat,
@@ -2398,6 +2423,59 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(spent(&max), sorted(&coins));
+    }
+
+    /// A send the wallet chose coins for says, when it falls short, what the
+    /// frozen coins it left out hold; "need 11 more" from a wallet with every
+    /// coin frozen reads as an empty wallet otherwise. A send held to chosen
+    /// coins names its coins itself, and says nothing of frozen ones.
+    #[tokio::test]
+    async fn a_shortfall_says_what_frozen_coins_hold() {
+        let (handle, _) = open(AddressType::P2wpkh).await;
+        fund_with_outputs(&handle, 3, 50_000).await;
+        let coins = coin_ids(&handle).await;
+        handle.set_frozen(&coins[0], true).await.unwrap();
+
+        let over = handle.build_transfer(&pay(120_000), 2.0).await.unwrap_err();
+        assert!(
+            matches!(
+                over,
+                Error::InsufficientFunds {
+                    frozen_sat: 50_000,
+                    ..
+                }
+            ),
+            "{over:?}"
+        );
+
+        for coin in &coins[1..] {
+            handle.set_frozen(coin, true).await.unwrap();
+        }
+        let max = handle
+            .build_drain(&dest(AddressType::P2wpkh), 2.0)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(
+                max,
+                Error::InsufficientFunds {
+                    available_sat: 0,
+                    frozen_sat: 150_000,
+                    ..
+                }
+            ),
+            "{max:?}"
+        );
+
+        handle.set_frozen(&coins[1], false).await.unwrap();
+        let held = handle
+            .build_transfer_from(&coins[1..2], &pay(60_000), 2.0)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(held, Error::InsufficientFunds { frozen_sat: 0, .. }),
+            "{held:?}"
+        );
     }
 
     /// Coin control: a send held to chosen coins spends each of them and
@@ -3330,7 +3408,8 @@ mod tests {
             short,
             Error::InsufficientFunds {
                 needed_sat: 10,
-                available_sat: 4
+                available_sat: 4,
+                frozen_sat: 0,
             }
         ));
         assert!(matches!(

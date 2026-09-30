@@ -370,11 +370,17 @@ function isFiniteNumber(v: unknown): v is number {
 function detailedMessage(value: AppError): string | null {
   const d = value.details;
   switch (value.code) {
-    case "insufficient_funds":
-      if (isFiniteNumber(d?.needed_sat) && isFiniteNumber(d?.available_sat)) {
-        return `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
+    case "insufficient_funds": {
+      if (!isFiniteNumber(d?.needed_sat) || !isFiniteNumber(d?.available_sat)) return null;
+      // What frozen coins hold, when the wallet chose the coins: they were
+      // left out, and "Need 11 more sat." alone reads as an empty wallet.
+      const frozen = isFiniteNumber(d?.frozen_sat) ? d.frozen_sat : 0;
+      if (d.available_sat === 0 && frozen > 0) {
+        return "Every coin is frozen. Unfreeze one to spend it.";
       }
-      return null;
+      const short = `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
+      return frozen > 0 ? `${short} Frozen coins hold ${frozen.toLocaleString()} sat.` : short;
+    }
     case "timeout":
       return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
     case "invalid_fee_rate":

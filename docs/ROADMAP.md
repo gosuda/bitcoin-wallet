@@ -1075,10 +1075,16 @@ clearer or safer variant was taken.
   unspent output, what the wallet owns is "this wallet's", "Cancel" only ever cancels a payment.
   Sentence case, no contractions, "…" and never "...".
 
-- [ ] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
-      why: with every coin frozen, Max said "Need 11 more sat." · done when: a send the wallet
-      chose coins for and could not cover names the frozen total, "Every coin is frozen" when
-      nothing else is left; core and copy tests
+- [x] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
+      why: with every coin frozen, Max said "Need 11 more sat." · done: 2026-09-30 —
+      `InsufficientFunds` carries `frozen_sat`, which a transfer or a drain the wallet chose
+      coins for fills with what the frozen coins hold; a send held to chosen coins leaves it at
+      0, since it names its coins itself. Both shells say "Every coin is frozen. Unfreeze one
+      to spend it." when nothing else was left, and "Need 60 more sat. Frozen coins hold 50,000
+      sat." otherwise; the CLI's message adds "(50000 sat more is frozen)".
+      `a_shortfall_says_what_frozen_coins_hold` covers a payment, Max with every coin frozen,
+      and a send held to chosen coins; the error table, a message test and the copy test pin
+      the details and the words
 
 - [ ] **7.2 The history reset says frozen coins go with it** · S · `ui/reset.ts`, `gen.py`
       why: the reset also unfreezes every coin, and its words said only history was deleted ·

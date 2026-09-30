@@ -553,6 +553,7 @@ mod tests {
             Error::InsufficientFunds {
                 needed_sat: 10,
                 available_sat: 5,
+                frozen_sat: 0,
             },
             Error::InvalidFeeRate("x".into()),
             Error::Sign("x".into()),
