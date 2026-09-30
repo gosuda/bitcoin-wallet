@@ -390,8 +390,9 @@ function detailedMessage(value: AppError): string | null {
     case "invalid_fee_rate":
       return `Enter a fee rate greater than 0, up to ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
     case "dust":
+      // BDK counts the recipients it was given, as the phone's cards are named.
       return isFiniteNumber(d?.output)
-        ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
+        ? `Recipient ${d.output + 1} is too small to send — it is below the network's dust limit.`
         : null;
     case "fee_too_low":
       // Rounded up, as a fee field is: the core's minimum has three decimals

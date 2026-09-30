@@ -124,9 +124,9 @@ describe("errorMessage", () => {
     expect(errorMessage(byAmount)).toContain(`${(2000).toLocaleString()} sat`);
   });
 
-  it("names the output for dust, one-indexed for a reader", () => {
+  it("names the recipient for dust, one-indexed as the cards are", () => {
     const err = new WalletError("dust", "x", { output: 0 });
-    expect(errorMessage(err)).toContain("Output 1");
+    expect(errorMessage(err)).toContain("Recipient 1 is too small");
   });
 
   it("names the ceiling for invalid_fee_rate", () => {
