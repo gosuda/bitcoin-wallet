@@ -81,6 +81,30 @@ describe("ids and addresses (7.3)", () => {
     expect(texts(screen, ".m-io-note")).toEqual(["change, back to this wallet"]);
   });
 
+  // In the desktop detail's word, "Received": the two details matched until
+  // the phone's outputs moved into a card.
+  it("notes an incoming output of this wallet's as received on the phone", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const RECEIVED = "ab".repeat(32);
+    fake.state.details[RECEIVED] = {
+      ...sent,
+      txid: RECEIVED,
+      net_sat: 30_000,
+      sent_sat: 0,
+      received_sat: 30_000,
+      inputs: [{ txid: "ef".repeat(32), vout: 0, value_sat: 101_990, ours: false }],
+      outputs: [
+        { address: fake.ADDRESS, value_sat: 30_000, ours: true },
+        { address: PAYEE, value_sat: 71_859, ours: false },
+      ],
+    };
+    showTransaction(RECEIVED);
+    const screen = mount(renderTransaction());
+    await settle();
+
+    expect(texts(screen, ".m-io-note")).toEqual(["received"]);
+  });
+
   it("shortens a coin's address in the desktop's table, whole on hover", async () => {
     fake.state.utxos = [
       {

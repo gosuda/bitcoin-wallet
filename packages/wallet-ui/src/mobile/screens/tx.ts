@@ -13,6 +13,7 @@ import {
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   type TxDetail,
+  type TxOutput,
   type TxPreview,
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -23,6 +24,7 @@ import {
   formatDateTime,
   formatRate,
   formatSats,
+  outputRole,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
@@ -63,6 +65,15 @@ export function currentTxid(): string | null {
 type Offer = "replace" | "child" | "none";
 
 type SpeedChoice = `${FeeTarget}` | "custom";
+
+/**
+ * Said under an output in a transaction's detail, in the words the desktop's
+ * detail labels it with: an output of this wallet's on a receipt is
+ * "received". Import PSBT says "to this wallet", since nothing is received yet.
+ */
+function detailNote(d: TxDetail, o: TxOutput): string | null {
+  return outputRole(d, o) === "ours" ? "received" : outputNote(d, o);
+}
 
 export function renderTransaction(): HTMLElement {
   const onScreen = screenGuard();
@@ -176,7 +187,7 @@ export function renderTransaction(): HTMLElement {
     const outputs = card(
       sectionLabel(`Outputs · ${formatNumber(d.outputs.length)}`),
       ...d.outputs.map((o) =>
-        ioLine(o.address ?? "script", `${formatSats(o.value_sat)}`, outputNote(d, o)),
+        ioLine(o.address ?? "script", `${formatSats(o.value_sat)}`, detailNote(d, o)),
       ),
     );
     outputs.classList.add("m-io-card");
