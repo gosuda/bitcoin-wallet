@@ -112,15 +112,20 @@ export function row(...children: Child[]): HTMLElement {
   return node;
 }
 
-/** A tappable full-width row: label on the left, value and chevron on the right. */
+/**
+ * A tappable full-width row: label on the left, value and chevron on the right.
+ * A value the screen fills in later is passed as the node it will write to.
+ */
 export function item(
   label: string,
-  value: string | null,
+  value: string | Node | null,
   onClick?: () => void,
   opts: { danger?: boolean } = {},
 ): HTMLElement {
   const right = el("span", { className: "m-item-value" });
-  if (value !== null) right.appendChild(el("span", { text: value }));
+  if (value !== null) {
+    right.appendChild(typeof value === "string" ? el("span", { text: value }) : value);
+  }
   if (onClick) right.appendChild(icon("chevron", 17));
   const node = el(onClick ? "button" : "div", {
     className: "m-item",

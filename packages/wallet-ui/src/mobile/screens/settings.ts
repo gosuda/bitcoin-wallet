@@ -165,6 +165,21 @@ export function renderSettings(): HTMLElement {
       ])
     : item("Lock after", "Not available here");
 
+  // How many coins there are and how many are frozen, once the core says. On
+  // a failure the row stays blank; Coins itself says what went wrong.
+  const coinCount = el("span");
+  void api.listUtxos().then(
+    (utxos) => {
+      if (!onScreen()) return;
+      const frozen = utxos.filter((u) => u.frozen).length;
+      coinCount.textContent =
+        frozen > 0
+          ? `${formatNumber(utxos.length)} · ${formatNumber(frozen)} frozen`
+          : formatNumber(utxos.length);
+    },
+    () => undefined,
+  );
+
   host.appendChild(header("Settings"));
   host.appendChild(
     body(
@@ -178,6 +193,7 @@ export function renderSettings(): HTMLElement {
       listCard(
         rescanBlock,
         item("Export public keys", "xpub · descriptors", () => navigate("export")),
+        item("Coins", coinCount, () => navigate("coins")),
       ),
       listCard(
         item("Wallet", kind),

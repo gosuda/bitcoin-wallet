@@ -18,6 +18,7 @@ import {
   rateForTarget,
   type TxPreview,
 } from "../types";
+import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../ui/coins";
 import {
   banner,
   button,
@@ -54,6 +55,8 @@ type TargetChoice = `${FeeTarget}`;
 
 const FLOOR_NOTE = "floor 1 sat/vB";
 const MAX_HINT = "Max sends everything: the whole balance minus the fee, to this one recipient.";
+const MAX_HINT_CHOSEN =
+  "Max sends the chosen coins: all of them minus the fee, to this one recipient.";
 
 export function renderSend(): HTMLElement {
   const wallet = session.wallet;
@@ -65,6 +68,13 @@ export function renderSend(): HTMLElement {
   const onScreen = screenGuard();
   const host = backendHost(cfg.backend);
   const networkName = NETWORK_LABELS[wallet.network].toLowerCase();
+  /**
+   * The coins ticked on the Wallet page when Send selected opened this, or
+   * null. The send spends exactly those, Max included, until Let the wallet
+   * choose drops them; leaving this screen drops them too.
+   */
+  let coins = takeChosenCoins();
+  const maxHintText = (): string => (coins ? MAX_HINT_CHOSEN : MAX_HINT);
 
   const alert = banner();
   const rows: RecipientRow[] = [];
@@ -221,7 +231,7 @@ export function renderSend(): HTMLElement {
     drain = null;
     for (const r of rows) {
       r.max.classList.remove("max-on");
-      r.maxHint.textContent = MAX_HINT;
+      r.maxHint.textContent = maxHintText();
     }
     syncRowChrome();
   };
@@ -258,7 +268,7 @@ export function renderSend(): HTMLElement {
       try {
         leaveDrain();
         const seq = drainSeq;
-        const preview = await api.buildDrain(address, currentRate());
+        const preview = await api.buildDrain(address, currentRate(), heldTo(coins));
         if (seq !== drainSeq || !onScreen()) {
           // The form moved under us, or the screen went away. Keeping this
           // would let Review broadcast to the previous address at the
@@ -313,7 +323,7 @@ export function renderSend(): HTMLElement {
     const amountError = el("span", { className: "field-error hidden" });
     const removeBtn = iconButton("x", "Remove recipient", () => removeRow(row));
     const maxBtn = button("Max", () => fillMax(row), "default", "sm");
-    const maxHint = el("span", { className: "hint", text: MAX_HINT });
+    const maxHint = el("span", { className: "hint", text: maxHintText() });
     const maxBox = el("div", { className: "amount-max" }, [maxBtn, maxHint]);
 
     const row: RecipientRow = {
@@ -430,12 +440,36 @@ export function renderSend(): HTMLElement {
     return out;
   };
 
+  // No board draws this: which coins pay, and the way back to letting the
+  // wallet choose them, in the small print the heading's own line uses.
+  const letChooseBtn = el("button", {
+    className: "link-button",
+    text: LET_WALLET_CHOOSE,
+    attrs: { type: "button" },
+    on: {
+      click: () => {
+        coins = null;
+        coinsLine?.remove();
+        // A Max built from the chosen coins spends those alone.
+        leaveDrain();
+        for (const r of rows) r.maxHint.textContent = MAX_HINT;
+      },
+    },
+  });
+  const coinsLine = coins
+    ? el("div", { className: "hint coins-line" }, [
+        el("span", { text: payingFrom(coins) }),
+        letChooseBtn,
+      ])
+    : null;
+
   const previewBox = el("section", { className: "card review-card hidden" });
   const formControls = (): (HTMLInputElement | HTMLButtonElement)[] => [
     ...rows.flatMap((r) => [r.address, r.amount, ...r.units, r.max, r.remove]),
     feeRate,
     ...targetInputs(),
     addBtn,
+    letChooseBtn,
     reviewBtn,
   ];
   const setFormLocked = (locked: boolean) => {
@@ -541,7 +575,7 @@ export function renderSend(): HTMLElement {
           cancelPendingDrain();
           const seq = drainSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
-          const p = drain ?? (await api.buildTransfer(recipients, rate));
+          const p = drain ?? (await api.buildTransfer(recipients, rate, heldTo(coins)));
           if (seq !== drainSeq || !onScreen()) {
             if (p !== drain) await api.discardTx(p.psbt_id);
             return;
@@ -578,6 +612,7 @@ export function renderSend(): HTMLElement {
       el("p", { className: "muted small", text: `From ${wallet.address}` }),
     ]),
     alert.node,
+    coinsLine,
     rowsBox,
     el("section", { className: "card" }, [
       sectionLabel("Fee"),

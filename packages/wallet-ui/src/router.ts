@@ -14,6 +14,7 @@ export const ROUTES = [
   "scan",
   "tx",
   "export",
+  "coins",
 ] as const;
 export type Route = (typeof ROUTES)[number];
 

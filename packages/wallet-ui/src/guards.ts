@@ -35,7 +35,13 @@ export const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>([
 ]);
 
 /** Destinations only the phone shell has; the desktop sends them to the wallet. */
-export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>(["receive", "scan", "tx", "export"]);
+export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
+  "receive",
+  "scan",
+  "tx",
+  "export",
+  "coins",
+]);
 
 /** Screens with nothing to show, configure or scan into without an open wallet. */
 const NEEDS_WALLET: Record<Shell, ReadonlySet<Route>> = {

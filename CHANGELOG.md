@@ -26,6 +26,11 @@ pull requests a change arrived in.
 - A payment stuck in the mempool can be sped up from its detail, with a transaction that
   pays for both, and an unconfirmed send of yours can be cancelled, paying everything back
   to your wallet. Each shows what it will cost before anything is signed. (#39)
+- Coins can be frozen, and chosen for a send. The desktop's Unspent outputs card has a tick
+  box and a Frozen switch for each coin, and the phone has a Coins screen, opened from
+  Settings. A frozen coin stays out of every send, of Max and of the spendable balance until
+  it is unfrozen. Send selected opens Send paying from the ticked coins alone, Max included,
+  until Let the wallet choose hands the choice back. (#39)
 
 ### Fixed
 

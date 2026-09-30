@@ -105,7 +105,7 @@ describe("guardRoute", () => {
   });
 
   it("opens the phone's own screens with a wallet, and a transaction only once one is picked", () => {
-    for (const route of ["receive", "scan", "settings", "export"] as const) {
+    for (const route of ["receive", "scan", "settings", "export", "coins"] as const) {
       expect(guardRoute(route, open, "phone"), route).toBe(route);
       expect(guardRoute(route, configured, "phone"), route).toBe("setup");
     }

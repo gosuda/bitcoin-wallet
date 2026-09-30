@@ -413,14 +413,18 @@ body {
   pointer-events: none;
 }
 
-.m-add-line {
+/* Add recipient, and a send held to chosen coins with its way back to letting
+   the wallet choose: a line of note and button, sized alike. */
+.m-add-line,
+.m-coins-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
 
-.m-add-line .m-btn {
+.m-add-line .m-btn,
+.m-coins-line .m-btn {
   flex: none;
   min-height: 40px;
   padding: 0 14px;
@@ -880,6 +884,143 @@ button.m-txrow:active {
 
 .m-centre-items > .m-row {
   align-self: stretch;
+}
+
+/* Coins (M13) ------------------------------------------------------------- */
+
+.m-coins {
+  gap: 0;
+  padding: var(--space-1) var(--space-4);
+}
+
+.m-coins-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 var(--space-1);
+}
+
+/* A coin runs the card's width inside its padding, as M13 draws it. */
+.m-coin {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.m-coin:last-child {
+  border-bottom: none;
+}
+
+.m-coin-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.m-coin-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.m-coin-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.m-coin-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.m-coin-unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.m-coin-age {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.m-coin-outpoint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.m-coin-freeze {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.m-coin-tag {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* A frozen coin is dimmed; "pending" keeps its colour, and the Frozen tag its own. */
+.m-coin-frozen .m-coin-value,
+.m-coin-frozen .m-coin-age,
+.m-coin-frozen .m-coin-outpoint {
+  color: var(--faint);
+}
+
+/* The tick at a thumb's size; a frozen coin shows a lock in its place. */
+.m-body .tick-box {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.m-coin-lock {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+}
+
+.m-body .switch {
+  width: 42px;
+  height: 24px;
+}
+
+.m-body .switch::after {
+  width: 20px;
+  height: 20px;
+}
+
+.m-body .switch[aria-checked="true"]::after {
+  left: 20px;
+}
+
+/* Drawn 24px tall, the switch still takes a thumb's 48px: its target reaches
+   past the track, into the row's padding. */
+.m-body .switch::before {
+  content: "";
+  position: absolute;
+  inset: -12px -3px;
+}
+
+.m-coins-hint {
+  padding: 0 var(--space-1);
 }
 
 /* Tab bar ----------------------------------------------------------------- */

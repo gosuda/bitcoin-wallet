@@ -961,9 +961,27 @@ items before it change no screen, so they land while that batch is reviewed.
       encrypted with a password (WebCrypto, AES-GCM) and kept in IndexedDB, a wrong password is
       its own error, and tests cover the round trip
 
-- [ ] **6.13 Coin control on screen** · M · both shells · after 6.3 and 6.6
-      why: 6.3 has no way to be used · done when: coins can be listed, frozen and chosen for a
-      send on the phone and the desktop; jsdom tests
+- [x] **6.13 Coin control on screen** · M · both shells · after 6.3 and 6.6
+      why: 6.3 has no way to be used · done: 2026-09-30 — the desktop's Unspent outputs card
+      gives each coin a tick box and a Frozen switch, as 3b draws them. Its head counts the
+      outputs, the frozen ones and the ticked ones with their sum, beside Send selected, which
+      shows only while a coin is ticked. The phone has Coins (M13), from a Settings row that
+      counts the coins and the frozen ones. The switch freezes or unfreezes the coin in the
+      core, then the coins and the balance are read again; a frozen coin is dimmed and cannot
+      be ticked. Send selected hands the ticked coins to Send through the session, and Send
+      takes them as it opens. It says "Paying from 2 chosen coins · 61,234 sat", builds and
+      drains with exactly those coins, and Let the wallet choose drops them; so does leaving
+      Send, sending, or closing the wallet. The desktop's Balance card shows a Frozen stat
+      while anything is frozen. 21 jsdom tests in `coins.test.ts` drive both shells over the
+      fake core: the list, freezing and unfreezing, ticking, a payment and Max with and
+      without the chosen coins, leaving Send, a watch-only wallet, and keyboard focus kept
+      through a redraw. Breaking the builds, the hand-over, its release with the wallet, the
+      tick or the redraw fails at least one of them. Tried on a signet coin of 29,290 sat in
+      the browser build and on the Android emulator: freezing it moved it to the desktop's
+      Frozen stat and the phone's "1 · 1 frozen", dimmed it and took its tick away, with focus
+      kept on the switch. Send selected opened Send "Paying from 1 chosen coin · 29,290 sat",
+      where Max came to 29,180 sat (a 110 sat fee) from that coin alone, and Let the wallet
+      choose took Max off and the line away
 
 - [x] **6.14 CPFP and cancel on screen** · M · both shells · after 6.4 and 6.6
       why: 6.4 has no way to be used · done: 2026-09-30 — on both shells, an unconfirmed

@@ -28,6 +28,17 @@ import {
 } from "../types";
 import { copyButton } from "../ui/clipboard";
 import {
+  coinKey,
+  coinsValue,
+  freezeSwitch,
+  redrawKeepingFocus,
+  sendFrom,
+  shortOutpoint,
+  tickBox,
+  tickInput,
+} from "../ui/coins";
+import {
+  append,
   banner,
   button,
   clear,
@@ -56,32 +67,68 @@ function shortTxid(txid: string): string {
   return `${txid.slice(0, 10)}…${txid.slice(-8)}`;
 }
 
-function utxoTable(utxos: Utxo[]): HTMLElement {
+/** Both ends of an address, which is how 3b fits it beside the columns coin control adds. */
+function shortAddress(address: string): string {
+  return `${address.slice(0, 16)}…${address.slice(-6)}`;
+}
+
+/**
+ * The Unspent outputs table (3b): a tick box chooses a coin for Send selected
+ * and a switch freezes it; a frozen row is dimmed and cannot be ticked.
+ * `ticked` is null for a watch-only wallet, which sends nothing and so has no
+ * tick boxes.
+ */
+function utxoTable(
+  utxos: readonly Utxo[],
+  ticked: ReadonlySet<string> | null,
+  onTick: (u: Utxo, on: boolean) => void,
+  onFreeze: (u: Utxo, frozen: boolean) => void,
+): HTMLElement {
   if (utxos.length === 0) {
     return el("p", { className: "empty", text: "No unspent outputs. Sync to refresh." });
   }
   const head = el("tr", {}, [
+    ticked ? el("th", { className: "coin-pick" }) : null,
     el("th", { text: "Outpoint" }),
     el("th", { text: "Address" }),
     el("th", { className: "num", text: "Value (sat)" }),
     el("th", { className: "num", text: "Conf." }),
+    el("th", { className: "num", text: "Frozen" }),
   ]);
   const body = el("tbody");
   for (const u of utxos) {
     const pending = u.confirmations === null;
     body.appendChild(
-      el("tr", {}, [
+      el("tr", { className: u.frozen ? "coin-frozen" : "" }, [
+        ticked
+          ? el("td", { className: "coin-pick" }, [
+              el("label", { className: "tick" }, [
+                tickInput(u, ticked.has(coinKey(u)), (on) => onTick(u, on)),
+                tickBox(12),
+              ]),
+            ])
+          : null,
         el("td", {
           className: "mono",
-          text: `${shortTxid(u.txid)}:${u.vout}`,
+          text: shortOutpoint(u),
           attrs: { title: `${u.txid}:${u.vout}` },
         }),
-        el("td", { className: "mono muted", text: u.address }),
+        el("td", {
+          className: "mono muted",
+          text: shortAddress(u.address),
+          attrs: { title: u.address },
+        }),
         el("td", { className: "num mono", text: formatNumber(u.value) }),
         el("td", {
           className: `num mono ${pending ? "muted" : ""}`.trim(),
           text: pending ? "pending" : String(u.confirmations),
         }),
+        el("td", { className: "num" }, [
+          el("span", { className: "coin-freeze" }, [
+            u.frozen ? el("span", { className: "coin-tag" }, [icon("lock", 12), "Frozen"]) : null,
+            freezeSwitch(u, (frozen) => onFreeze(u, frozen)),
+          ]),
+        ]),
       ]),
     );
   }
@@ -228,16 +275,74 @@ export function renderDashboard(): HTMLElement {
     heroTotal.textContent = formatNumber(total);
     heroBtc.textContent = formatBtc(total);
     clear(stats);
-    stats.append(
+    append(stats, [
       stat("Confirmed", formatSats(b.confirmed)),
       stat("Pending", formatSats(pendingSat(b)), "muted"),
-      b.immature > 0 ? stat("Immature", formatSats(b.immature), "muted") : el("span"),
-    );
+      b.immature > 0 ? stat("Immature", formatSats(b.immature), "muted") : null,
+      // Counted in the headline and in neither stat above, so it is said here.
+      b.frozen > 0 ? stat("Frozen", formatSats(b.frozen), "muted") : null,
+    ]);
+  };
+
+  // --- coins: ticked for Send selected, or frozen (3b) -----------------------
+  //
+  // The ticks are this page's own until Send selected hands them to Send. A
+  // redraw after a sync or a freeze keeps those still unspent and unfrozen.
+  let coins: Utxo[] = [];
+  const ticked: Set<string> | null = wallet.is_watch_only ? null : new Set();
+  const chosen = (): Utxo[] => coins.filter((u) => ticked?.has(coinKey(u)));
+  const sendSelectedBtn = button("Send selected", () => sendFrom(chosen()), "primary", "sm", {
+    name: "arrow",
+    trailing: true,
+  });
+  sendSelectedBtn.hidden = true;
+
+  const paintCoinCount = (): void => {
+    const frozen = coins.filter((u) => u.frozen).length;
+    const picked = chosen();
+    const parts = [`${formatNumber(coins.length)} output${coins.length === 1 ? "" : "s"}`];
+    if (frozen > 0) parts.push(`${formatNumber(frozen)} frozen`);
+    if (picked.length > 0) {
+      parts.push(`${formatNumber(picked.length)} selected, ${formatSats(coinsValue(picked))}`);
+    }
+    utxoCount.textContent = parts.join(" · ");
+    // With none ticked, a send chooses its coins on its own, as it always has.
+    sendSelectedBtn.hidden = picked.length === 0;
+  };
+
+  const tick = (u: Utxo, on: boolean): void => {
+    if (on) ticked?.add(coinKey(u));
+    else ticked?.delete(coinKey(u));
+    paintCoinCount();
+  };
+
+  const freeze = async (u: Utxo, frozen: boolean): Promise<void> => {
+    alert.hide();
+    try {
+      await api.setFrozen({ txid: u.txid, vout: u.vout }, frozen);
+      if (!onScreen()) return;
+      // The coin's value moves between Frozen and the stat it was counted in.
+      const [balance, utxos] = await Promise.all([api.getBalance(), api.listUtxos()]);
+      if (!onScreen()) return;
+      renderBalance(balance);
+      renderUtxos(utxos);
+    } catch (e) {
+      if (onScreen()) alert.show("error", errorMessage(e));
+    }
   };
 
   const renderUtxos = (utxos: Utxo[]) => {
-    utxoCount.textContent = `${utxos.length} output${utxos.length === 1 ? "" : "s"}`;
-    utxoBox.replaceChildren(utxoTable(utxos));
+    coins = utxos;
+    if (ticked) {
+      // A coin spent or frozen since it was ticked is not one to send from.
+      const open = new Set(utxos.filter((u) => !u.frozen).map(coinKey));
+      for (const key of ticked) if (!open.has(key)) ticked.delete(key);
+    }
+    redrawKeepingFocus(
+      utxoBox,
+      utxoTable(utxos, ticked, tick, (u, frozen) => void freeze(u, frozen)),
+    );
+    paintCoinCount();
   };
 
   // --- one transaction open at a time, in a row of its own under its tx -----
@@ -872,8 +977,15 @@ export function renderDashboard(): HTMLElement {
       ]),
     ]),
     el("section", { className: "card" }, [
-      el("div", { className: "card-head" }, [sectionLabel("Unspent outputs"), utxoCount]),
+      el("div", { className: "card-head" }, [
+        sectionLabel("Unspent outputs"),
+        el("div", { className: "card-head-end" }, [utxoCount, ticked ? sendSelectedBtn : null]),
+      ]),
       utxoBox,
+      el("p", {
+        className: "hint",
+        text: "A frozen output stays out of every send, of Max and of the spendable balance until it is unfrozen.",
+      }),
     ]),
     el("section", { className: "card" }, [
       el("div", { className: "card-head" }, [sectionLabel("Transactions"), txCount]),

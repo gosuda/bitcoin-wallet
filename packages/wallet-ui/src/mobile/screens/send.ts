@@ -18,6 +18,7 @@ import {
   rateForTarget,
   type TxPreview,
 } from "../../types";
+import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
 import { icon } from "../../ui/icons";
 import {
@@ -101,6 +102,12 @@ export function renderSend(): HTMLElement {
   const taken = prefill;
   prefill = {};
   const scanQr = platform().scanQr;
+  /**
+   * The coins ticked on Coins when Send selected opened this, or null. The
+   * send spends exactly those, Max included, until Let the wallet choose
+   * drops them; leaving this screen drops them too.
+   */
+  let coins = takeChosenCoins();
 
   // --- recipients -----------------------------------------------------------
   //
@@ -184,7 +191,7 @@ export function renderSend(): HTMLElement {
       clearPreview();
       leaveDrain();
       const seq = drainSeq;
-      const preview = await api.buildDrain(to, rate);
+      const preview = await api.buildDrain(to, rate, heldTo(coins));
       if (seq !== drainSeq) {
         void api.discardTx(preview.psbt_id);
         return;
@@ -338,6 +345,20 @@ export function renderSend(): HTMLElement {
     leaveDrain();
     refresh();
   };
+
+  // No board draws this: which coins pay, and the way back to letting the
+  // wallet choose them, laid out as the Add recipient line is.
+  const coinsLine = coins
+    ? el("div", { className: "m-coins-line" }, [
+        el("span", { className: "m-txmeta", text: payingFrom(coins) }),
+        button(LET_WALLET_CHOOSE, () => {
+          coins = null;
+          coinsLine?.remove();
+          // What Review or Max built was held to those coins.
+          edited();
+        }),
+      ])
+    : null;
 
   const newRow = (from: Prefill): RecipientRow => {
     const address = textInput({
@@ -584,7 +605,7 @@ export function renderSend(): HTMLElement {
         try {
           const seq = formSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
-          const preview = drain ?? (await api.buildTransfer(to, rate));
+          const preview = drain ?? (await api.buildTransfer(to, rate, heldTo(coins)));
           if (seq !== formSeq || !onScreen()) {
             // The form changed or the screen went away while this was building.
             // Showing it would offer the previous recipients and amounts;
@@ -660,6 +681,7 @@ export function renderSend(): HTMLElement {
   const scanHead = header("Scan");
   const form = body(
     alert.node,
+    coinsLine,
     recipientsBox,
     addLine,
     card(sectionLabel("Fee"), fee.node, customRow, rateErr, rateNote),

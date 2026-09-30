@@ -15,6 +15,7 @@ import { session } from "../session";
 import { clear, el } from "../ui/dom";
 import { type IconName, icon } from "../ui/icons";
 import "../ui/mobile.css";
+import { renderCoins } from "./screens/coins";
 import { renderCreate } from "./screens/create";
 import { renderExport } from "./screens/export";
 import { renderKey } from "./screens/key";
@@ -43,6 +44,7 @@ const SCREENS: Record<Route, () => HTMLElement> = {
   settings: renderSettings,
   tx: renderTransaction,
   export: renderExport,
+  coins: renderCoins,
 };
 
 /** Routes that are places rather than steps, and so carry the tab bar. */
