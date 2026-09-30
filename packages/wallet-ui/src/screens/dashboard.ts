@@ -62,7 +62,14 @@ import {
   shortOutpoint,
 } from "../ui/format";
 import { icon } from "../ui/icons";
-import { explorerFailed, FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, whoseInputs } from "../ui/text";
+import {
+  explorerFailed,
+  FROZEN_HINT,
+  NO_COINS,
+  RECEIVE_QR_NOTE,
+  SENT_TITLE,
+  whoseInputs,
+} from "../ui/text";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
@@ -413,11 +420,7 @@ export function renderDashboard(): HTMLElement {
    * the user may have opened a different transaction's detail on this same
    * dashboard while the broadcast was in flight.
    */
-  const broadcastDone = (
-    result: BroadcastResult,
-    ownerDetail: HTMLTableRowElement,
-    what: string,
-  ): void => {
+  const broadcastDone = (result: BroadcastResult, ownerDetail: HTMLTableRowElement): void => {
     if (!sameWallet()) return;
     session.lastResult = result;
     if (!onScreen()) return;
@@ -428,8 +431,9 @@ export function renderDashboard(): HTMLElement {
       // The row that started it is no longer the open detail, and
       // closeDetail/navigate would steal a screen the user has since moved on
       // from. Confirm it landed some other way, or a silent success invites a
-      // retry that does it twice.
-      alert.show("ok", `${what} broadcast: ${shortId(result.txid)}.`);
+      // retry that does it twice. In the Sent screen's words: the id says
+      // which it was.
+      alert.show("ok", `${SENT_TITLE}: ${shortId(result.txid)}.`);
     }
   };
 
@@ -457,7 +461,7 @@ export function renderDashboard(): HTMLElement {
           }
           try {
             const preview = await api.buildFeeBump(txid, value);
-            broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail, "Fee bump");
+            broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail);
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
             // node's own wording is the most useful thing to show.
@@ -501,7 +505,7 @@ export function renderDashboard(): HTMLElement {
       }
       alert.hide();
       try {
-        broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail, "Cancellation");
+        broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail);
       } catch (e) {
         if (!onScreen() || open?.detail !== ownerDetail) return;
         // Signing used the preview up whether or not it went out, so the card
@@ -591,7 +595,7 @@ export function renderDashboard(): HTMLElement {
       }
       alert.hide();
       try {
-        broadcastDone(await api.signAndBroadcast(built.psbt_id), ownerDetail, "Speed-up");
+        broadcastDone(await api.signAndBroadcast(built.psbt_id), ownerDetail);
       } catch (e) {
         if (!onScreen() || open?.detail !== ownerDetail) return;
         alert.show("error", errorMessage(e));
