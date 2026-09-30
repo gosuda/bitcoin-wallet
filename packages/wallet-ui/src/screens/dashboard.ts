@@ -53,7 +53,7 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
-import { feeLine, formatRate, shortId, shortOutpoint } from "../ui/format";
+import { feeLine, formatRate, formatTime, formatWhen, shortId, shortOutpoint } from "../ui/format";
 import { icon } from "../ui/icons";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
@@ -111,8 +111,8 @@ function utxoTable(
         }),
         el("td", { className: "num mono", text: formatNumber(u.value) }),
         el("td", {
-          className: `num mono ${pending ? "muted" : ""}`.trim(),
-          text: pending ? "pending" : String(u.confirmations),
+          className: `num mono ${pending ? "pending" : ""}`.trim(),
+          text: u.confirmations === null ? "Pending" : formatNumber(u.confirmations),
         }),
         el("td", { className: "num" }, [
           el("span", { className: "coin-freeze" }, [
@@ -128,23 +128,6 @@ function utxoTable(
 
 /** How often the dashboard re-syncs while it is on screen and visible. */
 const AUTO_SYNC_MS = 60_000;
-
-const MINUTE = 60;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
-
-/** Relative within a day ("2 min ago", "3 h ago"), a short local date before that. */
-function formatWhen(timestamp: number | null): string {
-  if (timestamp === null) return "—";
-  const age = Math.max(0, Math.floor(Date.now() / 1000) - timestamp);
-  if (age < MINUTE) return "just now";
-  if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`;
-  if (age < DAY) return `${Math.floor(age / HOUR)} h ago`;
-  return new Date(timestamp * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 /** What a row says about an output: ours is change on a send, a receipt otherwise. */
 function outputLabel(d: TxDetail, o: TxOutput): string {
@@ -224,10 +207,13 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
         text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
       }),
       el("td", {
-        className: `num mono ${pending ? "muted" : ""}`.trim(),
-        text: pending ? "pending" : String(tx.confirmations),
+        className: `num mono ${pending ? "pending" : ""}`.trim(),
+        text: tx.confirmations === null ? "Pending" : formatNumber(tx.confirmations),
       }),
-      el("td", { className: "num muted", text: formatWhen(tx.timestamp) }),
+      el("td", {
+        className: "num muted",
+        text: tx.timestamp === null ? "—" : formatWhen(tx.timestamp),
+      }),
       el("td", { className: "num tx-actions" }, [chevron]),
     );
     row.addEventListener("click", () => onOpen(tx, row, chevron));
@@ -269,7 +255,8 @@ export function renderDashboard(): HTMLElement {
     clear(stats);
     append(stats, [
       stat("Confirmed", formatSats(b.confirmed)),
-      stat("Pending", formatSats(pendingSat(b)), "muted"),
+      // In the pending colour while anything is, as the phone says it.
+      stat("Pending", formatSats(pendingSat(b)), pendingSat(b) > 0 ? "pending" : "muted"),
       b.immature > 0 ? stat("Immature", formatSats(b.immature), "muted") : null,
       // Counted in the headline and in neither stat above, so it is said here.
       b.frozen > 0 ? stat("Frozen", formatSats(b.frozen), "muted") : null,
@@ -753,7 +740,7 @@ export function renderDashboard(): HTMLElement {
 
   const renderSynced = () => {
     const at = session.lastSyncedAt;
-    const base = at ? `Last synced ${at.toLocaleTimeString()}` : "Not synced yet";
+    const base = at ? `Synced ${formatTime(at)}` : "Not synced yet";
     syncedLabel.textContent = autoSyncFailed ? `${base} · retrying` : base;
   };
 

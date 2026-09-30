@@ -354,7 +354,7 @@ describe("Coins on the phone (M13)", () => {
     expect(texts(screen, ".m-coin-age, .m-coin .m-pending")).toEqual([
       "142 conf.",
       "31 conf.",
-      "pending",
+      "Pending",
     ]);
     expect(texts(screen, ".m-coin-outpoint")).toEqual([
       "a41e9c2f7b…3d08e1f2:0",

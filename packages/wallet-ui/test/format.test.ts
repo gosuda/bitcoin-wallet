@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   feeLine,
+  formatConf,
+  formatConfirmations,
+  formatDateTime,
   formatRate,
+  formatTime,
   formatVsize,
+  formatWhen,
   outputRole,
   shortId,
   shortOutpoint,
@@ -98,5 +103,45 @@ describe("rates, sizes and fees", () => {
   it("leaves out what is not known", () => {
     expect(feeLine(null, 141)).toBe("141 vB");
     expect(feeLine(221, null)).toBe("221 sat");
+  });
+});
+
+describe("pending, confirmations and time", () => {
+  // Pending is the core reporting no count; both shells say it one way.
+  it("says where a transaction stands", () => {
+    expect(formatConfirmations(null)).toBe("Pending");
+    expect(formatConfirmations(1)).toBe("1 confirmation");
+    expect(formatConfirmations(1_234)).toBe(`${(1_234).toLocaleString()} confirmations`);
+    expect(formatConf(null)).toBe("Pending");
+    expect(formatConf(31)).toBe("31 conf.");
+  });
+
+  const now = new Date(2026, 8, 30, 14, 32, 10);
+  const secondsAgo = (s: number) => Math.floor(now.getTime() / 1000) - s;
+
+  it("says a recent time relatively, then the time today, then the date", () => {
+    expect(formatWhen(secondsAgo(30), now)).toBe("just now");
+    expect(formatWhen(secondsAgo(12 * 60), now)).toBe("12 min ago");
+    const earlier = new Date(2026, 8, 30, 9, 5);
+    expect(formatWhen(earlier.getTime() / 1000, now)).toBe(`Today ${formatTime(earlier)}`);
+    const before = new Date(2026, 7, 27, 18, 0);
+    expect(formatWhen(before.getTime() / 1000, now)).toBe(
+      before.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    );
+  });
+
+  it("names the year only when it is not this one", () => {
+    const lastYear = new Date(2025, 11, 31, 12, 0);
+    expect(formatWhen(lastYear.getTime() / 1000, now)).toContain("2025");
+    const thisYear = new Date(2026, 0, 2, 12, 0);
+    expect(formatWhen(thisYear.getTime() / 1000, now)).not.toContain("2026");
+  });
+
+  it("writes a clock time without seconds, and a transaction's date with its time", () => {
+    const at = new Date(2026, 8, 30, 14, 32, 59);
+    expect(formatTime(at)).not.toContain("59");
+    // On the 24-hour clock whatever the device, so no "PM" or "오후" joins "Today".
+    expect(formatTime(at)).toBe("14:32");
+    expect(formatDateTime(at.getTime() / 1000)).toContain(formatTime(at).slice(0, 2));
   });
 });

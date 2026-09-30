@@ -99,3 +99,63 @@ export function feeLine(
     .filter((part) => part !== null)
     .join(" · ");
 }
+
+/**
+ * Where a transaction stands, for a list or a detail: "Pending" until it is
+ * in a block, then "1 confirmation", "12 confirmations". Pending means the
+ * core reports no count; a count is never 0.
+ */
+export function formatConfirmations(confirmations: number | null): string {
+  if (confirmations === null) return "Pending";
+  return confirmations === 1 ? "1 confirmation" : `${formatNumber(confirmations)} confirmations`;
+}
+
+/** The same where a row is tight, as a coin's is: "Pending", "12 conf.". */
+export function formatConf(confirmations: number | null): string {
+  return confirmations === null ? "Pending" : `${formatNumber(confirmations)} conf.`;
+}
+
+const MINUTE = 60;
+const HOUR = 60 * MINUTE;
+
+/**
+ * A clock time, "14:02": the 24-hour clock the boards use, with no seconds.
+ * A 12-hour time comes out in the device's words ("오후 2:02" on a Korean
+ * device), which beside the app's English "Today" reads as two languages.
+ */
+export function formatTime(date: Date): string {
+  return date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}
+
+/**
+ * When something happened, for a list: "just now", "12 min ago", then
+ * "Today 14:02", then a date, "Aug 27", with the year only when it is not
+ * this one. `timestamp` is in seconds, as the core reports it.
+ */
+export function formatWhen(timestamp: number, now: Date = new Date()): string {
+  const date = new Date(timestamp * 1000);
+  const age = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
+  if (age < MINUTE) return "just now";
+  if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`;
+  if (date.toDateString() === now.toDateString()) return `Today ${formatTime(date)}`;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+}
+
+/** When a transaction happened, in its detail: "Aug 27, 14:02", on the same clock as `formatTime`. */
+export function formatDateTime(timestamp: number): string {
+  return new Date(timestamp * 1000).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}

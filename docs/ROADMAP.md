@@ -1122,9 +1122,22 @@ clearer or safer variant was taken.
       `display.test.ts` the phone's rate note and history units; the Send, PSBT and amount
       tests hold the new text
 
-- [ ] **7.5 One way to say pending, confirmations and time** · M · both shells
-      why: pending was grey on one shell and amber on the other, one screen took 0 confirmations
-      for pending, and three helpers formatted dates · done when: one helper each, and tests
+- [x] **7.5 One way to say pending, confirmations and time** · M · both shells
+      why: pending was grey on one shell and amber on the other, one screen took 0
+      confirmations for pending, and three helpers formatted dates · done: 2026-09-30 —
+      `ui/format.ts` gains `formatConfirmations` ("Pending", "1 confirmation", "12
+      confirmations"), `formatConf` for a tight row ("31 conf."), `formatTime` on the 24-hour
+      clock the boards use, without seconds, so no "오후" or "PM" lands beside the app's "Today",
+      `formatWhen` ("just now", "12 min ago", "Today 14:02", then "Aug 27", the year only when
+      it is not this one) and `formatDateTime` for a transaction's detail. Both history lists
+      use `formatWhen`, so the phone shows relative times as the desktop did, and the desktop's
+      "3 h ago" becomes "Today 11:32"; both shells say "Synced 14:32", where the desktop said
+      "Last synced" and both showed seconds. Pending means no count from the core: the phone's
+      list no longer takes 0 for pending. The desktop says "Pending" in the pending colour in
+      both its tables and its Pending stat, as the phone does, and counts confirmations
+      grouped; its local `formatWhen`, and the phone's `whenLabel`, `dateLabel` and `when`, are
+      gone. `format.test.ts` pins the words and times against a fixed now; `display.test.ts`
+      renders both shells for Pending and for the sync time
 
 - [ ] **7.6 One word for each action** · M · both shells
       why: "Confirm & broadcast" and "Confirm and send", "Edit" and "Cancel", "Use a different

@@ -17,7 +17,13 @@ import {
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
-import { feeLine, formatRate, formatSats } from "../../ui/format";
+import {
+  feeLine,
+  formatConfirmations,
+  formatDateTime,
+  formatRate,
+  formatSats,
+} from "../../ui/format";
 import { icon } from "../../ui/icons";
 import {
   body,
@@ -57,16 +63,6 @@ export function currentTxid(): string | null {
 type Offer = "replace" | "child" | "none";
 
 type SpeedChoice = `${FeeTarget}` | "custom";
-
-function when(timestamp: number | null): string {
-  if (timestamp === null) return "";
-  return new Date(timestamp * 1000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export function renderTransaction(): HTMLElement {
   const onScreen = screenGuard();
@@ -151,9 +147,9 @@ export function renderTransaction(): HTMLElement {
     const status = el("span", { className: pending ? "pill m-pill-pending" : "pill" }, [
       el("span", { className: "pill-dot" }),
       pending
-        ? `Pending${d.timestamp === null ? "" : ` · seen ${when(d.timestamp)}`}`
-        : `${formatNumber(d.confirmations ?? 0)} confirmation${d.confirmations === 1 ? "" : "s"}${
-            d.timestamp === null ? "" : ` · ${when(d.timestamp)}`
+        ? `Pending${d.timestamp === null ? "" : ` · seen ${formatDateTime(d.timestamp)}`}`
+        : `${formatConfirmations(d.confirmations)}${
+            d.timestamp === null ? "" : ` · ${formatDateTime(d.timestamp)}`
           }`,
     ]);
     const hero = card(

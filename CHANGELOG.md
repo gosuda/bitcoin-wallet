@@ -52,6 +52,9 @@ pull requests a change arrived in.
   with one decimal, and a fee as "141 sat · 1.0 sat/vB · 141 vB". The phone's Send names
   the rate it will pay, which on a quiet network used to read below the 1 sat/vB it pays.
   (#40)
+- Both shells say "Pending" alike and in the same colour, count confirmations alike, and
+  write times alike: "12 min ago", "Today 14:02", then the date. Syncing reads "Synced
+  14:32" on both. (#40)
 
 ### Fixed
 

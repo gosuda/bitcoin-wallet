@@ -18,7 +18,7 @@ import { renderDashboard } from "../src/screens/dashboard";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
 import type { RememberedWallet, TxDetail } from "../src/types";
-import { shortId } from "../src/ui/format";
+import { formatTime, shortId } from "../src/ui/format";
 import { fake } from "./fakes";
 import { at, mount, settle, useScreenHarness } from "./harness";
 
@@ -137,5 +137,46 @@ describe("amounts and rates (7.4)", () => {
     await settle();
 
     expect(texts(screen, ".m-amt")).toEqual([`−${(40_153).toLocaleString()} sat`]);
+  });
+});
+
+describe("pending, confirmations and time (7.5)", () => {
+  const pending = {
+    txid: SENT,
+    net_sat: -40_153,
+    sent_sat: 49_580,
+    received_sat: 9_427,
+    fee_sat: 153,
+    confirmations: null,
+    timestamp: null,
+  };
+
+  it("says Pending on both shells, the desktop's in the pending colour", async () => {
+    fake.state.transactions = [pending];
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("dashboard");
+    const desktop = mount(renderDashboard());
+    await settle();
+    const cell = [...desktop.querySelectorAll<HTMLElement>("td")].find(
+      (td) => td.textContent === "Pending",
+    );
+    expect(cell?.classList.contains("pending")).toBe(true);
+
+    const phone = mount(renderPhoneWallet());
+    await settle();
+    expect(texts(phone, ".m-txmeta").join(" ")).toContain("Pending");
+  });
+
+  it("says when it last synced the same way on both shells", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const at14 = new Date(2026, 8, 30, 14, 32, 7);
+    session.lastSyncedAt = at14;
+    at("dashboard");
+    const desktop = mount(renderDashboard());
+    const phone = mount(renderPhoneWallet());
+    const said = `Synced ${formatTime(at14)}`;
+
+    expect(desktop.textContent).toContain(said);
+    expect(phone.textContent).toContain(said);
   });
 });

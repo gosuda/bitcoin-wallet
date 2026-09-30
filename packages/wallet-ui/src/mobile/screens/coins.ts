@@ -13,7 +13,7 @@ import {
   tickInput,
 } from "../../ui/coins";
 import { banner, el, formatNumber, formatSats, sectionLabel } from "../../ui/dom";
-import { shortOutpoint } from "../../ui/format";
+import { formatConf, shortOutpoint } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { body, button, card, header, lede, listCard, spacer } from "../ui";
 
@@ -35,8 +35,8 @@ function coinRow(
         el("span", { className: "m-coin-unit", text: "sat" }),
       ]),
       u.confirmations === null
-        ? el("span", { className: "m-pending", text: "pending" })
-        : el("span", { className: "m-coin-age", text: `${formatNumber(u.confirmations)} conf.` }),
+        ? el("span", { className: "m-pending", text: formatConf(u.confirmations) })
+        : el("span", { className: "m-coin-age", text: formatConf(u.confirmations) }),
     ]),
     el("span", { className: "m-coin-outpoint", text: shortOutpoint(u) }),
   ]);

@@ -5,27 +5,12 @@ import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
-import { formatSats } from "../../ui/format";
+import { formatConfirmations, formatSats, formatTime, formatWhen } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { body, button, card, header, listCard, row } from "../ui";
 import { showTransaction } from "./tx";
 
 const AUTO_SYNC_MS = 60_000;
-
-function whenLabel(tx: TxSummary): string {
-  if (tx.confirmations === null || tx.confirmations === 0) return "Pending";
-  return tx.confirmations === 1
-    ? "1 confirmation"
-    : `${formatNumber(tx.confirmations)} confirmations`;
-}
-
-function dateLabel(tx: TxSummary): string {
-  if (tx.timestamp === null) return "";
-  return new Date(tx.timestamp * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 /** One history row: a button, because it opens the transaction. */
 function txRow(tx: TxSummary): HTMLElement {
@@ -34,7 +19,12 @@ function txRow(tx: TxSummary): HTMLElement {
   const dot = el("span", { className: "m-dirdot" }, [glyph]);
   dot.classList.add(incoming ? "m-tx-in" : "m-tx-out");
 
-  const meta = [whenLabel(tx), dateLabel(tx)].filter(Boolean).join(" · ");
+  const meta = [
+    formatConfirmations(tx.confirmations),
+    tx.timestamp === null ? "" : formatWhen(tx.timestamp),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const amount = el("span", {
     className: "m-amt",
     text: `${incoming ? "+" : "−"}${formatSats(Math.abs(tx.net_sat))}`,
@@ -75,7 +65,7 @@ export function renderWallet(): HTMLElement {
   const pending = el("span", { className: "m-pending" });
   // The screen is rebuilt on every visit; the last sync is a session fact.
   const syncedText = () =>
-    session.lastSyncedAt ? `Synced ${session.lastSyncedAt.toLocaleTimeString()}` : "Not synced yet";
+    session.lastSyncedAt ? `Synced ${formatTime(session.lastSyncedAt)}` : "Not synced yet";
   const synced = el("span", { text: syncedText() });
 
   const paint = (balance: Balance): void => {
