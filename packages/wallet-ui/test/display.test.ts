@@ -38,7 +38,7 @@ import {
   SENT_TITLE,
 } from "../src/ui/text";
 import { fake } from "./fakes";
-import { at, buttonNamed, mount, settle, useScreenHarness } from "./harness";
+import { at, buttonNamed, find, mount, settle, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -159,6 +159,18 @@ describe("amounts and rates (7.4)", () => {
     await settle();
 
     expect(texts(screen, ".m-txmeta")).toContain("1.0 sat/vB");
+  });
+
+  // Found in review: the "—" was painted over with zeros as the page was built.
+  it("shows no desktop balance until one is read", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("dashboard");
+    const screen = mount(renderDashboard());
+
+    expect(find(screen, ".stat-hero").textContent).toBe("—");
+    expect(texts(screen, ".stat-value")).toEqual(["—", "—"]);
+    await settle();
+    expect(find(screen, ".stat-hero").textContent).not.toBe("—");
   });
 
   it("writes the phone's history amounts with their unit", async () => {

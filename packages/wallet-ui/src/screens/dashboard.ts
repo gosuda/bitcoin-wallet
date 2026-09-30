@@ -248,11 +248,18 @@ export function renderDashboard(): HTMLElement {
   const txCount = el("span", { className: "hint", text: "" });
   const syncedLabel = el("span", { className: "hint", text: "Not synced yet" });
 
-  const renderBalance = (b: Balance) => {
+  /** `null` until a balance is read: nothing is shown as 0 before it is known. */
+  const renderBalance = (b: Balance | null) => {
+    clear(stats);
+    if (b === null) {
+      heroTotal.textContent = "—";
+      heroBtc.textContent = "";
+      append(stats, [stat("Confirmed", "—", "muted"), stat("Pending", "—", "muted")]);
+      return;
+    }
     const total = headlineSat(b);
     heroTotal.textContent = formatNumber(total);
     heroBtc.textContent = formatBtc(total);
-    clear(stats);
     append(stats, [
       stat("Confirmed", formatSats(b.confirmed)),
       // In the pending colour while anything is, as the phone says it.
@@ -889,7 +896,7 @@ export function renderDashboard(): HTMLElement {
     addressActions.appendChild(newAddressBtn);
   }
 
-  renderBalance({ confirmed: 0, trusted_pending: 0, untrusted_pending: 0, immature: 0, frozen: 0 });
+  renderBalance(null);
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
   txBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
