@@ -1164,7 +1164,7 @@ munlock_reset = phone(f"""<div class="m-body" style="justify-content:center;alig
     <span class="m-btn" style="flex:none;">Reset this device's history</span>
   </div>
   <div class="m-card" style="width:100%;box-sizing:border-box;border-color:#C2410C;gap:10px;">
-    <span style="font-size:15px;line-height:1.5;color:#6B6B66;">The key stays on this device. Only the transaction history saved here is deleted; it is downloaded again on the next sync.</span>
+    <span style="font-size:15px;line-height:1.5;color:#6B6B66;">The key stays on this device. The history saved here is deleted and downloaded again on the next sync, and any coin you froze is unfrozen.</span>
     <span class="m-btn m-btn-primary" style="flex:none;">Reset history</span>
     <span class="m-btn m-btn-quiet" style="flex:none;">Keep it</span>
   </div>

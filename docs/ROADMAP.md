@@ -1086,9 +1086,13 @@ clearer or safer variant was taken.
       and a send held to chosen coins; the error table, a message test and the copy test pin
       the details and the words
 
-- [ ] **7.2 The history reset says frozen coins go with it** · S · `ui/reset.ts`, `gen.py`
+- [x] **7.2 The history reset says frozen coins go with it** · S · `ui/reset.ts`, `gen.py`
       why: the reset also unfreezes every coin, and its words said only history was deleted ·
-      done when: both shells say so, and the reset tests hold the new words
+      done: 2026-09-30 — the reset's second step now reads "The key stays on this device. The
+      history saved here is deleted and downloaded again on the next sync, and any coin you
+      froze is unfrozen." on both shells, since which coins are frozen is saved in the same
+      record and cannot be read back from a broken one. The reset tests hold the new words on
+      all ten ways in, and the canvas generator carries them for the next republish
 
 - [ ] **7.3 One format for ids and addresses** · M · new `ui/format.ts`, both shells
       why: four ways to shorten an address, and the phone shortened the payee the desktop shows

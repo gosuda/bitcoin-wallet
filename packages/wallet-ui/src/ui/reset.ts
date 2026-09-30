@@ -1,9 +1,10 @@
 /**
  * What a screen offers when a wallet's saved history on this device cannot be
  * read (`historyResetFixes`): the error, and a reset of that history in two
- * steps, as Forget has. Only that history is deleted; the key and the
- * settings stay. Both shells use the canvas's words below, and the phone
- * draws them with its own `historyReset` in `mobile/ui.ts`.
+ * steps, as Forget has. That history is deleted, and with it which coins are
+ * frozen, since freezing is saved in the same record; the key and the
+ * settings stay. Both shells use the words below, and the phone draws them
+ * with its own `historyReset` in `mobile/ui.ts`.
  */
 
 import { errorMessage, historyResetFixes } from "../types";
@@ -12,7 +13,7 @@ import { icon } from "./icons";
 
 export const RESET_TRIGGER = "Reset this device's history";
 export const RESET_TEXT =
-  "The key stays on this device. Only the transaction history saved here is deleted; it is downloaded again on the next sync.";
+  "The key stays on this device. The history saved here is deleted and downloaded again on the next sync, and any coin you froze is unfrozen.";
 export const RESET_CONFIRM = "Reset history";
 
 export interface HistoryReset {
