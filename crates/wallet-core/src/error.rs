@@ -34,12 +34,13 @@ pub enum Error {
     /// along so a UI can say by how much, not only that it failed.
     ///
     /// `frozen_sat` is what the coins frozen with `set_frozen` hold, which a
-    /// send the wallet chose coins for left out: without it, "need 11 more"
-    /// reads as a wallet with nothing in it. `all_frozen` says no other coin
-    /// was left: a coin too small to pay for its own input leaves nothing
-    /// available too, so `available_sat` of 0 does not say it. They are 0
-    /// and false for a send held to chosen coins, which names its coins
-    /// itself.
+    /// build that chose its own coins left out: without it, "need 11 more"
+    /// reads as a wallet with nothing in it. A fee bump adds confirmed coins
+    /// only, so only confirmed frozen coins count for one. `all_frozen` says
+    /// no other coin was left: a coin too small to pay for its own input
+    /// leaves nothing available too, so `available_sat` of 0 does not say it.
+    /// They are 0 and false for a send held to chosen coins, which names its
+    /// coins itself.
     #[error("insufficient funds: need {needed_sat} sat, have {available_sat} sat{}", frozen_note(*frozen_sat))]
     InsufficientFunds {
         needed_sat: u64,
@@ -168,7 +169,7 @@ impl Error {
         }
     }
 
-    /// For a send the wallet chose coins for: what the frozen coins it left
+    /// For a build that chose its own coins: what the frozen coins it left
     /// out hold, and whether they were all it had. Every other error passes
     /// through as it is.
     pub(crate) fn with_frozen(self, frozen_sat: u64, all_frozen: bool) -> Self {

@@ -21,7 +21,7 @@ use bdk_wallet::error::CreateTxError;
 use bdk_wallet::keys::{DescriptorPublicKey, KeyMap};
 use bdk_wallet::miniscript::ForEachKey;
 use bdk_wallet::signer::SignersContainer;
-use bdk_wallet::{KeychainKind, SignOptions, Wallet};
+use bdk_wallet::{KeychainKind, LocalOutput, SignOptions, Wallet};
 use serde::{Deserialize, Serialize};
 use web_time::{SystemTime, UNIX_EPOCH};
 
@@ -324,6 +324,19 @@ enum Paid<'a> {
     /// Outputs we did not choose — a fee bump rebuilds the original's — where
     /// "anything of ours is change" is the best reading available.
     Rebuilt,
+}
+
+/// Which of this wallet's coins a build may add on its own, besides any it
+/// must spend: what a shortfall's frozen coins are counted among.
+#[derive(Clone, Copy)]
+enum Draw {
+    /// None: a send held to chosen coins spends exactly those.
+    Chosen,
+    /// Any unspent coin, confirmed or not: a payment or Max.
+    Any,
+    /// Confirmed coins only: BDK adds no other to a fee bump, as BIP125 lets
+    /// a replacement add no unconfirmed input.
+    Confirmed,
 }
 
 /// How a script is shown to someone reading a transaction.
@@ -863,19 +876,28 @@ impl WalletHandle {
             .sum()
     }
 
-    /// A build's result, with a shortfall told what frozen coins hold, and
-    /// whether every coin is frozen, when the wallet chose the coins
-    /// (`automatic`). A send held to chosen coins names its coins itself, so
-    /// frozen ones were never its to use.
-    fn short_of_frozen<T>(built: Result<T>, wallet: &Wallet, automatic: bool) -> Result<T> {
+    /// A build's result, with a shortfall told what the frozen coins it could
+    /// otherwise have drawn on hold, and whether every such coin is frozen.
+    /// A send held to chosen coins names its coins itself, so frozen ones
+    /// were never its to use.
+    fn short_of_frozen<T>(built: Result<T>, wallet: &Wallet, draw: Draw) -> Result<T> {
         built.map_err(|e| {
-            if !automatic {
-                return e;
-            }
-            let coins: Vec<_> = wallet.list_unspent().collect();
-            let all_frozen =
-                !coins.is_empty() && coins.iter().all(|o| wallet.is_outpoint_locked(o.outpoint));
-            e.with_frozen(Self::frozen_total(wallet), all_frozen)
+            let coins: Vec<_> = match draw {
+                Draw::Chosen => return e,
+                Draw::Any => wallet.list_unspent().collect(),
+                Draw::Confirmed => wallet
+                    .list_unspent()
+                    .filter(|o| o.chain_position.is_confirmed())
+                    .collect(),
+            };
+            let is_frozen = |o: &LocalOutput| wallet.is_outpoint_locked(o.outpoint);
+            let frozen_sat: u64 = coins
+                .iter()
+                .filter(|o| is_frozen(o))
+                .map(|o| o.txout.value.to_sat())
+                .sum();
+            let all_frozen = !coins.is_empty() && coins.iter().all(is_frozen);
+            e.with_frozen(frozen_sat, all_frozen)
         })
     }
 
@@ -1087,7 +1109,12 @@ impl WalletHandle {
                 // not of a default that could change upstream.
                 .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
             let built = builder.finish().map_err(build_error);
-            Self::short_of_frozen(built, &inner.wallet, chosen.is_none())?
+            let draw = if chosen.is_some() {
+                Draw::Chosen
+            } else {
+                Draw::Any
+            };
+            Self::short_of_frozen(built, &inner.wallet, draw)?
         };
         Self::persist(&mut inner).await?;
 
@@ -1150,7 +1177,12 @@ impl WalletHandle {
                 .fee_rate(rate)
                 .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
             let built = builder.finish().map_err(build_error);
-            Self::short_of_frozen(built, &inner.wallet, chosen.is_none())?
+            let draw = if chosen.is_some() {
+                Draw::Chosen
+            } else {
+                Draw::Any
+            };
+            Self::short_of_frozen(built, &inner.wallet, draw)?
         };
         Self::persist(&mut inner).await?;
         Self::summarize(&inner, psbt, Paid::Drain(&destination))
@@ -1179,7 +1211,8 @@ impl WalletHandle {
         let psbt = {
             let mut builder = inner.wallet.build_fee_bump(txid).map_err(bump_error)?;
             builder.fee_rate(rate);
-            builder.finish().map_err(build_error)?
+            let built = builder.finish().map_err(build_error);
+            Self::short_of_frozen(built, &inner.wallet, Draw::Confirmed)?
         };
         Self::persist(&mut inner).await?;
         Self::summarize(&inner, psbt, Paid::Rebuilt)
@@ -1582,9 +1615,12 @@ impl WalletHandle {
 mod tests {
     use std::sync::Arc;
 
+    use bdk_wallet::Update;
+    use bdk_wallet::bitcoin::hashes::Hash;
     use bdk_wallet::bitcoin::{
-        OutPoint, ScriptBuf, Sequence, TxIn, TxOut, Witness, absolute, transaction,
+        BlockHash, OutPoint, ScriptBuf, Sequence, TxIn, TxOut, Witness, absolute, transaction,
     };
+    use bdk_wallet::chain::{BlockId, ConfirmationBlockTime, TxUpdate};
 
     use super::*;
     use crate::backend::mock::MockBackend;
@@ -1759,6 +1795,59 @@ mod tests {
         }));
         inner.wallet.apply_unconfirmed_txs([(tx, 1)]);
         WalletHandle::persist(&mut inner).await.unwrap();
+    }
+
+    /// A funding transaction of `sats`, confirmed in a block of its own at
+    /// `height`. Its input is its own, named by `height`, so it replaces no
+    /// other funding transaction as a second `fund` would.
+    async fn fund_confirmed(handle: &WalletHandle, sats: u64, height: u32) {
+        let mut inner = handle.inner.lock().await;
+        let spk = receiving_script(&inner.wallet);
+        let mut tx = funding_tx(spk, sats);
+        let tag = u8::try_from(height).expect("a small height");
+        tx.input[0].previous_output.txid = Txid::from_byte_array([tag; 32]);
+        let block = BlockId {
+            height,
+            hash: BlockHash::from_byte_array([tag; 32]),
+        };
+        let tip = inner.wallet.latest_checkpoint().insert(block);
+        inner
+            .wallet
+            .apply_update(Update {
+                chain: Some(tip),
+                ..Default::default()
+            })
+            .unwrap();
+        let txid = tx.compute_txid();
+        let mut tx_update = TxUpdate::default();
+        tx_update.txs = vec![Arc::new(tx)];
+        tx_update.anchors = [(
+            ConfirmationBlockTime {
+                block_id: block,
+                confirmation_time: 1,
+            },
+            txid,
+        )]
+        .into();
+        inner
+            .wallet
+            .apply_update(Update {
+                tx_update,
+                ..Default::default()
+            })
+            .unwrap();
+        WalletHandle::persist(&mut inner).await.unwrap();
+    }
+
+    /// The coin worth `value`; the tests that call this fund no two alike.
+    async fn coin_worth(handle: &WalletHandle, value: u64) -> CoinId {
+        handle
+            .list_utxos()
+            .await
+            .iter()
+            .find(|u| u.value == value)
+            .map(coin_id)
+            .expect("a coin of that value")
     }
 
     fn dest(t: AddressType) -> String {
@@ -2502,13 +2591,7 @@ mod tests {
     async fn a_coin_too_small_to_spend_is_not_a_frozen_one() {
         let (handle, _) = open(AddressType::P2wpkh).await;
         fund_values(&handle, &[100_000, 1_000]).await;
-        let big = handle
-            .list_utxos()
-            .await
-            .iter()
-            .find(|u| u.value == 100_000)
-            .map(coin_id)
-            .unwrap();
+        let big = coin_worth(&handle, 100_000).await;
         handle.set_frozen(&big, true).await.unwrap();
 
         let payment = handle.build_transfer(&pay(5_000), 20.0).await.unwrap_err();
@@ -2530,6 +2613,42 @@ mod tests {
                 "{short:?}"
             );
         }
+    }
+
+    /// A fee bump that needs another coin says what the frozen ones hold, as
+    /// a send does; found in review. BDK adds confirmed coins only to a bump,
+    /// so a frozen coin still unconfirmed is not counted.
+    #[tokio::test]
+    async fn a_short_fee_bump_says_what_frozen_coins_hold() {
+        let (handle, _) = open_hd(AddressType::P2wpkh).await;
+        fund_confirmed(&handle, 20_000, 1).await;
+        fund_confirmed(&handle, 100_000, 2).await;
+        fund(&handle, 70_000).await;
+        for value in [100_000, 70_000] {
+            let coin = coin_worth(&handle, value).await;
+            handle.set_frozen(&coin, true).await.unwrap();
+        }
+        let built = handle.build_transfer(&pay(15_000), 1.0).await.unwrap();
+        let signed = handle.sign(&built.psbt_base64).await.unwrap();
+        let sent = handle.broadcast(&signed).await.unwrap();
+
+        let short = handle.build_fee_bump(&sent.txid, 100.0).await.unwrap_err();
+        assert!(
+            matches!(
+                short,
+                Error::InsufficientFunds {
+                    frozen_sat: 100_000,
+                    all_frozen: true,
+                    ..
+                }
+            ),
+            "{short:?}"
+        );
+
+        let coin = coin_worth(&handle, 100_000).await;
+        handle.set_frozen(&coin, false).await.unwrap();
+        let bumped = handle.build_fee_bump(&sent.txid, 100.0).await.unwrap();
+        assert_eq!(bumped.input_count, 2);
     }
 
     /// Coin control: a send held to chosen coins spends each of them and
