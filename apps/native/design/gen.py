@@ -147,7 +147,7 @@ def fake_qr(px=210):
     return f'<svg width="{px}" height="{px}" viewBox="0 0 {px} {px}" aria-hidden="true"><rect width="{px}" height="{px}" fill="#FFFFFF"></rect>{"".join(out)}</svg>'
 
 
-setup = page(head("Setup", "Network and Esplora endpoint. Stored locally; no secrets.") + f'''
+setup = page(head("Setup", "Which chain, and which Esplora server to read it from. Both are kept on this device and can change later.") + f'''
 <section class="card" style="gap: 16px;">
   {field("Network", chips(["Bitcoin","Testnet3","Testnet4","Signet","Regtest"], "Signet"))}
   {field("Esplora server", '<span class="input mono">https://mempool.space/signet/api</span>', "Any Esplora-compatible API — mempool.space, blockstream.info, electrs, bitcoin-rs.")}
@@ -157,9 +157,9 @@ setup = page(head("Setup", "Network and Esplora endpoint. Stored locally; no sec
   <span class="btn btn-primary">Continue {icon("arrow", 16, "#FFFFFF")}</span>
 </div>''', step=0)
 
-key = page(head("Key", "Signet · mempool.space") + f"""
+key = page(head("Start a wallet", "Signet · mempool.space") + f"""
 <section class="card" style="gap: 16px;">
-  {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "Hex (64 chars) or WIF. Used for this session only — never written to disk.")}
+  {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.")}
   <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;">{icon("check", 12, "#FFFFFF")}</span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn btn-primary">{icon("key", 16, "#FFFFFF")} Open wallet</span>
@@ -170,7 +170,6 @@ key = page(head("Key", "Signet · mempool.space") + f"""
 <section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label" style="color: #9A3412;">New key — shown once</span>
-    <span style="font-size: 12px; color: #9A3412;">Copy it now; it is not stored anywhere.</span>
   </div>
   <dl class="kv" style="margin: 0;">
     <dt>Address</dt><dd class="mono">{ADDR}</dd>
@@ -188,7 +187,7 @@ key = page(head("Key", "Signet · mempool.space") + f"""
     <span class="label">Watch-only</span>
     <span class="hint">Follows a wallet without its keys: balance, history and receiving, no sending.</span>
   </div>
-  {field("xpub or descriptor", '<span class="input mono placeholder">wpkh([fingerprint/84h/1h/0h]tpub…/0/*) — or just the tpub</span>', "A bare xpub is expanded with the address type chosen in Setup.")}
+  {field("xpub or descriptor", '<span class="input mono placeholder">tpub… or wpkh([fingerprint/84h/1h/0h]tpub…/0/*)</span>', "A bare xpub is expanded with the address type chosen in Setup.")}
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn">{icon("eye", 16)} Follow this wallet</span>
   </div>
@@ -213,12 +212,12 @@ create = page(head("New wallet", "Signet · mempool.space") + f'''
 <section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label" style="color: #9A3412;">Recovery phrase — shown once</span>
-    <span style="font-size: 12px; color: #9A3412;">Anyone with these words can spend your bitcoin.</span>
+    <span style="font-size: 12px; color: #9A3412;">Anyone with these words can spend this wallet's bitcoin.</span>
   </div>
   {word_grid(WORDS)}
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn btn-sm">{icon("copy", 14)} Copy</span>
-    <span class="hint">Write them down in order. This wallet cannot show them again.</span>
+    <span class="hint">Write them down in order and keep them offline: this wallet cannot show them again.</span>
   </div>
 </section>
 <section class="card" style="gap: 12px;">
@@ -282,8 +281,8 @@ rows = [
   ("e19f4a7d05…d0c9b2c8:1", ADDR, "199,859", "pending"),
 ]
 def _tr(o,a,v,c):
-    st = ' style="color: #6B6B66;"' if c=="pending" else ""
-    return f'<tr><td class="mono">{o}</td><td class="mono" style="color: #6B6B66;">{a}</td><td class="num mono">{v}</td><td class="num mono"{st}>{c}</td></tr>'
+    st = ' style="color: #B45309;"' if c=="pending" else ""
+    return f'<tr><td class="mono">{o}</td><td class="mono" style="color: #6B6B66;">{a}</td><td class="num mono">{v}</td><td class="num mono"{st}>{"Pending" if c == "pending" else c}</td></tr>'
 trs = "".join(_tr(*r) for r in rows)
 def _hrow(dirn, txid, amt, conf, when, expanded=False, detail=None):
     up = dirn == "out"
@@ -291,11 +290,11 @@ def _hrow(dirn, txid, amt, conf, when, expanded=False, detail=None):
     sign = "\u2212" if up else "+"
     ic = icon("arrow", 14, "#6B6B66") if up else icon("arrow", 14, "#166534")
     rot = ' style="display: inline-flex;"' if up else ' style="display: inline-flex; transform: rotate(180deg);"'
-    cst = ' style="color: #6B6B66;"' if conf == "pending" else ""
+    cst = ' style="color: #B45309;"' if conf == "pending" else ""
     chev = ' style="display: inline-flex; transform: rotate(90deg);"' if expanded else ' style="display: inline-flex;"'
     row = (f'<tr><td><span{rot}>{ic}</span></td><td class="mono">{txid}</td>'
            f'<td class="num mono" style="color: {col}; font-weight: 500;">{sign}{amt}</td>'
-           f'<td class="num mono"{cst}>{conf}</td><td class="num" style="color: #6B6B66;">{when}</td>'
+           f'<td class="num mono"{cst}>{"Pending" if conf == "pending" else conf}</td><td class="num" style="color: #6B6B66;">{when}</td>'
            f'<td class="num"><span{chev}>{icon("chevron", 14, "#A19F97")}</span></td></tr>')
     if not expanded:
         return row
@@ -359,7 +358,7 @@ dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
         <span class="btn">{icon("copy", 16)} Copy</span>
         <span class="btn">{icon("plus", 16)} New address</span>
       </div>
-      {field("Request an amount (optional)", '<div style="display: flex; gap: 4px; align-items: center;"><span class="input mono" style="width: 140px; justify-content: flex-end;">10,000</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span><span class="hint mono" style="margin-left: 8px;">bitcoin:' + ADDR[:12] + '…?amount=0.0001</span></div>', "With an amount the QR is a bitcoin: link; without one it is the bare address.")}
+      {field("Request an amount (optional)", '<div style="display: flex; gap: 4px; align-items: center;"><span class="input mono" style="width: 140px; justify-content: flex-end;">10,000</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span><span class="hint mono" style="margin-left: 8px;">bitcoin:' + ADDR[:12] + '…?amount=0.0001</span></div>', "With an amount, the QR is a bitcoin: link; without one, it is the bare address.")}
     </div>
   </div>
 </section>
@@ -387,7 +386,7 @@ dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
   <span class="btn btn-danger">Close wallet</span>
 </div>""", step=2, minh=MAIN_H, settings="link")
 
-send = page(head("Send", f"From {ADDR}") + f"""
+send = page(head("Send", "Signet · mempool.space") + f"""
 <section class="card">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label">Recipients</span>
@@ -404,7 +403,7 @@ send = page(head("Send", f"From {ADDR}") + f"""
   <div style="display: grid; grid-template-columns: max-content 160px 1fr; gap: 16px; align-items: end;">
     {field("Target", chips(["1 block","3 blocks","6 blocks"], "6 blocks"))}
     {field("Rate (sat/vB)", '<span class="input mono" style="justify-content: flex-end;">1.0</span>')}
-    {field("Source", '<span class="hint" style="min-height: 34px; display: flex; align-items: center;">mempool.space estimate for 6 blocks · floor 1 sat/vB</span>')}
+    {field("Source", '<span class="hint" style="min-height: 34px; display: flex; align-items: center;">mempool.space estimate for 6 blocks · floor 1.0 sat/vB</span>')}
   </div>
 </section>
 <section class="card" style="border-color: #1A1A1A;">
@@ -548,7 +547,7 @@ def m_tx(dirn, amt, meta, when, chevron=False):
   <span class="m-dirdot">{glyph}</span>
   <span style="display:flex;flex-direction:column;gap:2px;min-width:0;">
     <span style="font-size:15px;font-weight:500;">{"Sent" if up else "Received"}</span>
-    <span style="font-size:13px;color:#6B6B66;">{meta} · {when}</span>
+    <span style="font-size:13px;color:#6B6B66;">{f'<span style="color:#B45309;">Pending</span>' if meta == "Pending" else meta} · {when}</span>
   </span>
   <span class="m-amt" style="color:{color};">{amt}<br><span style="font-size:12px;color:#A19F97;font-weight:400;">sat</span></span>{ch}
 </div>'''
@@ -569,12 +568,18 @@ def m_item(k, v=None, chevron=True, color=None):
     st = f' style="color:{color};"' if color else ""
     return f'<div class="m-item"><span{st}>{k}</span><span class="v">{v if v is not None else ""}{ch}</span></div>'
 
+def m_io(where, value, note=None):
+    n = f'<span style="font-size:12px;color:#6B6B66;">{note}</span>' if note else ""
+    return (f'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">'
+            f'<span style="display:flex;flex-direction:column;gap:1px;min-width:0;"><span class="mono" style="font-size:13px;overflow-wrap:anywhere;">{where}</span>{n}</span>'
+            f'<span class="mono" style="font-size:15px;flex:none;">{value}</span></div>')
+
 def m_list(*items):
     return '<div class="m-card" style="gap:0;padding:0;">' + "".join(items) + '</div>'
 
 msetup = phone(f'''{m_head("Setup")}
 <div class="m-body">
-  <p style="margin:0;font-size:15px;color:#6B6B66;">Which chain, and where to read it from. Both can change later.</p>
+  <p style="margin:0;font-size:15px;color:#6B6B66;">Which chain, and which Esplora server to read it from. Both are kept on this device and can change later.</p>
   <div class="m-card">
     <span class="label">Network</span>
     <div style="display:flex;flex-wrap:wrap;gap:8px;"><span class="m-chip on">{m_dot()}Signet</span><span class="m-chip">{m_dot()}Testnet4</span><span class="m-chip">{m_dot()}Mainnet</span></div>
@@ -619,15 +624,15 @@ mkey = phone(f"""{m_head("Start a wallet", left="back")}
 # and M8b already split Send — a taller frame would have drawn a phone nobody
 # holds, which is the whole reason the frame is fixed and clipped.
 CREATE_BLANKS = (3, 4, 9)
-mcreate = phone(f'''{m_head("Recovery phrase", left="back")}
+mcreate = phone(f'''{m_head("New wallet", left="back")}
 <div class="m-body" style="gap:12px;">
-  <p style="margin:0;font-size:14px;color:#6B6B66;line-height:1.5;">Write these 12 words down in order and keep them offline. Anyone with them owns this wallet.</p>
+  <p style="margin:0;font-size:14px;color:#6B6B66;line-height:1.5;">Anyone with these words can spend this wallet's bitcoin. Write them down in order and keep them offline: this wallet cannot show them again.</p>
   {m_words(WORDS)}
   <div style="display:flex;"><span class="m-btn m-btn-quiet">Copy</span></div>
   <span style="font-size:13px;color:#6B6B66;">Scroll down to confirm three of them.</span>
 </div>''')
 
-mcreate_confirm = phone(f'''{m_head("Recovery phrase", left="back")}
+mcreate_confirm = phone(f'''{m_head("New wallet", left="back")}
 <div class="m-body" style="gap:12px;">
   <span class="label" style="align-self:flex-start;">Confirm your backup</span>
   <p style="margin:0;font-size:13px;color:#6B6B66;">Fill in words {", ".join(str(b) for b in CREATE_BLANKS[:-1])} and {CREATE_BLANKS[-1]} to continue.</p>
@@ -708,7 +713,7 @@ mreceive = phone(f"""{m_head("Receive", left="back")}
       <span class="m-input mono" style="flex:1;font-size:18px;">10,000</span>
       <span style="display:flex;gap:4px;flex:none;"><span class="m-chip on" style="min-height:48px;">sat</span><span class="m-chip" style="min-height:48px;">BTC</span></span>
     </div>
-    <span class="hint">The QR becomes a bitcoin: link with the amount filled in.</span>
+    <span class="hint">With an amount, the QR is a bitcoin: link; without one, it is the bare address.</span>
   </div>
 </div>""", tabs="Wallet")
 
@@ -733,7 +738,7 @@ msend = phone(f"""{m_head("Send", left="back")}
   <div class="m-card">
     <span class="label">Fee</span>
     <div style="display:flex;gap:6px;"><span class="m-chip" style="padding:0 12px;font-size:14px;">1 block</span><span class="m-chip" style="padding:0 12px;font-size:14px;">3 blocks</span><span class="m-chip" style="padding:0 12px;font-size:14px;">6 blocks</span><span class="m-chip on" style="padding:0 12px;font-size:14px;">Custom</span></div>
-    <div style="display:flex;gap:8px;align-items:center;"><span class="m-input mono" style="width:120px;">2.4</span><span style="font-size:15px;color:#6B6B66;">sat/vB · floor 1</span></div>
+    <div style="display:flex;gap:8px;align-items:center;"><span class="m-input mono" style="width:120px;">2.4</span><span style="font-size:15px;color:#6B6B66;">sat/vB · floor 1.0</span></div>
   </div>
   <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary" style="opacity:0.45;">Review</span></div>
 </div>""")
@@ -813,26 +818,29 @@ mtx = phone(f"""{m_head("Transaction", left="back")}
     <span class="m-hero" style="font-size:30px;">−50,141 <span style="font-size:15px;color:#A19F97;font-weight:400;">sat</span></span>
     <span class="pill"><span class="pill-dot" style="background:#B45309;"></span>Pending · seen 2 min ago</span>
   </div>
-  {m_list(m_item("Fee", "141 sat · 1.0 sat/vB · 141 vB", chevron=False), m_item("Confirmations", "0 — in the mempool", chevron=False))}
-  {m_list(m_item("To", TR_ADDR[:8] + "…" + TR_ADDR[-6:] + " · 50,000 sat", chevron=False), m_item("Change", ADDR[:8] + "…" + ADDR[-6:] + " · 199,859 sat", chevron=False))}
-  <div class="m-card" style="gap:8px;">
-    <span class="label">Transaction id</span>
-    <span class="mono" style="font-size:12px;word-break:break-all;line-height:1.6;color:#6B6B66;">{TXID}</span>
-    <div style="display:flex;gap:8px;">
-      <span class="m-btn" style="min-height:44px;">{icon("copy", 18)} Copy</span>
-      <span class="m-btn" style="min-height:44px;">{icon("external", 18)} Explorer</span>
-    </div>
-  </div>
+  {m_list(m_item("Fee", "141 sat · 1.0 sat/vB · 141 vB", chevron=False), m_item("Confirmations", "Pending", chevron=False))}
+  {m_list(m_item("From", "1 input · from this wallet", chevron=False))}
   <div class="m-card" style="border-color:#C2410C;gap:10px;">
     <div style="display:flex;align-items:center;justify-content:space-between;"><span class="label" style="color:#9A3412;">Bump fee</span><span class="hint">1-block estimate 2.4 sat/vB</span></div>
     <div style="display:flex;gap:8px;align-items:center;"><span class="m-input mono" style="flex:1;">2.4</span><span style="font-size:15px;color:#6B6B66;">sat/vB</span></div>
-    <span class="m-btn m-btn-primary" style="flex:none;">Bump to 2.4 sat/vB</span>
+    <span class="m-btn m-btn-primary" style="flex:none;">Bump fee</span>
+  </div>
+  <div class="m-card" style="gap:8px;">
+    <span class="label">Outputs · 2</span>
+    {m_io(TR_ADDR, "50,000 sat")}
+    {m_io(ADDR, "199,859 sat", "change, back to this wallet")}
+  </div>
+  <div class="m-card" style="gap:8px;">
+    <span class="label">Transaction id</span>
+    <span class="mono" style="font-size:12px;word-break:break-all;line-height:1.6;color:#6B6B66;">{TXID}</span>
+    <span class="m-btn" style="min-height:44px;">{icon("copy", 18)} Copy transaction id</span>
+    <span class="m-btn" style="min-height:44px;">{icon("external", 18)} Open in explorer</span>
   </div>
 </div>""")
 
 mexport = phone(f"""{m_head("Public keys", left="back")}
 <div class="m-body" style="gap:12px;">
-  <p class="m-lede">These reveal your history, not your funds. Share them only with a watch-only wallet you trust.</p>
+  <p class="m-lede">These reveal this wallet's history, not its funds. Share them only with a watch-only wallet you trust.</p>
   <div class="m-card" style="align-items:center;gap:10px;">
     <span class="label" style="align-self:flex-start;">Account xpub · m/84'/1'/0'</span>
     <div style="padding:10px;background:#FFFFFF;border-radius:12px;">{fake_qr(150)}</div>
@@ -844,7 +852,7 @@ mexport = phone(f"""{m_head("Public keys", left="back")}
     <span class="mono" style="font-size:12px;word-break:break-all;line-height:1.6;color:#6B6B66;">wpkh([a83832f2/84h/1h/0h]{XPUB[:18]}…{XPUB[-6:]}/0/*)#q4xp7va0</span>
     <span class="label" style="margin-top:4px;">Change descriptor</span>
     <span class="mono" style="font-size:12px;word-break:break-all;line-height:1.6;color:#6B6B66;">wpkh([a83832f2/84h/1h/0h]{XPUB[:18]}…{XPUB[-6:]}/1/*)#v378jcm2</span>
-    <div style="display:flex;gap:8px;"><span class="m-btn" style="min-height:44px;">{icon("copy", 18)} Copy both</span></div>
+    <div style="display:flex;gap:8px;"><span class="m-btn" style="min-height:44px;">{icon("copy", 18)} Copy descriptors</span></div>
   </div>
 </div>""")
 
@@ -943,7 +951,7 @@ settings_page = page(head("Settings", WALLET_SUB) + f"""
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
   <section class="card">
     <span class="label">Public keys</span>
-    <span class="hint">Reveal your history, not your funds — for a watch-only copy elsewhere.</span>
+    <span class="hint">These reveal this wallet's history, not its funds. Share them only with a watch-only wallet you trust.</span>
     {link("Export public keys")}
   </section>
   <section class="card">
@@ -988,12 +996,12 @@ unlock_pw = page(head("Unlock", "Browser build · Signet · mempool.space") + f'
     <span class="btn">Use a different wallet</span>
     <span class="btn btn-quiet" style="margin-left: auto; color: #B91C1C;">Forget this wallet</span>
   </div>
-  <span class="hint">Forgotten it? It cannot be reset. Forget this wallet here and restore it from its recovery phrase.</span>
+  <span class="hint">Forgotten it? It cannot be reset. Forget this wallet here, and open it again with what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.</span>
 </section>''', step=1)
 
-key_remember = page(head("Key", "Browser build · Signet · mempool.space") + f"""
+key_remember = page(head("Start a wallet", "Browser build · Signet · mempool.space") + f"""
 <section class="card" style="gap: 16px;">
-  {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "Hex (64 chars) or WIF.")}
+  {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.")}
   <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">{checkbox(True)}<span>Remember on this device</span><span class="hint">· encrypted with an app password and kept in this browser</span></label>
   <div style="display: flex; flex-direction: column; gap: 10px; margin-left: 7px; padding-left: 17px; border-left: 2px solid #E4E3DF;">
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -1040,7 +1048,7 @@ coins_page = page(head("Wallet", WALLET_SUB) + f"""
 speedup_detail = f"""    <dl class="kv" style="margin: 0;">
       <dt>Transaction id</dt><dd class="mono" style="font-size: 12px;">{TX_IN}</dd>
       <dt>Fee</dt><dd class="mono">141 sat · 1.0 sat/vB · 141 vB</dd>
-      <dt>From</dt><dd>1 input</dd>
+      <dt>From</dt><dd>1 input · from another wallet</dd>
       <dt>Received</dt><dd class="mono">{ADDR[:24]}… <span style="font-weight: 500;">30,000 sat</span></dd>
       <dt>To</dt><dd class="mono">{SENDER_CHANGE[:24]}… <span style="font-weight: 500;">71,859 sat</span></dd>
     </dl>
@@ -1049,7 +1057,7 @@ speedup_detail = f"""    <dl class="kv" style="margin: 0;">
       <span class="btn btn-sm">{icon("external", 14)} Open in explorer</span>
     </div>
     <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #C2410C; border-radius: 4px; background: #FFFFFF;">
-      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px;"><span class="label" style="color: #9A3412;">Speed up</span><span class="hint">Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).</span></div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px;"><span class="label" style="color: #9A3412;">Speed up</span><span class="hint">Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).</span></div>
       <div style="display: flex; align-items: center; gap: 12px;">
         {chips(["1 block", "3 blocks", "6 blocks"], "1 block")}
         <span class="hint">5.0 sat/vB for the two together</span>
@@ -1063,7 +1071,7 @@ speedup_detail = f"""    <dl class="kv" style="margin: 0;">
 cancel_detail = f"""    <dl class="kv" style="margin: 0;">
       <dt>Transaction id</dt><dd class="mono" style="font-size: 12px;">{TX_OUT}</dd>
       <dt>Fee</dt><dd class="mono">153 sat · 1.0 sat/vB · 153 vB</dd>
-      <dt>From</dt><dd>1 input · yours</dd>
+      <dt>From</dt><dd>1 input · from this wallet</dd>
       <dt>To</dt><dd class="mono">{TR_ADDR[:24]}… <span style="font-weight: 500;">40,000 sat</span></dd>
       <dt>Change</dt><dd class="mono">{ADDR[:24]}… <span style="font-weight: 500;">9,427 sat</span> <span class="hint">back to this wallet</span></dd>
     </dl>
@@ -1097,11 +1105,11 @@ def _io_tr(what, where, who, value):
             f'<td style="white-space: normal;">{who}</td><td class="num mono">{value}</td></tr>')
 
 NOT_SIGNED = 'This wallet · <span style="color: #B45309;">not signed</span>'
-psbt_page = page(head("Import PSBT", "Sign or send a transaction made in another wallet") + f"""
+psbt_page = page(head("Import PSBT", "Sign or send a transaction that another wallet or device made.") + f"""
 <section class="card">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label">PSBT</span>
-    <span class="hint">Base64. Described as soon as it parses.</span>
+    <span class="hint">Base64 or hex. Described as soon as it parses.</span>
   </div>
   <div class="input mono" style="display: block; white-space: normal; word-break: break-all; font-size: 12px; line-height: 1.6; padding: 8px 12px;">{PSBT_B64}</div>
   <div style="display: flex; gap: 8px;">
@@ -1215,11 +1223,13 @@ msendmulti = phone(f"""{m_head("Send", left="back")}
   </div>
   <div class="m-card" style="border-color:#1A1A1A;gap:8px;padding:12px 16px;">
     <span class="label">Review</span>
-    <div style="display:grid;grid-template-columns:1fr max-content;gap:6px 16px;font-size:15px;align-items:baseline;">
-      <span class="mono" style="font-size:13px;color:#6B6B66;">{short(TR_ADDR)}</span><span class="mono">30,000 sat</span>
-      <span class="mono" style="font-size:13px;color:#6B6B66;">{short(R2_ADDR)}</span><span class="mono">18,000 sat</span>
-      <span style="color:#6B6B66;">Fee</span><span class="mono">184 sat · 184 vB</span>
-      <span style="color:#6B6B66;font-weight:600;">Total</span><span class="mono" style="font-weight:600;">48,184 sat</span>
+    <div style="display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 16px;font-size:15px;align-items:baseline;">
+      <span class="mono" style="grid-column:1/-1;font-size:13px;color:#6B6B66;overflow-wrap:anywhere;">{TR_ADDR}</span>
+      <span class="mono" style="grid-column:1/-1;text-align:right;">30,000 sat</span>
+      <span class="mono" style="grid-column:1/-1;font-size:13px;color:#6B6B66;overflow-wrap:anywhere;">{R2_ADDR}</span>
+      <span class="mono" style="grid-column:1/-1;text-align:right;">18,000 sat</span>
+      <span style="color:#6B6B66;">Fee</span><span class="mono" style="text-align:right;">184 sat · 1.0 sat/vB · 184 vB</span>
+      <span style="color:#6B6B66;font-weight:600;">Total</span><span class="mono" style="font-weight:600;text-align:right;">48,184 sat</span>
     </div>
   </div>
   <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary">Confirm and send</span></div>
@@ -1230,7 +1240,7 @@ def m_coin(outpoint, value, conf, state):
     lead = (f'<span style="width:24px;height:24px;flex:none;display:inline-flex;align-items:center;justify-content:center;">{icon("lock", 18, "#A19F97")}</span>'
             if frozen else m_check(state == "selected"))
     ink, sub = ("#A19F97", "#A19F97") if frozen else ("#1A1A1A", "#6B6B66")
-    when, wcol = ("pending", "#B45309") if conf == "pending" else (f"{conf} conf.", sub)
+    when, wcol = ("Pending", "#B45309") if conf == "pending" else (f"{conf} conf.", sub)
     tag = '<span style="font-size:13px;color:#6B6B66;">Frozen</span>' if frozen else ""
     return f'''<div class="m-txrow" style="gap:12px;">
   {lead}
@@ -1252,12 +1262,6 @@ mcoins = phone(f"""{m_head("Coins", left="back")}
   <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary">Send selected (2 coins · 61,234 sat)</span></div>
 </div>""")
 
-def m_io(where, value, note=None):
-    n = f'<span style="font-size:12px;color:#6B6B66;">{note}</span>' if note else ""
-    return (f'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;">'
-            f'<span style="display:flex;flex-direction:column;gap:1px;min-width:0;"><span class="mono" style="font-size:13px;">{where}</span>{n}</span>'
-            f'<span class="mono" style="font-size:15px;flex:none;">{value}</span></div>')
-
 mpsbt = phone(f"""{m_head("Import PSBT", left="back")}
 <div class="m-body" style="gap:12px;">
   <div class="m-card" style="gap:10px;">
@@ -1270,8 +1274,8 @@ mpsbt = phone(f"""{m_head("Import PSBT", left="back")}
     {m_io(*PSBT_INS[0])}
     {m_io(*PSBT_INS[1])}
     <span class="label" style="margin-top:6px;">Outputs · 2</span>
-    {m_io(short(TR_ADDR), "40,000")}
-    {m_io(short(CHANGE_ADDR), "14,779", "change, back to you")}
+    {m_io(TR_ADDR, "40,000")}
+    {m_io(CHANGE_ADDR, "14,779", "change, back to this wallet")}
     <div style="display:flex;align-items:baseline;justify-content:space-between;border-top:1px solid #E4E3DF;padding-top:8px;margin-top:2px;"><span style="font-size:15px;color:#6B6B66;">Fee</span><span class="mono" style="font-size:15px;">221 sat · 1.0 sat/vB</span></div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;font-size:15px;"><span style="width:8px;height:8px;border-radius:50%;background:#B45309;flex:none;"></span>Signed 0 of 2 inputs</div>
@@ -1281,11 +1285,11 @@ mpsbt = phone(f"""{m_head("Import PSBT", left="back")}
 mtx_incoming = phone(f"""{m_head("Transaction", left="back")}
 <div class="m-body" style="gap:10px;">
   {m_hero("in", "+30,000", "Pending · seen 40 min ago")}
-  {m_list(m_item("Fee", "141 sat · 1.0 sat/vB · 141 vB", chevron=False), m_item("Confirmations", "0 — in the mempool", chevron=False))}
-  {m_list(m_item("From", "1 input", chevron=False), m_item("Received", short(ADDR) + " · 30,000 sat", chevron=False), m_item("To", short(SENDER_CHANGE) + " · 71,859 sat", chevron=False))}
+  {m_list(m_item("Fee", "141 sat · 1.0 sat/vB · 141 vB", chevron=False), m_item("Confirmations", "Pending", chevron=False))}
+  {m_list(m_item("From", "1 input · from another wallet", chevron=False))}
   <div class="m-card" style="border-color:#C2410C;gap:10px;">
     <div style="display:flex;align-items:center;justify-content:space-between;"><span class="label" style="color:#9A3412;">Speed up</span><span class="hint">1-block estimate 5.0 sat/vB</span></div>
-    <span style="font-size:14px;line-height:1.5;color:#6B6B66;">Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).</span>
+    <span style="font-size:14px;line-height:1.5;color:#6B6B66;">Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).</span>
     <div style="display:flex;gap:6px;"><span class="m-chip on" style="{FEE_CHIP}">1 block</span><span class="m-chip" style="{FEE_CHIP}">3 blocks</span><span class="m-chip" style="{FEE_CHIP}">6 blocks</span><span class="m-chip" style="{FEE_CHIP}">Custom</span></div>
     <div style="display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;font-size:15px;">
       <span style="color:#6B6B66;">Fee</span><span class="mono">1,114 sat</span>
@@ -1294,13 +1298,18 @@ mtx_incoming = phone(f"""{m_head("Transaction", left="back")}
     </div>
     <span class="m-btn m-btn-primary" style="flex:none;">Speed up</span>
   </div>
+  <div class="m-card" style="gap:8px;">
+    <span class="label">Outputs · 2</span>
+    {m_io(ADDR, "30,000 sat", "received")}
+    {m_io(SENDER_CHANGE, "71,859 sat")}
+  </div>
 </div>""")
 
 mtx_cancel = phone(f"""{m_head("Transaction", left="back")}
 <div class="m-body" style="gap:10px;">
   {m_hero("out", "−40,153", "Pending · seen 25 min ago")}
-  {m_list(m_item("Fee", "153 sat · 1.0 sat/vB · 153 vB", chevron=False), m_item("Confirmations", "0 — in the mempool", chevron=False))}
-  {m_list(m_item("From", "1 input · yours", chevron=False), m_item("To", short(TR_ADDR) + " · 40,000 sat", chevron=False), m_item("Change", short(ADDR) + " · 9,427 sat", chevron=False))}
+  {m_list(m_item("Fee", "153 sat · 1.0 sat/vB · 153 vB", chevron=False), m_item("Confirmations", "Pending", chevron=False))}
+  {m_list(m_item("From", "1 input · from this wallet", chevron=False))}
   <div class="m-card" style="flex-direction:row;align-items:center;justify-content:space-between;padding:14px 16px;">
     <span class="label" style="color:#9A3412;">Bump fee</span>
     <span style="display:flex;align-items:center;gap:6px;"><span class="hint">Pay more to confirm sooner</span><span style="display:inline-flex;transform:rotate(90deg);">{icon("chevron", 17, "#A19F97")}</span></span>
@@ -1310,6 +1319,11 @@ mtx_cancel = phone(f"""{m_head("Transaction", left="back")}
     <span style="font-size:15px;line-height:1.5;color:#6B6B66;">Replace it with a transaction that pays 48,200 sat back to this wallet. Fee 1,380 sat.</span>
     <span class="m-btn m-btn-danger" style="flex:none;">Cancel transaction</span>
     <span class="m-btn m-btn-quiet" style="flex:none;">Keep it</span>
+  </div>
+  <div class="m-card" style="gap:8px;">
+    <span class="label">Outputs · 2</span>
+    {m_io(TR_ADDR, "40,000 sat")}
+    {m_io(ADDR, "9,427 sat", "change, back to this wallet")}
   </div>
 </div>""")
 
