@@ -286,7 +286,15 @@ export function confirmDanger(opts: {
       const sheet = card(
         warning,
         go,
-        button("Keep it", () => host.replaceChildren(arm), { variant: "quiet" }),
+        // Back to the trigger: the focused button is gone. Found by cubic.
+        button(
+          "Keep it",
+          () => {
+            host.replaceChildren(arm);
+            arm.focus();
+          },
+          { variant: "quiet" },
+        ),
       );
       sheet.classList.add("m-confirm");
       host.replaceChildren(sheet);

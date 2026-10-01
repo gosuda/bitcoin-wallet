@@ -247,7 +247,15 @@ export function renderSettings(): HTMLElement {
           attrs: { id: "forget-warning" },
         }),
         el("div", { className: "actions actions-end" }, [
-          button("Keep it", () => forgetSlot.replaceChildren(), "quiet"),
+          // Back to the trigger, as Unlock does: the focused button is gone.
+          button(
+            "Keep it",
+            () => {
+              forgetSlot.replaceChildren();
+              forgetBtn?.focus();
+            },
+            "quiet",
+          ),
           yes,
         ]),
       ]),

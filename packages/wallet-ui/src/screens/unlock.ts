@@ -93,6 +93,12 @@ export function renderUnlock(): HTMLElement {
   // The second step Settings has, in the same words: what is deleted and
   // what brings the wallet back, then Keep it or Delete it.
   const confirmSlot = el("div", { className: "slot" });
+  // Focus goes back to the trigger: the button that had it is gone, and a
+  // keyboard or screen reader was left at the page. Found by cubic.
+  const closeConfirm = () => {
+    confirmSlot.replaceChildren();
+    forgetBtn.focus();
+  };
   const showConfirm = () => {
     const yes = button(
       "Delete it",
@@ -105,7 +111,7 @@ export function renderUnlock(): HTMLElement {
             navigate("key");
           } catch (e) {
             alert.show("error", errorMessage(e));
-            confirmSlot.replaceChildren();
+            closeConfirm();
           }
         }),
       "danger",
@@ -120,7 +126,7 @@ export function renderUnlock(): HTMLElement {
           attrs: { id: "forget-warning" },
         }),
         el("div", { className: "actions actions-end" }, [
-          button("Keep it", () => confirmSlot.replaceChildren(), "quiet"),
+          button("Keep it", closeConfirm, "quiet"),
           yes,
         ]),
       ]),

@@ -370,6 +370,10 @@ describe("one word for each action (7.6)", () => {
       const yes = buttonNamed(screen, "Delete it");
       const described = document.getElementById(yes.getAttribute("aria-describedby") ?? "");
       expect(described?.textContent).toBe(forgetWarning(null));
+      // Found by cubic: Keep it took the focus with it.
+      buttonNamed(screen, "Keep it").click();
+      expect(document.activeElement).toBe(buttonNamed(screen, "Forget this wallet"));
+      buttonNamed(screen, "Forget this wallet").click();
       expect(buttonNamed(screen, "Keep it")).toBeTruthy();
     }
     session.remembered = null;
