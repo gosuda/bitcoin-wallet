@@ -1221,8 +1221,8 @@ nothing more.
 ## Round 8 — Small fixes
 
 Branch `round-8-fixes`. Picked on 2026-10-02, after Round 7: the loose ends it noticed but did
-not cause. A second one, two screen tests that timed out once each, did not reproduce; it is
-under Not doing.
+not cause. The other loose end, two screen tests that timed out once each, did not reproduce,
+and is under Not doing.
 
 - [x] **8.1 The fee chips fit a narrow phone** · S · `ui/mobile.css`, `gen.py` · needs: canvas
       why: the phone's four fee chips need 322 px on one row, which a 390 px phone's 324 holds.
@@ -1298,7 +1298,7 @@ Listed, not scheduled; each goes to the design canvas first unless marked otherw
 - Coverage thresholds — a report may be added (3.8); no gate.
 - Hosting the browser build on Pages (was 4.10) — a hosted page that handles keys is a target
   for look-alike copies and for a poisoned deploy, and anyone can build and run it locally.
-- Changing the two screen tests that timed out once each during Round 7 — not reproduced in 37
+- Changing the two screen tests that timed out once each during Round 7 — not reproduced in 35
   runs (five in a row, three at once, two with every core busy, 25 of the two files alone), and
   CI has never shown it. Without the failure's own output a change would be a guess; one seen
-  again is kept whole (2026-10-02).
+  again is kept whole.
