@@ -490,7 +490,7 @@
       "x": 1880,
       "y": 9764,
       "w": 380,
-      "text": "M8e — Fee chips on a narrow phone (8.1)\n\nThe four fee chips need 309 px on one row, which a 390 px phone has. At 360 px the labels broke inside their chips and Custom ran past the card; at 320 px, 48 px past.\n\nNow a label stays on one line, and the row wraps: Custom moves to a second row. 390 px is unchanged. The same row is Speed up's fee target."
+      "text": "M8e — Fee chips on a narrow phone (8.1)\n\nThe four fee chips need 322 px on one row, which a 390 px phone's 324 holds. At 360 px their labels broke inside the chips; at 320 px they broke and the row ran 33 px past the card.\n\nNow a label stays on one line, and the row wraps: Custom moves to a second row. 390 px is unchanged. The same row is Speed up's fee target."
     }
   },
   "designSystems": []
