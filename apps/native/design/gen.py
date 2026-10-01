@@ -394,7 +394,7 @@ send = page(head("Send", "Signet · mempool.space") + f"""
   </div>
   <div style="display: grid; grid-template-columns: 1fr 270px 34px; gap: 8px; align-items: start;">
     {field("Address", '<span class="input mono">' + TR_ADDR + '</span>')}
-    {field("Amount", '<div style="display: flex; gap: 4px;"><span class="input mono" style="flex: 1; justify-content: flex-end;">411,859</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px; border-color: #C2410C; color: #C2410C;">Max</span></div>', "Everything: 412,000 sat minus the 141 sat fee. Editing the amount leaves Max. Max needs a single recipient.")}
+    {field("Amount", '<div style="display: flex; gap: 4px;"><span class="input mono" style="flex: 1; justify-content: flex-end;">411,859</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">sat</span><span class="chip" style="min-height: 34px; padding: 6px 8px; font-size: 12px;">BTC</span><span class="chip on" style="min-height: 34px; padding: 6px 8px; font-size: 12px; border-color: #C2410C; color: #C2410C;">Max</span></div>', "Everything: 412,000 sat minus the 141 sat fee. Edit the amount to leave Max; Max needs a single recipient.")}
     <span class="btn btn-quiet" style="width: 34px; padding: 0; margin-top: 22px;">{icon("x", 16, "#6B6B66")}</span>
   </div>
 </section>
@@ -410,7 +410,7 @@ send = page(head("Send", "Signet · mempool.space") + f"""
   <span class="label">Review</span>
   <dl class="kv" style="margin: 0; font-size: 14px;">
     <dt>Amount</dt><dd class="mono">411,859 sat</dd>
-    <dt>Fee</dt><dd class="mono">141 sat <span style="color: #6B6B66;">(141 vB · 1 in)</span></dd>
+    <dt>Fee</dt><dd class="mono">141 sat · 1.0 sat/vB · 141 vB</dd>
     <dt>Change</dt><dd class="mono">0 sat <span style="color: #6B6B66;">— nothing comes back</span></dd>
     <dt>Total</dt><dd class="mono" style="font-weight: 600;">412,000 sat</dd>
   </dl>
@@ -884,9 +884,6 @@ COINS = [
 ]
 PSBT_INS = [("57f7533d63…cee1b3a7:0", "30,000"), ("9ae2136a23…23210b1b:1", "25,000")]
 
-def short(a):
-    return f"{a[:8]}…{a[-6:]}"
-
 def checkbox(on=False, disabled=False):
     if on:
         return f'<span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;">{icon("check", 12, "#FFFFFF")}</span>'
@@ -1271,11 +1268,11 @@ mpsbt = phone(f"""{m_head("Import PSBT", left="back")}
   </div>
   <div class="m-card" style="gap:8px;">
     <div style="display:flex;align-items:center;justify-content:space-between;"><span class="label">Inputs · 2</span><span class="hint">both from this wallet</span></div>
-    {m_io(*PSBT_INS[0])}
-    {m_io(*PSBT_INS[1])}
+    {m_io(PSBT_INS[0][0], PSBT_INS[0][1] + " sat")}
+    {m_io(PSBT_INS[1][0], PSBT_INS[1][1] + " sat")}
     <span class="label" style="margin-top:6px;">Outputs · 2</span>
-    {m_io(TR_ADDR, "40,000")}
-    {m_io(CHANGE_ADDR, "14,779", "change, back to this wallet")}
+    {m_io(TR_ADDR, "40,000 sat")}
+    {m_io(CHANGE_ADDR, "14,779 sat", "change, back to this wallet")}
     <div style="display:flex;align-items:baseline;justify-content:space-between;border-top:1px solid #E4E3DF;padding-top:8px;margin-top:2px;"><span style="font-size:15px;color:#6B6B66;">Fee</span><span class="mono" style="font-size:15px;">221 sat · 1.0 sat/vB</span></div>
   </div>
   <div style="display:flex;align-items:center;gap:8px;font-size:15px;"><span style="width:8px;height:8px;border-radius:50%;background:#B45309;flex:none;"></span>Signed 0 of 2 inputs</div>
@@ -1380,7 +1377,7 @@ canvas = {
     # tweak chips above each frame never collide.
     {"file": "MSetup.dc.html", "title": "M1 · Setup", "x": 0, "y": 3400, "w": 390, "h": 844},
     {"file": "MKey.dc.html", "title": "M2 · Start a wallet", "x": 470, "y": 3400, "w": 390, "h": 844},
-    {"file": "MCreate.dc.html", "title": "M3 · Recovery phrase", "x": 940, "y": 3400, "w": 390, "h": 844},
+    {"file": "MCreate.dc.html", "title": "M3 · New wallet", "x": 940, "y": 3400, "w": 390, "h": 844},
     {"file": "MRestore.dc.html", "title": "M4 · Restore", "x": 1410, "y": 3400, "w": 390, "h": 844},
     {"file": "MUnlock.dc.html", "title": "M5 · Unlock", "x": 1880, "y": 3400, "w": 390, "h": 844},
     # Mobile row 2 — using it.
