@@ -268,6 +268,13 @@
       "w": 390,
       "h": 680,
       "title": "M15 · Focus rings"
+    },
+    "MNarrowFee.dc.html": {
+      "x": 1410,
+      "y": 9764,
+      "w": 390,
+      "h": 640,
+      "title": "M8e · Fee chips on a narrow phone"
     }
   },
   "order": [
@@ -307,7 +314,8 @@
     "MPsbt.dc.html",
     "MTxIncoming.dc.html",
     "MTxCancel.dc.html",
-    "MFocus.dc.html"
+    "MFocus.dc.html",
+    "MNarrowFee.dc.html"
   ],
   "notes": {
     "round3-brief": {
@@ -477,6 +485,12 @@
       "y": 9764,
       "w": 400,
       "text": "M15 — Focus rings (6.10)\n\nKeyboard focus only (:focus-visible); a tap draws nothing. Rows and tabs take a 2px #C2410C ring inside their edge, since the card and the tab bar would clip one outside. The primary button takes a 2px #1A1A1A ring 2px outside: an orange ring vanishes against the orange fill. Fields and textareas get the ring desktop inputs already have."
+    },
+    "round8-narrow-fee-note": {
+      "x": 1880,
+      "y": 9764,
+      "w": 380,
+      "text": "M8e — Fee chips on a narrow phone (8.1)\n\nThe four fee chips need 309 px on one row, which a 390 px phone has. At 360 px the labels broke inside their chips and Custom ran past the card; at 320 px, 48 px past.\n\nNow a label stays on one line, and the row wraps: Custom moves to a second row. 390 px is unchanged. The same row is Speed up's fee target."
     }
   },
   "designSystems": []
