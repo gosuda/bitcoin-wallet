@@ -16,7 +16,8 @@ import { formatNumber, formatRate, formatSats } from "./format";
 export function sentence(message: string): string {
   const text = message.trim();
   if (text === "") return text;
-  const capital = /^[a-z]{1,15}[\s:,;']/.test(text)
+  // A word may end the message, as a bare "timeout" does. Found by cubic.
+  const capital = /^[a-z]{1,15}(?=[\s:,;'.!?]|$)/.test(text)
     ? `${text.charAt(0).toUpperCase()}${text.slice(1)}`
     : text;
   return /[.!?…]$/.test(capital) ? capital : `${capital}.`;
@@ -181,7 +182,8 @@ export function whoseInputs(
   inputs: readonly { txid: string; vout: number; ours: boolean }[],
 ): string {
   const [first] = inputs;
-  if (inputs.length === 1 && first !== undefined && isCoinbase(first)) return "newly mined";
+  if (first === undefined) return "from no wallet";
+  if (inputs.length === 1 && isCoinbase(first)) return "newly mined";
   const n = inputs.length;
   const ours = inputs.filter((i) => i.ours).length;
   if (ours === n)

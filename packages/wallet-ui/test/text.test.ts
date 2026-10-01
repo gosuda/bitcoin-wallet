@@ -49,6 +49,8 @@ describe("sentence", () => {
       "PSBT error: input 0 is not signed.",
     );
     expect(sentence("Already one. ")).toBe("Already one.");
+    // Found by cubic: a one-word message stayed lower case.
+    expect(sentence("timeout")).toBe("Timeout.");
   });
 
   it("leaves an address or an outpoint at the start as it is", () => {
@@ -89,6 +91,11 @@ describe("whoseInputs", () => {
   });
 
   // Found in review: a mining payout read "from another wallet".
+  // No transaction has none; said anyway rather than "all from this wallet".
+  it("says no wallet for no inputs", () => {
+    expect(whoseInputs([])).toBe("from no wallet");
+  });
+
   it("says a coinbase's coins are newly mined", () => {
     const coinbase = { txid: "0".repeat(64), vout: 0xffff_ffff, ours: false };
     expect(whoseInputs([coinbase])).toBe("newly mined");
