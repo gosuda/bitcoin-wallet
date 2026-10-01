@@ -70,6 +70,9 @@ pull requests a change arrived in.
 
 ### Fixed
 
+- On a phone narrower than 390 px, the fee chips on Send and Speed up keep their labels on
+  one line, and Custom moves to a second row. Their labels broke inside the chips, and at
+  320 px the row ran past its card. (#41)
 - A send or a fee bump that falls short says what frozen coins hold, and Max with every coin
   frozen says "Every coin is frozen" instead of asking for 11 more sat. (#40)
 - A payment waiting for a block says when it was first seen. Every sync sees it again, and a

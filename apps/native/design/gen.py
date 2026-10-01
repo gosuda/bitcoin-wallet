@@ -1335,6 +1335,17 @@ def m_focus_tabs(focused="Scan"):
 def m_spec(label, inner):
     return f'<div style="display:flex;flex-direction:column;gap:8px;"><span class="label">{label}</span>{inner}</div>'
 
+def narrow_fee(width):
+    """The Fee card as a phone `width` px wide lays it out: labels whole, the row wrapping."""
+    chips = "".join(
+        f'<span class="m-chip{" on" if label == "6 blocks" else ""}" style="{FEE_CHIP}white-space:nowrap;">{label}</span>'
+        for label in ("1 block", "3 blocks", "6 blocks", "Custom")
+    )
+    return (f'<div class="m-card" style="width:{width - 32}px;box-sizing:border-box;gap:10px;padding:12px 16px;">'
+            f'<span class="label">Fee</span>'
+            f'<div style="display:flex;flex-wrap:wrap;gap:6px;">{chips}</div>'
+            f'<span style="font-size:13px;color:#6B6B66;">2.0 sat/vB</span></div>')
+
 ROW_RING = 'class="m-item" style="box-shadow:inset 0 0 0 2px #C2410C;"'
 mfocus = MHEAD + f'''<div style="width:390px;min-height:680px;background:#FAFAF9;padding:24px 16px;box-sizing:border-box;display:flex;flex-direction:column;gap:22px;">
   <div style="display:flex;flex-direction:column;gap:6px;">
@@ -1347,6 +1358,18 @@ mfocus = MHEAD + f'''<div style="width:390px;min-height:680px;background:#FAFAF9
   {m_spec("Textarea · 2px ring, 1px outside, as inputs", '<div class="mono" style="padding:12px 14px;border:1px solid #E4E3DF;border-radius:12px;background:#FFFFFF;font-size:12px;line-height:1.6;word-break:break-all;outline:2px solid #C2410C;outline-offset:1px;">' + PSBT_B64[:96] + '…</div>')}
 </div>''' + TAIL
 
+# Round 8 · 8.1: the fee row on a narrow phone. M8 draws 390 px, where the
+# four chips fit one row with nothing to spare; narrower, labels stay whole.
+mnarrowfee = MHEAD + f'''<div style="width:390px;min-height:640px;background:#FAFAF9;padding:24px 16px;box-sizing:border-box;display:flex;flex-direction:column;gap:22px;">
+  <div style="display:flex;flex-direction:column;gap:6px;">
+    <span style="font-size:17px;font-weight:600;">Fee chips on a narrow phone</span>
+    <p class="m-lede" style="font-size:14px;">A label never breaks inside its chip. When the four do not fit one row, Custom moves to the next. At 390 px nothing changes.</p>
+  </div>
+  {m_spec("390 px · one row, as M8 draws it", narrow_fee(390))}
+  {m_spec("360 px", narrow_fee(360))}
+  {m_spec("320 px", narrow_fee(320))}
+</div>''' + TAIL
+
 files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send.dc.html": send, "Sent.dc.html": result, "Unlock.dc.html": unlock, "Create.dc.html": create, "Restore.dc.html": restore, "Icon.dc.html": iconboard,
          "MSetup.dc.html": msetup, "MKey.dc.html": mkey, "MCreate.dc.html": mcreate, "MCreateConfirm.dc.html": mcreate_confirm, "MRestore.dc.html": mrestore, "MUnlock.dc.html": munlock,
          "MWallet.dc.html": mwallet, "MReceive.dc.html": mreceive, "MSend.dc.html": msend, "MScan.dc.html": mscan, "MSettings.dc.html": msettings,
@@ -1356,7 +1379,8 @@ files = {"Setup.dc.html": setup, "Key.dc.html": key, "Main.dc.html": dash, "Send
          "CoinsDesktop.dc.html": coins_page, "TxActions.dc.html": txactions_page, "PsbtDesktop.dc.html": psbt_page,
          "MUnlockReset.dc.html": munlock_reset, "MSettings6.dc.html": msettings6, "MSendMulti.dc.html": msendmulti,
          "MCoins.dc.html": mcoins, "MPsbt.dc.html": mpsbt, "MTxIncoming.dc.html": mtx_incoming,
-         "MTxCancel.dc.html": mtx_cancel, "MFocus.dc.html": mfocus}
+         "MTxCancel.dc.html": mtx_cancel, "MFocus.dc.html": mfocus,
+         "MNarrowFee.dc.html": mnarrowfee}
 # Resolved from the script, so running it from the repository root does not
 # scatter boards into the caller's directory and leave the canvas pointing
 # at stale ones.
@@ -1406,6 +1430,7 @@ canvas = {
     {"file": "MTxIncoming.dc.html", "title": "M11b · Transaction (speed up)", "x": 0, "y": 9764, "w": 390, "h": 844},
     {"file": "MTxCancel.dc.html", "title": "M11c · Transaction (cancel)", "x": 470, "y": 9764, "w": 390, "h": 844},
     {"file": "MFocus.dc.html", "title": "M15 · Focus rings", "x": 940, "y": 9764, "w": 390, "h": 680},
+    {"file": "MNarrowFee.dc.html", "title": "M8e · Fee chips on a narrow phone", "x": 1410, "y": 9764, "w": 390, "h": 640},
   ],
   "annotations": [
     {"id": "round3-brief", "x": 2350, "y": 5328, "w": 700, "text": "ROUND 3 — finishing the wallet. One batch, please review it all at once.\n\nNEW: M11 Transaction (tap any history row; fee bump lives here now, so a stuck send is fixable from a phone) · M12 Public keys (xpub + descriptors, for a watch-only copy elsewhere) · M8b Send in Max state (Max now asks the core to drain, so the amount shown is exactly what leaves).\n\nUPDATED: M2 Key gains Watch-only · M5 Unlock gets the two-step Forget the phone was missing · M6 Wallet rows are tappable and show pending sats · M7 Receive can request an amount (QR becomes a bitcoin: link) · M8 Send shows inline errors and a Custom fee rate · M10 Settings rows open Setup (after a 'this closes the wallet' confirm, same block as Forget), plus Rescan and Export.\n\nDesktop: 3 Wallet gets a receive QR + amount, click-to-expand tx detail with the bump inside, a Public keys card and Rescan; 4 Send shows Max state; 2 Key gains Watch-only.\n\nNothing else moved. Same tokens throughout."},
@@ -1439,7 +1464,8 @@ canvas = {
     {"id": "round6-psbt-note", "x": 3230, "y": 8800, "w": 400, "text": "M14 — Import PSBT (6.15)\n\nFrom Settings → Import PSBT. Paste it, or scan it when it fits one QR code (animated QR stays under Later). It is described before anything is signed: which inputs are ours, where each output goes, the fee.\n\nSign signs the inputs this wallet holds keys for. Broadcast stays disabled until every input is signed and the PSBT is finalized. A watch-only wallet has no Sign but can broadcast a PSBT signed elsewhere."},
     {"id": "round6-speedup-note", "x": 2350, "y": 9764, "w": 400, "text": "M11b — Speed up an incoming payment (6.14)\n\nOnly on an unconfirmed INCOMING transaction. It spends the payment on to this wallet with a fee big enough that the two together reach the chosen rate (CPFP). The fee comes out of the payment: 28,886 of the 30,000 sat arrive.\n\nThe action card sits above the Transaction id card (one scroll down), so it shows without scrolling. M11's Bump card can move up the same way."},
     {"id": "round6-cancel-note", "x": 2790, "y": 9764, "w": 400, "text": "M11c — Cancel an outgoing payment (6.14)\n\nOnly while it is unconfirmed, and only if the original signalled RBF — every transaction this wallet builds does. The replacement pays everything back to this wallet at a fee that meets BIP125's absolute-fee rule, not only the rate. Two steps, like Forget.\n\nBump fee folds away while Cancel is open. If the original confirms first, the cancel is rejected and the payment stands."},
-    {"id": "round6-focus-note", "x": 3230, "y": 9764, "w": 400, "text": "M15 — Focus rings (6.10)\n\nKeyboard focus only (:focus-visible); a tap draws nothing. Rows and tabs take a 2px #C2410C ring inside their edge, since the card and the tab bar would clip one outside. The primary button takes a 2px #1A1A1A ring 2px outside: an orange ring vanishes against the orange fill. Fields and textareas get the ring desktop inputs already have."}
+    {"id": "round6-focus-note", "x": 3230, "y": 9764, "w": 400, "text": "M15 — Focus rings (6.10)\n\nKeyboard focus only (:focus-visible); a tap draws nothing. Rows and tabs take a 2px #C2410C ring inside their edge, since the card and the tab bar would clip one outside. The primary button takes a 2px #1A1A1A ring 2px outside: an orange ring vanishes against the orange fill. Fields and textareas get the ring desktop inputs already have."},
+    {"id": "round8-narrow-fee-note", "x": 1880, "y": 9764, "w": 380, "text": "M8e — Fee chips on a narrow phone (8.1)\n\nThe four fee chips need 322 px on one row, which a 390 px phone's 324 holds. At 360 px their labels broke inside the chips; at 320 px they broke and the row ran 33 px past the card.\n\nNow a label stays on one line, and the row wraps: Custom moves to a second row. 390 px is unchanged. The same row is Speed up's fee target."}
   ],
   "launch": {"view": "canvas"}
 }
