@@ -442,10 +442,9 @@ export function renderSend(): HTMLElement {
         return null;
       }
       if (sats === null) {
-        alert.show(
-          "error",
-          `Invalid amount for ${address}: enter a whole number of sat, more than 0.`,
-        );
+        // Unit-neutral, as the address line above is: the field says why in
+        // its own unit (sat or BTC). Found by cubic.
+        alert.show("error", "Every recipient needs a valid amount.");
         r.amount.focus();
         return null;
       }

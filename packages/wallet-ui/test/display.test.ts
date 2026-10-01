@@ -251,6 +251,25 @@ describe("amounts and rates (7.4)", () => {
     expect(screen.textContent).toContain("7.6\u00a0sat/vB");
   });
 
+  // Found by cubic: the banner asked for whole sat in BTC too. Review waits
+  // for a valid amount, so that banner is a fallback, now unit-neutral; what
+  // the screen says is the field's own reason, in the unit typed.
+  it("says why an amount is not valid in the unit it is typed in", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    const screen = mount(renderSend());
+    await settle();
+    type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
+    find<HTMLInputElement>(screen, "input[type=radio][value=btc]").click();
+    const amount = find<HTMLInputElement>(screen, 'input[placeholder="0"]');
+    type(amount, "0.000000001");
+    amount.dispatchEvent(new Event("blur"));
+
+    expect(buttonNamed(screen, "Review").disabled).toBe(true);
+    expect(screen.textContent).toContain("BTC has 8 decimals at most");
+    expect(screen.textContent).not.toContain("whole number of sat");
+  });
+
   it("writes the phone's history amounts with their unit", async () => {
     fake.state.transactions = [
       {
