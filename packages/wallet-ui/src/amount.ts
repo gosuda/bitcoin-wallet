@@ -27,7 +27,7 @@ export function parseAmount(raw: string, unit: Unit): AmountParse {
   const text = raw.trim();
   if (!text) return { sats: null, error: null };
   if (unit === "sat") {
-    if (!/^\d+$/.test(text)) return { sats: null, error: "Enter a whole number of sats." };
+    if (!/^\d+$/.test(text)) return { sats: null, error: "Enter a whole number of sat." };
     const sats = Number(text);
     if (!Number.isSafeInteger(sats)) return { sats: null, error: "Amount is too large." };
     return sats > 0 ? { sats, error: null } : { sats: null, error: NOT_POSITIVE };

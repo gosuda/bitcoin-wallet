@@ -1,9 +1,10 @@
 import { navigate } from "../router";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
-import { shortOutpoint } from "../ui/coins";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
-import { feeRate, outputRole, psbtFlow, signedLine, whoseInputs } from "../ui/psbt";
+import { counted, feeLine, outputRole, shortOutpoint } from "../ui/format";
+import { feeRate, psbtFlow, signedLine } from "../ui/psbt";
+import { PSBT_LEDE, whoseInputs } from "../ui/text";
 
 /** Beside Sign and Broadcast until the PSBT can go out, as 7 says it. */
 const WAITS = "Broadcast waits until every input is signed and the PSBT is finalized.";
@@ -18,10 +19,6 @@ function ioRow(what: string, where: Cell, whose: Cell, value: string): HTMLTable
     el("td", { className: "psbt-whose" }, [whose]),
     el("td", { className: "num mono", text: value }),
   ]);
-}
-
-function counted(count: number, word: string): string {
-  return `${formatNumber(count)} ${word}${count === 1 ? "" : "s"}`;
 }
 
 /**
@@ -69,9 +66,9 @@ function reviewCard(r: PsbtReview): HTMLElement {
         : "";
   const fee = ioRow(
     "Fee",
-    rate === null || r.vsize === null
-      ? ""
-      : `${rate.toFixed(1)} sat/vB · ${formatNumber(r.vsize)} vB`,
+    // The amount has a column of its own; the rest is the one fee line,
+    // which breaks only after a "·". Found by cubic.
+    rate === null || r.vsize === null ? "" : feeLine(null, r.vsize, rate),
     why ? el("span", { className: "hint", text: why }) : "",
     r.fee_sat === null ? "unknown" : formatNumber(r.fee_sat),
   );
@@ -194,7 +191,7 @@ export function renderPsbt(): HTMLElement {
       el("h1", { text: "Import PSBT" }),
       el("p", {
         className: "muted small",
-        text: "Sign or send a transaction made in another wallet",
+        text: PSBT_LEDE,
       }),
     ]),
     alert.node,
@@ -203,7 +200,7 @@ export function renderPsbt(): HTMLElement {
         el("label", { className: "section-label", text: "PSBT", attrs: { for: field.id } }),
         el("span", {
           className: "hint",
-          text: "Base64. Described as soon as it parses.",
+          text: "Base64 or hex. Described as soon as it parses.",
           attrs: { id: "psbt-hint" },
         }),
       ]),

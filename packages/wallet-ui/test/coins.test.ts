@@ -75,7 +75,7 @@ const switches = (root: ParentNode) => [
 const sendSelectedButtons = (root: ParentNode) =>
   [...root.querySelectorAll("button")].filter((b) => b.textContent?.startsWith("Send selected"));
 
-/** The desktop card's head: "3 outputs · 1 frozen · …". */
+/** The desktop card's head: "3 coins · 1 frozen · …". */
 const head = (screen: HTMLElement): string =>
   find(screen, ".card-head-end .hint").textContent ?? "";
 
@@ -108,7 +108,7 @@ const DESKTOP: Shell = {
   row: (control) => control.closest("tr"),
   dimmed: "coin-frozen",
   selection: (screen) => (buttonNamed(screen, "Send selected").hidden ? null : head(screen)),
-  twoTicked: `3 outputs · 1 frozen · 2 selected, ${n(61_234)} sat`,
+  twoTicked: `3 coins · 1 frozen · 2 selected, ${n(61_234)} sat`,
   async send() {
     at("send");
     const screen = mount(renderSend());
@@ -304,7 +304,7 @@ describe("the Unspent outputs card on the desktop (3b)", () => {
     threeCoins();
     const screen = await DESKTOP.list();
 
-    expect(head(screen)).toBe("3 outputs · 1 frozen");
+    expect(head(screen)).toBe("3 coins · 1 frozen");
     expect(switches(screen).map((s) => s.getAttribute("aria-label"))).toEqual([
       "Freeze a41e9c2f7b…3d08e1f2:0",
       "Freeze 7d61959580…b9855325:1",
@@ -322,7 +322,7 @@ describe("the Unspent outputs card on the desktop (3b)", () => {
     ]);
     expect(nth(switches(screen), 0).closest("td")?.textContent).toBe("Frozen");
     expect(screen.textContent).toContain(
-      "A frozen output stays out of every send, of Max and of the spendable balance until it is unfrozen.",
+      "A frozen coin stays out of every send, Max included, and out of the spendable balance until you unfreeze it.",
     );
   });
 
@@ -344,7 +344,7 @@ describe("Coins on the phone (M13)", () => {
 
     expect(texts(screen, ".m-coins-head .section-label")).toEqual([
       `3 coins · ${n(311_234)} sat`,
-      "Freeze",
+      "Frozen",
     ]);
     expect(texts(screen, ".m-coin-value")).toEqual([
       `${n(250_000)} sat`,
@@ -354,7 +354,7 @@ describe("Coins on the phone (M13)", () => {
     expect(texts(screen, ".m-coin-age, .m-coin .m-pending")).toEqual([
       "142 conf.",
       "31 conf.",
-      "pending",
+      "Pending",
     ]);
     expect(texts(screen, ".m-coin-outpoint")).toEqual([
       "a41e9c2f7b…3d08e1f2:0",

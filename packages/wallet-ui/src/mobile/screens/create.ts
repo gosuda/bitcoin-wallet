@@ -6,6 +6,7 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
+import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
 import { body, button, card, header, historyReset, labelled, spacer, withBusy } from "../ui";
 
@@ -37,7 +38,8 @@ export function renderCreate(): HTMLElement {
     return host;
   }
 
-  host.appendChild(header("Recovery phrase", { back: "key" }));
+  // Named as the desktop names it, after the button that leads here.
+  host.appendChild(header("New wallet", { back: "key" }));
   const content = body(alert.node, el("p", { className: "m-lede", text: "Generating…" }));
   host.appendChild(content);
 
@@ -104,19 +106,21 @@ export function renderCreate(): HTMLElement {
         alert.node,
         card(
           sectionLabel("Recovery phrase — shown once"),
-          el("p", {
-            className: "m-lede",
-            text: "Write these down in order and keep them offline. Anyone with them can spend your bitcoin.",
-          }),
+          el("p", { className: "m-lede", text: `${WORDS_SPEND} ${WORDS_KEEP}` }),
           shown,
           copyButton(() => generated.words),
         ),
         card(
           sectionLabel("Confirm your backup"),
-          el("p", { className: "m-lede", text: "Fill in the missing words to continue." }),
+          el("p", { className: "m-lede", text: MISSING_WORDS }),
           confirm,
         ),
-        card(labelled("Passphrase", passphrase, "(optional)"), passphrase, remember.node),
+        card(
+          labelled("Passphrase", passphrase, "(optional)"),
+          passphrase,
+          el("p", { className: "m-lede", text: PASSPHRASE_HINT }),
+          remember.node,
+        ),
         spacer(),
         offer.node,
         create,

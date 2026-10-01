@@ -5,6 +5,7 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel } from "../../ui/dom";
 import { icon } from "../../ui/icons";
+import { explorerFailed, SENT_LINE, SENT_TITLE, sentNotSaved } from "../../ui/text";
 import { body, button, card, header, spacer } from "../ui";
 
 export function renderResult(): HTMLElement {
@@ -24,14 +25,14 @@ export function renderResult(): HTMLElement {
       el("div", { className: "m-centre" }, [
         el("span", { className: "m-badge" }, [icon("check", 36)]),
         el("div", {}, [
-          el("p", { className: "m-card-title", text: "Broadcast" }),
-          el("p", { className: "m-lede", text: "The network has the transaction." }),
+          el("p", { className: "m-card-title", text: SENT_TITLE }),
+          el("p", { className: "m-lede", text: SENT_LINE }),
         ]),
       ]),
       card(
         sectionLabel("Transaction id"),
         el("p", {
-          className: "m-address",
+          className: "m-mono-block",
           text: result.txid,
         }),
       ),
@@ -40,11 +41,11 @@ export function renderResult(): HTMLElement {
       result.persist_error
         ? el("p", {
             className: "hint",
-            text: `Sent, but this device could not save it locally: ${result.persist_error}. A sync will pick it up.`,
+            text: sentNotSaved(result.persist_error),
           })
         : null,
       spacer(),
-      copyButton(() => result.txid, "Copy txid"),
+      copyButton(() => result.txid, "Copy transaction id"),
       // Regtest has no public explorer: no link rather than a dead one.
       result.explorer_url
         ? button(
@@ -53,7 +54,7 @@ export function renderResult(): HTMLElement {
               try {
                 await platform().openUrl(result.explorer_url ?? "");
               } catch (e) {
-                alert.show("warn", errorMessage(e));
+                alert.show("warn", explorerFailed(errorMessage(e)));
               }
             },
             { icon: "external" },

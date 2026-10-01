@@ -7,6 +7,7 @@ import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
 
@@ -196,29 +197,19 @@ export function renderCreate(): HTMLElement {
     el("section", { className: "card secret-box" }, [
       el("div", { className: "card-head" }, [
         sectionLabel("Recovery phrase — shown once"),
-        el("span", {
-          className: "secret-note",
-          text: "Anyone with these words can spend your bitcoin.",
-        }),
+        el("span", { className: "secret-note", text: WORDS_SPEND }),
       ]),
       phraseBox,
       el("div", { className: "actions" }, [
         copyBtn,
-        el("span", {
-          className: "hint",
-          text: "Write them down in order. This wallet cannot show them again.",
-        }),
+        el("span", { className: "hint", text: WORDS_KEEP }),
       ]),
     ]),
     el("section", { className: "card" }, [
       sectionLabel("Confirm your backup"),
-      el("span", { className: "hint", text: "Fill in the missing words to continue." }),
+      el("span", { className: "hint", text: MISSING_WORDS }),
       confirmBox,
-      field(
-        "Passphrase (optional)",
-        passphrase,
-        "A passphrase creates a different wallet from the same words. It is stored with them if you choose to remember this device. Write it down too — without it the words alone cannot recover this wallet.",
-      ),
+      field("Passphrase (optional)", passphrase, PASSPHRASE_HINT),
       remember.node,
     ]),
     el("div", { className: "actions actions-split" }, [

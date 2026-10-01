@@ -82,11 +82,11 @@ describe("addressError", () => {
   });
 
   it("falls back to a plain message when the prefix claims nothing", () => {
-    expect(addressError("zzzzzzzzzzzzzzzz", "signet")).toBe("Not a valid signet address.");
+    expect(addressError("zzzzzzzzzzzzzzzz", "signet")).toBe("Not a valid Signet address.");
   });
 
   // Same prefix family, so there is no wrong-network claim to make.
   it("does not claim a network for a malformed address of the right family", () => {
-    expect(addressError("tb1!!!", "signet")).toBe("Not a valid signet address.");
+    expect(addressError("tb1!!!", "signet")).toBe("Not a valid Signet address.");
   });
 });

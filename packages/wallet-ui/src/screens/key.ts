@@ -8,6 +8,12 @@ import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { NO_KEYSTORE_HINT, rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import {
+  KEY_SHOWN_ONCE,
+  PRIVATE_KEY_HINT,
+  PRIVATE_KEY_PLACEHOLDER,
+  watchPlaceholder,
+} from "../ui/text";
 import { wipeOnLeave } from "../ui/words";
 
 /**
@@ -34,7 +40,7 @@ export function renderKey(): HTMLElement {
   const offer = historyReset(alert);
   const secret = textInput({
     type: "password",
-    placeholder: "64-char hex or WIF",
+    placeholder: PRIVATE_KEY_PLACEHOLDER,
     mono: true,
     name: "secret",
   });
@@ -44,10 +50,8 @@ export function renderKey(): HTMLElement {
   const showGenerated = (key: GeneratedKey) => {
     generated.className = "card secret-box";
     generated.replaceChildren(
-      el("div", { className: "card-head" }, [
-        sectionLabel("New key — shown once"),
-        el("span", { className: "secret-note", text: "Copy it now; it is not stored anywhere." }),
-      ]),
+      // The banner above says what to do with it, in the phone's words too.
+      el("div", { className: "card-head" }, [sectionLabel("New key — shown once")]),
       kv([
         ["Address", mono(key.address)],
         ["Private key (hex)", mono(key.priv_hex)],
@@ -76,10 +80,7 @@ export function renderKey(): HTMLElement {
         const key = await api.generateKey(cfg.network, cfg.address_type);
         if (!onScreen()) return;
         showGenerated(key);
-        alert.show(
-          "warn",
-          "Back up the private key before funding this address. Losing it loses the funds.",
-        );
+        alert.show("warn", KEY_SHOWN_ONCE);
       } catch (e) {
         if (onScreen()) alert.show("error", errorMessage(e));
       }
@@ -138,10 +139,10 @@ export function renderKey(): HTMLElement {
 
   // Every type this screen can be reached with has an account layout: a config
   // naming P2PK, which has none, is sent back to Setup by the route guard.
-  const newWalletBtn = button("New wallet", () => navigate("create"), "primary", "md", {
+  const newWalletBtn = button("Create new wallet", () => navigate("create"), "primary", "md", {
     name: "plus",
   });
-  const restoreBtn = button("Restore wallet", () => navigate("restore"), "default", "md", {
+  const restoreBtn = button("Restore from phrase", () => navigate("restore"), "default", "md", {
     name: "key",
   });
 
@@ -153,11 +154,7 @@ export function renderKey(): HTMLElement {
       text: "Advanced: use a single key",
     }),
     el("div", { className: "disclosure-body" }, [
-      field(
-        "Private key",
-        secret,
-        "Hex (64 chars) or WIF for the selected network. Kept in memory only.",
-      ),
+      field("Private key", secret, PRIVATE_KEY_HINT),
       remember.node,
       el("div", { className: "actions" }, [openBtn, generateBtn]),
       generated,
@@ -176,7 +173,7 @@ export function renderKey(): HTMLElement {
     attrs: {
       rows: "2",
       name: "descriptor",
-      placeholder: "wpkh([fingerprint/84h/1h/0h]tpub…/0/*) — or just the tpub",
+      placeholder: watchPlaceholder(cfg.network),
       spellcheck: "false",
       autocapitalize: "off",
       autocomplete: "off",
@@ -256,7 +253,7 @@ export function renderKey(): HTMLElement {
 
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [
-      el("h1", { text: "Key" }),
+      el("h1", { text: "Start a wallet" }),
       el("p", {
         className: "muted small",
         text: `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`,
@@ -265,7 +262,7 @@ export function renderKey(): HTMLElement {
     alert.node,
     offer.node,
     el("section", { className: "card card-loose" }, [
-      sectionLabel("Start a wallet"),
+      sectionLabel("Recovery phrase"),
       el("div", { className: "actions" }, [
         newWalletBtn,
         restoreBtn,

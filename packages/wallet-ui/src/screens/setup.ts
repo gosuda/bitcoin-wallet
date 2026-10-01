@@ -15,6 +15,7 @@ import {
   OPENABLE_ADDRESS_TYPES,
 } from "../types";
 import { banner, button, el, field, radioGroup, textInput, withBusy } from "../ui/dom";
+import { SERVER_REQUIRED, SETUP_LEDE } from "../ui/text";
 
 export function renderSetup(): HTMLElement {
   const initial = session.config;
@@ -66,7 +67,7 @@ export function renderSetup(): HTMLElement {
         alert.hide();
         const trimmed = url.value.trim();
         if (!trimmed) {
-          alert.show("error", "Esplora URL is required.");
+          alert.show("error", SERVER_REQUIRED);
           return;
         }
         const backend: BackendConfig = { kind: "esplora", url: trimmed };
@@ -89,14 +90,14 @@ export function renderSetup(): HTMLElement {
       el("h1", { text: "Setup" }),
       el("p", {
         className: "muted small",
-        text: "Network and Esplora endpoint. Stored locally; no secrets.",
+        text: SETUP_LEDE,
       }),
     ]),
     alert.node,
     el("section", { className: "card card-loose" }, [
       field("Network", networkGroup),
       field(
-        "Esplora URL",
+        "Esplora server",
         url,
         "Any Esplora-compatible API — mempool.space, blockstream.info, electrs, bitcoin-rs.",
       ),

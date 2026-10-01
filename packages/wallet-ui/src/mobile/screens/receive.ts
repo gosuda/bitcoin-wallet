@@ -9,6 +9,7 @@ import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, textInput } from "../../ui/dom";
+import { RECEIVE_QR_NOTE } from "../../ui/text";
 import { body, button, card, chips, header, labelled, lede, row, withBusy } from "../ui";
 
 export function renderReceive(): HTMLElement {
@@ -112,7 +113,7 @@ export function renderReceive(): HTMLElement {
         amountErr,
         el("span", {
           className: "hint",
-          text: "The QR becomes a bitcoin: link with the amount filled in.",
+          text: RECEIVE_QR_NOTE,
         }),
       ),
       info.is_ranged ? null : lede("A single-key wallet has one address; every payment reuses it."),

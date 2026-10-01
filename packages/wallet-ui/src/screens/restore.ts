@@ -6,6 +6,7 @@ import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount 
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import { PASSPHRASE_HINT, phraseError } from "../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../ui/words";
 
 /** Quiet period after a keystroke before the phrase is checked again. */
@@ -13,31 +14,6 @@ const VALIDATE_DELAY_MS = 250;
 
 function isWordCount(n: number): n is WordCount {
   return (WORD_COUNTS as readonly number[]).includes(n);
-}
-
-/** bip39 reports an unknown word by its 0-based index; the grid counts from 1. */
-const UNKNOWN_WORD = /unknown word \(word (\d+)\)/i;
-
-/** Framing the core adds on the way out. This screen is only ever about phrases. */
-const CORE_PREFIX = /^(?:invalid key material:\s*)?(?:invalid mnemonic:\s*)?/i;
-
-/**
- * The core's reason as a sentence. An unknown word is named the way the mockup
- * names it — the core knows the position, and this screen knows what was typed.
- */
-function phraseError(message: string, typed: readonly string[]): string {
-  const unknown = UNKNOWN_WORD.exec(message);
-  if (unknown) {
-    const position = Number(unknown[1]) + 1;
-    const word = typed[position - 1];
-    return word
-      ? `Word ${position} "${word}" is not in the word list.`
-      : `Word ${position} is not in the word list.`;
-  }
-  const text = message.trim().replace(CORE_PREFIX, "");
-  if (!text) return "";
-  const capitalized = text.charAt(0).toUpperCase() + text.slice(1);
-  return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 
 export function renderRestore(): HTMLElement {
@@ -251,11 +227,7 @@ export function renderRestore(): HTMLElement {
       ]),
       gridBox,
       errorLine,
-      field(
-        "Passphrase (optional)",
-        passphrase,
-        "A passphrase creates a different wallet from the same words. It is stored with them if you choose to remember this device.",
-      ),
+      field("Passphrase (optional)", passphrase, PASSPHRASE_HINT),
       remember.node,
     ]),
     el("div", { className: "actions actions-split" }, [

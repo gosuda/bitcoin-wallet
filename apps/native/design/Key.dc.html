@@ -49,11 +49,11 @@
 </header>
 <main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">
 <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px;">
-  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Key</h1>
+  <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Start a wallet</h1>
   <p style="margin: 0; font-size: 12px; color: #6B6B66;">Signet · mempool.space</p>
 </div>
 <section class="card" style="gap: 16px;">
-  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Private key</span><span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></span><span class="hint">Hex (64 chars) or WIF. Used for this session only — never written to disk.</span></div>
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">Private key</span><span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></span><span class="hint">A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.</span></div>
   <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path></svg> Open wallet</span>
@@ -64,7 +64,6 @@
 <section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label" style="color: #9A3412;">New key — shown once</span>
-    <span style="font-size: 12px; color: #9A3412;">Copy it now; it is not stored anywhere.</span>
   </div>
   <dl class="kv" style="margin: 0;">
     <dt>Address</dt><dd class="mono">tb1q4xp7va00fsud6u5yca6qs6ntaj62a83dv378jc</dd>
@@ -82,7 +81,7 @@
     <span class="label">Watch-only</span>
     <span class="hint">Follows a wallet without its keys: balance, history and receiving, no sending.</span>
   </div>
-  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">xpub or descriptor</span><span class="input mono placeholder">wpkh([fingerprint/84h/1h/0h]tpub…/0/*) — or just the tpub</span><span class="hint">A bare xpub is expanded with the address type chosen in Setup.</span></div>
+  <div style="display: flex; flex-direction: column; gap: 6px;"><span class="label">xpub or descriptor</span><span class="input mono placeholder">tpub… or wpkh([fingerprint/84h/1h/0h]tpub…/0/*)</span><span class="hint">A bare xpub is expanded with the address type chosen in Setup.</span></div>
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg> Follow this wallet</span>
   </div>

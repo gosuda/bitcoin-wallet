@@ -32,8 +32,23 @@ pub enum Error {
     BuildTx(String),
     /// The wallet cannot cover the outputs plus the fee. The amounts ride
     /// along so a UI can say by how much, not only that it failed.
-    #[error("insufficient funds: need {needed_sat} sat, have {available_sat} sat")]
-    InsufficientFunds { needed_sat: u64, available_sat: u64 },
+    ///
+    /// `frozen_sat` is what the coins frozen with `set_frozen` hold, which a
+    /// build that chose its own coins left out: without it, "need 11 more"
+    /// reads as a wallet with nothing in it. A fee bump adds confirmed coins
+    /// only, so only confirmed frozen coins count for one. `all_frozen` says
+    /// every coin of this wallet is frozen, for a bump as for a send: a coin
+    /// too small to pay for its own input leaves nothing available too, so
+    /// `available_sat` of 0 does not say it.
+    /// They are 0 and false for a send held to chosen coins, which names its
+    /// coins itself.
+    #[error("insufficient funds: need {needed_sat} sat, have {available_sat} sat{}", frozen_note(*frozen_sat))]
+    InsufficientFunds {
+        needed_sat: u64,
+        available_sat: u64,
+        frozen_sat: u64,
+        all_frozen: bool,
+    },
     /// A fee rate that is not a plausible sat/vB value: not finite, negative,
     /// or past the ceiling. Kept apart from [`Error::BuildTx`] because it is
     /// caught before a builder is touched, on every path a rate can arrive
@@ -42,7 +57,7 @@ pub enum Error {
     InvalidFeeRate(String),
     #[error("signing error: {0}")]
     Sign(String),
-    #[error("psbt error: {0}")]
+    #[error("PSBT error: {0}")]
     Psbt(String),
     #[error("unsupported: {0}")]
     Unsupported(String),
@@ -130,7 +145,14 @@ impl Error {
             Error::InsufficientFunds {
                 needed_sat,
                 available_sat,
-            } => Some(json!({ "needed_sat": needed_sat, "available_sat": available_sat })),
+                frozen_sat,
+                all_frozen,
+            } => Some(json!({
+                "needed_sat": needed_sat,
+                "available_sat": available_sat,
+                "frozen_sat": frozen_sat,
+                "all_frozen": all_frozen,
+            })),
             Error::Dust { output } => Some(json!({ "output": output })),
             Error::FeeTooLow {
                 required_sat_vb,
@@ -146,6 +168,34 @@ impl Error {
             } => Some(json!({ "reason": reason, "found": found, "supported": supported })),
             _ => None,
         }
+    }
+
+    /// For a build that chose its own coins: what the frozen coins it left
+    /// out hold, and whether they were all it had. Every other error passes
+    /// through as it is.
+    pub(crate) fn with_frozen(self, frozen_sat: u64, all_frozen: bool) -> Self {
+        match self {
+            Error::InsufficientFunds {
+                needed_sat,
+                available_sat,
+                ..
+            } => Error::InsufficientFunds {
+                needed_sat,
+                available_sat,
+                frozen_sat,
+                all_frozen,
+            },
+            other => other,
+        }
+    }
+}
+
+/// The end of an insufficient-funds message: nothing when no coin is frozen.
+fn frozen_note(frozen_sat: u64) -> String {
+    if frozen_sat == 0 {
+        String::new()
+    } else {
+        format!(" ({frozen_sat} sat more is frozen)")
     }
 }
 
@@ -235,9 +285,11 @@ mod tests {
                 Error::InsufficientFunds {
                     needed_sat: 10,
                     available_sat: 5,
+                    frozen_sat: 0,
+                    all_frozen: false,
                 },
                 "insufficient_funds",
-                Some(["needed_sat", "available_sat"].as_slice()),
+                Some(["needed_sat", "available_sat", "frozen_sat", "all_frozen"].as_slice()),
                 "insufficient funds: need 10 sat, have 5 sat",
             ),
             (
@@ -247,7 +299,7 @@ mod tests {
                 "invalid fee rate: x",
             ),
             (Error::Sign("x".into()), "sign", None, "signing error: x"),
-            (Error::Psbt("x".into()), "psbt", None, "psbt error: x"),
+            (Error::Psbt("x".into()), "psbt", None, "PSBT error: x"),
             (
                 Error::Unsupported("x".into()),
                 "unsupported",
@@ -396,18 +448,41 @@ mod tests {
         assert_eq!(sorted.len(), codes.len(), "duplicate code in {codes:?}");
     }
 
+    /// The table's row has nothing frozen; with frozen coins the message says
+    /// what they hold, so a log shows why a full wallet fell short.
+    #[test]
+    fn a_shortfall_with_frozen_coins_says_what_they_hold() {
+        let err = Error::InsufficientFunds {
+            needed_sat: 10,
+            available_sat: 0,
+            frozen_sat: 29_290,
+            all_frozen: true,
+        };
+        assert_eq!(
+            err.to_string(),
+            "insufficient funds: need 10 sat, have 0 sat (29290 sat more is frozen)"
+        );
+    }
+
     #[test]
     fn error_payload_carries_the_message_and_the_details() {
         let err = Error::InsufficientFunds {
             needed_sat: 100,
             available_sat: 40,
+            frozen_sat: 7,
+            all_frozen: false,
         };
         let payload = ErrorPayload::from(&err);
         assert_eq!(payload.code, "insufficient_funds");
         assert_eq!(payload.message, err.to_string());
         assert_eq!(
             payload.details,
-            Some(json!({ "needed_sat": 100, "available_sat": 40 }))
+            Some(json!({
+                "needed_sat": 100,
+                "available_sat": 40,
+                "frozen_sat": 7,
+                "all_frozen": false,
+            }))
         );
 
         let plain = Error::InvalidKey("bad".into());

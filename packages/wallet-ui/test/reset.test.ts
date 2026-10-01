@@ -34,11 +34,11 @@ const SAVED: RememberedWallet = {
   address_type: "p2wpkh",
 };
 
-// The canvas's words (MUnlockReset and its note).
-const UNREADABLE = "The saved wallet data on this device can't be read.";
+// The canvas's words (MUnlockReset and its note), and that freezing goes with the history.
+const UNREADABLE = "The saved wallet data on this device cannot be read.";
 const TRIGGER = "Reset this device's history";
 const SECOND_STEP =
-  "The key stays on this device. Only the transaction history saved here is deleted; it is downloaded again on the next sync.";
+  "The key stays on this device. The history saved here is deleted and downloaded again on the next sync, and any coin you froze is unfrozen.";
 
 type Reason = "malformed" | "mismatch" | "future_version";
 
@@ -126,14 +126,14 @@ const OPENERS: readonly Opener[] = [
     name: "phone Unlock",
     route: "unlock",
     remembered: true,
-    press: "Open wallet",
+    press: "Unlock",
     render: async () => mount(renderPhoneUnlock()),
   },
   {
     name: "phone Restore, recovery phrase",
     route: "restore",
     remembered: false,
-    press: "Restore",
+    press: "Restore wallet",
     render: async () => {
       setRestoreMode("phrase");
       const screen = mount(renderPhoneRestore());
@@ -272,7 +272,7 @@ describe("a wallet whose saved history cannot be read offers a reset (6.7)", () 
     const phoneUnlock = OPENERS.find((o) => o.name === "phone Unlock");
     if (!phoneUnlock) throw new Error("no phone Unlock case");
     const { screen } = await failToOpen(phoneUnlock, "malformed");
-    expect(hasButton(screen, "Open wallet")).toBe(false);
+    expect(hasButton(screen, "Unlock")).toBe(false);
     expect(hasButton(screen, "Use a different wallet")).toBe(true);
 
     // Saved again by a newer version before the reset is confirmed: the
@@ -285,7 +285,7 @@ describe("a wallet whose saved history cannot be read offers a reset (6.7)", () 
     expect(fake.callNames()).not.toContain("deleteWalletState");
     expect(find(screen, ".banner-visible").textContent).toContain("Update the app");
     expect(hasButton(screen, TRIGGER)).toBe(false);
-    expect(hasButton(screen, "Open wallet")).toBe(true);
+    expect(hasButton(screen, "Unlock")).toBe(true);
   });
 });
 

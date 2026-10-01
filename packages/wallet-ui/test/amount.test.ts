@@ -11,7 +11,7 @@ describe("parseAmount, sat", () => {
   // Number("1e5") is 100000 — so a typo used to become a real amount.
   it("refuses exponent notation rather than reading it as a number", () => {
     expect(parseAmount("1e5", "sat").sats).toBeNull();
-    expect(parseAmount("1e5", "sat").error).toBe("Enter a whole number of sats.");
+    expect(parseAmount("1e5", "sat").error).toBe("Enter a whole number of sat.");
   });
 
   it("refuses anything but digits", () => {

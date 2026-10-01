@@ -14,13 +14,16 @@ import {
   type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
+  NETWORK_LABELS,
   type Recipient,
   rateForTarget,
   type TxPreview,
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
-import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
+import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
 import {
   body,
   button,
@@ -66,25 +69,20 @@ interface RecipientRow {
   touched: { address: boolean; amount: boolean };
 }
 
-/** Both ends of an address, which is what tells two apart at a glance. */
-function short(address: string): string {
-  return `${address.slice(0, 8)}…${address.slice(-6)}`;
-}
-
 /** A send to several, reviewed: every recipient, then the fee and the total. */
 function recipientList(to: readonly Recipient[], fee: string, total: number): HTMLElement {
   const list = el("dl", { className: "m-review" });
   for (const r of to) {
     list.append(
-      el("dt", { className: "m-review-to", text: short(r.address) }),
-      el("dd", { text: `${formatNumber(r.amount_sat)} sat` }),
+      el("dt", { className: "m-review-to", text: r.address }),
+      el("dd", { text: `${formatSats(r.amount_sat)}` }),
     );
   }
   list.append(
     el("dt", { text: "Fee" }),
     el("dd", { text: fee }),
     el("dt", { className: "m-review-total", text: "Total" }),
-    el("dd", { className: "m-review-total", text: `${formatNumber(total)} sat` }),
+    el("dd", { className: "m-review-total", text: `${formatSats(total)}` }),
   );
   return list;
 }
@@ -200,7 +198,7 @@ export function renderSend(): HTMLElement {
       only.amount.value = formatAmount(preview.total_out_sat, currentUnit);
       only.touched.amount = true;
       max.setAttribute("aria-pressed", "true");
-      maxNote.textContent = `Everything: ${formatNumber(preview.total_out_sat + preview.fee_sat)} sat minus the ${formatNumber(preview.fee_sat)} sat fee. Edit the amount to leave Max.`;
+      maxNote.textContent = maxModeNote(preview.total_out_sat + preview.fee_sat, preview.fee_sat);
       refresh();
     } catch (e) {
       alert.show("error", errorMessage(e));
@@ -216,11 +214,11 @@ export function renderSend(): HTMLElement {
   rateInput.setAttribute("inputmode", "decimal");
   const customRow = el("div", { className: "m-rate-row" }, [
     rateInput,
-    el("span", { className: "m-rate-unit", text: "sat/vB · floor 1" }),
+    el("span", { className: "m-rate-unit", text: "sat/vB" }),
   ]);
   customRow.hidden = true;
   const rateErr = el("span", { className: "m-err", attrs: { role: "status" } });
-  const rateNote = el("span", { className: "m-txmeta", text: "Fetching fee estimate…" });
+  const rateNote = el("span", { className: "m-txmeta", text: FETCHING_ESTIMATE });
   let estimate: FeeEstimate | null = null;
   let rate = 1;
 
@@ -249,8 +247,9 @@ export function renderSend(): HTMLElement {
     const before = rate;
     if (choice === "custom") {
       const typed = Number(rateInput.value);
-      rate = Number.isFinite(typed) && typed >= 1 ? typed : 1;
-      rateNote.textContent = `${rate.toFixed(1)} sat/vB · your rate`;
+      // Rounded up to a tenth, the rate Review names and the core builds at.
+      rate = Number.isFinite(typed) && typed > 0 ? typeableRate(typed) : 1;
+      rateNote.textContent = `Custom rate · ${FLOOR_NOTE}`;
     } else {
       try {
         estimate ??= await api.estimateFee();
@@ -259,11 +258,16 @@ export function renderSend(): HTMLElement {
         // silently built at 1 sat/vB while the field showed the typed rate.
         // The screen can also have changed while it was in flight.
         if (fee.value() !== choice || !onScreen()) return;
-        rate = rateForTarget(estimate, Number(choice)) ?? 1;
-        rateNote.textContent = `${rate.toFixed(2)} sat/vB`;
-      } catch (e) {
+        // Rounded and floored as the desktop's field is: the raw estimate can be
+        // below the 1 sat/vB the core builds at, and the note would name a rate
+        // the transaction does not pay.
+        const market = rateForTarget(estimate, Number(choice));
+        rate = typeableRate(market ?? 1);
+        // An estimate with no rate in it is none: say so, as the desktop does.
+        rateNote.textContent = market === null ? estimateUnavailable(rate) : formatRate(rate);
+      } catch (_e) {
         if (fee.value() !== choice || !onScreen()) return;
-        rateNote.textContent = `Using 1 sat/vB — ${errorMessage(e)}`;
+        rateNote.textContent = estimateUnavailable(1);
         rate = 1;
       }
     }
@@ -363,7 +367,7 @@ export function renderSend(): HTMLElement {
   const newRow = (from: Prefill): RecipientRow => {
     const address = textInput({
       value: from.address ?? "",
-      placeholder: "bc1 / tb1 address",
+      placeholder: `${NETWORK_LABELS[info.network]} address`,
       mono: true,
       name: "address",
     });
@@ -443,7 +447,7 @@ export function renderSend(): HTMLElement {
       only.address.removeAttribute("aria-label");
       only.amount.removeAttribute("aria-label");
       recipientsBox.replaceChildren(
-        card(labelled("To", only.address), row(only.address, only.scan), only.addressErr),
+        card(labelled("Address", only.address), row(only.address, only.scan), only.addressErr),
         card(
           labelled("Amount", only.amount),
           row(only.amount, unit.node, max),
@@ -495,7 +499,7 @@ export function renderSend(): HTMLElement {
       reticle(),
       lede("Point the camera at an address or a bitcoin: QR code."),
     ]),
-    button("Cancel", () => stopScan?.(), { block: true }),
+    button("Stop scanning", () => stopScan?.(), { block: true }),
   );
   const scanNote = lede("Address filled in from a scan.");
 
@@ -604,8 +608,11 @@ export function renderSend(): HTMLElement {
         if (to === null) return;
         try {
           const seq = formSeq;
+          // The rate Review names; a Max preview was built at it too, since
+          // changing the rate leaves Max.
+          const at = rate;
           // In Max mode the preview already exists and is exactly the amount shown.
-          const preview = drain ?? (await api.buildTransfer(to, rate, heldTo(coins)));
+          const preview = drain ?? (await api.buildTransfer(to, at, heldTo(coins)));
           if (seq !== formSeq || !onScreen()) {
             // The form changed or the screen went away while this was building.
             // Showing it would offer the previous recipients and amounts;
@@ -613,7 +620,7 @@ export function renderSend(): HTMLElement {
             if (preview !== drain) void api.discardTx(preview.psbt_id);
             return;
           }
-          showPreview(preview, to);
+          showPreview(preview, to, at);
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
         }
@@ -621,7 +628,11 @@ export function renderSend(): HTMLElement {
     { variant: "primary", block: true },
   );
 
-  function showPreview(preview: TxPreview, to: readonly Recipient[]): void {
+  /**
+   * `rate` is the one it was built at, which Review names: BDK charges by
+   * weight, and the fee over the rounded-up size reads a tenth under it.
+   */
+  function showPreview(preview: TxPreview, to: readonly Recipient[], rate: number): void {
     pendingPreview = preview;
     const confirm = button(
       "Confirm and send",
@@ -646,19 +657,19 @@ export function renderSend(): HTMLElement {
     );
 
     const total = preview.total_out_sat + preview.fee_sat;
-    const feeText = `${formatNumber(preview.fee_sat)} sat · ${formatNumber(preview.vsize)} vB`;
+    const feeText = feeLine(preview.fee_sat, preview.vsize, rate);
     const sheet = card(
       sectionLabel("Review"),
       to.length === 1
         ? kv([
-            ["Amount", `${formatNumber(preview.total_out_sat)} sat`],
+            ["Amount", `${formatSats(preview.total_out_sat)}`],
             ["Fee", feeText],
-            ["Change", `${formatNumber(preview.change_sat)} sat`],
-            ["Total", `${formatNumber(total)} sat`],
+            ["Change", `${formatSats(preview.change_sat)}`],
+            ["Total", `${formatSats(total)}`],
           ])
         : recipientList(to, feeText, total),
       confirm,
-      button("Cancel", clearPreview, { variant: "quiet" }),
+      button("Edit", clearPreview, { variant: "quiet" }),
     );
     sheet.classList.add("m-confirm-neutral");
     reviewHost.replaceChildren(sheet);

@@ -131,7 +131,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     at("send");
     let screen = mount(renderSend());
     await settle();
-    type(find<HTMLInputElement>(screen, 'input[placeholder^="Recipient address"]'), fake.ADDRESS);
+    type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
     buttonNamed(screen, "Max").click();
     await settle();
     const drain = await buildDrain.mock.results[0]?.value;
@@ -147,7 +147,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     at("send");
     screen = mount(renderSend());
     await settle();
-    type(find<HTMLInputElement>(screen, 'input[placeholder^="Recipient address"]'), fake.ADDRESS);
+    type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
     type(find<HTMLInputElement>(screen, 'input[placeholder="0"]'), "1000");
     buttonNamed(screen, "Review").click();
     await settle();
@@ -155,7 +155,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(buildTransfer).toHaveBeenCalledTimes(1);
     expect(buildDrain).toHaveBeenCalledTimes(1);
     expect(screen.querySelector(".banner-visible")).toBeNull();
-    expect(buttonNamed(screen, "Confirm & broadcast")).toBeTruthy();
+    expect(buttonNamed(screen, "Confirm and send")).toBeTruthy();
     expect(screen.textContent).toContain((1000).toLocaleString());
   });
 

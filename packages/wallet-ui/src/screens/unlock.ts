@@ -11,9 +11,11 @@ import {
   NETWORK_LABELS,
 } from "../types";
 import { banner, button, el, kv, mono, withBusy } from "../ui/dom";
+import { shortId } from "../ui/format";
 import { icon } from "../ui/icons";
 import { appPasswordField, KEYCHAIN_NAME } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import { forgetWarning, OPENED_WITH, sentence } from "../ui/text";
 
 export function renderUnlock(): HTMLElement {
   const cfg = session.config;
@@ -50,7 +52,7 @@ export function renderUnlock(): HTMLElement {
       if (!onScreen()) return;
       // A wrong password is said under its field, and nothing else changes.
       if (password && isAppError(e) && e.code === "wrong_password") {
-        password.setError(errorMessage(e));
+        password.setError(sentence(errorMessage(e)));
         password.input.focus();
         password.input.select();
       } else {
@@ -88,11 +90,20 @@ export function renderUnlock(): HTMLElement {
   };
   const forgetBtn = button("Forget this wallet", () => showConfirm(), "quiet");
   forgetBtn.classList.add("btn-quiet-danger");
+  // The second step Settings has, in the same words: what is deleted and
+  // what brings the wallet back, then Keep it or Delete it.
+  const confirmSlot = el("div", { className: "slot" });
+  // Focus goes back to the trigger: the button that had it is gone, and a
+  // keyboard or screen reader was left at the page. Found by cubic.
+  const closeConfirm = () => {
+    confirmSlot.replaceChildren();
+    forgetBtn.focus();
+  };
   const showConfirm = () => {
-    const yesBtn = button(
-      "Yes, forget",
+    const yes = button(
+      "Delete it",
       () =>
-        withBusy(yesBtn, async () => {
+        withBusy(yes, async () => {
           alert.hide();
           try {
             await api.forgetWallet();
@@ -100,20 +111,27 @@ export function renderUnlock(): HTMLElement {
             navigate("key");
           } catch (e) {
             alert.show("error", errorMessage(e));
-            showTrigger();
+            closeConfirm();
           }
         }),
       "danger",
-      "sm",
     );
-    forgetSlot.replaceChildren(
-      el("span", { className: "confirm-inline", attrs: { role: "group" } }, [
-        "Really forget? ",
-        yesBtn,
-        button("Cancel", showTrigger, "quiet", "sm"),
+    // Read out with the button, which alone says only "Delete it".
+    yes.setAttribute("aria-describedby", "forget-warning");
+    confirmSlot.replaceChildren(
+      el("section", { className: "card danger-card" }, [
+        el("span", {
+          className: "muted",
+          text: forgetWarning(null),
+          attrs: { id: "forget-warning" },
+        }),
+        el("div", { className: "actions actions-end" }, [
+          button("Keep it", closeConfirm, "quiet"),
+          yes,
+        ]),
       ]),
     );
-    yesBtn.focus();
+    yes.focus();
   };
   showTrigger();
 
@@ -144,7 +162,7 @@ export function renderUnlock(): HTMLElement {
         ]),
       ]),
       kv([
-        ["Address", mono(remembered.address)],
+        ["Address", mono(shortId(remembered.address))],
         [
           "Network",
           `${NETWORK_LABELS[remembered.network]} · ${ADDRESS_TYPE_LABELS[remembered.address_type]}`,
@@ -154,13 +172,14 @@ export function renderUnlock(): HTMLElement {
       password?.node,
       el("div", { className: "actions" }, [
         unlockBtn,
-        button("Use a different key", () => navigate("key")),
+        button("Use a different wallet", () => navigate("key")),
         forgetSlot,
       ]),
+      confirmSlot,
       password
         ? el("span", {
             className: "hint",
-            text: "Forgotten it? It cannot be reset. Forget this wallet here and restore it from its recovery phrase.",
+            text: `Forgotten it? It cannot be reset. Forget this wallet here, and open it again with ${OPENED_WITH}.`,
           })
         : null,
     ]),

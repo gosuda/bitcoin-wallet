@@ -41,7 +41,7 @@ const BROWSER_HINT = "· encrypted with an app password and kept in this browser
 const WARNING =
   "Anyone with this browser's files and this password can spend. It cannot be recovered.";
 const FORGOTTEN =
-  "Forgotten it? It cannot be reset. Forget this wallet here and restore it from its recovery phrase.";
+  "Forgotten it? It cannot be reset. Forget this wallet here, and open it again with what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.";
 const MISMATCH = "The passwords do not match.";
 
 /**
@@ -182,6 +182,29 @@ describe("remembering in the browser takes an app password (6.12)", () => {
     expect(await unseal(WALLET_ID, record, PASSWORD)).toEqual({ secret: KEY, passphrase: null });
     expect(browser.remembered()?.wallet_id).toBe(WALLET_ID);
     expect(session.remembered?.wallet_id).toBe(WALLET_ID);
+  });
+
+  // No minimum length: the owner's call (docs/ROADMAP.md, Decisions). The
+  // warning under the fields and SECURITY.md say what a short one risks.
+  it("takes an app password of any length, a single character included", async () => {
+    const browser = inTheBrowser();
+    const panel = singleKey();
+    type(find(panel, "input[name=secret]"), KEY);
+    find<HTMLInputElement>(panel, "input[name=remember]").click();
+    const [password, confirm] = passwordPair(panel);
+    type(password, "x");
+    type(confirm, "x");
+    const open = buttonNamed(panel, "Open wallet");
+    expect(open.disabled).toBe(false);
+    expect(errorUnder(confirm)).toBe("");
+
+    open.click();
+    await landsOn("dashboard");
+
+    expect(await unseal(WALLET_ID, browser.records.get(WALLET_ID), "x")).toEqual({
+      secret: KEY,
+      passphrase: null,
+    });
   });
 
   it("nothing is kept when Remember is left unticked", async () => {
@@ -339,7 +362,7 @@ describe("Unlock in the browser asks for the app password (6.12)", () => {
     const screen = mount(renderUnlock());
 
     buttonNamed(screen, "Forget this wallet").click();
-    buttonNamed(screen, "Yes, forget").click();
+    buttonNamed(screen, "Delete it").click();
     await landsOn("key");
 
     expect(browser.records.size).toBe(0);

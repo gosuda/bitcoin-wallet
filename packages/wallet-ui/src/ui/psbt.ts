@@ -10,9 +10,10 @@ import { api } from "../api";
 import { navigate } from "../router";
 import { sameWalletGuard, screenGuard } from "../screen";
 import { session } from "../session";
-import { errorMessage, isAppError, type PsbtInput, type PsbtReview, type TxOutput } from "../types";
+import { errorMessage, isAppError, type PsbtReview } from "../types";
 import { readClipboard } from "./clipboard";
 import { type Banner, type BannerKind, formatNumber } from "./dom";
+import { sentence } from "./text";
 
 /** "psbt" and 0xff: the five bytes every PSBT starts with (BIP 174). */
 const MAGIC = [0x70, 0x73, 0x62, 0x74, 0xff] as const;
@@ -23,7 +24,7 @@ export const UR_REFUSED =
 
 /**
  * Said under the field for text the core cannot read as a PSBT. The core
- * passes on the parser's own words ("psbt error: error in PSBT base64
+ * passes on the parser's own words ("PSBT error: error in PSBT base64
  * encoding"), which name its failure rather than what was pasted. Only here:
  * the same code also refuses a PSBT at broadcast, for a reason worth reading.
  */
@@ -77,15 +78,6 @@ export function signedLine(review: PsbtReview): string {
   return `Signed ${formatNumber(signedCount(review))} of ${formatNumber(n)} input${n === 1 ? "" : "s"}`;
 }
 
-/** Whose the inputs are, as the head of the list says it: "both yours", "1 yours". */
-export function whoseInputs(inputs: readonly PsbtInput[]): string {
-  const n = inputs.length;
-  const ours = inputs.filter((i) => i.ours).length;
-  if (ours === n) return n === 1 ? "yours" : n === 2 ? "both yours" : "all yours";
-  if (ours === 0) return n === 1 ? "not yours" : "none yours";
-  return `${formatNumber(ours)} yours`;
-}
-
 /**
  * The fee rate in sat/vB, or null until the size is known: exact once every
  * input is final, and from the most a signature can add while every input is
@@ -94,15 +86,6 @@ export function whoseInputs(inputs: readonly PsbtInput[]): string {
 export function feeRate(review: PsbtReview): number | null {
   const { fee_sat: fee, vsize } = review;
   return fee === null || vsize === null || vsize === 0 ? null : fee / vsize;
-}
-
-/**
- * What an output is to this wallet. Ours on a spend of ours is change, as the
- * transaction detail says it; ours on anything else is a payment to it.
- */
-export function outputRole(review: PsbtReview, output: TxOutput): "recipient" | "change" | "ours" {
-  if (!output.ours) return "recipient";
-  return review.net_sat < 0 ? "change" : "ours";
 }
 
 /** What to say after Sign that the review does not already show: null when it does. */
@@ -203,7 +186,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
       if (mine === seq && onScreen()) put(review);
     } catch (e) {
       if (mine !== seq || !onScreen()) return;
-      sayInvalid(isAppError(e) && e.code === "psbt" ? NOT_A_PSBT : errorMessage(e));
+      sayInvalid(isAppError(e) && e.code === "psbt" ? NOT_A_PSBT : sentence(errorMessage(e)));
     }
   };
 

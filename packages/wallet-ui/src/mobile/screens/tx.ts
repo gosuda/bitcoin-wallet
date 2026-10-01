@@ -18,8 +18,31 @@ import {
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
+import {
+  counted,
+  feeLine,
+  formatConfirmations,
+  formatDateTime,
+  formatRate,
+  formatSats,
+  outputRole,
+  typeableRate,
+} from "../../ui/format";
 import { icon } from "../../ui/icons";
-import { body, button, card, chips, header, item, lede, listCard, row, withBusy } from "../ui";
+import { estimateUnavailable, explorerFailed, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
+import {
+  body,
+  button,
+  card,
+  chips,
+  header,
+  ioLine,
+  item,
+  lede,
+  listCard,
+  outputNote,
+  withBusy,
+} from "../ui";
 
 /**
  * Which transaction to show. Routes carry no parameters, so a history row
@@ -45,24 +68,13 @@ type Offer = "replace" | "child" | "none";
 
 type SpeedChoice = `${FeeTarget}` | "custom";
 
-function short(address: string): string {
-  return `${address.slice(0, 8)}…${address.slice(-6)}`;
-}
-
-function when(timestamp: number | null): string {
-  if (timestamp === null) return "";
-  return new Date(timestamp * 1000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/** What a row says about an output: ours is change on a send, a receipt otherwise. */
-function outputLabel(d: TxDetail, o: TxOutput): string {
-  if (!o.ours) return "To";
-  return d.net_sat < 0 ? "Change" : "Received";
+/**
+ * Said under an output in a transaction's detail, in the words the desktop's
+ * detail labels it with: an output of this wallet's on a receipt is
+ * "received". Import PSBT says "to this wallet", since nothing is received yet.
+ */
+function detailNote(d: TxDetail, o: TxOutput): string | null {
+  return outputRole(d, o) === "ours" ? "received" : outputNote(d, o);
 }
 
 export function renderTransaction(): HTMLElement {
@@ -148,14 +160,15 @@ export function renderTransaction(): HTMLElement {
     const status = el("span", { className: pending ? "pill m-pill-pending" : "pill" }, [
       el("span", { className: "pill-dot" }),
       pending
-        ? `Pending${d.timestamp === null ? "" : ` · seen ${when(d.timestamp)}`}`
-        : `${formatNumber(d.confirmations ?? 0)} confirmation${d.confirmations === 1 ? "" : "s"}${
-            d.timestamp === null ? "" : ` · ${when(d.timestamp)}`
+        ? `Pending${d.timestamp === null ? "" : ` · seen ${formatDateTime(d.timestamp)}`}`
+        : `${formatConfirmations(d.confirmations)}${
+            d.timestamp === null ? "" : ` · ${formatDateTime(d.timestamp)}`
           }`,
     ]);
     const hero = card(
       dot,
-      el("span", { className: "m-hero m-tx-amount" }, [
+      // Money in is green here as in both lists.
+      el("span", { className: incoming ? "m-hero m-tx-amount m-tx-in" : "m-hero m-tx-amount" }, [
         `${incoming ? "+" : "−"}${formatNumber(Math.abs(d.net_sat))} `,
         el("span", { className: "m-tx-unit", text: "sat" }),
       ]),
@@ -163,53 +176,47 @@ export function renderTransaction(): HTMLElement {
     );
     hero.classList.add("m-tx-hero");
 
-    const fee =
-      d.fee_sat === null
-        ? `${formatNumber(d.vsize)} vB`
-        : `${formatNumber(d.fee_sat)} sat · ${(d.fee_rate_sat_vb ?? 0).toFixed(1)} sat/vB · ${formatNumber(d.vsize)} vB`;
+    const fee = feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb);
+    // Pending, as the pill above says: not a count of 0.
     const confirmations = pending
-      ? "0 — in the mempool"
+      ? formatConfirmations(null)
       : `${formatNumber(d.confirmations ?? 0)}${d.block_height === null ? "" : ` · block ${formatNumber(d.block_height)}`}`;
     const facts = listCard(item("Fee", fee, undefined), item("Confirmations", confirmations));
 
-    const ownInputs = d.inputs.filter((i) => i.ours).length;
-    const from = `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${
-      ownInputs === d.inputs.length ? " · yours" : ownInputs > 0 ? ` · ${ownInputs} yours` : ""
-    }`;
-    const flow = listCard(
-      item("From", from),
+    const from = `${counted(d.inputs.length, "input")} · ${whoseInputs(d.inputs)}`;
+    const flow = listCard(item("From", from));
+    // Each output whole, as Import PSBT lists them: this is where a payee is checked.
+    const outputs = card(
+      sectionLabel(`Outputs · ${formatNumber(d.outputs.length)}`),
       ...d.outputs.map((o) =>
-        item(
-          outputLabel(d, o),
-          `${o.address === null ? "script" : short(o.address)} · ${formatNumber(o.value_sat)} sat`,
-        ),
+        ioLine(o.address ?? "script", `${formatSats(o.value_sat)}`, detailNote(d, o)),
       ),
     );
+    outputs.classList.add("m-io-card");
 
     // Resolved before the button is offered, the way Result and the desktop
     // dashboard do it: on regtest there is no explorer, and a button that only
     // ever explains itself is worse than no button.
     const explorer = explorerUrl
       ? button(
-          "Explorer",
+          "Open in explorer",
           async () => {
             alert.hide();
             try {
               await platform().openUrl(explorerUrl);
             } catch (e) {
-              alert.show("warn", errorMessage(e));
+              alert.show("warn", explorerFailed(errorMessage(e)));
             }
           },
           { icon: "external" },
         )
       : null;
+    // One per line, as on Sent: side by side, "Open in explorer" broke in two.
     const ident = card(
       sectionLabel("Transaction id"),
       el("span", { className: "m-mono-block", text: d.txid }),
-      row(
-        copyButton(() => d.txid),
-        explorer,
-      ),
+      copyButton(() => d.txid, "Copy transaction id"),
+      explorer,
     );
 
     const actions: HTMLElement[] = [];
@@ -219,17 +226,20 @@ export function renderTransaction(): HTMLElement {
     } else if (offer === "child") {
       actions.push(speedUpCard(d));
     }
-    // Above the Transaction id card, so an action shows without scrolling (M11b).
-    content.replaceChildren(alert.node, hero, facts, flow, ...actions, ident);
+    // Above the outputs and the Transaction id card, so an action shows
+    // without scrolling (M11b): whole addresses make the outputs tall.
+    content.replaceChildren(alert.node, hero, facts, flow, ...actions, outputs, ident);
   };
 
   const bumpCard = (id: string, originalRate: number | null): HTMLElement => {
     const rate = textInput({ value: "1", type: "number", mono: true, name: "bump_rate" });
+    // The card's heading names the action, not the field.
+    rate.setAttribute("aria-label", "Fee rate, in sat/vB");
     rate.min = "1";
     rate.max = String(MAX_FEE_RATE_SAT_VB);
     rate.step = "0.1";
     rate.setAttribute("inputmode", "decimal");
-    const note = el("span", { className: "hint", text: "Fetching the 1-block estimate…" });
+    const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const bump = button(
       "Bump fee",
       () =>
@@ -252,25 +262,20 @@ export function renderTransaction(): HTMLElement {
         }),
       { variant: "primary", block: true },
     );
-    const relabel = () => {
-      const label = bump.querySelector("span");
-      if (label) label.textContent = `Bump to ${rate.value} sat/vB`;
-    };
     let rateTouched = false;
     rate.addEventListener("input", () => {
       rateTouched = true;
-      relabel();
     });
     void (async () => {
       let suggested = suggestBumpRate(null, originalRate);
       let text: string;
       try {
         suggested = suggestBumpRate(await api.estimateFee(), originalRate);
-        text = `1-block estimate ${suggested} sat/vB`;
+        text = `1-block estimate ${formatRate(suggested)}`;
       } catch {
         // Name the rate actually prefilled: with the original's rate known,
         // the floor is above 1 sat/vB and saying otherwise misreports the field.
-        text = `Estimate unavailable — starting at ${suggested} sat/vB`;
+        text = estimateUnavailable(suggested);
       }
       // The note is information either way, but the field belongs to whoever
       // typed in it: an estimate arriving after that is stale advice, not a
@@ -279,7 +284,6 @@ export function renderTransaction(): HTMLElement {
       note.textContent = text;
       if (rateTouched) return;
       rate.value = String(suggested);
-      relabel();
     })();
     const sheet = card(
       el("div", { className: "m-bump-head" }, [sectionLabel("Bump fee"), note]),
@@ -361,7 +365,7 @@ export function renderTransaction(): HTMLElement {
         const sheet = card(
           sectionLabel("Cancel"),
           lede(
-            `Replace it with a transaction that pays ${formatNumber(built.change_sat)} sat back to your wallet. Fee ${formatNumber(built.fee_sat)} sat.`,
+            `Replace it with a transaction that pays ${formatSats(built.change_sat)} back to this wallet. Fee ${formatSats(built.fee_sat)}.`,
           ),
           go,
           button("Keep it", close, { variant: "quiet" }),
@@ -395,13 +399,13 @@ export function renderTransaction(): HTMLElement {
     // What the last build asked for; Custom starts from it.
     let rate = suggestPackageRate(null, 1, parentRate);
 
-    const note = el("span", { className: "hint", text: "Fetching the estimate…" });
+    const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const custom = textInput({ type: "number", mono: true, name: "speedup_rate" });
     custom.min = "1";
     custom.max = String(MAX_FEE_RATE_SAT_VB);
     custom.step = "0.1";
     custom.setAttribute("inputmode", "decimal");
-    custom.setAttribute("aria-label", "Rate for both, in sat/vB");
+    custom.setAttribute("aria-label", "Rate for the two together, in sat/vB");
     const customRow = el("div", { className: "m-rate-row" }, [
       custom,
       el("span", { className: "m-rate-unit", text: "sat/vB" }),
@@ -435,47 +439,50 @@ export function renderTransaction(): HTMLElement {
       if (choice === "custom") {
         note.textContent = "Your rate";
         const typed = Number(custom.value);
+        // Rounded up to a tenth, as it is shown: found by cubic, 7.55 showed
+        // "7.5 sat/vB" and built at 7.55.
+        const at = typeableRate(typed);
         const problem =
           feeRateError(typed) ??
-          (parentRate !== null && typed <= parentRate
-            ? `It pays ${parentRate.toFixed(1)} sat/vB alone already; a child helps only above that.`
+          (parentRate !== null && at <= parentRate
+            ? `It pays ${formatRate(parentRate)} alone already; a child helps only above that.`
             : null);
         if (problem !== null) {
           customErr.textContent = problem;
           blank("—");
           return;
         }
-        rate = typed;
-        shown = String(typed);
+        rate = at;
+        shown = formatRate(at);
       } else if (estimate === undefined) {
         // Built once the estimate answers.
-        note.textContent = "Fetching the estimate…";
+        note.textContent = FETCHING_ESTIMATE;
         blank("…");
         return;
       } else {
         const blocks = Number(choice);
         rate = suggestPackageRate(estimate, blocks, parentRate);
-        shown = rate.toFixed(1);
+        shown = formatRate(rate);
         if (estimate === null) {
-          note.textContent = `Estimate unavailable — starting at ${shown} sat/vB`;
+          note.textContent = estimateUnavailable(rate);
         } else if (rate > suggestPackageRate(estimate, blocks)) {
           // The estimate alone would offer a rate the transaction pays already.
-          note.textContent = `Raised above the ${(parentRate ?? 0).toFixed(1)} sat/vB it pays alone`;
+          note.textContent = `Raised above the ${formatRate(parentRate ?? 0)} it pays alone`;
         } else {
-          note.textContent = `${blocks}-block estimate ${shown} sat/vB`;
+          note.textContent = `${blocks}-block estimate ${shown}`;
         }
       }
-      pays.textContent = `${shown} sat/vB for both`;
+      pays.textContent = `${shown} for the two together`;
       fee.textContent = "…";
       keep.textContent = "…";
       const at = rate;
       try {
         const built = await holdPreview(() => api.buildCpfp(d.txid, at));
         if (!built) return;
-        fee.textContent = `${formatNumber(built.fee_sat)} sat`;
+        fee.textContent = `${formatSats(built.fee_sat)}`;
         // The child spends our coins from this payment and nothing else, so
         // they come to what it keeps plus its fee.
-        keep.textContent = `${formatNumber(built.change_sat)} of ${formatNumber(built.change_sat + built.fee_sat)} sat`;
+        keep.textContent = `${formatNumber(built.change_sat)} of ${formatSats(built.change_sat + built.fee_sat)}`;
       } catch (e) {
         fee.textContent = "—";
         keep.textContent = "—";
@@ -542,7 +549,7 @@ export function renderTransaction(): HTMLElement {
       el("div", { className: "m-bump-head" }, [sectionLabel("Speed up"), note]),
       el("p", {
         className: "m-card-text",
-        text: "Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).",
+        text: "Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).",
       }),
       target.node,
       customSlot,

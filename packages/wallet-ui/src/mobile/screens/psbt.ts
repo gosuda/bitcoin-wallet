@@ -2,17 +2,20 @@ import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { session } from "../../session";
-import { errorMessage, type PsbtInput, type PsbtReview, type TxOutput } from "../../types";
-import { shortOutpoint } from "../../ui/coins";
+import { errorMessage, type PsbtInput, type PsbtReview } from "../../types";
 import { banner, el, formatNumber, sectionLabel } from "../../ui/dom";
-import { feeRate, outputRole, psbtFlow, signedLine, whoseInputs } from "../../ui/psbt";
+import { feeLine, formatSats, shortOutpoint } from "../../ui/format";
+import { feeRate, psbtFlow, signedLine } from "../../ui/psbt";
+import { whoseInputs } from "../../ui/text";
 import {
   body,
   button,
   card,
   header,
+  ioLine,
   labelled,
   lede,
+  outputNote,
   reticle,
   row,
   seeThroughMark,
@@ -20,42 +23,18 @@ import {
   withBusy,
 } from "../ui";
 
-/** Both ends of an address, which is what tells two apart at a glance. */
-function short(address: string): string {
-  return `${address.slice(0, 8)}…${address.slice(-6)}`;
-}
-
-/** One line of M14's list: where, with a note under it, and the value in sat. */
-function ioLine(where: string, value: string, note: string | null): HTMLElement {
-  return el("div", { className: "m-io" }, [
-    el("span", { className: "m-io-where" }, [
-      el("span", { className: "m-io-addr", text: where }),
-      note === null ? null : el("span", { className: "m-io-note", text: note }),
-    ]),
-    el("span", { className: "m-io-value", text: value }),
-  ]);
-}
-
 /**
  * Said under an input only where it is not what M14 draws, this wallet's and
  * not signed yet; the count above the list and the line under it say the rest.
  */
 function inputNote(input: PsbtInput): string | null {
-  const notes = [input.ours ? null : "not yours", input.finalized ? "signed" : null];
+  const notes = [input.ours ? null : "another wallet's", input.finalized ? "signed" : null];
   const said = notes.filter((n) => n !== null);
   return said.length === 0 ? null : said.join(" · ");
 }
 
-function outputNote(r: PsbtReview, output: TxOutput): string | null {
-  const role = outputRole(r, output);
-  return role === "change" ? "change, back to you" : role === "ours" ? "to you" : null;
-}
-
 function feeText(r: PsbtReview): string {
-  if (r.fee_sat === null) return "unknown";
-  const rate = feeRate(r);
-  const fee = `${formatNumber(r.fee_sat)} sat`;
-  return rate === null ? fee : `${fee} · ${rate.toFixed(1)} sat/vB`;
+  return r.fee_sat === null ? "unknown" : feeLine(r.fee_sat, r.vsize, feeRate(r));
 }
 
 /** The card M14 draws under the PSBT: its inputs, its outputs, then the fee. */
@@ -68,7 +47,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
     ...r.inputs.map((input) =>
       ioLine(
         shortOutpoint(input),
-        input.value_sat === null ? "unknown" : formatNumber(input.value_sat),
+        input.value_sat === null ? "unknown" : formatSats(input.value_sat),
         inputNote(input),
       ),
     ),
@@ -77,11 +56,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
       text: `Outputs · ${formatNumber(r.outputs.length)}`,
     }),
     ...r.outputs.map((output) =>
-      ioLine(
-        output.address === null ? "script" : short(output.address),
-        formatNumber(output.value_sat),
-        outputNote(r, output),
-      ),
+      ioLine(output.address ?? "script", formatSats(output.value_sat), outputNote(r, output)),
     ),
     el("div", { className: "m-psbt-fee" }, [
       el("span", { text: "Fee" }),
@@ -183,7 +158,7 @@ export function renderPsbt(): HTMLElement {
       reticle(),
       lede("Point the camera at a PSBT that fits one QR code."),
     ]),
-    button("Cancel", () => stopScan?.(), { block: true }),
+    button("Stop scanning", () => stopScan?.(), { block: true }),
   );
 
   const scanIn = async (): Promise<void> => {

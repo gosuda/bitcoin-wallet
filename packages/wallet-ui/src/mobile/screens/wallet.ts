@@ -5,26 +5,12 @@ import { screenGuard } from "../../screen";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
+import { formatConfirmations, formatSats, formatTime, formatWhen } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { body, button, card, header, listCard, row } from "../ui";
 import { showTransaction } from "./tx";
 
 const AUTO_SYNC_MS = 60_000;
-
-function whenLabel(tx: TxSummary): string {
-  if (tx.confirmations === null || tx.confirmations === 0) return "Pending";
-  return tx.confirmations === 1
-    ? "1 confirmation"
-    : `${formatNumber(tx.confirmations)} confirmations`;
-}
-
-function dateLabel(tx: TxSummary): string {
-  if (tx.timestamp === null) return "";
-  return new Date(tx.timestamp * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 /** One history row: a button, because it opens the transaction. */
 function txRow(tx: TxSummary): HTMLElement {
@@ -33,10 +19,16 @@ function txRow(tx: TxSummary): HTMLElement {
   const dot = el("span", { className: "m-dirdot" }, [glyph]);
   dot.classList.add(incoming ? "m-tx-in" : "m-tx-out");
 
-  const meta = [whenLabel(tx), dateLabel(tx)].filter(Boolean).join(" · ");
+  // Pending in the pending colour, as the coin list and the desktop say it.
+  const status = el("span", { text: formatConfirmations(tx.confirmations) });
+  if (tx.confirmations === null) status.classList.add("m-pending");
+  const meta = el("span", { className: "m-txmeta" }, [
+    status,
+    tx.timestamp === null ? "" : ` · ${formatWhen(tx.timestamp)}`,
+  ]);
   const amount = el("span", {
     className: "m-amt",
-    text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
+    text: `${incoming ? "+" : "−"}${formatSats(Math.abs(tx.net_sat))}`,
   });
   if (incoming) amount.classList.add("m-tx-in");
 
@@ -51,7 +43,7 @@ function txRow(tx: TxSummary): HTMLElement {
       dot,
       el("span", { className: "m-txmain" }, [
         el("span", { className: "m-txtitle", text: incoming ? "Received" : "Sent" }),
-        el("span", { className: "m-txmeta", text: meta }),
+        meta,
       ]),
       amount,
       el("span", { className: "m-chev" }, [icon("chevron", 16)]),
@@ -74,7 +66,7 @@ export function renderWallet(): HTMLElement {
   const pending = el("span", { className: "m-pending" });
   // The screen is rebuilt on every visit; the last sync is a session fact.
   const syncedText = () =>
-    session.lastSyncedAt ? `Synced ${session.lastSyncedAt.toLocaleTimeString()}` : "Not synced yet";
+    session.lastSyncedAt ? `Synced ${formatTime(session.lastSyncedAt)}` : "Not synced yet";
   const synced = el("span", { text: syncedText() });
 
   const paint = (balance: Balance): void => {
@@ -83,7 +75,7 @@ export function renderWallet(): HTMLElement {
     // formatBtc already carries the unit; appending another gave "BTC BTC".
     sub.textContent = formatBtc(total);
     const waiting = pendingSat(balance);
-    pending.textContent = waiting > 0 ? `${formatNumber(waiting)} sat pending` : "";
+    pending.textContent = waiting > 0 ? `${formatSats(waiting)} pending` : "";
     pending.hidden = waiting === 0;
   };
 
@@ -103,8 +95,8 @@ export function renderWallet(): HTMLElement {
           // The list is capped, so the count has to say which number it is.
           text:
             txs.length > shown
-              ? `${shown} of ${txs.length} · newest first`
-              : `${txs.length} · newest first`,
+              ? `${formatNumber(shown)} of ${formatNumber(txs.length)} · newest first`
+              : `${formatNumber(txs.length)} · newest first`,
         }),
       ]),
       ...(txs.length === 0
@@ -113,7 +105,7 @@ export function renderWallet(): HTMLElement {
       ...(txs.length > shown
         ? [
             button(
-              `Show all ${txs.length}`,
+              `Show all ${formatNumber(txs.length)}`,
               () => {
                 shown = txs.length;
                 paintTxs(txs);
@@ -154,7 +146,7 @@ export function renderWallet(): HTMLElement {
       alert.hide();
     } catch (e) {
       if (!onScreen()) return;
-      synced.textContent = "Sync failed";
+      synced.textContent = `${syncedText()} · sync failed, retrying`;
       alert.show("warn", errorMessage(e));
     } finally {
       sync.disabled = false;

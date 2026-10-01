@@ -90,14 +90,14 @@ const OPENERS: readonly Opener[] = [
   {
     name: "phone Unlock",
     route: "unlock",
-    press: "Open wallet",
+    press: "Unlock",
     hold: unlocking,
     render: async () => mount(renderPhoneUnlock()),
   },
   {
     name: "phone Restore, recovery phrase",
     route: "restore",
-    press: "Restore",
+    press: "Restore wallet",
     hold: readingBack,
     render: async () => {
       setRestoreMode("phrase");

@@ -43,8 +43,44 @@ pull requests a change arrived in.
   wallet holds keys for, and Broadcast waits until every input is signed; a watch-only
   wallet can broadcast a PSBT signed elsewhere. (#39)
 
+### Changed
+
+- Addresses and transaction ids are shortened one way everywhere, and the phone shows every
+  address whole in a transaction's detail, in Import PSBT and in the review of a send to
+  several, as the desktop does: that is where a payment is checked. (#40)
+- Amounts, fee rates and sizes are written one way on both shells: "1,234 sat", a rate
+  with one decimal, and a fee as "141 sat · 1.0 sat/vB · 141 vB". The phone's Send names
+  the rate it will pay, which on a quiet network used to read below the 1 sat/vB it pays.
+  (#40)
+- Both shells say "Pending" alike and in the same colour, count confirmations alike, and
+  write times alike: "12 min ago", "Today 14:02", then the date. Syncing reads "Synced
+  14:32" on both. (#40)
+- Each action has one label on both shells, and "Cancel" only ever cancels a payment:
+  "Confirm and send", "Edit" to leave a review, "Use a different wallet", "Copy
+  transaction id". Forget on the desktop's Unlock warns what it deletes, as Settings does,
+  and the Sent screen says the same on both. (#40)
+- Each thing has one name on both shells: a "coin" (the desktop's Unspent outputs card is
+  now Coins), "this wallet's" for what the wallet owns, "Transaction id", "Esplora
+  server". Both shells warn about a passphrase in the same words, the phone's Create
+  included, and say the same about freezing, Rescan, a new single key and a fee estimate.
+  (#40)
+- Both shells say the same sentences on Setup, Create, the key fields, Public keys, Receive,
+  Unlock and Import PSBT, and every message is written as a sentence, the core's included.
+  (#40)
+
 ### Fixed
 
+- A send or a fee bump that falls short says what frozen coins hold, and Max with every coin
+  frozen says "Every coin is frozen" instead of asking for 11 more sat. (#40)
+- A payment waiting for a block says when it was first seen. Every sync sees it again, and a
+  payment stuck for hours read "just now". (#40)
+- The phone's Restore names an unknown word by its place in the grid, as the desktop does. It
+  showed the core's message, which counts words from 0. (#40)
+- A transaction's detail names its year when it is not this one, as the list does. (#40)
+- A fee rate prefilled from an estimate no longer pays a tenth more for the estimate's float
+  noise. (#40)
+- Unlock, and a saved wallet that could not be read, no longer tell the owner of a single key
+  or a watch-only wallet to restore it from a recovery phrase. (#40)
 - The phone shows where keyboard focus is on every control: rows and tabs are ringed inside
   their edge, and the primary button in a colour its fill does not hide. Textareas show
   the ring on both shells. (#39)
@@ -53,10 +89,10 @@ pull requests a change arrived in.
   Unlock when the network chosen there is the wallet's own. Unlock refuses a wallet saved on
   another network, which it used to open against the wrong chain's server. (#39)
 - A wallet whose history saved on this device cannot be read can be opened again. Unlock,
-  Key, Restore and Create offer to reset this device's history, which deletes only that
-  history and keeps the key and the settings; the next sync downloads it back. On Unlock the
-  only way out used to be Forget, which deletes the key too. History saved by a newer version
-  of the app asks for an update instead. (#39)
+  Key, Restore and Create offer to reset this device's history, which deletes that history,
+  and with it which coins are frozen, and keeps the key and the settings; the next sync
+  downloads the history back. On Unlock the only way out used to be Forget, which deletes the
+  key too. History saved by a newer version of the app asks for an update instead. (#39, #40)
 - Leaving Unlock, or the phone's Create or Restore, while a wallet is still opening no longer
   pulls you back to it once it opens. (#39)
 - A wallet with a long history can finish its first sync on a slow connection. A scan is no

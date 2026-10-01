@@ -69,12 +69,53 @@ describe("errorMessage", () => {
     expect(errorMessage(err)).toBe("Need 60 more sat.");
   });
 
+  // Frozen coins are left out of a send the wallet chooses for; saying only
+  // the shortfall reads as an empty wallet.
+  it("says what frozen coins hold when the wallet chose and fell short", () => {
+    const short = (available_sat: number, frozen_sat: number, all_frozen = false) =>
+      errorMessage(
+        new WalletError("insufficient_funds", "x", {
+          needed_sat: 100,
+          available_sat,
+          frozen_sat,
+          all_frozen,
+        }),
+      );
+    expect(short(40, 0)).toBe("Need 60 more sat.");
+    expect(short(40, 50_000)).toBe(
+      `Need 60 more sat. Frozen coins hold ${(50_000).toLocaleString()} sat.`,
+    );
+    expect(short(0, 29_290, true)).toBe("Every coin is frozen. Unfreeze one to spend it.");
+  });
+
+  // Nothing available is not every coin frozen: a coin too small to pay for
+  // its own input is left out too.
+  it("says every coin is frozen only when the core says so", () => {
+    const err = new WalletError("insufficient_funds", "x", {
+      needed_sat: 5_830,
+      available_sat: 0,
+      frozen_sat: 100_000,
+      all_frozen: false,
+    });
+    expect(errorMessage(err)).toBe(
+      `Need ${(5_830).toLocaleString()} more sat. Frozen coins hold ${(100_000).toLocaleString()} sat.`,
+    );
+  });
+
   it("names the required rate or fee for fee_too_low", () => {
     const byRate = new WalletError("fee_too_low", "x", {
       required_sat_vb: 4.5,
       required_sat: null,
     });
     expect(errorMessage(byRate)).toContain("4.5 sat/vB");
+
+    // BDK's floor for a 141 vB send paid at 1 sat/vB: 501 sat/kwu. Rounded
+    // to the nearest tenth it read "2.0", which the core refuses again.
+    const byKwu = new WalletError("fee_too_low", "x", {
+      required_sat_vb: 501 / 250,
+      required_sat: null,
+    });
+    expect(errorMessage(byKwu)).toContain("at least 2.1 sat/vB");
 
     const byAmount = new WalletError("fee_too_low", "x", {
       required_sat_vb: null,
@@ -83,9 +124,15 @@ describe("errorMessage", () => {
     expect(errorMessage(byAmount)).toContain(`${(2000).toLocaleString()} sat`);
   });
 
-  it("names the output for dust, one-indexed for a reader", () => {
+  // Named as Setup and Settings name it, not "the backend". Found in review.
+  it("names the Esplora server when it does not answer", () => {
+    const err = new WalletError("timeout", "x", { secs: 30 });
+    expect(errorMessage(err)).toBe("The Esplora server did not answer within 30 s.");
+  });
+
+  it("names the recipient for dust, one-indexed as the cards are", () => {
     const err = new WalletError("dust", "x", { output: 0 });
-    expect(errorMessage(err)).toContain("Output 1");
+    expect(errorMessage(err)).toContain("Recipient 1 is too small");
   });
 
   it("names the ceiling for invalid_fee_rate", () => {
@@ -101,7 +148,7 @@ describe("errorMessage", () => {
   // PSBT, which knows the text failed to parse, says it in words of its own.
   it("passes a PSBT refusal on in the core's words, which say why", () => {
     const why =
-      "psbt error: input 0 is not signed: a transaction goes out only once every input is final";
+      "PSBT error: input 0 is not signed: a transaction goes out only once every input is final";
     expect(errorMessage(new WalletError("psbt", why))).toBe(why);
   });
 

@@ -94,11 +94,11 @@ function buttons(root: ParentNode, name: string | RegExp): HTMLButtonElement[] {
   });
 }
 
-/** Which of the three actions the screen offers. The phone names its bump by its rate. */
+/** Which of the three actions the screen offers, named as both shells name them. */
 function offered(screen: HTMLElement): string[] {
   return [
     buttons(screen, "Speed up").length > 0 ? "Speed up" : null,
-    buttons(screen, /^Bump (fee|to )/).length > 0 ? "Bump fee" : null,
+    buttons(screen, "Bump fee").length > 0 ? "Bump fee" : null,
     buttons(screen, "Cancel").length > 0 ? "Cancel" : null,
   ].filter((name) => name !== null);
 }
@@ -153,7 +153,7 @@ const PHONE: Shell = {
   speedUpText: () => [
     "1-block estimate 5.0 sat/vB",
     `${n(1_114)} sat`,
-    "5.0 sat/vB for both",
+    "5.0 sat/vB for the two together",
     `${n(28_886)} of ${n(30_000)} sat`,
   ],
 };
@@ -226,7 +226,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     history(sent());
     const buildCancel = vi.spyOn(api, "buildCancel");
     const screen = await shell.show(OUTGOING);
-    const card = `pays ${n(48_200)} sat back to your wallet. Fee ${n(1_380)} sat.`;
+    const card = `pays ${n(48_200)} sat back to this wallet. Fee ${n(1_380)} sat.`;
 
     buttonNamed(screen, "Cancel").click();
     await settle();
@@ -270,7 +270,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
 });
 
 describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
-  it("puts the action card above the Transaction id card, to show without scrolling", async () => {
+  it("puts the action card above the outputs and the Transaction id, to show without scrolling", async () => {
     history(payment(), sent());
     for (const [txid, action] of [
       [INCOMING, "Speed up"],
@@ -282,7 +282,22 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
         cards.findIndex((c) => c.querySelector(".section-label")?.textContent === label);
       expect(place(action), action).toBeGreaterThan(0);
       expect(place(action), action).toBeLessThan(place("Transaction id"));
+      // Found in review: with every address whole, the outputs pushed Bump
+      // fee below the fold of a 375×667 phone.
+      const outputs = cards.findIndex((c) =>
+        c.querySelector(".section-label")?.textContent?.startsWith("Outputs"),
+      );
+      expect(place(action), action).toBeLessThan(outputs);
     }
+  });
+
+  // Found in review: the field had no name once the button stopped naming the rate.
+  it("names Bump fee's rate field for a screen reader", async () => {
+    history(sent());
+    const screen = await PHONE.show(OUTGOING);
+    expect(find(screen, "input[name=bump_rate]").getAttribute("aria-label")).toBe(
+      "Fee rate, in sat/vB",
+    );
   });
 
   it("folds Bump fee away while Cancel is open, and opening it again calls the cancel off", async () => {
@@ -292,15 +307,15 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
 
     buttonNamed(screen, "Cancel").click();
     await settle();
-    expect(buttons(screen, /^Bump to /)).toHaveLength(0);
+    expect(buttons(screen, "Bump fee")).toHaveLength(0);
     const folded = buttons(screen, /Pay more to confirm sooner/);
     expect(folded).toHaveLength(1);
 
     folded[0]?.click();
     await settle();
 
-    expect(screen.textContent).not.toContain("back to your wallet");
-    expect(buttons(screen, /^Bump to /)).toHaveLength(1);
+    expect(screen.textContent).not.toContain("Replace it with a transaction");
+    expect(buttons(screen, "Bump fee")).toHaveLength(1);
     expect(buttonNamed(screen, "Cancel")).toBeTruthy();
     const dropped = await buildCancel.mock.results[0]?.value;
     await expect(api.signAndBroadcast(dropped.psbt_id)).rejects.toMatchObject({
@@ -326,6 +341,13 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     type(rate, "7.5");
     await settle();
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.5]);
-    expect(screen.textContent).toContain("7.5 sat/vB for both");
+    expect(screen.textContent).toContain("7.5 sat/vB for the two together");
+
+    // Found by cubic: 7.55 read "7.5 sat/vB" and was built at 7.55. It is
+    // rounded up to a tenth, and built at what it says.
+    type(rate, "7.55");
+    await settle();
+    expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.6]);
+    expect(screen.textContent).toContain("7.6 sat/vB for the two together");
   });
 });

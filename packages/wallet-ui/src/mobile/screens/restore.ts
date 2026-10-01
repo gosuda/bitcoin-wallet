@@ -5,6 +5,15 @@ import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
 import { banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
+import {
+  KEY_SHOWN_ONCE,
+  MISSING_WORDS,
+  PASSPHRASE_HINT,
+  PRIVATE_KEY_HINT,
+  PRIVATE_KEY_PLACEHOLDER,
+  phraseError,
+  watchPlaceholder,
+} from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
 import {
   body,
@@ -135,12 +144,22 @@ function phrase(): HTMLElement {
   wipeOnLeave(() => [...inputs, passphrase]);
 
   const restore = async (reset = false): Promise<void> => {
+    const typed = inputs.map((i) => i.value.trim().toLowerCase()).filter(Boolean);
+    // Every cell first, as the desktop waits for: a blank before an unknown
+    // word would shift the number the core names it by. Found by cubic.
+    if (typed.length < inputs.length) {
+      alert.show("error", MISSING_WORDS);
+      return;
+    }
+    const words = typed.join(" ");
     try {
-      const words = inputs
-        .map((i) => i.value.trim().toLowerCase())
-        .filter(Boolean)
-        .join(" ");
       await api.validateMnemonic(words);
+    } catch (e) {
+      // As the desktop says it: an unknown word by its place in the grid.
+      if (onScreen()) alert.show("error", phraseError(errorMessage(e), typed));
+      return;
+    }
+    try {
       await openWith(
         () => words,
         () => remember.checked(),
@@ -152,7 +171,10 @@ function phrase(): HTMLElement {
       if (onScreen()) offer.report(e, () => restore(true));
     }
   };
-  const go = button("Restore", () => withBusy(go, restore), { variant: "primary", block: true });
+  const go = button("Restore wallet", () => withBusy(go, restore), {
+    variant: "primary",
+    block: true,
+  });
 
   return el("main", {}, [
     header("Restore wallet", { back: "key" }),
@@ -164,7 +186,7 @@ function phrase(): HTMLElement {
         passphrase,
         el("p", {
           className: "m-lede",
-          text: "A passphrase creates a different wallet from the same words. Without it those words alone cannot recover this one.",
+          text: PASSPHRASE_HINT,
         }),
         remember.node,
       ),
@@ -180,7 +202,12 @@ function singleKey(): HTMLElement {
   const alert = banner();
   const offer = historyReset(alert);
   const remember = rememberCheckbox();
-  const secret = textInput({ type: "password", mono: true, name: "secret" });
+  const secret = textInput({
+    type: "password",
+    mono: true,
+    name: "secret",
+    placeholder: PRIVATE_KEY_PLACEHOLDER,
+  });
   secret.setAttribute("autocapitalize", "none");
   secret.setAttribute("autocorrect", "off");
   wipeOnLeave(() => [secret]);
@@ -200,7 +227,7 @@ function singleKey(): HTMLElement {
   };
   const go = button("Open wallet", () => withBusy(go, open), { variant: "primary", block: true });
 
-  const generate = button("Generate a new key", async () => {
+  const generate = button("Generate new key", async () => {
     alert.hide();
     const cfg = session.config;
     if (!cfg) return navigate("setup");
@@ -208,7 +235,7 @@ function singleKey(): HTMLElement {
       const key = await api.generateKey(cfg.network, cfg.address_type);
       secret.value = key.wif;
       secret.type = "text";
-      alert.show("warn", "Write this key down before continuing. It is shown once.");
+      alert.show("warn", KEY_SHOWN_ONCE);
     } catch (e) {
       alert.show("error", errorMessage(e));
     }
@@ -218,7 +245,7 @@ function singleKey(): HTMLElement {
     header("Single key", { back: "key" }),
     body(
       alert.node,
-      lede("A private key in hex or WIF. One key means one address and no recovery phrase."),
+      lede(PRIVATE_KEY_HINT),
       card(labelled("Private key", secret), secret, generate),
       card(remember.node),
       spacer(),
@@ -242,7 +269,7 @@ function watchOnly(): HTMLElement {
     attrs: {
       rows: "3",
       name: "descriptor",
-      placeholder: "tpub… or wpkh([fingerprint/84h/1h/0h]tpub…/0/*)",
+      placeholder: watchPlaceholder(session.config?.network),
       spellcheck: "false",
       autocapitalize: "off",
       autocomplete: "off",

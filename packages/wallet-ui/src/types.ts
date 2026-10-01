@@ -1,3 +1,5 @@
+import { formatNumber, formatRate, formatSats, typeableRate } from "./ui/format";
+
 export const NETWORKS = ["bitcoin", "testnet3", "testnet4", "signet", "regtest"] as const;
 export type Network = (typeof NETWORKS)[number];
 
@@ -274,7 +276,7 @@ export function feeRateError(rate: number): string | null {
   if (!Number.isFinite(rate)) return "Enter a fee rate.";
   if (rate <= 0) return "Fee rate must be more than 0 sat/vB.";
   if (rate > MAX_FEE_RATE_SAT_VB) {
-    return `Fee rate can't be over ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
+    return `Fee rate cannot be over ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
   }
   return null;
 }
@@ -370,25 +372,38 @@ function isFiniteNumber(v: unknown): v is number {
 function detailedMessage(value: AppError): string | null {
   const d = value.details;
   switch (value.code) {
-    case "insufficient_funds":
-      if (isFiniteNumber(d?.needed_sat) && isFiniteNumber(d?.available_sat)) {
-        return `Need ${(d.needed_sat - d.available_sat).toLocaleString()} more sat.`;
+    case "insufficient_funds": {
+      if (!isFiniteNumber(d?.needed_sat) || !isFiniteNumber(d?.available_sat)) return null;
+      // What frozen coins hold, when the wallet chose the coins: they were
+      // left out, and "Need 11 more sat." alone reads as an empty wallet.
+      // Every coin is frozen only when the core says so: a coin too small to
+      // pay for its own input leaves nothing available as well.
+      const frozen = isFiniteNumber(d?.frozen_sat) ? d.frozen_sat : 0;
+      if (d.available_sat === 0 && d.all_frozen === true) {
+        return "Every coin is frozen. Unfreeze one to spend it.";
       }
-      return null;
+      const short = `Need ${formatNumber(d.needed_sat - d.available_sat)} more sat.`;
+      return frozen > 0 ? `${short} Frozen coins hold ${formatSats(frozen)}.` : short;
+    }
     case "timeout":
-      return isFiniteNumber(d?.secs) ? `The backend did not answer within ${d.secs} s.` : null;
+      return isFiniteNumber(d?.secs)
+        ? `The Esplora server did not answer within ${d.secs} s.`
+        : null;
     case "invalid_fee_rate":
-      return `Enter a fee rate greater than 0, up to ${MAX_FEE_RATE_SAT_VB.toLocaleString()} sat/vB.`;
+      return `Enter a fee rate greater than 0, up to ${formatNumber(MAX_FEE_RATE_SAT_VB)} sat/vB.`;
     case "dust":
+      // BDK counts the recipients it was given, as the phone's cards are named.
       return isFiniteNumber(d?.output)
-        ? `Output ${d.output + 1} is too small to send — it is below the network's dust limit.`
+        ? `Recipient ${d.output + 1} is too small to send — it is below the network's dust limit.`
         : null;
     case "fee_too_low":
+      // Rounded up, as a fee field is: the core's minimum has three decimals
+      // ("2.004"), and to the nearest tenth it would name a rate refused again.
       if (isFiniteNumber(d?.required_sat_vb)) {
-        return `The fee rate must be at least ${d.required_sat_vb} sat/vB to replace the original.`;
+        return `The fee rate must be at least ${formatRate(typeableRate(d.required_sat_vb))} to replace the original.`;
       }
       if (isFiniteNumber(d?.required_sat)) {
-        return `The fee must be at least ${d.required_sat.toLocaleString()} sat to replace the original.`;
+        return `The fee must be at least ${formatSats(d.required_sat)} to replace the original.`;
       }
       return null;
     case "not_replaceable":
@@ -400,7 +415,7 @@ function detailedMessage(value: AppError): string | null {
       // Not unreadable, only ahead of this version: an update reads it.
       return d?.reason === "future_version"
         ? "The saved wallet data on this device is from a newer version of the app. Update the app to open it."
-        : "The saved wallet data on this device can't be read.";
+        : "The saved wallet data on this device cannot be read.";
     default:
       return null;
   }

@@ -8,6 +8,7 @@
  */
 
 import { type FeeEstimate, rateForTarget, type TxSummary, type Utxo } from "./types";
+import { typeableRate } from "./ui/format";
 
 /**
  * Only our own unconfirmed sends can be replaced or cancelled; a child can
@@ -103,7 +104,5 @@ function outbid(market: number | null, toBeatSatVb?: number | null): number {
     toBeatSatVb != null && Number.isFinite(toBeatSatVb) && toBeatSatVb > 0
       ? toBeatSatVb + REPLACEMENT_MARGIN_SAT_VB
       : 0;
-  const rate = Math.max(market ?? 1, mustBeat);
-  // Rounded up to a tenth so the value is typeable, floored at the relay minimum.
-  return Math.max(1, Math.ceil(rate * 10) / 10);
+  return typeableRate(Math.max(market ?? 1, mustBeat));
 }

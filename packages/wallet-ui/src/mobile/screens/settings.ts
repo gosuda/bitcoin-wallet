@@ -18,6 +18,8 @@ import {
 } from "../../types";
 import { chooseLockAfter, lockAfter } from "../../ui/autolock";
 import { banner, el, formatNumber } from "../../ui/dom";
+import { formatSats } from "../../ui/format";
+import { forgetWarning, RESCAN_HINT } from "../../ui/text";
 import {
   body,
   button,
@@ -64,7 +66,7 @@ export function renderSettings(): HTMLElement {
     const sheet = card(
       lede(`Changing the ${what} closes this wallet. You will open it again from Setup.`),
       go,
-      button("Cancel", () => changeHost.replaceChildren(), { variant: "quiet" }),
+      button("Keep it", () => changeHost.replaceChildren(), { variant: "quiet" }),
     );
     sheet.classList.add("m-confirm", "m-confirm-neutral");
     changeHost.replaceChildren(sheet);
@@ -89,7 +91,7 @@ export function renderSettings(): HTMLElement {
           session.lastSyncedAt = new Date();
           alert.show(
             "ok",
-            `Rescanned with a gap of ${gap.value()}: ${formatNumber(headlineSat(balance))} sat in this wallet.`,
+            `Rescanned with a gap of ${gap.value()}: ${formatSats(headlineSat(balance))} in this wallet.`,
           );
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
@@ -99,13 +101,13 @@ export function renderSettings(): HTMLElement {
   );
   const rescanBlock = el("div", { className: "m-block" }, [
     el("div", { className: "m-block-head" }, [
-      el("span", { text: "Rescan the chain" }),
+      el("span", { text: "Rescan" }),
       el("span", { className: "m-item-value", text: "gap" }),
     ]),
     el("div", { className: "m-block-row" }, [gap.node, rescan]),
     el("span", {
       className: "hint",
-      text: "For a restored wallet that shows less than it should.",
+      text: RESCAN_HINT,
     }),
   ]);
 
@@ -115,22 +117,6 @@ export function renderSettings(): HTMLElement {
       ? "Recovery phrase (HD)"
       : "Single key";
 
-  /**
-   * What it takes to get this wallet back, which is not the same sentence for
-   * every wallet. Only a mnemonic has a recovery phrase; telling the owner of
-   * a single-key or watch-only wallet that one restores it is false, and this
-   * is the screen where they decide whether the local copy is still needed.
-   *
-   * A BIP39 passphrase is part of the seed, so the same words without it open
-   * a different wallet. Nothing here records whether one was set — the wallet
-   * id is derived from the finished seed — so the phrase is named with the
-   * condition attached rather than promising the words are enough.
-   */
-  const forgetWarning = info.is_watch_only
-    ? "The saved descriptor and this device's copy of the wallet history will be deleted. You will need that xpub or descriptor to follow it again."
-    : info.is_hd
-      ? "The saved key and this device's copy of the wallet history will be deleted. Your recovery phrase restores it — together with the passphrase, if you set one."
-      : "The saved key and this device's copy of the wallet history will be deleted. You will need that private key to open it again.";
   // The keystore holds one wallet. "Remembered" and "Forget" are about *this*
   // one, or they are about nothing: another wallet's key must not be deleted
   // from here.
@@ -217,7 +203,7 @@ export function renderSettings(): HTMLElement {
       remembered && platform().canRememberWallet
         ? confirmDanger({
             trigger: "Forget this wallet",
-            text: forgetWarning,
+            text: forgetWarning(info),
             confirm: "Delete it",
             onConfirm: async () => {
               try {
@@ -230,7 +216,7 @@ export function renderSettings(): HTMLElement {
             },
           })
         : null,
-      el("p", { className: "m-txmeta m-centre-text", text: info.wallet_id }),
+      el("p", { className: "m-mono-block m-centre-text", text: info.wallet_id }),
     ),
   );
   return host;

@@ -122,7 +122,7 @@ describe("a secret sealed under an app password (6.12)", () => {
       const refused = await unseal(WALLET, other, PASSWORD).catch((e: unknown) => e);
       expect(refused).toMatchObject({ code: "unknown_secret_format" });
       expect(errorMessage(refused)).toBe(
-        "The key saved in this browser can't be read by this version of the app.",
+        "The key saved in this browser cannot be read by this version of the app.",
       );
     }
   });
@@ -139,7 +139,11 @@ describe("a secret sealed under an app password (6.12)", () => {
     }
   });
 
-  it("seals with 600,000 rounds, and opens a record with the count it carries", async () => {
+  // One derivation at the real count: about a second alone, and past the
+  // 5 s default on a machine busy running every other test file at once.
+  it("seals with 600,000 rounds, and opens a record with the count it carries", {
+    timeout: 30_000,
+  }, async () => {
     expect(PBKDF2_ITERATIONS).toBe(600_000);
     expect((await seal(WALLET, STORED, PASSWORD)).iterations).toBe(PBKDF2_ITERATIONS);
 

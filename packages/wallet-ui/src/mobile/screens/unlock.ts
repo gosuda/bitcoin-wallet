@@ -5,12 +5,10 @@ import { routeGuard } from "../../screen";
 import { session } from "../../session";
 import { ADDRESS_TYPE_LABELS, errorMessage, NETWORK_LABELS } from "../../types";
 import { banner, el } from "../../ui/dom";
+import { shortId } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { forgetWarning } from "../../ui/text";
 import { body, button, confirmDanger, header, historyReset, spacer, withBusy } from "../ui";
-
-function short(address: string): string {
-  return address.length > 22 ? `${address.slice(0, 12)}…${address.slice(-6)}` : address;
-}
 
 export function renderUnlock(): HTMLElement {
   const record = session.remembered;
@@ -31,7 +29,7 @@ export function renderUnlock(): HTMLElement {
     try {
       // The key lives in the OS key store either way; this only gates
       // reading it, so a device without biometrics still opens normally.
-      if (auth) await auth("Unlock your wallet");
+      if (auth) await auth("Unlock this wallet");
       await (reset ? api.resetHistoryAndUnlock() : api.unlockWallet());
       if (onScreen()) navigate("dashboard");
     } catch (e) {
@@ -42,7 +40,8 @@ export function renderUnlock(): HTMLElement {
       else offer.node.replaceWith(unlock);
     }
   };
-  const unlock = button(auth ? "Unlock" : "Open wallet", () => withBusy(unlock, attempt), {
+  // Unlock with or without biometrics, as the desktop's says.
+  const unlock = button("Unlock", () => withBusy(unlock, attempt), {
     variant: "primary",
     block: true,
     icon: auth ? "faceid" : "key",
@@ -57,7 +56,7 @@ export function renderUnlock(): HTMLElement {
     // this is, so it names every way back rather than promising a recovery
     // phrase a single-key or watch-only wallet never had. A passphrase and a
     // bare xpub are two of those ways, and the app offers both.
-    text: "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.",
+    text: forgetWarning(null),
     confirm: "Delete it",
     onConfirm: async () => {
       alert.hide();
@@ -79,7 +78,7 @@ export function renderUnlock(): HTMLElement {
         el("span", { className: "m-badge" }, [icon(auth ? "faceid" : "key", 36)]),
         el("div", {}, [
           el("p", { className: "m-card-title", text: "Wallet saved on this device" }),
-          el("p", { className: "m-address", text: short(record.address) }),
+          el("p", { className: "m-address", text: shortId(record.address) }),
           el("p", {
             className: "m-txmeta",
             text: `${NETWORK_LABELS[record.network]} · ${ADDRESS_TYPE_LABELS[record.address_type]}`,

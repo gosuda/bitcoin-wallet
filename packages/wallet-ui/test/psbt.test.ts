@@ -169,7 +169,9 @@ const DESKTOP: Shell = {
   said(screen) {
     const head = screen.querySelector(".slot .card-head .hint");
     const rows = [...screen.querySelectorAll(".slot tbody tr")].map((row) =>
-      [...row.children].map((cell) => cell.textContent?.trim() ?? "").join(" | "),
+      [...row.children]
+        .map((cell) => cell.textContent?.replace(/\u00a0/g, " ").trim() ?? "")
+        .join(" | "),
     );
     return [
       ...(head === null ? [] : [head.textContent ?? ""]),
@@ -178,7 +180,7 @@ const DESKTOP: Shell = {
     ];
   },
   drawnUnsigned: [
-    "2 inputs, both yours · 2 outputs",
+    "2 inputs, both from this wallet · 2 outputs",
     `Input 1 | 57f7533d63…cee1b3a7:0 | This wallet · not signed | ${n(30_000)}`,
     `Input 2 | 9ae2136a23…23210b1b:1 | This wallet · not signed | ${n(25_000)}`,
     `Output 1 | ${RECIPIENT} | Recipient | ${n(40_000)}`,
@@ -187,7 +189,7 @@ const DESKTOP: Shell = {
     "Signed 0 of 2 inputs",
   ],
   drawnShared: [
-    "2 inputs, 1 yours · 2 outputs",
+    "2 inputs, 1 from this wallet · 2 outputs",
     `Input 1 | 57f7533d63…cee1b3a7:0 | This wallet · not signed | ${n(30_000)}`,
     "Input 2 | c3a9d07e51…6be02f94:2 | Another wallet · signed | unknown",
     `Output 1 | ${RECIPIENT} | Recipient | ${n(40_000)}`,
@@ -226,7 +228,10 @@ const PHONE: Shell = {
         const where = e.querySelector(".m-io-addr")?.textContent;
         return `${where}${note ? ` (${note})` : ""} | ${e.querySelector(".m-io-value")?.textContent}`;
       }
-      return [...e.children].map((c) => c.textContent).join(" | ") || (e.textContent ?? "");
+      return (
+        [...e.children].map((c) => c.textContent?.replace(/\u00a0/g, " ")).join(" | ") ||
+        (e.textContent ?? "")
+      );
     };
     return [
       ...(card === null ? [] : [...card.children].map(line)),
@@ -234,22 +239,22 @@ const PHONE: Shell = {
     ];
   },
   drawnUnsigned: [
-    "Inputs · 2 — both yours",
-    `57f7533d63…cee1b3a7:0 | ${n(30_000)}`,
-    `9ae2136a23…23210b1b:1 | ${n(25_000)}`,
+    "Inputs · 2 — both from this wallet",
+    `57f7533d63…cee1b3a7:0 | ${n(30_000)} sat`,
+    `9ae2136a23…23210b1b:1 | ${n(25_000)} sat`,
     "Outputs · 2",
-    `tb1p5n82…zr4k32 | ${n(40_000)}`,
-    `tb1qel9k…a3c62c (change, back to you) | ${n(14_779)}`,
-    "Fee | 221 sat · 1.0 sat/vB",
+    `${RECIPIENT} | ${n(40_000)} sat`,
+    `${CHANGE} (change, back to this wallet) | ${n(14_779)} sat`,
+    "Fee | 221 sat · 1.0 sat/vB · 221 vB",
     "Signed 0 of 2 inputs",
   ],
   drawnShared: [
-    "Inputs · 2 — 1 yours",
-    `57f7533d63…cee1b3a7:0 | ${n(30_000)}`,
-    "c3a9d07e51…6be02f94:2 (not yours · signed) | unknown",
+    "Inputs · 2 — 1 from this wallet",
+    `57f7533d63…cee1b3a7:0 | ${n(30_000)} sat`,
+    "c3a9d07e51…6be02f94:2 (another wallet's · signed) | unknown",
     "Outputs · 2",
-    `tb1p5n82…zr4k32 | ${n(40_000)}`,
-    `tb1qel9k…a3c62c (change, back to you) | ${n(14_779)}`,
+    `${RECIPIENT} | ${n(40_000)} sat`,
+    `${CHANGE} (change, back to this wallet) | ${n(14_779)} sat`,
     "Fee | unknown",
     "Signed 1 of 2 inputs",
   ],
@@ -291,7 +296,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     const error = find(screen, "#psbt-error");
     expect(error.textContent).toBe("This is not a PSBT the wallet can read.");
     expect(field(screen).getAttribute("aria-invalid")).toBe("true");
-    expect(screen.textContent).not.toContain("psbt error");
+    expect(screen.textContent).not.toContain("PSBT error");
     expect(shell.said(screen)).toEqual([]);
     expect(buttonNamed(screen, "Sign").disabled).toBe(true);
     expect(buttonNamed(screen, "Broadcast").disabled).toBe(true);
@@ -371,7 +376,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     fake.state.psbtReview = SIGNED;
     const screen = await shell.open();
     await paste(screen, SIGNED.psbt_base64);
-    const why = "psbt error: absurdly high fee rate of 30000 sat/vB";
+    const why = "PSBT error: absurdly high fee rate of 30000 sat/vB";
     const refused = vi
       .spyOn(api, "broadcastPsbt")
       .mockRejectedValueOnce(new WalletError("psbt", why));

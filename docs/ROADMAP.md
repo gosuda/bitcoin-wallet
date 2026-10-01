@@ -1050,6 +1050,174 @@ items before it change no screen, so they land while that batch is reviewed.
       the webview there until the apps read the clipboard through the shell; then it filled the
       field and the PSBT was described
 
+## Round 7 — Bugs and one display standard
+
+Branch `round-7-display`. Picked on 2026-09-30: the two wording bugs left from Round 6, and
+the display text made one standard across both shells, as the owner asked. Two audits of the
+screens found the same thing shown or worded differently in about forty places. The standard
+below is what every screen follows from here on; where the shells disagreed, the more common,
+clearer or safer variant was taken.
+
+**The display standard**
+
+- **Ids and addresses.** A shortened id — a txid, an outpoint's txid, an address in a list or
+  a summary — shows its first 10 and last 8 characters around "…". An address is shown whole
+  wherever a payment or an output is reviewed or described: Send's review, a transaction's
+  detail, Import PSBT.
+- **Amounts.** "1,234 sat", grouped as the device does, except under a table heading that names
+  the unit; a count is grouped the same way. Money in is "+", money out "−". A fee rate has one decimal, "2.0 sat/vB"; a size
+  is "141 vB".
+- **Status and time.** "Pending" means not yet in a block, on both shells, in the pending
+  colour. Confirmations are "N confirmations", or "N conf." where a row is tight. Recent times
+  read "just now", "N min ago", "Today 14:02", then "Aug 27"; a transaction's detail says
+  "Aug 27, 14:02"; syncing says "Synced 14:32". A date is written in the device's language
+  (3.9), and a pending transaction is dated by when it was first seen.
+- **Words.** One word for each action and each thing, the same on both shells: a "coin" is an
+  unspent output, what the wallet owns is "this wallet's", "Cancel" only ever cancels a payment.
+  Sentence case, no contractions, "…" and never "...".
+
+**Checked in the running apps** on 2026-09-30, against a signet wallet: the browser build's
+desktop shell and the Android emulator read the same for coins, history, a transaction's
+detail, Send's review and Settings. The check found three things the tests could not: times
+came out on a Korean device as "Today 오후 12:52", so times use the boards' 24-hour clock
+(7.5); a history row wrapped a time between "Today" and "07:44"; and "Open in explorer" broke
+in two beside "Copy transaction id" on the phone, both fixed in their own commit.
+
+**Reviewed** on 2026-09-30 by four read-only reviews standing in for cubic, whose monthly
+limit had been reached: the core's shortfall, the formats and shared sentences, both shells'
+screens measured in Chrome, and the whole UI against this standard. They found a Max that
+said every coin was frozen with an unfrozen coin left, a fee bump that said nothing of frozen
+coins, a minimum rate named under itself, a phone review whose payees wrapped four characters
+to a line, and some thirty places that still broke the standard or said a thing two ways.
+Each fix is a commit of its own that says so; PR #40 lists what was declined, and why.
+cubic reviewed it once its limit reset on 2026-10-01: 15 comments, all valid, each fixed in
+its own commit, among them a typed rate built at 7.55 and named 7.5, and a second pass found
+nothing more.
+
+- [x] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
+      why: with every coin frozen, Max said "Need 11 more sat." · done: 2026-09-30 —
+      `InsufficientFunds` carries `frozen_sat` and `all_frozen`, which a transfer or a drain
+      the wallet chose coins for fills with what the frozen coins hold and whether no other
+      coin was left; a send held to chosen coins leaves them at 0 and false, since it names its
+      coins itself. A fee bump that needs another coin fills them too, counting the confirmed
+      frozen coins alone, the only ones BDK adds to a bump; `all_frozen` means every coin of
+      the wallet on every path, as the screens say it. Both shells say "Every coin is frozen.
+      Unfreeze one to spend it." when the core says no other coin was left, and "Need 60 more
+      sat. Frozen coins hold 50,000 sat." otherwise; the core's own message adds "(50000 sat
+      more is frozen)". Nothing available is not the same thing: a coin too small to pay for
+      its own input is left out too, which review found the first version took for every coin
+      frozen; review also found the bump saying nothing of frozen coins.
+      `a_shortfall_says_what_frozen_coins_hold` covers a payment, Max with every coin frozen,
+      and a send held to chosen coins, `a_coin_too_small_to_spend_is_not_a_frozen_one` the coin
+      too small to spend, and `a_short_fee_bump_says_what_frozen_coins_hold` the bump; the
+      error table, a message test and the copy tests pin the details and the words
+
+- [x] **7.2 The history reset says frozen coins go with it** · S · `ui/reset.ts`, `gen.py`
+      why: the reset also unfreezes every coin, and its words said only history was deleted ·
+      done: 2026-09-30 — the reset's second step now reads "The key stays on this device. The
+      history saved here is deleted and downloaded again on the next sync, and any coin you
+      froze is unfrozen." on both shells, since which coins are frozen is saved in the same
+      record and cannot be read back from a broken one. The reset tests hold the new words on
+      all ten ways in, and the canvas generator carries them for the next republish
+
+- [x] **7.3 One format for ids and addresses** · M · new `ui/format.ts`, both shells
+      why: four ways to shorten an address, and the phone shortened the payee the desktop shows
+      whole · done: 2026-09-30 — `ui/format.ts` holds the one rule, `shortId`, first 10 and
+      last 8 characters, with `shortOutpoint` and `outputRole` moved beside it; the desktop's
+      `shortTxid` and `shortAddress` and the phone's four `short` helpers are gone. The phone's
+      review of a send to several lists each payee whole, one to a row; with one recipient the
+      payee is the field above it, on both shells. The phone shows every output whole in a
+      transaction's detail, below its actions, and in Import PSBT, through one output line both
+      screens share; in a detail an output of this wallet's is "received", the desktop's word.
+      The desktop's coin table and both Unlock screens shorten through `shortId`, the table
+      keeping the whole address on hover. The phone's Result shows the txid in the block
+      Transaction uses, and Settings shows the wallet id in mono. `format.test.ts` pins the
+      helpers; `display.test.ts` renders the phone detail, the desktop table and both Unlock
+      screens; the Send and PSBT tests hold the whole addresses
+
+- [x] **7.4 One format for amounts, rates and sizes** · M · `ui/dom.ts`, `ui/format.ts`, both
+      shells · done: 2026-09-30 — `formatNumber`, `formatSats` and `formatBtc` moved into
+      `ui/format.ts`, `ui/dom.ts` re-exporting them, beside `formatRate` with its one decimal,
+      `formatVsize` and `feeLine`: "141 sat · 1.0 sat/vB · 141 vB", which both reviews, both
+      transaction details and both Import PSBT screens use, breaking only after a "·"; the
+      desktop's PSBT table gives the fee's amount a column of its own and the line the rest. A
+      review names the rate it was built at: the fee over the rounded-up size reads a tenth
+      under it. Every hand-built "N sat" goes through `formatSats`, every count is grouped as
+      the device groups numbers, the phone's history rows and PSBT lists gain their unit, and
+      the error copy formats through the same helpers. The phone's Send prefills and names its
+      rate as the desktop does, rounded up to a tenth once an estimate's float noise is rounded
+      away, and never under 1 sat/vB (`typeableRate`, shared with the bump and with the refusal
+      that names a replacement's minimum): on signet it named "0.10 sat/vB", a rate the send
+      would not pay. "sats" is gone, the desktop's balance reads "—" until it is read as the
+      phone's does, and the phone's detail colours money in green as both lists do.
+      `format.test.ts` pins rates, sizes and fee lines, `feebump.test.ts` the rounding,
+      `display.test.ts` the phone's rate note and history units; the Send, PSBT and amount
+      tests hold the new text
+
+- [x] **7.5 One way to say pending, confirmations and time** · M · both shells
+      why: pending was grey on one shell and amber on the other, one screen took 0
+      confirmations for pending, and three helpers formatted dates · done: 2026-09-30 —
+      `ui/format.ts` gains `formatConfirmations` ("Pending", "1 confirmation", "12
+      confirmations"), `formatConf` for a tight row ("31 conf."), `formatTime` on the 24-hour
+      clock the boards use, without seconds, so no "오후" or "PM" lands beside the app's "Today",
+      `formatWhen` ("just now", "12 min ago", "Today 14:02", then "Aug 27", the year only when
+      it is not this one) and `formatDateTime` for a transaction's detail. Both history lists
+      use `formatWhen`, so the phone shows relative times as the desktop did, and the desktop's
+      "3 h ago" becomes "Today 11:32"; both shells say "Synced 14:32", where the desktop said
+      "Last synced" and both showed seconds. Pending means no count from the core: the phone's
+      list no longer takes 0 for pending. The desktop says "Pending" in the pending colour in
+      both its tables and its Pending stat, as the phone does, and counts confirmations
+      grouped; its local `formatWhen`, and the phone's `whenLabel`, `dateLabel` and `when`, are
+      gone. A detail names a year that is not this one, as the list does, both reading years in
+      the device's calendar, and a pending transaction is dated by when it was first seen, not
+      last. `format.test.ts` pins the words and times against a fixed now; `display.test.ts`
+      renders both shells for Pending and for the sync time
+
+- [x] **7.6 One word for each action** · M · both shells
+      why: "Confirm & broadcast" and "Confirm and send", "Edit" and "Cancel", "Use a different
+      key" and "Use a different wallet", and more · done: 2026-09-30 — one label for each
+      action on both shells: "Confirm and send" where the desktop said "Confirm & broadcast";
+      "Edit" leaves a review, where the phone said "Cancel"; "Back" leaves the desktop's Send,
+      "Keep it" calls off a chain change in both Settings, and "Stop scanning" closes the
+      phone's camera, so "Cancel" only ever cancels a payment. "Use a different wallet" on both
+      Unlock screens, whose Forget now asks as Settings does, a warning then Keep it or Delete
+      it, where the desktop asked "Really forget?" with no warning. Both Sent screens say
+      "Transaction broadcast" and "The network has it. It shows as Pending until it is in a
+      block.", and one notice for a send this device could not save. "Copy transaction id" and
+      "Open in explorer" everywhere; "Bump fee" on both, the phone's button no longer renaming
+      itself; "for the two together" for Speed up; "Amount" and "Total" in both reviews; one
+      Max note; "Create new wallet", "Restore from phrase", "Restore wallet", "Generate new
+      key", "Request an amount" and "Export public keys" on both. `ui/text.ts` holds the
+      sentences both shells share: the Sent lines, Forget's warning for each kind of wallet,
+      and the Max note. `text.test.ts` pins them; `display.test.ts` renders both Unlock and
+      both Sent screens; the screen tests use the new labels
+
+- [x] **7.7 One name for each thing** · M · both shells
+      why: "output" and "coin", "your wallet" and "this wallet", "Txid" and "Transaction id",
+      four passphrase warnings (none on phone Create), "can't" and "cannot" · done: 2026-09-30
+      — one name for each thing on both shells. A coin is a "coin": the desktop's Unspent
+      outputs card is Coins, counts coins and says "No coins yet. Sync to look for them." as
+      the phone does, and both lists head the switches "Frozen" and share one hint on what
+      freezing does. What the wallet owns is "this wallet's": `whoseInputs`, moved to
+      `ui/text.ts`, says "both from this wallet" in Import PSBT and in both transaction
+      details, the phone's notes say "change, back to this wallet" and "another wallet's", and
+      both Cancel cards pay "back to this wallet". "Transaction id" replaces "Txid"; "Esplora
+      server" replaces "Esplora URL"; the recipient field is "Address" on both, its placeholder
+      naming the network as the screens do ("Signet address"), and a bad address says "Not a
+      valid Signet address.". One passphrase warning on all four screens, the phone's Create
+      included, which had none; one Rescan heading and hint; one warning over a new single key,
+      the desktop's "Kept in memory only." and "Copy it now; it is not stored anywhere." gone;
+      one "Fetching the fee estimate…", a missing estimate called "Estimate unavailable" on
+      both, with "floor 1.0 sat/vB", one custom-rate note, and "sync failed, retrying" on both;
+      the desktop's public keys add the fingerprint and name each descriptor. The desktop's Key
+      screen is "Start a wallet", as the phone's is, and the phone's watch-only door reads
+      "Follow a wallet". Setup, Create, the key fields, Public keys, Receive, Unlock and Import
+      PSBT say the same sentences on both, kept in `ui/text.ts`, and a banner writes any
+      message as a sentence, the core's included. No "can't" is left. The Rescan chips and the
+      desktop's uppercased "(optional)" stay as they are. `text.test.ts` pins `whoseInputs`;
+      `display.test.ts` renders both shells for the coin hints, Rescan and all four passphrase
+      warnings; the screen tests use the new names
+
 ## Later — not picked
 
 Listed, not scheduled; each goes to the design canvas first unless marked otherwise.
@@ -1094,6 +1262,9 @@ Listed, not scheduled; each goes to the design canvas first unless marked otherw
 - 2026-09-30 — Several recipients on the phone share one amount unit, and a scan fills the
   last empty row (6.9).
 - 2026-09-30 — Rescan and Public keys move from the desktop Wallet page to Settings (6.8).
+- 2026-09-30 — The app password has no minimum length: the owner's call. SECURITY.md already
+  says a short one can be guessed offline by anyone with the browser's files (6.12).
+- 2026-09-30 — The display text follows one standard on both shells (Round 7).
 
 ## Not doing
 

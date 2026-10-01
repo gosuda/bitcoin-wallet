@@ -165,6 +165,11 @@ p {
   color: var(--muted);
 }
 
+/* Not yet in a block: the colour both shells say "Pending" in. */
+.pending {
+  color: var(--pending);
+}
+
 .small {
   font-size: var(--text-sm);
 }
@@ -709,9 +714,14 @@ tr:last-child td {
   width: 16px;
 }
 
-/* A frozen coin is dimmed; the Frozen tag beside its switch is not. */
+/* A frozen coin is dimmed; the Frozen tag beside its switch is not, and
+   Pending keeps its colour, as on the phone. */
 tr.coin-frozen td {
   color: var(--faint);
+}
+
+tr.coin-frozen td.pending {
+  color: var(--pending);
 }
 
 .coin-freeze {
@@ -1243,14 +1253,6 @@ a.link-button {
 }
 
 .btn-quiet.btn-quiet-danger {
-  color: var(--danger);
-}
-
-.confirm-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
   color: var(--danger);
 }
 

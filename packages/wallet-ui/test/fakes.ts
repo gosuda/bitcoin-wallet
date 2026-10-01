@@ -86,7 +86,7 @@ async function answerPsbt(): Promise<PsbtReview> {
   const gate = psbtGate;
   psbtGate = null;
   if (gate) await gate;
-  if (!review) throw new WalletError("psbt", "psbt error: not a psbt");
+  if (!review) throw new WalletError("psbt", "PSBT error: not a psbt");
   return { ...review };
 }
 

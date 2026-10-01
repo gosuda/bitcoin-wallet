@@ -114,10 +114,10 @@ describe("suggestBumpRate", () => {
 
   // A real backend (bitcoin-rs, gosuda/bitcoin-rs#669) serves the relay
   // minimum as 1.0000000000000002 because it converts BTC/kvB in two steps.
-  // Rounding up is correct for a bump, so that ULP becomes a 10% overpay —
-  // this pins the behaviour so the cost of such a backend stays visible.
-  it("shows what a backend's float noise costs at the floor", () => {
-    expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1.0000000000000002 } })).toBe(1.1);
+  // Rounding that ULP up made a 10% overpay; the noise is rounded away first
+  // now, and a real fraction is still rounded up (typeableRate's tests).
+  it("costs nothing for a backend's float noise at the floor", () => {
+    expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1.0000000000000002 } })).toBe(1);
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1 } })).toBe(1);
   });
 });

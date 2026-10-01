@@ -7,6 +7,7 @@ import { session } from "../../session";
 import { errorMessage, type PublicDescriptors } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel } from "../../ui/dom";
+import { copyDescriptorsLabel, PUBLIC_KEYS_NOTE } from "../../ui/text";
 import { body, card, header, lede, row } from "../ui";
 
 export function renderExport(): HTMLElement {
@@ -57,16 +58,10 @@ export function renderExport(): HTMLElement {
         el("span", { className: "m-mono-block", text: d.external }),
         d.internal === null ? null : sectionLabel("Change descriptor"),
         d.internal === null ? null : el("span", { className: "m-mono-block", text: d.internal }),
-        copyButton(() => both, d.internal === null ? "Copy" : "Copy both"),
+        copyButton(() => both, copyDescriptorsLabel(d.internal !== null)),
       ),
     );
-    content.replaceChildren(
-      alert.node,
-      lede(
-        "These reveal your history, not your funds. Share them only with a watch-only wallet you trust.",
-      ),
-      ...sections,
-    );
+    content.replaceChildren(alert.node, lede(PUBLIC_KEYS_NOTE), ...sections);
   };
 
   void (async () => {

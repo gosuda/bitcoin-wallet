@@ -32,6 +32,8 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
+import { feeLine, typeableRate } from "../ui/format";
+import { ESTIMATE_UNAVAILABLE_TYPE, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
 
 interface RecipientRow {
   node: HTMLElement;
@@ -53,7 +55,6 @@ interface RecipientRow {
 /** A target as the radio group carries it. */
 type TargetChoice = `${FeeTarget}`;
 
-const FLOOR_NOTE = "floor 1 sat/vB";
 const MAX_HINT = "Max sends everything: the whole balance minus the fee, to this one recipient.";
 const MAX_HINT_CHOSEN =
   "Max sends the chosen coins: all of them minus the fee, to this one recipient.";
@@ -67,7 +68,7 @@ export function renderSend(): HTMLElement {
   }
   const onScreen = screenGuard();
   const host = backendHost(cfg.backend);
-  const networkName = NETWORK_LABELS[wallet.network].toLowerCase();
+  const networkName = NETWORK_LABELS[wallet.network];
   /**
    * The coins ticked on the Wallet page when Send selected opened this, or
    * null. The send spends exactly those, Max included, until Let the wallet
@@ -119,16 +120,20 @@ export function renderSend(): HTMLElement {
     renderFeeError();
     updateReview();
   });
-  const feeHint = el("span", { className: "hint fee-source", text: "Fetching estimate…" });
+  const feeHint = el("span", { className: "hint fee-source", text: FETCHING_ESTIMATE });
 
   const renderFeeError = () => {
     setError(feeError, feeRate, rateTouched ? feeRateError(Number(feeRate.value)) : null);
   };
 
-  /** The rate the form will build at, floored at the relay minimum. */
+  /**
+   * The rate the form will build at: rounded up to a tenth and floored at the
+   * relay minimum, which is the rate Review names. A tenth is a whole number
+   * of sat/kwu, so the core builds at exactly that.
+   */
   const currentRate = (): number => {
     const rate = Number(feeRate.value);
-    return Number.isFinite(rate) && rate >= 1 ? rate : 1;
+    return Number.isFinite(rate) && rate > 0 ? typeableRate(rate) : 1;
   };
 
   let targetBlocks: TargetChoice = `${DEFAULT_FEE_TARGET}`;
@@ -152,12 +157,12 @@ export function renderSend(): HTMLElement {
     if (!estimate) return;
     const rate = rateForTarget(estimate, Number(targetBlocks));
     if (rate === null) {
-      feeHint.textContent = "No estimate available; enter a rate.";
+      feeHint.textContent = ESTIMATE_UNAVAILABLE_TYPE;
       renderFeeError();
       updateReview();
       return;
     }
-    const rounded = Math.max(1, Math.ceil(rate * 10) / 10);
+    const rounded = typeableRate(rate);
     // A Max preview was built at the rate showing when it started. Moving the
     // rate under it would leave Review displaying this one and broadcasting
     // that one.
@@ -173,8 +178,8 @@ export function renderSend(): HTMLElement {
       estimate = await api.estimateFee();
       if (!onScreen() || rateTouched) return;
       applyEstimate();
-    } catch (e) {
-      if (onScreen()) feeHint.textContent = `Estimate unavailable: ${errorMessage(e)}`;
+    } catch (_e) {
+      if (onScreen()) feeHint.textContent = ESTIMATE_UNAVAILABLE_TYPE;
     }
   };
 
@@ -280,7 +285,10 @@ export function renderSend(): HTMLElement {
         row.amount.value = formatAmount(preview.total_out_sat, row.unit);
         row.touched.amount = true;
         row.max.classList.add("max-on");
-        row.maxHint.textContent = `Everything: ${formatSats(preview.total_out_sat + preview.fee_sat)} minus the ${formatSats(preview.fee_sat)} fee. Editing the amount leaves Max; Max needs a single recipient.`;
+        row.maxHint.textContent = maxModeNote(
+          preview.total_out_sat + preview.fee_sat,
+          preview.fee_sat,
+        );
         refreshRow(row);
         syncRowChrome();
       } catch (e) {
@@ -312,7 +320,10 @@ export function renderSend(): HTMLElement {
 
   const addRow = () => {
     const seq = rowSeq++;
-    const address = textInput({ placeholder: `Recipient address (${wallet.network})`, mono: true });
+    const address = textInput({
+      placeholder: `${NETWORK_LABELS[wallet.network]} address`,
+      mono: true,
+    });
     address.id = `recipient-address-${seq}`;
     const amount = textInput({ placeholder: "0", mono: true });
     amount.id = `recipient-amount-${seq}`;
@@ -431,7 +442,9 @@ export function renderSend(): HTMLElement {
         return null;
       }
       if (sats === null) {
-        alert.show("error", `Invalid amount for ${address}: whole sats > 0.`);
+        // Unit-neutral, as the address line above is: the field says why in
+        // its own unit (sat or BTC). Found by cubic.
+        alert.show("error", "Every recipient needs a valid amount.");
         r.amount.focus();
         return null;
       }
@@ -479,11 +492,15 @@ export function renderSend(): HTMLElement {
     updateReview();
   };
 
-  const showPreview = (p: TxPreview) => {
+  /**
+   * `rate` is the one it was built at, which Review names: BDK charges by
+   * weight, and the fee over the rounded-up size reads a tenth under it.
+   */
+  const showPreview = (p: TxPreview, rate: number) => {
     preview = p;
     previewBox.className = "card review-card";
     const confirmBtn = button(
-      "Confirm & broadcast",
+      "Confirm and send",
       () =>
         withBusy(confirmBtn, async () => {
           alert.hide();
@@ -527,14 +544,8 @@ export function renderSend(): HTMLElement {
     previewBox.replaceChildren(
       sectionLabel("Review"),
       kv([
-        ["Total out", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
-        [
-          "Fee",
-          el("span", { className: "mono" }, [
-            `${formatSats(p.fee_sat)} `,
-            muted(`(${p.vsize} vB · ${p.input_count} in)`),
-          ]),
-        ],
+        ["Amount", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
+        ["Fee", el("span", { className: "mono", text: feeLine(p.fee_sat, p.vsize, rate) })],
         [
           "Change",
           el("span", { className: "mono" }, [
@@ -543,7 +554,7 @@ export function renderSend(): HTMLElement {
           ]),
         ],
         [
-          "Total spent",
+          "Total",
           el("span", { className: "mono strong", text: formatSats(p.total_out_sat + p.fee_sat) }),
         ],
       ]),
@@ -568,6 +579,9 @@ export function renderSend(): HTMLElement {
           alert.show("error", rateErr);
           return;
         }
+        // Built, and named in Review, at the rate it pays: found by cubic,
+        // 0.5 was named while the core paid its 1 sat/vB floor.
+        const at = currentRate();
         try {
           // Review supersedes a Max build still running: without this both
           // survive, and confirming one drops the reference to the other
@@ -575,13 +589,13 @@ export function renderSend(): HTMLElement {
           cancelPendingDrain();
           const seq = drainSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
-          const p = drain ?? (await api.buildTransfer(recipients, rate, heldTo(coins)));
+          const p = drain ?? (await api.buildTransfer(recipients, at, heldTo(coins)));
           if (seq !== drainSeq || !onScreen()) {
             if (p !== drain) await api.discardTx(p.psbt_id);
             return;
           }
           setFormLocked(true);
-          showPreview(p);
+          showPreview(p, at);
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
         }
@@ -600,7 +614,7 @@ export function renderSend(): HTMLElement {
   };
   window.addEventListener("hashchange", discardOnLeave);
 
-  const cancelBtn = button("Cancel", () => navigate("dashboard"));
+  const cancelBtn = button("Back", () => navigate("dashboard"));
 
   // After `reviewBtn` exists: the first row immediately reports its validity.
   addRow();
@@ -609,7 +623,10 @@ export function renderSend(): HTMLElement {
   return el("main", { className: "screen" }, [
     el("div", { className: "screen-head" }, [
       el("h1", { text: "Send" }),
-      el("p", { className: "muted small", text: `From ${wallet.address}` }),
+      // As every desktop heading says it. A wallet's address was here, which
+      // for a recovery phrase is only the next receiving address, not where
+      // the coins come from.
+      el("p", { className: "muted small", text: `${networkName} · ${host}` }),
     ]),
     alert.node,
     coinsLine,

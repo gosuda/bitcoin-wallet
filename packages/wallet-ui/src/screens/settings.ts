@@ -29,6 +29,13 @@ import {
 } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
+import {
+  copyDescriptorsLabel,
+  forgetWarning,
+  PSBT_LEDE,
+  PUBLIC_KEYS_NOTE,
+  RESCAN_HINT,
+} from "../ui/text";
 
 /** A setting: what it is, what it is set to, and what can be done about it. */
 function settingRow(label: string, value: Node | string, action?: HTMLElement): HTMLElement {
@@ -94,7 +101,7 @@ export function renderSettings(): HTMLElement {
           text: `Changing the ${what} closes this wallet. You will open it again from Setup.`,
         }),
         el("div", { className: "actions actions-end" }, [
-          button("Cancel", () => changeSlot.replaceChildren(), "quiet"),
+          button("Keep it", () => changeSlot.replaceChildren(), "quiet"),
           go,
         ]),
       ]),
@@ -164,17 +171,19 @@ export function renderSettings(): HTMLElement {
   const renderKeys = (d: PublicDescriptors) => {
     const rows: [string, Node][] = [];
     if (d.account_xpub !== null) rows.push(["Account xpub", mono(d.account_xpub, "small")]);
-    rows.push([d.internal === null ? "Descriptor" : "Receive", mono(d.external, "small")]);
-    if (d.internal !== null) rows.push(["Change", mono(d.internal, "small")]);
+    if (d.fingerprint !== null) rows.push(["Fingerprint", mono(d.fingerprint, "small")]);
+    rows.push([
+      d.internal === null ? "Descriptor" : "Receive descriptor",
+      mono(d.external, "small"),
+    ]);
+    if (d.internal !== null) rows.push(["Change descriptor", mono(d.internal, "small")]);
     const actions = el("div", { className: "actions" });
     if (d.account_xpub !== null) {
       const xpub = d.account_xpub;
       actions.appendChild(copyButton(() => xpub, "Copy xpub", "sm"));
     }
     const both = d.internal === null ? d.external : `${d.external}\n${d.internal}`;
-    actions.appendChild(
-      copyButton(() => both, d.internal === null ? "Copy descriptor" : "Copy descriptors", "sm"),
-    );
+    actions.appendChild(copyButton(() => both, copyDescriptorsLabel(d.internal !== null), "sm"));
     keysSlot.replaceChildren(kv(rows), actions);
   };
   const showKeys = el(
@@ -197,7 +206,7 @@ export function renderSettings(): HTMLElement {
         },
       },
     },
-    ["Export xpub and descriptors", icon("arrow", 14)],
+    ["Export public keys", icon("arrow", 14)],
   );
   keysSlot.appendChild(showKeys);
 
@@ -228,14 +237,25 @@ export function renderSettings(): HTMLElement {
         }),
       "danger",
     );
+    // Read out with the button, which alone says only "Delete it".
+    yes.setAttribute("aria-describedby", "forget-warning");
     forgetSlot.replaceChildren(
       el("section", { className: "card danger-card" }, [
         el("span", {
           className: "muted",
-          text: "The saved key and this device's copy of the wallet history will be deleted. You will need what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.",
+          text: forgetWarning(wallet),
+          attrs: { id: "forget-warning" },
         }),
         el("div", { className: "actions actions-end" }, [
-          button("Keep it", () => forgetSlot.replaceChildren(), "quiet"),
+          // Back to the trigger, as Unlock does: the focused button is gone.
+          button(
+            "Keep it",
+            () => {
+              forgetSlot.replaceChildren();
+              forgetBtn?.focus();
+            },
+            "quiet",
+          ),
           yes,
         ]),
       ]),
@@ -294,7 +314,7 @@ export function renderSettings(): HTMLElement {
         sectionLabel("Rescan"),
         el("span", {
           className: "hint",
-          text: "Looks further past the last used address — for a restore that shows too little.",
+          text: RESCAN_HINT,
         }),
       ]),
       el("div", { className: "actions" }, [rescanBtn, gapChips]),
@@ -304,7 +324,7 @@ export function renderSettings(): HTMLElement {
         sectionLabel("Public keys"),
         el("span", {
           className: "hint",
-          text: "Reveal your history, not your funds — for a watch-only copy elsewhere.",
+          text: PUBLIC_KEYS_NOTE,
         }),
         keysSlot,
       ]),
@@ -312,7 +332,7 @@ export function renderSettings(): HTMLElement {
         sectionLabel("PSBT"),
         el("span", {
           className: "hint",
-          text: "Sign or send a transaction that another wallet or device made.",
+          text: PSBT_LEDE,
         }),
         el("a", { className: "link-button", attrs: { href: "#/psbt" } }, [
           "Import PSBT",

@@ -92,7 +92,7 @@
       "y": 3400,
       "w": 390,
       "h": 844,
-      "title": "M3 · Recovery phrase"
+      "title": "M3 · New wallet"
     },
     "MRestore.dc.html": {
       "x": 1410,
@@ -218,7 +218,7 @@
       "y": 8800,
       "w": 390,
       "h": 844,
-      "title": "M5b · Unlock (history can't be read)"
+      "title": "M5b · Unlock (history cannot be read)"
     },
     "MSettings6.dc.html": {
       "x": 470,
@@ -362,13 +362,13 @@
       "x": 3120,
       "y": 0,
       "w": 380,
-      "text": "Roadmap item 4 — Transaction history\n\nNew \"Transactions\" card under Unspent outputs: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row → explorer (later)."
+      "text": "Roadmap item 4 — Transaction history\n\nNew \"Transactions\" card under Coins: direction arrow (in = green, down; out = up), short txid, signed net amount (sent amounts include the fee), confirmations, relative/short date. Newest first. Click a row → explorer (later)."
     },
     "unlock-note": {
       "x": 1040,
       "y": 2080,
       "w": 420,
-      "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different key\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."
+      "text": "Keystore flow (roadmap item 1)\n\nKey screen gains \"Remember on this device\" (OS keychain).\nOn later launches the app opens on Unlock instead of Key when a wallet is remembered.\nUnlock → Wallet. \"Use a different wallet\" → Key screen. \"Forget this wallet\" removes the keychain entry after a confirm."
     },
     "brief": {
       "x": 0,
@@ -416,7 +416,7 @@
       "x": 3120,
       "y": 7600,
       "w": 420,
-      "text": "3b · Coins on the desktop (6.13)\n\nThe Unspent outputs card on 3 · Wallet gains a checkbox and a Frozen switch per row. A frozen row is dimmed and cannot be ticked. Send selected opens 4 · Send held to the ticked coins; with none ticked it is hidden and sends choose coins on their own, as today."
+      "text": "3b · Coins on the desktop (6.13)\n\nThe Coins card on 3 · Wallet gains a checkbox and a Frozen switch per row. A frozen row is dimmed and cannot be ticked. Send selected opens 4 · Send held to the ticked coins; with none ticked it is hidden and sends choose coins on their own, as today."
     },
     "round6-txactions-note": {
       "x": 3120,

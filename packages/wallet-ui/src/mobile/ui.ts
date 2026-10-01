@@ -7,10 +7,12 @@
  */
 
 import { navigate, type Route } from "../router";
-import { errorMessage, historyResetFixes } from "../types";
+import { errorMessage, historyResetFixes, type TxOutput } from "../types";
 import { type Banner, el } from "../ui/dom";
+import { outputRole } from "../ui/format";
 import { type IconName, icon } from "../ui/icons";
 import { type HistoryReset, RESET_CONFIRM, RESET_TEXT, RESET_TRIGGER } from "../ui/reset";
+import { sentence } from "../ui/text";
 
 export type Child = Node | string | null | undefined;
 
@@ -104,6 +106,31 @@ export function button(
   if (label) btn.appendChild(el("span", { text: label }));
   btn.disabled = opts.disabled === true;
   return btn;
+}
+
+/**
+ * One line of a list of inputs or outputs, as Transaction and Import PSBT
+ * draw them (M14): where, whole, with a note under it, and the value across.
+ * An address is never shortened here: this is where a payee is checked.
+ */
+export function ioLine(where: string, value: string, note: string | null): HTMLElement {
+  return el("div", { className: "m-io" }, [
+    el("span", { className: "m-io-where" }, [
+      el("span", { className: "m-io-addr", text: where }),
+      note === null ? null : el("span", { className: "m-io-note", text: note }),
+    ]),
+    el("span", { className: "m-io-value", text: value }),
+  ]);
+}
+
+/** Said under an output that is this wallet's; a payment to someone else needs no note. */
+export function outputNote(owner: { net_sat: number }, output: TxOutput): string | null {
+  const role = outputRole(owner, output);
+  return role === "change"
+    ? "change, back to this wallet"
+    : role === "ours"
+      ? "to this wallet"
+      : null;
 }
 
 export function row(...children: Child[]): HTMLElement {
@@ -235,6 +262,8 @@ export function labelled(text: string, control: HTMLElement, note?: string): HTM
  * will happen and a Delete / Keep pair. Every place a wallet can be forgotten
  * goes through this, so the phone never destroys anything on one tap.
  */
+let confirmSeq = 0;
+
 export function confirmDanger(opts: {
   trigger: string;
   triggerVariant?: "danger" | "quiet";
@@ -250,10 +279,22 @@ export function confirmDanger(opts: {
         variant: "danger",
         block: true,
       });
+      // Read out with the button, which alone says only "Delete it".
+      const warning = lede(opts.text);
+      warning.id = `confirm-danger-${++confirmSeq}`;
+      go.setAttribute("aria-describedby", warning.id);
       const sheet = card(
-        lede(opts.text),
+        warning,
         go,
-        button("Keep it", () => host.replaceChildren(arm), { variant: "quiet" }),
+        // Back to the trigger: the focused button is gone. Found by cubic.
+        button(
+          "Keep it",
+          () => {
+            host.replaceChildren(arm);
+            arm.focus();
+          },
+          { variant: "quiet" },
+        ),
       );
       sheet.classList.add("m-confirm");
       host.replaceChildren(sheet);
@@ -306,7 +347,7 @@ export function historyReset(alert: Banner): HistoryReset {
       const offer = card(
         el("p", { className: "m-reset-message", attrs: { role: "alert" } }, [
           icon("alert", 20),
-          el("span", { text: errorMessage(error) }),
+          el("span", { text: sentence(errorMessage(error)) }),
         ]),
         trigger,
       );

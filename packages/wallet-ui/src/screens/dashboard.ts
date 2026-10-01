@@ -1,5 +1,4 @@
 import QRCode from "qrcode";
-
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { headlineSat, pendingSat } from "../balance";
@@ -33,7 +32,6 @@ import {
   freezeSwitch,
   redrawKeepingFocus,
   sendFrom,
-  shortOutpoint,
   tickBox,
   tickInput,
 } from "../ui/coins";
@@ -54,22 +52,30 @@ import {
   textInput,
   withBusy,
 } from "../ui/dom";
+import {
+  counted,
+  feeLine,
+  formatRate,
+  formatTime,
+  formatWhen,
+  shortId,
+  shortOutpoint,
+} from "../ui/format";
 import { icon } from "../ui/icons";
+import {
+  explorerFailed,
+  FROZEN_HINT,
+  NO_COINS,
+  RECEIVE_QR_NOTE,
+  SENT_TITLE,
+  whoseInputs,
+} from "../ui/text";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
     el("span", { className: "stat-label", text: label }),
     el("span", { className: `stat-value mono ${cls}`.trim(), text: value }),
   ]);
-}
-
-function shortTxid(txid: string): string {
-  return `${txid.slice(0, 10)}…${txid.slice(-8)}`;
-}
-
-/** Both ends of an address, which is how 3b fits it beside the columns coin control adds. */
-function shortAddress(address: string): string {
-  return `${address.slice(0, 16)}…${address.slice(-6)}`;
 }
 
 /**
@@ -85,7 +91,7 @@ function utxoTable(
   onFreeze: (u: Utxo, frozen: boolean) => void,
 ): HTMLElement {
   if (utxos.length === 0) {
-    return el("p", { className: "empty", text: "No unspent outputs. Sync to refresh." });
+    return el("p", { className: "empty", text: NO_COINS });
   }
   const head = el("tr", {}, [
     ticked ? el("th", { className: "coin-pick" }) : null,
@@ -111,17 +117,17 @@ function utxoTable(
         el("td", {
           className: "mono",
           text: shortOutpoint(u),
-          attrs: { title: `${u.txid}:${u.vout}` },
+          attrs: { title: coinKey(u) },
         }),
         el("td", {
           className: "mono muted",
-          text: shortAddress(u.address),
+          text: shortId(u.address),
           attrs: { title: u.address },
         }),
         el("td", { className: "num mono", text: formatNumber(u.value) }),
         el("td", {
-          className: `num mono ${pending ? "muted" : ""}`.trim(),
-          text: pending ? "pending" : String(u.confirmations),
+          className: `num mono ${pending ? "pending" : ""}`.trim(),
+          text: u.confirmations === null ? "Pending" : formatNumber(u.confirmations),
         }),
         el("td", { className: "num" }, [
           el("span", { className: "coin-freeze" }, [
@@ -137,23 +143,6 @@ function utxoTable(
 
 /** How often the dashboard re-syncs while it is on screen and visible. */
 const AUTO_SYNC_MS = 60_000;
-
-const MINUTE = 60;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
-
-/** Relative within a day ("2 min ago", "3 h ago"), a short local date before that. */
-function formatWhen(timestamp: number | null): string {
-  if (timestamp === null) return "—";
-  const age = Math.max(0, Math.floor(Date.now() / 1000) - timestamp);
-  if (age < MINUTE) return "just now";
-  if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`;
-  if (age < DAY) return `${Math.floor(age / HOUR)} h ago`;
-  return new Date(timestamp * 1000).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
 
 /** What a row says about an output: ours is change on a send, a receipt otherwise. */
 function outputLabel(d: TxDetail, o: TxOutput): string {
@@ -201,7 +190,7 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
   }
   const head = el("tr", {}, [
     el("th", { className: "tx-dir" }),
-    el("th", { text: "Txid" }),
+    el("th", { text: "Transaction id" }),
     el("th", { className: "num", text: "Amount (sat)" }),
     el("th", { className: "num", text: "Conf." }),
     el("th", { className: "num", text: "When" }),
@@ -225,7 +214,7 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
       ]),
       el("td", {
         className: "mono",
-        text: shortTxid(tx.txid),
+        text: shortId(tx.txid),
         attrs: { title: tx.txid },
       }),
       el("td", {
@@ -233,10 +222,13 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
         text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
       }),
       el("td", {
-        className: `num mono ${pending ? "muted" : ""}`.trim(),
-        text: pending ? "pending" : String(tx.confirmations),
+        className: `num mono ${pending ? "pending" : ""}`.trim(),
+        text: tx.confirmations === null ? "Pending" : formatNumber(tx.confirmations),
       }),
-      el("td", { className: "num muted", text: formatWhen(tx.timestamp) }),
+      el("td", {
+        className: "num muted",
+        text: tx.timestamp === null ? "—" : formatWhen(tx.timestamp),
+      }),
       el("td", { className: "num tx-actions" }, [chevron]),
     );
     row.addEventListener("click", () => onOpen(tx, row, chevron));
@@ -261,8 +253,9 @@ export function renderDashboard(): HTMLElement {
   const sameWallet = sameWalletGuard();
 
   const alert = banner();
-  const heroTotal = el("span", { className: "stat-hero mono", text: "0" });
-  const heroBtc = el("span", { className: "stat-secondary mono", text: formatBtc(0) });
+  // Unknown until the balance is read, as on the phone: a "0" first reads as an empty wallet.
+  const heroTotal = el("span", { className: "stat-hero mono", text: "—" });
+  const heroBtc = el("span", { className: "stat-secondary mono", text: "" });
   const stats = el("div", { className: "stat-row" });
   const utxoBox = el("div");
   const utxoCount = el("span", { className: "hint", text: "" });
@@ -270,14 +263,22 @@ export function renderDashboard(): HTMLElement {
   const txCount = el("span", { className: "hint", text: "" });
   const syncedLabel = el("span", { className: "hint", text: "Not synced yet" });
 
-  const renderBalance = (b: Balance) => {
+  /** `null` until a balance is read: nothing is shown as 0 before it is known. */
+  const renderBalance = (b: Balance | null) => {
+    clear(stats);
+    if (b === null) {
+      heroTotal.textContent = "—";
+      heroBtc.textContent = "";
+      append(stats, [stat("Confirmed", "—", "muted"), stat("Pending", "—", "muted")]);
+      return;
+    }
     const total = headlineSat(b);
     heroTotal.textContent = formatNumber(total);
     heroBtc.textContent = formatBtc(total);
-    clear(stats);
     append(stats, [
       stat("Confirmed", formatSats(b.confirmed)),
-      stat("Pending", formatSats(pendingSat(b)), "muted"),
+      // In the pending colour while anything is, as the phone says it.
+      stat("Pending", formatSats(pendingSat(b)), pendingSat(b) > 0 ? "pending" : "muted"),
       b.immature > 0 ? stat("Immature", formatSats(b.immature), "muted") : null,
       // Counted in the headline and in neither stat above, so it is said here.
       b.frozen > 0 ? stat("Frozen", formatSats(b.frozen), "muted") : null,
@@ -300,7 +301,7 @@ export function renderDashboard(): HTMLElement {
   const paintCoinCount = (): void => {
     const frozen = coins.filter((u) => u.frozen).length;
     const picked = chosen();
-    const parts = [`${formatNumber(coins.length)} output${coins.length === 1 ? "" : "s"}`];
+    const parts = [`${formatNumber(coins.length)} coin${coins.length === 1 ? "" : "s"}`];
     if (frozen > 0) parts.push(`${formatNumber(frozen)} frozen`);
     if (picked.length > 0) {
       parts.push(`${formatNumber(picked.length)} selected, ${formatSats(coinsValue(picked))}`);
@@ -419,11 +420,7 @@ export function renderDashboard(): HTMLElement {
    * the user may have opened a different transaction's detail on this same
    * dashboard while the broadcast was in flight.
    */
-  const broadcastDone = (
-    result: BroadcastResult,
-    ownerDetail: HTMLTableRowElement,
-    what: string,
-  ): void => {
+  const broadcastDone = (result: BroadcastResult, ownerDetail: HTMLTableRowElement): void => {
     if (!sameWallet()) return;
     session.lastResult = result;
     if (!onScreen()) return;
@@ -434,8 +431,9 @@ export function renderDashboard(): HTMLElement {
       // The row that started it is no longer the open detail, and
       // closeDetail/navigate would steal a screen the user has since moved on
       // from. Confirm it landed some other way, or a silent success invites a
-      // retry that does it twice.
-      alert.show("ok", `${what} broadcast: ${shortTxid(result.txid)}.`);
+      // retry that does it twice. In the Sent screen's words: the id says
+      // which it was.
+      alert.show("ok", `${SENT_TITLE}: ${shortId(result.txid)}.`);
     }
   };
 
@@ -463,7 +461,7 @@ export function renderDashboard(): HTMLElement {
           }
           try {
             const preview = await api.buildFeeBump(txid, value);
-            broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail, "Fee bump");
+            broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail);
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
             // node's own wording is the most useful thing to show.
@@ -507,7 +505,7 @@ export function renderDashboard(): HTMLElement {
       }
       alert.hide();
       try {
-        broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail, "Cancellation");
+        broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail);
       } catch (e) {
         if (!onScreen() || open?.detail !== ownerDetail) return;
         // Signing used the preview up whether or not it went out, so the card
@@ -531,7 +529,7 @@ export function renderDashboard(): HTMLElement {
             sectionLabel("Cancel"),
             el("span", {
               className: "muted",
-              text: `Replace it with a transaction that pays ${formatSats(preview.change_sat)} back to your wallet. Fee ${formatSats(preview.fee_sat)}.`,
+              text: `Replace it with a transaction that pays ${formatSats(preview.change_sat)} back to this wallet. Fee ${formatSats(preview.fee_sat)}.`,
             }),
             el("div", { className: "actions actions-end" }, [
               button("Keep it", keep, "quiet", "sm"),
@@ -572,9 +570,9 @@ export function renderDashboard(): HTMLElement {
         why = " · estimate unavailable";
       } else if (rate > suggestPackageRate(estimate, blocks)) {
         // The estimate alone would offer a rate the transaction pays already.
-        why = ` · raised above the ${(d.fee_rate_sat_vb ?? 0).toFixed(1)} sat/vB it pays alone`;
+        why = ` · raised above the ${formatRate(d.fee_rate_sat_vb ?? 0)} it pays alone`;
       }
-      rateHint.textContent = `${rate.toFixed(1)} sat/vB for the two together${why}`;
+      rateHint.textContent = `${formatRate(rate)} for the two together${why}`;
       numbers.textContent = "Working out the fee…";
       try {
         const built = await holdPreview(() => api.buildCpfp(d.txid, rate), ownerDetail);
@@ -597,7 +595,7 @@ export function renderDashboard(): HTMLElement {
       }
       alert.hide();
       try {
-        broadcastDone(await api.signAndBroadcast(built.psbt_id), ownerDetail, "Speed-up");
+        broadcastDone(await api.signAndBroadcast(built.psbt_id), ownerDetail);
       } catch (e) {
         if (!onScreen() || open?.detail !== ownerDetail) return;
         alert.show("error", errorMessage(e));
@@ -629,7 +627,7 @@ export function renderDashboard(): HTMLElement {
         sectionLabel("Speed up"),
         el("span", {
           className: "hint",
-          text: "Spends this payment on to yourself, with a fee that pulls the original into a block with it (CPFP).",
+          text: "Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).",
         }),
       ]),
       el("div", { className: "tx-card-row" }, [targets, rateHint]),
@@ -643,22 +641,11 @@ export function renderDashboard(): HTMLElement {
     offer: Offer,
     ownerDetail: HTMLTableRowElement,
   ): HTMLElement => {
-    const ownInputs = d.inputs.filter((i) => i.ours).length;
     const muted = (text: string) => el("span", { className: "muted", text });
     const rows: [string, Node | string][] = [
-      ["Txid", mono(d.txid, "small")],
-      [
-        "Fee",
-        d.fee_sat === null
-          ? `${formatNumber(d.vsize)} vB`
-          : `${formatSats(d.fee_sat)} · ${(d.fee_rate_sat_vb ?? 0).toFixed(1)} sat/vB · ${formatNumber(d.vsize)} vB`,
-      ],
-      [
-        "From",
-        `${d.inputs.length} input${d.inputs.length === 1 ? "" : "s"}${
-          ownInputs === d.inputs.length ? " · yours" : ownInputs > 0 ? ` · ${ownInputs} yours` : ""
-        }`,
-      ],
+      ["Transaction id", mono(d.txid, "small")],
+      ["Fee", feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb)],
+      ["From", `${counted(d.inputs.length, "input")} · ${whoseInputs(d.inputs)}`],
       ...d.outputs.map((o): [string, Node] => [
         outputLabel(d, o),
         el("span", { className: "mono" }, [
@@ -669,7 +656,7 @@ export function renderDashboard(): HTMLElement {
       ]),
     ];
     const actions = el("div", { className: "tx-detail-actions" }, [
-      copyButton(() => d.txid, "Copy txid", "sm"),
+      copyButton(() => d.txid, "Copy transaction id", "sm"),
     ]);
     if (explorer !== null) {
       actions.appendChild(
@@ -678,7 +665,7 @@ export function renderDashboard(): HTMLElement {
           () =>
             void platform()
               .openUrl(explorer)
-              .catch((e: unknown) => alert.show("error", errorMessage(e))),
+              .catch((e: unknown) => alert.show("warn", explorerFailed(errorMessage(e)))),
           "default",
           "sm",
           { name: "external", size: 14 },
@@ -758,7 +745,7 @@ export function renderDashboard(): HTMLElement {
     // any preview it held.
     dropPreview();
     open = null;
-    txCount.textContent = `${txs.length} · newest first · click a row for detail`;
+    txCount.textContent = `${formatNumber(txs.length)} · newest first · click a row for detail`;
     txBox.replaceChildren(txTable(txs, openDetail));
   };
 
@@ -766,8 +753,8 @@ export function renderDashboard(): HTMLElement {
 
   const renderSynced = () => {
     const at = session.lastSyncedAt;
-    const base = at ? `Last synced ${at.toLocaleTimeString()}` : "Not synced yet";
-    syncedLabel.textContent = autoSyncFailed ? `${base} · retrying` : base;
+    const base = at ? `Synced ${formatTime(at)}` : "Not synced yet";
+    syncedLabel.textContent = autoSyncFailed ? `${base} · sync failed, retrying` : base;
   };
 
   const refreshLocal = async () => {
@@ -918,7 +905,7 @@ export function renderDashboard(): HTMLElement {
     addressActions.appendChild(newAddressBtn);
   }
 
-  renderBalance({ confirmed: 0, trusted_pending: 0, untrusted_pending: 0, immature: 0, frozen: 0 });
+  renderBalance(null);
   renderSynced();
   utxoBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
   txBox.appendChild(el("p", { className: "empty", text: "Loading…" }));
@@ -963,14 +950,14 @@ export function renderDashboard(): HTMLElement {
           el("div", { className: "field" }, [
             el("label", {
               className: "field-label",
-              text: "Request amount (optional)",
+              text: "Request an amount (optional)",
               attrs: { for: requestAmount.id },
             }),
             el("div", { className: "request-row" }, [requestAmount, units.node, uriNote]),
             requestErr,
             el("p", {
               className: "muted small",
-              text: "With an amount the QR is a bitcoin: link; without one it is the bare address.",
+              text: RECEIVE_QR_NOTE,
             }),
           ]),
         ]),
@@ -978,13 +965,13 @@ export function renderDashboard(): HTMLElement {
     ]),
     el("section", { className: "card" }, [
       el("div", { className: "card-head" }, [
-        sectionLabel("Unspent outputs"),
+        sectionLabel("Coins"),
         el("div", { className: "card-head-end" }, [utxoCount, ticked ? sendSelectedBtn : null]),
       ]),
       utxoBox,
       el("p", {
         className: "hint",
-        text: "A frozen output stays out of every send, of Max and of the spendable balance until it is unfrozen.",
+        text: FROZEN_HINT,
       }),
     ]),
     el("section", { className: "card" }, [

@@ -9,12 +9,13 @@ import {
   freezeSwitch,
   redrawKeepingFocus,
   sendFrom,
-  shortOutpoint,
   tickBox,
   tickInput,
 } from "../../ui/coins";
 import { banner, el, formatNumber, formatSats, sectionLabel } from "../../ui/dom";
+import { formatConf, shortOutpoint } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { FROZEN_HINT, NO_COINS } from "../../ui/text";
 import { body, button, card, header, lede, listCard, spacer } from "../ui";
 
 /**
@@ -35,8 +36,8 @@ function coinRow(
         el("span", { className: "m-coin-unit", text: "sat" }),
       ]),
       u.confirmations === null
-        ? el("span", { className: "m-pending", text: "pending" })
-        : el("span", { className: "m-coin-age", text: `${formatNumber(u.confirmations)} conf.` }),
+        ? el("span", { className: "m-pending", text: formatConf(u.confirmations) })
+        : el("span", { className: "m-coin-age", text: formatConf(u.confirmations) }),
     ]),
     el("span", { className: "m-coin-outpoint", text: shortOutpoint(u) }),
   ]);
@@ -108,7 +109,7 @@ export function renderCoins(): HTMLElement {
     }
     let listed: HTMLElement;
     if (utxos.length === 0) {
-      listed = listCard(el("div", { className: "m-empty", text: "No unspent coins." }));
+      listed = listCard(el("div", { className: "m-empty", text: NO_COINS }));
     } else {
       const n = utxos.length;
       listed = card(
@@ -116,7 +117,7 @@ export function renderCoins(): HTMLElement {
           sectionLabel(
             `${formatNumber(n)} coin${n === 1 ? "" : "s"} · ${formatSats(coinsValue(utxos))}`,
           ),
-          sectionLabel("Freeze"),
+          sectionLabel("Frozen"),
         ]),
         ...utxos.map((u) =>
           coinRow(
@@ -149,15 +150,11 @@ export function renderCoins(): HTMLElement {
     header("Coins", { back: "settings" }),
     body(
       alert.node,
-      lede(
-        ticked
-          ? "Tick coins to spend only those. A frozen coin stays out of every send until you unfreeze it."
-          : "A frozen coin stays out of every send until you unfreeze it.",
-      ),
+      ticked ? lede("Tick coins to spend only those.") : null,
       list,
       el("p", {
         className: "hint m-coins-hint",
-        text: "Frozen coins also stay out of Max and of the spendable balance.",
+        text: FROZEN_HINT,
       }),
       spacer(),
       ticked ? send : null,
