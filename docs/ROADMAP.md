@@ -1224,12 +1224,14 @@ Branch `round-8-fixes`. Picked on 2026-10-02, after Round 7: the loose ends it n
 not cause. A second one, two screen tests that timed out once each, did not reproduce; it is
 under Not doing.
 
-- [ ] **8.1 The fee chips fit a narrow phone** · S · `ui/mobile.css`, `gen.py` · needs: canvas
-      why: the phone's four fee chips need 309 px on one row. At 360 px wide the row has 279,
-      so the labels break inside their chips and Custom runs 8 px past the card; at 320 px it
-      runs 48 px past (measured in Chrome) · done when: the canvas draws the narrow row and it
-      is approved; in Chrome at 320, 360 and 390 px every label stays on one line inside the
-      card, 390 px unchanged, on both rows that use it: Send's fee and Speed up's target
+- [x] **8.1 The fee chips fit a narrow phone** · S · `ui/mobile.css`, `gen.py` · needs: canvas
+      why: the phone's four fee chips need 322 px on one row, which a 390 px phone's 324 holds.
+      At 360 px (294) their labels broke inside the chips, and at 320 px (254) they broke and
+      the row ran 33 px past the card (measured in Chrome) · done: 2026-10-02 — the canvas drew
+      it as M8e, and it was approved ("try next"). The tight row wraps now, and a chip's label
+      never breaks: at 360 and 320 px Custom moves to a second row and nothing passes the card,
+      and at 390 px the four stay on one row, as M8 draws them. Measured in Chrome at all three
+      widths on Send's fee and on Speed up's target, with a phone's overlay scrollbars
 
 ## Later — not picked
 

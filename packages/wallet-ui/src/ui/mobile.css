@@ -283,15 +283,17 @@ body {
   font-weight: 500;
 }
 
-/* Four chips on one phone row. */
+/* Four chips on one row where the phone has room for them, as a 390 px one
+   does. Narrower, a label never breaks inside its chip: the row wraps, and
+   Custom moves to the next (M8e). */
 .m-chips-tight {
-  flex-wrap: nowrap;
   gap: 6px;
 }
 
 .m-chips-tight .m-chip {
   padding: 0 12px;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 /* Max is a mode: lit in the accent while the amount is the whole balance. */
