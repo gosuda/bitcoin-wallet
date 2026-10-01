@@ -483,6 +483,24 @@ describe("one name for each thing (7.7)", () => {
     }
   });
 
+  // Found by cubic: a blank cell before an unknown word shifted its number.
+  it("asks for every word on the phone's Restore before it checks one", async () => {
+    at("restore");
+    setRestoreMode("phrase");
+    const screen = mount(renderPhoneRestore());
+    const cells = [...screen.querySelectorAll<HTMLInputElement>('input[aria-label^="Word "]')];
+    cells.forEach((cell, i) => {
+      cell.value = i === 1 ? "" : i === 3 ? "xyz" : "abandon";
+    });
+    const validate = vi.spyOn(api, "validateMnemonic");
+
+    buttonNamed(screen, "Restore wallet").click();
+    await settle();
+
+    expect(validate).not.toHaveBeenCalled();
+    expect(find(screen, ".banner").textContent).toBe("Fill in the missing words to continue.");
+  });
+
   it("says what Rescan is for alike in both Settings", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     at("settings");

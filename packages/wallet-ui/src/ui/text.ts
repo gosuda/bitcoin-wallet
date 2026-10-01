@@ -136,6 +136,9 @@ export const WORDS_SPEND = "Anyone with these words can spend this wallet's bitc
 export const WORDS_KEEP =
   "Write them down in order and keep them offline: this wallet cannot show them again.";
 
+/** A phrase with a blank in it: Create's confirmation, and the phone's Restore. */
+export const MISSING_WORDS = "Fill in the missing words to continue.";
+
 /** What a single key is entered as, and what one key means. */
 export const PRIVATE_KEY_HINT =
   "A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.";

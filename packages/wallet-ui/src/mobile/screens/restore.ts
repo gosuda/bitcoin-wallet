@@ -7,6 +7,7 @@ import { banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
 import {
   KEY_SHOWN_ONCE,
+  MISSING_WORDS,
   PASSPHRASE_HINT,
   PRIVATE_KEY_HINT,
   PRIVATE_KEY_PLACEHOLDER,
@@ -144,6 +145,12 @@ function phrase(): HTMLElement {
 
   const restore = async (reset = false): Promise<void> => {
     const typed = inputs.map((i) => i.value.trim().toLowerCase()).filter(Boolean);
+    // Every cell first, as the desktop waits for: a blank before an unknown
+    // word would shift the number the core names it by. Found by cubic.
+    if (typed.length < inputs.length) {
+      alert.show("error", MISSING_WORDS);
+      return;
+    }
     const words = typed.join(" ");
     try {
       await api.validateMnemonic(words);

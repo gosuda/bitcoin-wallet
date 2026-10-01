@@ -6,7 +6,7 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
-import { PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../../ui/text";
+import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
 import { body, button, card, header, historyReset, labelled, spacer, withBusy } from "../ui";
 
@@ -112,7 +112,7 @@ export function renderCreate(): HTMLElement {
         ),
         card(
           sectionLabel("Confirm your backup"),
-          el("p", { className: "m-lede", text: "Fill in the missing words to continue." }),
+          el("p", { className: "m-lede", text: MISSING_WORDS }),
           confirm,
         ),
         card(
