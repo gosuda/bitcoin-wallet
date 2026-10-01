@@ -342,5 +342,12 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     await settle();
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.5]);
     expect(screen.textContent).toContain("7.5 sat/vB for the two together");
+
+    // Found by cubic: 7.55 read "7.5 sat/vB" and was built at 7.55. It is
+    // rounded up to a tenth, and built at what it says.
+    type(rate, "7.55");
+    await settle();
+    expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.6]);
+    expect(screen.textContent).toContain("7.6 sat/vB for the two together");
   });
 });

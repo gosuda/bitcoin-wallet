@@ -126,10 +126,14 @@ export function renderSend(): HTMLElement {
     setError(feeError, feeRate, rateTouched ? feeRateError(Number(feeRate.value)) : null);
   };
 
-  /** The rate the form will build at, floored at the relay minimum. */
+  /**
+   * The rate the form will build at: rounded up to a tenth and floored at the
+   * relay minimum, which is the rate Review names. A tenth is a whole number
+   * of sat/kwu, so the core builds at exactly that.
+   */
   const currentRate = (): number => {
     const rate = Number(feeRate.value);
-    return Number.isFinite(rate) && rate >= 1 ? rate : 1;
+    return Number.isFinite(rate) && rate > 0 ? typeableRate(rate) : 1;
   };
 
   let targetBlocks: TargetChoice = `${DEFAULT_FEE_TARGET}`;
@@ -576,6 +580,9 @@ export function renderSend(): HTMLElement {
           alert.show("error", rateErr);
           return;
         }
+        // Built, and named in Review, at the rate it pays: found by cubic,
+        // 0.5 was named while the core paid its 1 sat/vB floor.
+        const at = currentRate();
         try {
           // Review supersedes a Max build still running: without this both
           // survive, and confirming one drops the reference to the other
@@ -583,13 +590,13 @@ export function renderSend(): HTMLElement {
           cancelPendingDrain();
           const seq = drainSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
-          const p = drain ?? (await api.buildTransfer(recipients, rate, heldTo(coins)));
+          const p = drain ?? (await api.buildTransfer(recipients, at, heldTo(coins)));
           if (seq !== drainSeq || !onScreen()) {
             if (p !== drain) await api.discardTx(p.psbt_id);
             return;
           }
           setFormLocked(true);
-          showPreview(p, rate);
+          showPreview(p, at);
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
         }

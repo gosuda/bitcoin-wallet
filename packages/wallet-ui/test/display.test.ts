@@ -47,7 +47,7 @@ import {
   SETUP_LEDE,
 } from "../src/ui/text";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, mount, settle, useScreenHarness } from "./harness";
+import { at, buttonNamed, find, mount, settle, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -207,6 +207,48 @@ describe("amounts and rates (7.4)", () => {
     const phone = mount(renderPhoneSend());
     await settle();
     expect(texts(phone, ".m-txmeta")).toContain("Estimate unavailable — starting at 1.0 sat/vB");
+  });
+
+  // Found by cubic: a rate under the floor was named as typed while the core
+  // paid its 1 sat/vB, and 7.55 was named 7.5 and built at 7.55.
+  it("builds and names a typed rate rounded up to a tenth on the desktop's Send", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    for (const [typed, paid] of [
+      ["0.5", 1],
+      ["7.55", 7.6],
+    ] as const) {
+      const screen = mount(renderSend());
+      await settle();
+      type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
+      type(find<HTMLInputElement>(screen, 'input[placeholder="0"]'), "1000");
+      type(find<HTMLInputElement>(screen, "#send-fee-rate"), typed);
+      fake.calls.length = 0;
+      buttonNamed(screen, "Review").click();
+      await settle();
+
+      expect(fake.calls.find((c) => c[0] === "build_transfer")?.[2]).toBe(paid);
+      expect(find(screen, ".review-card").textContent).toContain(`${paid.toFixed(1)}\u00a0sat/vB`);
+    }
+  });
+
+  it("builds and names a typed Custom rate rounded up to a tenth on the phone's Send", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    at("send");
+    const screen = mount(renderPhoneSend());
+    await settle();
+    type(find<HTMLInputElement>(screen, "input[name=address]"), fake.ADDRESS);
+    type(find<HTMLInputElement>(screen, "input[name=amount]"), "1000");
+    buttonNamed(screen, "Custom").click();
+    await settle();
+    type(find<HTMLInputElement>(screen, "input[name=rate]"), "7.55");
+    await settle();
+    fake.calls.length = 0;
+    buttonNamed(screen, "Review").click();
+    await settle();
+
+    expect(fake.calls.find((c) => c[0] === "build_transfer")?.[2]).toBe(7.6);
+    expect(screen.textContent).toContain("7.6\u00a0sat/vB");
   });
 
   it("writes the phone's history amounts with their unit", async () => {

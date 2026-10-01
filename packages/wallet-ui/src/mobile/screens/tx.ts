@@ -26,6 +26,7 @@ import {
   formatRate,
   formatSats,
   outputRole,
+  typeableRate,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { estimateUnavailable, explorerFailed, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
@@ -438,9 +439,12 @@ export function renderTransaction(): HTMLElement {
       if (choice === "custom") {
         note.textContent = "Your rate";
         const typed = Number(custom.value);
+        // Rounded up to a tenth, as it is shown: found by cubic, 7.55 showed
+        // "7.5 sat/vB" and built at 7.55.
+        const at = typeableRate(typed);
         const problem =
           feeRateError(typed) ??
-          (parentRate !== null && typed <= parentRate
+          (parentRate !== null && at <= parentRate
             ? `It pays ${formatRate(parentRate)} alone already; a child helps only above that.`
             : null);
         if (problem !== null) {
@@ -448,8 +452,8 @@ export function renderTransaction(): HTMLElement {
           blank("—");
           return;
         }
-        rate = typed;
-        shown = formatRate(typed);
+        rate = at;
+        shown = formatRate(at);
       } else if (estimate === undefined) {
         // Built once the estimate answers.
         note.textContent = FETCHING_ESTIMATE;

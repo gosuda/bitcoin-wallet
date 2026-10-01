@@ -247,7 +247,8 @@ export function renderSend(): HTMLElement {
     const before = rate;
     if (choice === "custom") {
       const typed = Number(rateInput.value);
-      rate = Number.isFinite(typed) && typed >= 1 ? typed : 1;
+      // Rounded up to a tenth, the rate Review names and the core builds at.
+      rate = Number.isFinite(typed) && typed > 0 ? typeableRate(typed) : 1;
       rateNote.textContent = `Custom rate · ${FLOOR_NOTE}`;
     } else {
       try {
