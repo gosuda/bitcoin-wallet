@@ -15,7 +15,7 @@ import {
   OPENABLE_ADDRESS_TYPES,
 } from "../types";
 import { banner, button, el, field, radioGroup, textInput, withBusy } from "../ui/dom";
-import { SETUP_LEDE } from "../ui/text";
+import { SERVER_REQUIRED, SETUP_LEDE } from "../ui/text";
 
 export function renderSetup(): HTMLElement {
   const initial = session.config;
@@ -67,7 +67,7 @@ export function renderSetup(): HTMLElement {
         alert.hide();
         const trimmed = url.value.trim();
         if (!trimmed) {
-          alert.show("error", "Enter an Esplora server URL.");
+          alert.show("error", SERVER_REQUIRED);
           return;
         }
         const backend: BackendConfig = { kind: "esplora", url: trimmed };

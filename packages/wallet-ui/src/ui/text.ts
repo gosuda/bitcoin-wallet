@@ -95,6 +95,9 @@ export function explorerFailed(reason: string): string {
 export const SETUP_LEDE =
   "Which chain, and which Esplora server to read it from. Both are kept on this device and can change later.";
 
+/** When Setup is left without a server. */
+export const SERVER_REQUIRED = "Enter an Esplora server URL.";
+
 /** Under an amount in Max mode: what it sends, and how to leave the mode. */
 export function maxModeNote(everything: number, fee: number): string {
   return `Everything: ${formatSats(everything)} minus the ${formatSats(fee)} fee. Edit the amount to leave Max; Max needs a single recipient.`;
