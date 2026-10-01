@@ -92,6 +92,9 @@ export function useScreenHarness(): void {
 
   afterEach(async () => {
     await api.closeWallet();
+    // A test that sets it and then fails must not leave it to the next one.
+    // Found by cubic.
+    session.remembered = null;
     vi.restoreAllMocks();
     document.body.replaceChildren();
     at("setup");
