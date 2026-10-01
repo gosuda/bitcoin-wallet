@@ -1218,6 +1218,19 @@ nothing more.
       `display.test.ts` renders both shells for the coin hints, Rescan and all four passphrase
       warnings; the screen tests use the new names
 
+## Round 8 — Small fixes
+
+Branch `round-8-fixes`. Picked on 2026-10-02, after Round 7: the loose ends it noticed but did
+not cause. A second one, two screen tests that timed out once each, did not reproduce; it is
+under Not doing.
+
+- [ ] **8.1 The fee chips fit a narrow phone** · S · `ui/mobile.css`, `gen.py` · needs: canvas
+      why: the phone's four fee chips need 309 px on one row. At 360 px wide the row has 279,
+      so the labels break inside their chips and Custom runs 8 px past the card; at 320 px it
+      runs 48 px past (measured in Chrome) · done when: the canvas draws the narrow row and it
+      is approved; in Chrome at 320, 360 and 390 px every label stays on one line inside the
+      card, 390 px unchanged, on both rows that use it: Send's fee and Speed up's target
+
 ## Later — not picked
 
 Listed, not scheduled; each goes to the design canvas first unless marked otherwise.
@@ -1283,3 +1296,7 @@ Listed, not scheduled; each goes to the design canvas first unless marked otherw
 - Coverage thresholds — a report may be added (3.8); no gate.
 - Hosting the browser build on Pages (was 4.10) — a hosted page that handles keys is a target
   for look-alike copies and for a poisoned deploy, and anyone can build and run it locally.
+- Changing the two screen tests that timed out once each during Round 7 — not reproduced in 37
+  runs (five in a row, three at once, two with every core busy, 25 of the two files alone), and
+  CI has never shown it. Without the failure's own output a change would be a guess; one seen
+  again is kept whole (2026-10-02).
