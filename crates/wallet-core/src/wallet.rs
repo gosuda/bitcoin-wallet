@@ -879,23 +879,22 @@ impl WalletHandle {
     }
 
     /// A build's result, with a shortfall told what the frozen coins it could
-    /// otherwise have drawn on hold, and whether every such coin is frozen.
-    /// A send held to chosen coins names its coins itself, so frozen ones
-    /// were never its to use.
+    /// otherwise have drawn on hold, and whether every coin of this wallet is
+    /// frozen: the screens say exactly that, so for a fee bump too it is not
+    /// limited to the confirmed coins a bump could add. A send held to chosen
+    /// coins names its coins itself, so frozen ones were never its to use.
     fn short_of_frozen<T>(built: Result<T>, wallet: &Wallet, draw: Draw) -> Result<T> {
         built.map_err(|e| {
-            let coins: Vec<_> = match draw {
+            let confirmed_only = match draw {
                 Draw::Chosen => return e,
-                Draw::Any => wallet.list_unspent().collect(),
-                Draw::Confirmed => wallet
-                    .list_unspent()
-                    .filter(|o| o.chain_position.is_confirmed())
-                    .collect(),
+                Draw::Any => false,
+                Draw::Confirmed => true,
             };
+            let coins: Vec<_> = wallet.list_unspent().collect();
             let is_frozen = |o: &LocalOutput| wallet.is_outpoint_locked(o.outpoint);
             let frozen_sat: u64 = coins
                 .iter()
-                .filter(|o| is_frozen(o))
+                .filter(|o| is_frozen(o) && (!confirmed_only || o.chain_position.is_confirmed()))
                 .map(|o| o.txout.value.to_sat())
                 .sum();
             let all_frozen = !coins.is_empty() && coins.iter().all(is_frozen);
@@ -2634,13 +2633,15 @@ mod tests {
         let signed = handle.sign(&built.psbt_base64).await.unwrap();
         let sent = handle.broadcast(&signed).await.unwrap();
 
+        // The send's change is unconfirmed and unfrozen: frozen coins hold
+        // what a bump could add, but not every coin is frozen. Found in review.
         let short = handle.build_fee_bump(&sent.txid, 100.0).await.unwrap_err();
         assert!(
             matches!(
                 short,
                 Error::InsufficientFunds {
                     frozen_sat: 100_000,
-                    all_frozen: true,
+                    all_frozen: false,
                     ..
                 }
             ),

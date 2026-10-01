@@ -1096,13 +1096,14 @@ Each fix is a commit of its own that says so; PR #40 lists what was declined, an
       `InsufficientFunds` carries `frozen_sat` and `all_frozen`, which a transfer or a drain
       the wallet chose coins for fills with what the frozen coins hold and whether no other
       coin was left; a send held to chosen coins leaves them at 0 and false, since it names its
-      coins itself. A fee bump that needs another coin fills them too, from confirmed coins
-      alone, the only ones BDK adds to a bump. Both shells say "Every coin is frozen. Unfreeze
-      one to spend it." when the core says no other coin was left, and "Need 60 more sat.
-      Frozen coins hold 50,000 sat." otherwise; the core's own message adds "(50000 sat more is
-      frozen)". Nothing available is not the same thing: a coin too small to pay for its own
-      input is left out too, which review found the first version took for every coin frozen;
-      review also found the bump saying nothing of frozen coins.
+      coins itself. A fee bump that needs another coin fills them too, counting the confirmed
+      frozen coins alone, the only ones BDK adds to a bump; `all_frozen` means every coin of
+      the wallet on every path, as the screens say it. Both shells say "Every coin is frozen.
+      Unfreeze one to spend it." when the core says no other coin was left, and "Need 60 more
+      sat. Frozen coins hold 50,000 sat." otherwise; the core's own message adds "(50000 sat
+      more is frozen)". Nothing available is not the same thing: a coin too small to pay for
+      its own input is left out too, which review found the first version took for every coin
+      frozen; review also found the bump saying nothing of frozen coins.
       `a_shortfall_says_what_frozen_coins_hold` covers a payment, Max with every coin frozen,
       and a send held to chosen coins, `a_coin_too_small_to_spend_is_not_a_frozen_one` the coin
       too small to spend, and `a_short_fee_bump_says_what_frozen_coins_hold` the bump; the

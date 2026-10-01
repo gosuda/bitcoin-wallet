@@ -37,8 +37,9 @@ pub enum Error {
     /// build that chose its own coins left out: without it, "need 11 more"
     /// reads as a wallet with nothing in it. A fee bump adds confirmed coins
     /// only, so only confirmed frozen coins count for one. `all_frozen` says
-    /// no other coin was left: a coin too small to pay for its own input
-    /// leaves nothing available too, so `available_sat` of 0 does not say it.
+    /// every coin of this wallet is frozen, for a bump as for a send: a coin
+    /// too small to pay for its own input leaves nothing available too, so
+    /// `available_sat` of 0 does not say it.
     /// They are 0 and false for a send held to chosen coins, which names its
     /// coins itself.
     #[error("insufficient funds: need {needed_sat} sat, have {available_sat} sat{}", frozen_note(*frozen_sat))]
