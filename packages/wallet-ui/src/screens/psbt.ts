@@ -2,7 +2,7 @@ import { navigate } from "../router";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
-import { counted, formatRate, formatVsize, outputRole, shortOutpoint } from "../ui/format";
+import { counted, feeLine, outputRole, shortOutpoint } from "../ui/format";
 import { feeRate, psbtFlow, signedLine } from "../ui/psbt";
 import { PSBT_LEDE, whoseInputs } from "../ui/text";
 
@@ -66,7 +66,9 @@ function reviewCard(r: PsbtReview): HTMLElement {
         : "";
   const fee = ioRow(
     "Fee",
-    rate === null || r.vsize === null ? "" : `${formatRate(rate)} · ${formatVsize(r.vsize)}`,
+    // The amount has a column of its own; the rest is the one fee line,
+    // which breaks only after a "·". Found by cubic.
+    rate === null || r.vsize === null ? "" : feeLine(null, r.vsize, rate),
     why ? el("span", { className: "hint", text: why }) : "",
     r.fee_sat === null ? "unknown" : formatNumber(r.fee_sat),
   );

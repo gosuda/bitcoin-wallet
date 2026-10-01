@@ -169,7 +169,9 @@ const DESKTOP: Shell = {
   said(screen) {
     const head = screen.querySelector(".slot .card-head .hint");
     const rows = [...screen.querySelectorAll(".slot tbody tr")].map((row) =>
-      [...row.children].map((cell) => cell.textContent?.trim() ?? "").join(" | "),
+      [...row.children]
+        .map((cell) => cell.textContent?.replace(/\u00a0/g, " ").trim() ?? "")
+        .join(" | "),
     );
     return [
       ...(head === null ? [] : [head.textContent ?? ""]),

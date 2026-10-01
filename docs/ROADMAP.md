@@ -1136,19 +1136,20 @@ Each fix is a commit of its own that says so; PR #40 lists what was declined, an
       shells · done: 2026-09-30 — `formatNumber`, `formatSats` and `formatBtc` moved into
       `ui/format.ts`, `ui/dom.ts` re-exporting them, beside `formatRate` with its one decimal,
       `formatVsize` and `feeLine`: "141 sat · 1.0 sat/vB · 141 vB", which both reviews, both
-      transaction details and the phone's Import PSBT use, breaking only after a "·"; the
-      desktop's PSBT table gives the fee's amount a column of its own. A review names the rate
-      it was built at: the fee over the rounded-up size reads a tenth under it. Every
-      hand-built "N sat" goes through `formatSats`, every count is grouped as the device groups
-      numbers, the phone's history rows and PSBT lists gain their unit, and the error copy
-      formats through the same helpers. The phone's Send prefills and names its rate as the
-      desktop does, rounded up to a tenth once an estimate's float noise is rounded away, and
-      never under 1 sat/vB (`typeableRate`, shared with the bump and with the refusal that
-      names a replacement's minimum): on signet it named "0.10 sat/vB", a rate the send would
-      not pay. "sats" is gone, the desktop's balance reads "—" until it is read as the phone's
-      does, and the phone's detail colours money in green as both lists do. `format.test.ts`
-      pins rates, sizes and fee lines, `feebump.test.ts` the rounding, `display.test.ts` the
-      phone's rate note and history units; the Send, PSBT and amount tests hold the new text
+      transaction details and both Import PSBT screens use, breaking only after a "·"; the
+      desktop's PSBT table gives the fee's amount a column of its own and the line the rest. A
+      review names the rate it was built at: the fee over the rounded-up size reads a tenth
+      under it. Every hand-built "N sat" goes through `formatSats`, every count is grouped as
+      the device groups numbers, the phone's history rows and PSBT lists gain their unit, and
+      the error copy formats through the same helpers. The phone's Send prefills and names its
+      rate as the desktop does, rounded up to a tenth once an estimate's float noise is rounded
+      away, and never under 1 sat/vB (`typeableRate`, shared with the bump and with the refusal
+      that names a replacement's minimum): on signet it named "0.10 sat/vB", a rate the send
+      would not pay. "sats" is gone, the desktop's balance reads "—" until it is read as the
+      phone's does, and the phone's detail colours money in green as both lists do.
+      `format.test.ts` pins rates, sizes and fee lines, `feebump.test.ts` the rounding,
+      `display.test.ts` the phone's rate note and history units; the Send, PSBT and amount
+      tests hold the new text
 
 - [x] **7.5 One way to say pending, confirmations and time** · M · both shells
       why: pending was grey on one shell and amber on the other, one screen took 0
