@@ -1090,6 +1090,9 @@ said every coin was frozen with an unfrozen coin left, a fee bump that said noth
 coins, a minimum rate named under itself, a phone review whose payees wrapped four characters
 to a line, and some thirty places that still broke the standard or said a thing two ways.
 Each fix is a commit of its own that says so; PR #40 lists what was declined, and why.
+cubic reviewed it once its limit reset on 2026-10-01: 15 comments, all valid, each fixed in
+its own commit, among them a typed rate built at 7.55 and named 7.5, and a second pass found
+nothing more.
 
 - [x] **7.1 A shortfall says what frozen coins hold** · S · `error.rs`, `wallet.rs`, `types.ts`
       why: with every coin frozen, Max said "Need 11 more sat." · done: 2026-09-30 —
