@@ -151,12 +151,6 @@ h1 {
   letter-spacing: -0.01em;
 }
 
-h2 {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: 600;
-}
-
 p {
   margin: 0;
 }
@@ -225,7 +219,8 @@ p {
 }
 
 .section-label,
-.field-label {
+.field-label,
+th {
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -542,12 +537,6 @@ textarea.input-invalid {
   color: var(--fg);
 }
 
-.banner-info {
-  border-left-color: var(--muted);
-  background: var(--subtle);
-  color: var(--fg);
-}
-
 /* Key/value list */
 
 .kv {
@@ -683,14 +672,6 @@ td {
   padding: var(--space-2) var(--space-2);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
-}
-
-th {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: var(--text-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 td.num,
@@ -1219,31 +1200,49 @@ a.link-button {
 
 /* Unlock */
 
-.unlock-card {
+/* Unlock's card and Result's are drawn alike: a circled icon beside a title. */
+.unlock-card,
+.result-card {
   gap: var(--space-4);
   padding: var(--space-6);
 }
 
-.unlock-head {
+.result-card {
+  align-items: flex-start;
+}
+
+.unlock-head,
+.result-head {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.key-circle {
+.key-circle,
+.check-circle {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--subtle);
-  border: 1px solid var(--border);
-  color: var(--fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
 }
 
-.unlock-title {
+.key-circle {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+
+.check-circle {
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-border);
+  color: var(--ok);
+}
+
+.unlock-title,
+.result-title {
   font-weight: 600;
   font-size: 16px;
 }
@@ -1356,38 +1355,6 @@ a.link-button {
 /* Level with the first line of the text beside it. */
 .reset-message .icon {
   margin-top: 2px;
-}
-
-/* Result */
-
-.result-card {
-  align-items: flex-start;
-  gap: var(--space-4);
-  padding: var(--space-6);
-}
-
-.result-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.check-circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--ok-bg);
-  border: 1px solid var(--ok-border);
-  color: var(--ok);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-}
-
-.result-title {
-  font-weight: 600;
-  font-size: 16px;
 }
 
 .stack-2 {

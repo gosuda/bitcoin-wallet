@@ -187,13 +187,6 @@ jobs:
           components: clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      # The version comes from `packageManager` in the root package.json.
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
       # Tauri's Linux build needs the webkit stack.
       - name: Install Linux build dependencies
         run: |
@@ -201,7 +194,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       # Both apps import the wasm core through @bitcoin-wallet/ui, so build it
       # before anything typechecks.
-      - uses: ./.github/actions/wasm-core
+      - uses: ./.github/actions/frontend
       - run: pnpm install --frozen-lockfile
       # The Tauri CLI will not build when a crate and its npm half differ in
       # major.minor, and nothing here runs the CLI; Dependabot bumps the two

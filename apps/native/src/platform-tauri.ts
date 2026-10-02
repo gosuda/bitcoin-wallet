@@ -12,7 +12,6 @@ import { installChainFetch } from "@bitcoin-wallet/ui/net";
 import type { Platform } from "@bitcoin-wallet/ui/platform";
 import {
   type AppConfig,
-  type LockAfter,
   lockAfterFrom,
   messageOf,
   type RememberedWallet,
@@ -50,6 +49,20 @@ export function installNativeFetch(): void {
 const STORE_FILE = "config.json";
 const REMEMBERED_KEY = "remembered_wallet";
 const LOCK_AFTER_KEY = "lock_after";
+
+/** What the plugin store holds under `key`, or `undefined` when it holds nothing there. */
+async function readStore<T>(key: string): Promise<T | undefined> {
+  const store = await loadStore(STORE_FILE);
+  return store.get<T>(key);
+}
+
+/** Saves `value` under `key` in the plugin store; `null` deletes the key. */
+async function writeStore(key: string, value: unknown): Promise<void> {
+  const store = await loadStore(STORE_FILE);
+  if (value === null) await store.delete(key);
+  else await store.set(key, value);
+  await store.save();
+}
 
 /**
  * Asks the native side whether the OS credential store actually works here.
@@ -156,28 +169,11 @@ export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Plat
     getConfig: () => invoke<AppConfig>("get_config"),
     setConfig: (config) => invoke<void>("set_config", { config }),
 
-    async getRemembered(): Promise<RememberedWallet | null> {
-      const store = await loadStore(STORE_FILE);
-      return (await store.get<RememberedWallet>(REMEMBERED_KEY)) ?? null;
-    },
+    getRemembered: async () => (await readStore<RememberedWallet>(REMEMBERED_KEY)) ?? null,
+    setRemembered: (record) => writeStore(REMEMBERED_KEY, record),
 
-    async setRemembered(record): Promise<void> {
-      const store = await loadStore(STORE_FILE);
-      if (record) await store.set(REMEMBERED_KEY, record);
-      else await store.delete(REMEMBERED_KEY);
-      await store.save();
-    },
-
-    async getLockAfter(): Promise<LockAfter> {
-      const store = await loadStore(STORE_FILE);
-      return lockAfterFrom(await store.get(LOCK_AFTER_KEY));
-    },
-
-    async setLockAfter(choice): Promise<void> {
-      const store = await loadStore(STORE_FILE);
-      await store.set(LOCK_AFTER_KEY, choice);
-      await store.save();
-    },
+    getLockAfter: async () => lockAfterFrom(await readStore(LOCK_AFTER_KEY)),
+    setLockAfter: (choice) => writeStore(LOCK_AFTER_KEY, choice),
 
     rememberSecret: (walletId, secret, passphrase) =>
       invoke<void>("remember_secret", { walletId, secret, passphrase: passphrase ?? null }),

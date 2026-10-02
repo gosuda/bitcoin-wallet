@@ -136,9 +136,7 @@ export interface PublicDescriptors {
   fingerprint: string | null;
 }
 
-export interface TxInput {
-  txid: string;
-  vout: number;
+export interface TxInput extends CoinId {
   /** `null` when the spent output is not one the wallet has seen. */
   value_sat: number | null;
   ours: boolean;
@@ -152,24 +150,15 @@ export interface TxOutput {
 }
 
 /** Everything the wallet knows about one transaction in its history. */
-export interface TxDetail {
-  txid: string;
-  net_sat: number;
-  sent_sat: number;
-  received_sat: number;
-  fee_sat: number | null;
+export interface TxDetail extends TxSummary {
   fee_rate_sat_vb: number | null;
-  confirmations: number | null;
   block_height: number | null;
-  timestamp: number | null;
   vsize: number;
   inputs: TxInput[];
   outputs: TxOutput[];
 }
 
-export interface PsbtInput {
-  txid: string;
-  vout: number;
+export interface PsbtInput extends CoinId {
   /** From our own history for an input of ours; what the PSBT claims for anyone else's. */
   value_sat: number | null;
   /** Going by this wallet's own history, never by what the PSBT claims. */
@@ -204,6 +193,10 @@ export type FeeTarget = (typeof FEE_TARGETS)[number];
 
 /** What Send starts on in both shells: about an hour, at a rate that rarely overpays. */
 export const DEFAULT_FEE_TARGET: FeeTarget = 6;
+
+/** The targets as Send and Speed up offer them: "1 block", "3 blocks", "6 blocks". */
+export const FEE_TARGET_CHOICES: readonly { value: `${FeeTarget}`; label: string }[] =
+  FEE_TARGETS.map((t) => ({ value: `${t}`, label: `${t} block${t > 1 ? "s" : ""}` }));
 
 /** The address gaps a rescan offers; the first is the core's own default. */
 export const RESCAN_GAPS = [20, 100, 500] as const;

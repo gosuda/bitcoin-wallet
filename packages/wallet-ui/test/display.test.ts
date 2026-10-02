@@ -4,10 +4,6 @@
  * the same way on both shells.
  */
 import { describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
 import { api } from "../src/api";
 import { renderCoins } from "../src/mobile/screens/coins";
 import { renderCreate as renderPhoneCreate } from "../src/mobile/screens/create";
@@ -31,7 +27,7 @@ import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
-import { type RememberedWallet, type TxDetail, WalletError } from "../src/types";
+import { type TxDetail, WalletError } from "../src/types";
 import { banner } from "../src/ui/dom";
 import { formatTime, shortId } from "../src/ui/format";
 import {
@@ -47,7 +43,16 @@ import {
   SETUP_LEDE,
 } from "../src/ui/text";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, mount, settle, type, useScreenHarness } from "./harness";
+import {
+  buttonNamed,
+  find,
+  mount,
+  mountAt,
+  settle,
+  showAt,
+  type,
+  useScreenHarness,
+} from "./harness";
 
 useScreenHarness();
 
@@ -126,9 +131,7 @@ describe("ids and addresses (7.3)", () => {
       },
     ];
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const screen = mount(renderDashboard());
-    await settle();
+    const screen = await showAt("dashboard", renderDashboard);
 
     const cell = [...screen.querySelectorAll<HTMLElement>("td")].find(
       (td) => td.title === fake.ADDRESS,
@@ -137,23 +140,15 @@ describe("ids and addresses (7.3)", () => {
   });
 
   it("shortens the saved wallet's address the same way on both Unlock screens", async () => {
-    const saved: RememberedWallet = {
-      wallet_id: "testnet4-p2wpkh-fake",
-      address: fake.ADDRESS,
-      network: "testnet4",
-      address_type: "p2wpkh",
-    };
-    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => saved });
-    session.remembered = saved;
-    at("unlock");
+    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => fake.SAVED });
+    session.remembered = fake.SAVED;
 
-    const desktop = mount(renderUnlock());
+    const desktop = mountAt("unlock", renderUnlock);
     const shown = texts(desktop, ".mono");
-    const phone = mount(renderPhoneUnlock());
+    const phone = mountAt("unlock", renderPhoneUnlock);
 
     expect(shown).toContain(shortId(fake.ADDRESS));
     expect(texts(phone, ".m-address")).toEqual([shortId(fake.ADDRESS)]);
-    session.remembered = null;
   });
 });
 
@@ -163,9 +158,7 @@ describe("amounts and rates (7.4)", () => {
   it("names the rate the phone's Send will pay, never one under the floor", async () => {
     fake.state.estimate = { "6": 0.1 };
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
-    const screen = mount(renderPhoneSend());
-    await settle();
+    const screen = await showAt("send", renderPhoneSend);
 
     expect(texts(screen, ".m-txmeta")).toContain("1.0 sat/vB");
   });
@@ -173,8 +166,7 @@ describe("amounts and rates (7.4)", () => {
   // Found in review: the "—" was painted over with zeros as the page was built.
   it("shows no desktop balance until one is read", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const screen = mount(renderDashboard());
+    const screen = mountAt("dashboard", renderDashboard);
 
     expect(find(screen, ".stat-hero").textContent).toBe("—");
     expect(texts(screen, ".stat-value")).toEqual(["—", "—"]);
@@ -188,8 +180,7 @@ describe("amounts and rates (7.4)", () => {
   // which for a recovery phrase is only the next receiving address.
   it("heads the desktop's Send with the network and server, as its other screens", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
-    const screen = mount(renderSend());
+    const screen = mountAt("send", renderSend);
     expect(find(screen, ".screen-head .muted").textContent).not.toContain(fake.ADDRESS);
     expect(find(screen, ".screen-head .muted").textContent).toContain(" · ");
   });
@@ -197,15 +188,12 @@ describe("amounts and rates (7.4)", () => {
   it("says an estimate with no rate is unavailable, alike on both Send screens", async () => {
     fake.state.estimate = {};
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
-    const desktop = mount(renderSend());
-    await settle();
+    const desktop = await showAt("send", renderSend);
     expect(find(desktop, ".fee-source").textContent).toBe(
       "Estimate unavailable — enter a rate · floor 1.0 sat/vB",
     );
 
-    const phone = mount(renderPhoneSend());
-    await settle();
+    const phone = await showAt("send", renderPhoneSend);
     expect(texts(phone, ".m-txmeta")).toContain("Estimate unavailable — starting at 1.0 sat/vB");
   });
 
@@ -213,13 +201,11 @@ describe("amounts and rates (7.4)", () => {
   // paid its 1 sat/vB, and 7.55 was named 7.5 and built at 7.55.
   it("builds and names a typed rate rounded up to a tenth on the desktop's Send", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
     for (const [typed, paid] of [
       ["0.5", 1],
       ["7.55", 7.6],
     ] as const) {
-      const screen = mount(renderSend());
-      await settle();
+      const screen = await showAt("send", renderSend);
       type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
       type(find<HTMLInputElement>(screen, 'input[placeholder="0"]'), "1000");
       type(find<HTMLInputElement>(screen, "#send-fee-rate"), typed);
@@ -234,9 +220,7 @@ describe("amounts and rates (7.4)", () => {
 
   it("builds and names a typed Custom rate rounded up to a tenth on the phone's Send", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
-    const screen = mount(renderPhoneSend());
-    await settle();
+    const screen = await showAt("send", renderPhoneSend);
     type(find<HTMLInputElement>(screen, "input[name=address]"), fake.ADDRESS);
     type(find<HTMLInputElement>(screen, "input[name=amount]"), "1000");
     buttonNamed(screen, "Custom").click();
@@ -256,9 +240,7 @@ describe("amounts and rates (7.4)", () => {
   // the screen says is the field's own reason, in the unit typed.
   it("says why an amount is not valid in the unit it is typed in", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
-    const screen = mount(renderSend());
-    await settle();
+    const screen = await showAt("send", renderSend);
     type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
     find<HTMLInputElement>(screen, "input[type=radio][value=btc]").click();
     const amount = find<HTMLInputElement>(screen, 'input[placeholder="0"]');
@@ -271,50 +253,27 @@ describe("amounts and rates (7.4)", () => {
   });
 
   it("writes the phone's history amounts with their unit", async () => {
-    fake.state.transactions = [
-      {
-        txid: SENT,
-        net_sat: -40_153,
-        sent_sat: 49_580,
-        received_sat: 9_427,
-        fee_sat: 153,
-        confirmations: 3,
-        timestamp: 1_790_000_000,
-      },
-    ];
+    fake.state.transactions = [fake.summaryOf(sent)];
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const screen = mount(renderPhoneWallet());
-    await settle();
+    const screen = await showAt("dashboard", renderPhoneWallet);
 
     expect(texts(screen, ".m-amt")).toEqual([`−${(40_153).toLocaleString()} sat`]);
   });
 });
 
 describe("pending, confirmations and time (7.5)", () => {
-  const pending = {
-    txid: SENT,
-    net_sat: -40_153,
-    sent_sat: 49_580,
-    received_sat: 9_427,
-    fee_sat: 153,
-    confirmations: null,
-    timestamp: null,
-  };
+  const pending = fake.summaryOf({ ...sent, confirmations: null, timestamp: null });
 
   it("says Pending on both shells, the desktop's in the pending colour", async () => {
     fake.state.transactions = [pending];
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const desktop = mount(renderDashboard());
-    await settle();
+    const desktop = await showAt("dashboard", renderDashboard);
     const cell = [...desktop.querySelectorAll<HTMLElement>("td")].find(
       (td) => td.textContent === "Pending",
     );
     expect(cell?.classList.contains("pending")).toBe(true);
 
-    const phone = mount(renderPhoneWallet());
-    await settle();
+    const phone = await showAt("dashboard", renderPhoneWallet);
     expect(texts(phone, ".m-txmeta .m-pending")).toEqual(["Pending"]);
   });
 
@@ -336,9 +295,8 @@ describe("pending, confirmations and time (7.5)", () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const at14 = new Date(2026, 8, 30, 14, 32, 7);
     session.lastSyncedAt = at14;
-    at("dashboard");
-    const desktop = mount(renderDashboard());
-    const phone = mount(renderPhoneWallet());
+    const desktop = mountAt("dashboard", renderDashboard);
+    const phone = mountAt("dashboard", renderPhoneWallet);
     const said = `Synced ${formatTime(at14)}`;
 
     expect(desktop.textContent).toContain(said);
@@ -347,22 +305,14 @@ describe("pending, confirmations and time (7.5)", () => {
 });
 
 describe("one word for each action (7.6)", () => {
-  const saved: RememberedWallet = {
-    wallet_id: "testnet4-p2wpkh-fake",
-    address: fake.ADDRESS,
-    network: "testnet4",
-    address_type: "p2wpkh",
-  };
-
   // The desktop's Unlock asked "Really forget?" with no warning, and its way
   // out said "key" where the phone's said "wallet".
   it("offers the same way out and the same Forget on both Unlock screens", () => {
-    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => saved });
-    session.remembered = saved;
-    at("unlock");
+    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => fake.SAVED });
+    session.remembered = fake.SAVED;
 
     for (const render of [renderUnlock, renderPhoneUnlock]) {
-      const screen = mount(render());
+      const screen = mountAt("unlock", render);
       expect(buttonNamed(screen, "Use a different wallet")).toBeTruthy();
       buttonNamed(screen, "Forget this wallet").click();
       expect(screen.textContent).toContain(forgetWarning(null));
@@ -376,7 +326,6 @@ describe("one word for each action (7.6)", () => {
       buttonNamed(screen, "Forget this wallet").click();
       expect(buttonNamed(screen, "Keep it")).toBeTruthy();
     }
-    session.remembered = null;
   });
 
   // Found in review: the desktop said "this transaction is not in the
@@ -390,11 +339,10 @@ describe("one word for each action (7.6)", () => {
 
   it("says the same on both Sent screens", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("result");
 
     for (const render of [renderResult, renderPhoneResult]) {
       session.lastResult = { txid: SENT, persist_error: null, explorer_url: null };
-      const screen = mount(render());
+      const screen = mountAt("result", render);
       expect(screen.textContent).toContain(SENT_TITLE);
       expect(screen.textContent).toContain(SENT_LINE);
       expect(buttonNamed(screen, "Copy transaction id")).toBeTruthy();
@@ -405,13 +353,9 @@ describe("one word for each action (7.6)", () => {
 describe("one name for each thing (7.7)", () => {
   it("says what freezing does, and that there are no coins, alike on both shells", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const desktop = mount(renderDashboard());
-    await settle();
+    const desktop = await showAt("dashboard", renderDashboard);
     const desktopText = desktop.textContent;
-    at("coins");
-    const phone = mount(renderCoins());
-    await settle();
+    const phone = await showAt("coins", renderCoins);
 
     for (const text of [desktopText, phone.textContent]) {
       expect(text).toContain(FROZEN_HINT);
@@ -422,25 +366,21 @@ describe("one name for each thing (7.7)", () => {
   // Found in review: the phone showed the core's words, "(word 3)" for the
   // fourth word, where the desktop names the word by its place.
   it("names an unknown word by its place on the phone's Restore too", async () => {
-    at("restore");
     setRestoreMode("phrase");
-    const screen = mount(renderPhoneRestore());
+    const screen = mountAt("restore", renderPhoneRestore);
     const cells = [...screen.querySelectorAll<HTMLInputElement>('input[aria-label^="Word "]')];
     cells.forEach((cell, i) => {
       cell.value = i === 3 ? "xyz" : "abandon";
     });
-    const refused = vi
-      .spyOn(api, "validateMnemonic")
-      .mockRejectedValueOnce(
-        new WalletError(
-          "invalid_key",
-          "invalid key material: invalid mnemonic: mnemonic contains an unknown word (word 3)",
-        ),
-      );
+    vi.spyOn(api, "validateMnemonic").mockRejectedValueOnce(
+      new WalletError(
+        "invalid_key",
+        "invalid key material: invalid mnemonic: mnemonic contains an unknown word (word 3)",
+      ),
+    );
 
     buttonNamed(screen, "Restore wallet").click();
     await settle();
-    refused.mockRestore();
 
     expect(find(screen, ".banner").textContent).toBe('Word 4 "xyz" is not in the word list.');
   });
@@ -448,46 +388,37 @@ describe("one name for each thing (7.7)", () => {
   // Found in review: "your history" on one shell, "Copy both" on the other.
   it("says what public keys give away, and copies them, alike on both shells", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("settings");
-    const desktop = mount(renderSettings());
+    const desktop = mountAt("settings", renderSettings);
     buttonNamed(desktop, "Export public keys").click();
     await settle();
     expect(desktop.textContent).toContain(PUBLIC_KEYS_NOTE);
     expect(buttonNamed(desktop, "Copy descriptor")).toBeTruthy();
 
-    at("export");
-    const phone = mount(renderExport());
-    await settle();
+    const phone = await showAt("export", renderExport);
     expect(phone.textContent).toContain(PUBLIC_KEYS_NOTE);
     expect(buttonNamed(phone, "Copy descriptor")).toBeTruthy();
   });
 
   it("says what Receive's QR holds alike on both shells", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const desktop = mount(renderDashboard());
-    await settle();
+    const desktop = await showAt("dashboard", renderDashboard);
     expect(desktop.textContent).toContain(RECEIVE_QR_NOTE);
-    at("receive");
-    const phone = mount(renderPhoneReceive());
-    await settle();
+    const phone = await showAt("receive", renderPhoneReceive);
     expect(phone.textContent).toContain(RECEIVE_QR_NOTE);
   });
 
   // Found in review: "Esplora endpoint" on one shell, where the other asked
   // which chain and where to read it from.
   it("says what Setup chooses alike on both shells", () => {
-    at("setup");
     for (const render of [renderSetup, renderPhoneSetup]) {
-      expect(mount(render()).textContent).toContain(SETUP_LEDE);
+      expect(mountAt("setup", render).textContent).toContain(SETUP_LEDE);
     }
   });
 
   // Found by cubic: a blank cell before an unknown word shifted its number.
   it("asks for every word on the phone's Restore before it checks one", async () => {
-    at("restore");
     setRestoreMode("phrase");
-    const screen = mount(renderPhoneRestore());
+    const screen = mountAt("restore", renderPhoneRestore);
     const cells = [...screen.querySelectorAll<HTMLInputElement>('input[aria-label^="Word "]')];
     cells.forEach((cell, i) => {
       cell.value = i === 1 ? "" : i === 3 ? "xyz" : "abandon";
@@ -503,24 +434,20 @@ describe("one name for each thing (7.7)", () => {
 
   it("says what Rescan is for alike in both Settings", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("settings");
     for (const render of [renderSettings, renderPhoneSettings]) {
-      expect(mount(render()).textContent).toContain(RESCAN_HINT);
+      expect(mountAt("settings", render).textContent).toContain(RESCAN_HINT);
     }
   });
 
   // The phone's Create had no warning that the passphrase is half the backup.
   it("warns about the passphrase in the same words wherever one is set", async () => {
-    at("create");
     for (const render of [renderCreate, renderPhoneCreate]) {
-      const screen = mount(render());
-      await settle();
+      const screen = await showAt("create", render);
       expect(screen.textContent).toContain(PASSPHRASE_HINT);
     }
-    at("restore");
     setRestoreMode("phrase");
     for (const render of [renderRestore, renderPhoneRestore]) {
-      expect(mount(render()).textContent).toContain(PASSPHRASE_HINT);
+      expect(mountAt("restore", render).textContent).toContain(PASSPHRASE_HINT);
     }
   });
 });

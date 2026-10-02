@@ -1,17 +1,15 @@
-import { api, canUnlockHere } from "../../api";
-import { navigate } from "../../router";
 import { session } from "../../session";
 import {
   ADDRESS_TYPE_LABELS,
   type AddressType,
   DEFAULT_ESPLORA_URL,
-  errorMessage,
   isOpenable,
   NETWORK_LABELS,
   type Network,
 } from "../../types";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
-import { SERVER_REQUIRED, SETUP_LEDE } from "../../ui/text";
+import { saveSetup } from "../../ui/settings";
+import { SETUP_LEDE } from "../../ui/text";
 import { body, button, card, chips, header, labelled, lede, spacer } from "../ui";
 
 /** Networks worth offering on a phone; regtest needs a node on localhost. */
@@ -52,28 +50,7 @@ export function renderSetup(): HTMLElement {
 
   const cont = button(
     "Continue",
-    async () => {
-      alert.hide();
-      const trimmed = url.value.trim();
-      if (!trimmed) {
-        // Desktop refuses this here too. Saving it instead would only surface
-        // as a backend error when a wallet is opened, several screens later.
-        alert.show("error", SERVER_REQUIRED);
-        return;
-      }
-      try {
-        const config = {
-          network: network.value(),
-          backend: { kind: "esplora" as const, url: trimmed },
-          address_type: addressType.value(),
-        };
-        await api.setConfig(config);
-        session.config = config;
-        navigate(canUnlockHere() ? "unlock" : "key");
-      } catch (e) {
-        alert.show("error", errorMessage(e));
-      }
-    },
+    () => saveSetup(alert, network.value(), url.value, addressType.value()),
     { variant: "primary", block: true },
   );
 

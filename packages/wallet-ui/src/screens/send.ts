@@ -2,13 +2,13 @@ import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
-import { screenGuard } from "../screen";
+import { redirect, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   backendHost,
   DEFAULT_FEE_TARGET,
   errorMessage,
-  FEE_TARGETS,
+  FEE_TARGET_CHOICES,
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
@@ -29,7 +29,9 @@ import {
   kv,
   radioGroup,
   sectionLabel,
+  setFieldError,
   textInput,
+  unitChips,
   withBusy,
 } from "../ui/dom";
 import { feeLine, typeableRate } from "../ui/format";
@@ -62,10 +64,7 @@ const MAX_HINT_CHOSEN =
 export function renderSend(): HTMLElement {
   const wallet = session.wallet;
   const cfg = session.config;
-  if (!wallet || !cfg) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!wallet || !cfg) return redirect("setup");
   const onScreen = screenGuard();
   const host = backendHost(cfg.backend);
   const networkName = NETWORK_LABELS[wallet.network];
@@ -137,20 +136,12 @@ export function renderSend(): HTMLElement {
   };
 
   let targetBlocks: TargetChoice = `${DEFAULT_FEE_TARGET}`;
-  const target = radioGroup(
-    "fee_target",
-    FEE_TARGETS.map((t) => ({
-      value: `${t}` as TargetChoice,
-      label: `${t} block${t > 1 ? "s" : ""}`,
-    })),
-    targetBlocks,
-    (v) => {
-      targetBlocks = v;
-      rateTouched = false;
-      leaveDrain();
-      applyEstimate();
-    },
-  );
+  const target = radioGroup("fee_target", FEE_TARGET_CHOICES, targetBlocks, (v) => {
+    targetBlocks = v;
+    rateTouched = false;
+    leaveDrain();
+    applyEstimate();
+  });
   const targetInputs = (): HTMLInputElement[] => Array.from(target.querySelectorAll("input"));
 
   const applyEstimate = () => {
@@ -197,11 +188,8 @@ export function renderSend(): HTMLElement {
   };
 
   const setError = (slot: HTMLElement, input: HTMLInputElement, message: string | null) => {
-    slot.textContent = message ?? "";
+    setFieldError(slot, input, message);
     slot.classList.toggle("hidden", message === null);
-    input.classList.toggle("input-invalid", message !== null);
-    if (message === null) input.removeAttribute("aria-invalid");
-    else input.setAttribute("aria-invalid", "true");
   };
 
   const renderRowErrors = (row: RecipientRow) => {
@@ -336,13 +324,14 @@ export function renderSend(): HTMLElement {
     const maxBtn = button("Max", () => fillMax(row), "default", "sm");
     const maxHint = el("span", { className: "hint", text: maxHintText() });
     const maxBox = el("div", { className: "amount-max" }, [maxBtn, maxHint]);
+    const units = unitChips(`recipient-unit-${seq}`, (unit) => setUnit(row, unit));
 
     const row: RecipientRow = {
       node: el("div", { className: "recipient-row" }),
       address,
       amount,
       unit: "sat",
-      units: [],
+      units: units.inputs,
       remove: removeBtn,
       max: maxBtn,
       maxBox,
@@ -350,18 +339,6 @@ export function renderSend(): HTMLElement {
       addressError,
       amountError,
       touched: { address: false, amount: false },
-    };
-
-    const unitChip = (unit: Unit, label: string): HTMLLabelElement => {
-      const input = el("input", {
-        attrs: { type: "radio", name: `recipient-unit-${seq}`, value: unit },
-      });
-      input.checked = unit === row.unit;
-      input.addEventListener("change", () => {
-        if (input.checked) setUnit(row, unit);
-      });
-      row.units.push(input);
-      return el("label", { className: "unit-chip" }, [input, el("span", { text: label })]);
     };
 
     address.addEventListener("input", () => {
@@ -391,14 +368,7 @@ export function renderSend(): HTMLElement {
       ]),
       el("div", { className: "field" }, [
         el("label", { className: "field-label", text: "Amount", attrs: { for: amount.id } }),
-        el("div", { className: "amount-row" }, [
-          amount,
-          el(
-            "div",
-            { className: "unit-group", attrs: { role: "radiogroup", "aria-label": "Amount unit" } },
-            [unitChip("sat", "sat"), unitChip("btc", "BTC")],
-          ),
-        ]),
+        el("div", { className: "amount-row" }, [amount, units.node]),
         amountError,
         maxBox,
       ]),
@@ -621,13 +591,10 @@ export function renderSend(): HTMLElement {
   void loadEstimate();
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Send" }),
-      // As every desktop heading says it. A wallet's address was here, which
-      // for a recovery phrase is only the next receiving address, not where
-      // the coins come from.
-      el("p", { className: "muted small", text: `${networkName} · ${host}` }),
-    ]),
+    // As every desktop heading says it. A wallet's address was here, which
+    // for a recovery phrase is only the next receiving address, not where
+    // the coins come from.
+    screenHead("Send", `${networkName} · ${host}`),
     alert.node,
     coinsLine,
     rowsBox,

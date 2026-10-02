@@ -1,8 +1,7 @@
 import QRCode from "qrcode";
 
 import { api } from "../../api";
-import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type PublicDescriptors } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -12,11 +11,8 @@ import { body, card, header, lede, row } from "../ui";
 
 export function renderExport(): HTMLElement {
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
 
   const alert = banner();

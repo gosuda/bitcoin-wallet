@@ -79,15 +79,7 @@ export function toTxSummary(raw: unknown): TxSummary {
 
 export function toTxDetail(raw: unknown): TxDetail {
   const read = reader(raw);
-  const inputs = (read("inputs") as unknown[]).map((i): TxInput => {
-    const r = reader(i);
-    return {
-      txid: String(r("txid")),
-      vout: Number(r("vout")),
-      value_sat: optionalNumber(r("value_sat")),
-      ours: Boolean(r("ours")),
-    };
-  });
+  const inputs = (read("inputs") as unknown[]).map(toTxInput);
   return {
     txid: String(read("txid")),
     net_sat: Number(read("net_sat")),
@@ -104,6 +96,17 @@ export function toTxDetail(raw: unknown): TxDetail {
   };
 }
 
+/** An input, of a transaction in the history or of a PSBT. */
+function toTxInput(raw: unknown): TxInput {
+  const read = reader(raw);
+  return {
+    txid: String(read("txid")),
+    vout: Number(read("vout")),
+    value_sat: optionalNumber(read("value_sat")),
+    ours: Boolean(read("ours")),
+  };
+}
+
 function toTxOutput(raw: unknown): TxOutput {
   const read = reader(raw);
   return {
@@ -116,16 +119,9 @@ function toTxOutput(raw: unknown): TxOutput {
 /** A PSBT made elsewhere, as this wallet reads it. */
 export function toPsbtReview(raw: unknown): PsbtReview {
   const read = reader(raw);
-  const inputs = (read("inputs") as unknown[]).map((i): PsbtInput => {
-    const r = reader(i);
-    return {
-      txid: String(r("txid")),
-      vout: Number(r("vout")),
-      value_sat: optionalNumber(r("value_sat")),
-      ours: Boolean(r("ours")),
-      finalized: Boolean(r("finalized")),
-    };
-  });
+  const inputs = (read("inputs") as unknown[]).map(
+    (i): PsbtInput => ({ ...toTxInput(i), finalized: Boolean(reader(i)("finalized")) }),
+  );
   return {
     psbt_base64: String(read("psbt_base64")),
     txid: optionalString(read("txid")),

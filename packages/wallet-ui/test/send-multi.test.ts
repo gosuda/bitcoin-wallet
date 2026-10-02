@@ -1,14 +1,10 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
 import { api } from "../src/api";
 import { prefillSend, renderSend } from "../src/mobile/screens/send";
 import { platform, setPlatform } from "../src/platform";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, leaveTo, mount, settle, type, useScreenHarness } from "./harness";
+import { buttonNamed, find, leaveTo, settle, showAt, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -18,10 +14,7 @@ const SECOND = "tb1qmdpena9w6e2h49wxe0tglyrezzgcgs37us67w0";
 
 async function openSend(): Promise<HTMLElement> {
   await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-  at("send");
-  const screen = mount(renderSend());
-  await settle();
-  return screen;
+  return showAt("send", renderSend);
 }
 
 function all<T extends Element>(root: ParentNode, selector: string): T[] {

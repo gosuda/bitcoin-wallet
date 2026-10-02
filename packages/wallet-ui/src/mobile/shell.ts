@@ -7,12 +7,10 @@
  * wallet you have already opened is not a wizard.
  */
 
-import { canUnlockHere } from "../api";
-import { guardRoute } from "../guards";
+import { listen } from "../app";
 import { platform } from "../platform";
-import { currentRoute, navigate, type Route } from "../router";
-import { session } from "../session";
-import { clear, el } from "../ui/dom";
+import { navigate, type Route } from "../router";
+import { el } from "../ui/dom";
 import { type IconName, icon } from "../ui/icons";
 import "../ui/mobile.css";
 import { renderCoins } from "./screens/coins";
@@ -56,21 +54,6 @@ const TABS: readonly { route: Route; label: string; icon: IconName }[] = [
   { route: "settings", label: "Settings", icon: "gear" },
 ];
 
-/** The rules live in `guards.ts`, shared with the desktop; this reads the state. */
-function guard(route: Route): Route {
-  return guardRoute(
-    route,
-    {
-      wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
-      configType: session.config?.address_type ?? null,
-      unlockable: canUnlockHere(),
-      hasResult: session.lastResult !== null,
-      hasTxid: currentTxid() !== null,
-    },
-    "phone",
-  );
-}
-
 /** The tabs this build can honour: Scan needs a camera to point at anything. */
 function tabs(): readonly (typeof TABS)[number][] {
   return TABS.filter((tab) => tab.route !== "scan" || platform().scanQr !== undefined);
@@ -94,22 +77,12 @@ function tabBar(active: Route): HTMLElement {
   return bar;
 }
 
-function render(): void {
-  const wanted = currentRoute();
-  const route = guard(wanted);
-  if (route !== wanted) {
-    navigate(route);
-    return;
-  }
-  const root = document.getElementById("app");
-  if (!root) throw new Error("missing #app root");
-  clear(root);
+/** The phone's page: the screen, and the tab bar on the places that carry it. */
+function draw(root: HTMLElement, route: Route): void {
   root.appendChild(SCREENS[route]());
   if (tabs().some((t) => t.route === route)) root.appendChild(tabBar(route));
 }
 
 export function mount(): void {
-  window.addEventListener("hashchange", render);
-  if (canUnlockHere() && currentRoute() === "setup") navigate("unlock");
-  else render();
+  listen("phone", draw, () => currentTxid() !== null);
 }

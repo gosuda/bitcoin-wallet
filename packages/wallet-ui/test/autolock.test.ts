@@ -1,9 +1,5 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
 import { api } from "../src/api";
 import { boot } from "../src/app";
 import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
@@ -14,7 +10,7 @@ import { session } from "../src/session";
 import { DEFAULT_LOCK_AFTER, lockAfterFrom } from "../src/types";
 import { chooseLockAfter, lockAfter, startAutolock } from "../src/ui/autolock";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, mount, useScreenHarness } from "./harness";
+import { at, buttonNamed, find, mountAt, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -70,6 +66,12 @@ async function openRemembered(): Promise<void> {
 
 let stop: (() => void) | undefined;
 
+/** Opens a remembered wallet and starts the lock, which `afterEach` stops. */
+async function openLocking(): Promise<void> {
+  await openRemembered();
+  stop = await startAutolock();
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   saved = undefined;
@@ -80,14 +82,12 @@ afterEach(() => {
   stop?.();
   stop = undefined;
   visibility = "visible";
-  session.remembered = null;
   vi.useRealTimers();
 });
 
 describe("a remembered wallet locks in the background (6.11)", () => {
   it("closes to Unlock at the deadline where timers run, as a desktop window's do", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
 
     setVisibility("hidden");
     await vi.advanceTimersByTimeAsync(5 * MINUTE - 1);
@@ -99,8 +99,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
   });
 
   it("closes to Unlock on return where no timer ran, as on a phone", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
 
     setVisibility("hidden");
     sleepFor(6 * MINUTE);
@@ -114,8 +113,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
   });
 
   it("counts from when the page first went out of sight", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
 
     setVisibility("hidden");
     sleepFor(3 * MINUTE);
@@ -129,8 +127,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
   });
 
   it("stays open when the app comes back in time, and each absence counts afresh", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
 
     setVisibility("hidden");
     await vi.advanceTimersByTimeAsync(4 * MINUTE);
@@ -175,8 +172,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
   });
 
   it("waits for a sync that runs past the deadline, then locks", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
     const release = fake.holdSync();
     const syncing = api.sync();
 
@@ -193,8 +189,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
   });
 
   it("waits for a broadcast the same way, when the check comes on return", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
     let finish = (): void => undefined;
     vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(
       () =>
@@ -220,8 +215,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
   });
 
   it("leaves alone the same wallet opened again while a lock waited", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
     const release = fake.holdSync();
     const syncing = api.sync();
     setVisibility("hidden");
@@ -240,8 +234,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
   });
 
   it("never locks on Never", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
     await chooseLockAfter("never");
 
     setVisibility("hidden");
@@ -306,10 +299,8 @@ function rowNamed(screen: HTMLElement, selector: string, name: string): string {
 
 describe("Lock after in Settings (6.11)", () => {
   it("the desktop offers it in the Security card, as a select saved on change", async () => {
-    await openRemembered();
-    stop = await startAutolock();
-    at("settings");
-    const screen = mount(renderSettings());
+    await openLocking();
+    const screen = mountAt("settings", renderSettings);
     const select = find<HTMLSelectElement>(screen, "select[name=lock_after]");
 
     expect([...select.options].map((o) => o.text)).toEqual([
@@ -333,10 +324,8 @@ describe("Lock after in Settings (6.11)", () => {
   });
 
   it("the phone offers it beside Remembered on this device, as chips saved on a tap", async () => {
-    await openRemembered();
-    stop = await startAutolock();
-    at("settings");
-    const screen = mount(renderPhoneSettings());
+    await openLocking();
+    const screen = mountAt("settings", renderPhoneSettings);
     const chips = find(screen, "[role=radiogroup][aria-label='Lock after']");
 
     expect([...chips.querySelectorAll("[role=radio]")].map((c) => c.textContent)).toEqual([
@@ -357,29 +346,26 @@ describe("Lock after in Settings (6.11)", () => {
 
   it("both say it is not available where no key can be kept", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("settings");
 
-    const desktop = mount(renderSettings());
+    const desktop = mountAt("settings", renderSettings);
     expect(desktop.querySelector("select")).toBeNull();
     expect(rowNamed(desktop, ".setting-row", "Lock after")).toBe("Lock afterNot available here");
     expect(desktop.textContent).not.toContain("After this long in the background");
 
-    const phone = mount(renderPhoneSettings());
+    const phone = mountAt("settings", renderPhoneSettings);
     expect(phone.querySelector("[aria-label='Lock after']")).toBeNull();
     expect(rowNamed(phone, ".m-item", "Lock after")).toBe("Lock afterNot available here");
   });
 
   it("says when a choice could not be saved, which still holds until the app closes", async () => {
-    await openRemembered();
-    stop = await startAutolock();
+    await openLocking();
     setPlatform({
       ...platform(),
       setLockAfter: async () => {
         throw new Error("store locked");
       },
     });
-    at("settings");
-    const screen = mount(renderSettings());
+    const screen = mountAt("settings", renderSettings);
     const select = find<HTMLSelectElement>(screen, "select[name=lock_after]");
 
     select.value = "1";

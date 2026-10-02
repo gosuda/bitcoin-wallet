@@ -1,6 +1,5 @@
 import { api } from "../../api";
-import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type Utxo } from "../../types";
 import {
@@ -13,7 +12,7 @@ import {
   tickInput,
 } from "../../ui/coins";
 import { banner, el, formatNumber, formatSats, sectionLabel } from "../../ui/dom";
-import { formatConf, shortOutpoint } from "../../ui/format";
+import { counted, formatConf, shortOutpoint } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { FROZEN_HINT, NO_COINS } from "../../ui/text";
 import { body, button, card, header, lede, listCard, spacer } from "../ui";
@@ -66,11 +65,8 @@ function coinRow(
  */
 export function renderCoins(): HTMLElement {
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
   const alert = banner();
 
@@ -90,7 +86,7 @@ export function renderCoins(): HTMLElement {
   const paintSend = (): void => {
     const picked = chosen();
     const n = picked.length;
-    send.textContent = `Send selected (${formatNumber(n)} coin${n === 1 ? "" : "s"} · ${formatSats(coinsValue(picked))})`;
+    send.textContent = `Send selected (${counted(n, "coin")} · ${formatSats(coinsValue(picked))})`;
     send.hidden = n === 0;
   };
 
@@ -111,12 +107,9 @@ export function renderCoins(): HTMLElement {
     if (utxos.length === 0) {
       listed = listCard(el("div", { className: "m-empty", text: NO_COINS }));
     } else {
-      const n = utxos.length;
       listed = card(
         el("div", { className: "m-coins-head" }, [
-          sectionLabel(
-            `${formatNumber(n)} coin${n === 1 ? "" : "s"} · ${formatSats(coinsValue(utxos))}`,
-          ),
+          sectionLabel(`${counted(utxos.length, "coin")} · ${formatSats(coinsValue(utxos))}`),
           sectionLabel("Frozen"),
         ]),
         ...utxos.map((u) =>

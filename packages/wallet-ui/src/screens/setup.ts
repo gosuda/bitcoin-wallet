@@ -1,13 +1,9 @@
-import { api, canUnlockHere } from "../api";
-import { navigate } from "../router";
+import { screenHead } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
   type AddressType,
-  type AppConfig,
-  type BackendConfig,
   DEFAULT_ESPLORA_URL,
-  errorMessage,
   isOpenable,
   NETWORK_LABELS,
   NETWORKS,
@@ -15,7 +11,8 @@ import {
   OPENABLE_ADDRESS_TYPES,
 } from "../types";
 import { banner, button, el, field, radioGroup, textInput, withBusy } from "../ui/dom";
-import { SERVER_REQUIRED, SETUP_LEDE } from "../ui/text";
+import { saveSetup } from "../ui/settings";
+import { SETUP_LEDE } from "../ui/text";
 
 export function renderSetup(): HTMLElement {
   const initial = session.config;
@@ -62,37 +59,14 @@ export function renderSetup(): HTMLElement {
 
   const next = button(
     "Continue",
-    () =>
-      withBusy(next, async () => {
-        alert.hide();
-        const trimmed = url.value.trim();
-        if (!trimmed) {
-          alert.show("error", SERVER_REQUIRED);
-          return;
-        }
-        const backend: BackendConfig = { kind: "esplora", url: trimmed };
-        const config: AppConfig = { network, backend, address_type: addressType };
-        try {
-          await api.setConfig(config);
-          session.config = config;
-          navigate(canUnlockHere() ? "unlock" : "key");
-        } catch (e) {
-          alert.show("error", errorMessage(e));
-        }
-      }),
+    () => withBusy(next, () => saveSetup(alert, network, url.value, addressType)),
     "primary",
     "md",
     { name: "arrow", trailing: true },
   );
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Setup" }),
-      el("p", {
-        className: "muted small",
-        text: SETUP_LEDE,
-      }),
-    ]),
+    screenHead("Setup", SETUP_LEDE),
     alert.node,
     el("section", { className: "card card-loose" }, [
       field("Network", networkGroup),

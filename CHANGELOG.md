@@ -70,6 +70,11 @@ pull requests a change arrived in.
 
 ### Fixed
 
+- Paste on the phone's Scan screen reads the clipboard. It read it the way a web page
+  does, which the app's webview refuses, so it only ever said that clipboard access was
+  refused. (#42)
+- After a rescan, the message names the gap the rescan ran with. It named the gap chosen
+  when the rescan finished, which could be another. (#42)
 - On a phone narrower than 390 px, the fee chips on Send and Speed up keep their labels on
   one line, and Custom moves to a second row. Their labels broke inside the chips, and at
   320 px the row ran past its card. (#41)

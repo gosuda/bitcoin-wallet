@@ -1,9 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
+import { describe, expect, it, vi } from "vitest";
 import { api, canUnlockHere } from "../src/api";
 import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
@@ -20,16 +16,17 @@ import { renderSend } from "../src/screens/send";
 import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
-import { NETWORK_LABELS, type Network, type RememberedWallet } from "../src/types";
+import { NETWORK_LABELS, type Network } from "../src/types";
 import { fake } from "./fakes";
 import {
-  at,
   buttonNamed,
   CONFIG,
   find,
   leaveTo,
   mount,
+  mountAt,
   settle,
+  showAt,
   type,
   useScreenHarness,
 } from "./harness";
@@ -38,8 +35,7 @@ useScreenHarness();
 
 describe("secrets do not outlive their screen (1.3)", () => {
   it("Key clears a typed private key and a pasted descriptor", () => {
-    at("key");
-    const screen = mount(renderKey());
+    const screen = mountAt("key", renderKey);
     const secret = find<HTMLInputElement>(screen, "input[name=secret]");
     const descriptor = find<HTMLTextAreaElement>(screen, "textarea[name=descriptor]");
     type(secret, "11".repeat(32));
@@ -52,8 +48,7 @@ describe("secrets do not outlive their screen (1.3)", () => {
   });
 
   it("Restore clears every word and the passphrase", () => {
-    at("restore");
-    const screen = mount(renderRestore());
+    const screen = mountAt("restore", renderRestore);
     const words = [...screen.querySelectorAll<HTMLInputElement>('input[aria-label^="Word "]')];
     const passphrase = find<HTMLInputElement>(screen, "input[name=passphrase]");
     expect(words).toHaveLength(12);
@@ -67,9 +62,7 @@ describe("secrets do not outlive their screen (1.3)", () => {
   });
 
   it("Create clears the passphrase and every word typed back", async () => {
-    at("create");
-    const screen = mount(renderCreate());
-    await settle();
+    const screen = await showAt("create", renderCreate);
     const answers = [...screen.querySelectorAll<HTMLInputElement>('input[aria-label^="Word "]')];
     const passphrase = find<HTMLInputElement>(screen, "input[name=passphrase]");
     expect(answers.length).toBeGreaterThan(0);
@@ -86,8 +79,7 @@ describe("secrets do not outlive their screen (1.3)", () => {
     "the phone's Restore clears what was typed in %s mode",
     (mode) => {
       setRestoreMode(mode);
-      at("restore");
-      const screen = mount(renderPhoneRestore());
+      const screen = mountAt("restore", renderPhoneRestore);
       const fields = [
         ...screen.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
           "input:not([type=radio]):not([type=checkbox]), textarea",
@@ -106,9 +98,7 @@ describe("secrets do not outlive their screen (1.3)", () => {
 describe("work that outlives its screen changes nothing (1.7)", () => {
   it("a sync that finishes after Close wallet stamps no sync time", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const screen = mount(renderDashboard());
-    await settle();
+    const screen = await showAt("dashboard", renderDashboard);
     const release = fake.holdSync();
 
     buttonNamed(screen, "Sync").click();
@@ -128,9 +118,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     const buildTransfer = vi.spyOn(api, "buildTransfer");
     const discardTx = vi.spyOn(api, "discardTx");
 
-    at("send");
-    let screen = mount(renderSend());
-    await settle();
+    let screen = await showAt("send", renderSend);
     type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
     buttonNamed(screen, "Max").click();
     await settle();
@@ -144,9 +132,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
       code: "unknown_psbt",
     });
 
-    at("send");
-    screen = mount(renderSend());
-    await settle();
+    screen = await showAt("send", renderSend);
     type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
     type(find<HTMLInputElement>(screen, 'input[placeholder="0"]'), "1000");
     buttonNamed(screen, "Review").click();
@@ -172,9 +158,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     setPlatform({ ...platform(), scanQr });
     const root = document.documentElement;
 
-    at("scan");
-    mount(renderPhoneScan());
-    await settle();
+    await showAt("scan", renderPhoneScan);
     expect(scanQr).toHaveBeenCalledTimes(1);
     expect(signal?.aborted).toBe(false);
     expect(root.dataset.scanning).toBeDefined();
@@ -203,9 +187,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     const shell = (): void => void mount(renderPhoneScan());
     window.addEventListener("hashchange", shell);
 
-    at("scan");
-    mount(renderPhoneScan());
-    await settle();
+    await showAt("scan", renderPhoneScan);
     // Tapping the Scan tab while on Scan: same route, one hashchange.
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     await settle();
@@ -218,6 +200,35 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
 
     leaveTo("dashboard");
     expect(root.dataset.scanning).toBeUndefined();
+  });
+
+  // Found in Round 9: Scan read the clipboard itself, which a Tauri webview
+  // refuses with nothing the user could allow, so its Paste failed in the apps.
+  it("Scan's Paste reads through the platform where the page's own clipboard is refused", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const screen = await showAt("scan", renderPhoneScan);
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        readText: async () => {
+          throw new DOMException("denied", "NotAllowedError");
+        },
+      },
+      configurable: true,
+    });
+    setPlatform({ ...platform(), readClipboard: async () => fake.ADDRESS });
+
+    try {
+      buttonNamed(screen, "Paste from clipboard").click();
+      await settle();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+
+    expect(screen.querySelector(".banner-visible")).toBeNull();
+    expect(location.hash).toBe("#/send");
+    // Where the shell goes next: Send, with the address filled in.
+    const send = await showAt("send", renderPhoneSend);
+    expect(find<HTMLInputElement>(send, "input[name=address]").value).toBe(fake.ADDRESS);
   });
 });
 
@@ -241,8 +252,7 @@ function groupNames(screen: HTMLElement): string[] {
 
 describe("Setup names only what it offers (5.3)", () => {
   it("the desktop says nothing of P2PK, which cannot be chosen", () => {
-    at("setup");
-    const screen = mount(renderSetup());
+    const screen = mountAt("setup", renderSetup);
     // Word-bounded, since the P2PKH label that is offered starts the same way.
     expect(screen.textContent).not.toMatch(/\bP2PK\b/i);
     expect(screen.textContent).toContain("P2PKH");
@@ -251,67 +261,43 @@ describe("Setup names only what it offers (5.3)", () => {
 
 describe("every choice group has a name (3.9)", () => {
   it("on the desktop", async () => {
-    at("setup");
-    expect(groupNames(mount(renderSetup()))).toEqual(["Network", "Address type"]);
-    at("restore");
-    expect(groupNames(mount(renderRestore()))).toEqual(["Word count"]);
+    expect(groupNames(mountAt("setup", renderSetup))).toEqual(["Network", "Address type"]);
+    expect(groupNames(mountAt("restore", renderRestore))).toEqual(["Word count"]);
 
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
-    const send = mount(renderSend());
-    await settle();
+    const send = await showAt("send", renderSend);
     expect(groupNames(send)).toEqual(["Amount unit", "Target"]);
-    at("dashboard");
-    const dashboard = mount(renderDashboard());
-    await settle();
+    const dashboard = await showAt("dashboard", renderDashboard);
     expect(groupNames(dashboard)).toEqual(["Amount unit"]);
-    at("settings");
-    expect(groupNames(mount(renderSettings()))).toEqual(["Address gap"]);
+    expect(groupNames(mountAt("settings", renderSettings))).toEqual(["Address gap"]);
   });
 
   it("on the phone", async () => {
-    at("setup");
-    expect(groupNames(mount(renderPhoneSetup()))).toEqual(["Network", "Address type"]);
+    expect(groupNames(mountAt("setup", renderPhoneSetup))).toEqual(["Network", "Address type"]);
     setRestoreMode("phrase");
-    at("restore");
-    expect(groupNames(mount(renderPhoneRestore()))).toEqual(["Word count"]);
+    expect(groupNames(mountAt("restore", renderPhoneRestore))).toEqual(["Word count"]);
 
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("send");
-    const send = mount(renderPhoneSend());
-    await settle();
+    const send = await showAt("send", renderPhoneSend);
     expect(groupNames(send)).toEqual(["Amount unit", "Fee target"]);
-    at("settings");
-    expect(groupNames(mount(renderPhoneSettings()))).toEqual(["Address gap"]);
-    at("receive");
-    expect(groupNames(mount(renderPhoneReceive()))).toEqual(["Amount unit"]);
+    expect(groupNames(mountAt("settings", renderPhoneSettings))).toEqual(["Address gap"]);
+    expect(groupNames(mountAt("receive", renderPhoneReceive))).toEqual(["Amount unit"]);
   });
 });
 
 describe("a remembered wallet is reachable after Setup (6.2)", () => {
-  const SAVED: RememberedWallet = {
-    wallet_id: "testnet4-p2wpkh-fake",
-    address: fake.ADDRESS,
-    network: "testnet4",
-    address_type: "p2wpkh",
-  };
-
-  /** A device that keeps keys, with SAVED remembered on it; returns the key loader. */
+  /** A device that keeps keys, with `fake.SAVED` remembered on it; returns the key loader. */
   function rememberSaved() {
     const loadSecret = vi.fn(async () => ({ secret: "abandon abandon abandon", passphrase: null }));
     setPlatform({
       ...platform(),
       canRememberWallet: true,
-      getRemembered: async () => SAVED,
+      getRemembered: async () => fake.SAVED,
       loadSecret,
     });
-    session.remembered = SAVED;
+    session.remembered = fake.SAVED;
     return loadSecret;
   }
-
-  afterEach(() => {
-    session.remembered = null;
-  });
 
   const SHELL_SETUPS = [
     {
@@ -336,8 +322,7 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
     setup: (typeof SHELL_SETUPS)[number],
     network: Network,
   ): Promise<string> {
-    at("setup");
-    const screen = mount(setup.render());
+    const screen = mountAt("setup", setup.render);
     setup.choose(screen, network);
     buttonNamed(screen, "Continue").click();
     await settle();
@@ -387,7 +372,7 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
   it("Unlock opens a wallet saved on the chosen network", async () => {
     const loadSecret = rememberSaved();
     const info = await api.unlockWallet();
-    expect(loadSecret).toHaveBeenCalledWith(SAVED.wallet_id);
+    expect(loadSecret).toHaveBeenCalledWith(fake.SAVED.wallet_id);
     expect(info.network).toBe("testnet4");
     expect(session.wallet?.network).toBe("testnet4");
   });

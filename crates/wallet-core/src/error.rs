@@ -136,6 +136,32 @@ impl Error {
         }
     }
 
+    /// A stable number for each variant, in the order the variants were added.
+    /// A number once given never changes: the CLI's exit codes are built on it.
+    pub fn ordinal(&self) -> u8 {
+        match self {
+            Error::InvalidKey(_) => 0,
+            Error::InvalidAddress(_) => 1,
+            Error::Descriptor(_) => 2,
+            Error::Persist(_) => 3,
+            Error::Backend(_) => 4,
+            Error::Timeout(_) => 5,
+            Error::BuildTx(_) => 6,
+            Error::InsufficientFunds { .. } => 7,
+            Error::InvalidFeeRate(_) => 8,
+            Error::Sign(_) => 9,
+            Error::Psbt(_) => 10,
+            Error::Unsupported(_) => 11,
+            Error::Dust { .. } => 12,
+            Error::FeeTooLow { .. } => 13,
+            Error::NoUtxos => 14,
+            Error::InvalidTxid(_) => 15,
+            Error::NotReplaceable(_) => 16,
+            Error::CorruptState { .. } => 17,
+            Error::UnknownCoin(_) => 18,
+        }
+    }
+
     /// Structured data a UI can use directly, for the variants that carry
     /// more than prose. `None` for everything else — the message already
     /// says all there is to say.
@@ -227,60 +253,35 @@ pub type Result<T> = std::result::Result<T, Error>;
 mod tests {
     use super::*;
 
-    /// One instance of each variant with its code, the exact set of keys
-    /// `details()` must produce (for the variants that carry structured
-    /// data), and the message people see. A table, not a chain of asserts,
-    /// so a new variant only needs one new row here.
-    #[allow(clippy::type_complexity)]
-    fn samples() -> Vec<(
+    type Sample = (
         Error,
         &'static str,
         Option<&'static [&'static str]>,
         &'static str,
-    )> {
+    );
+
+    /// One instance of each variant with its code, the exact set of keys
+    /// `details()` must produce (for the variants that carry structured
+    /// data), and the message people see. A table, not a chain of asserts,
+    /// so a new variant only needs one new row here.
+    fn samples() -> Vec<Sample> {
         vec![
-            (
-                Error::InvalidKey("x".into()),
-                "invalid_key",
-                None,
-                "invalid key material: x",
-            ),
-            (
-                Error::InvalidAddress("x".into()),
+            plain(Error::InvalidKey, "invalid_key", "invalid key material: x"),
+            plain(
+                Error::InvalidAddress,
                 "invalid_address",
-                None,
                 "invalid address: x",
             ),
-            (
-                Error::Descriptor("x".into()),
-                "descriptor",
-                None,
-                "descriptor error: x",
-            ),
-            (
-                Error::Persist("x".into()),
-                "persist",
-                None,
-                "persistence error: x",
-            ),
-            (
-                Error::Backend("x".into()),
-                "backend",
-                None,
-                "backend error: x",
-            ),
+            plain(Error::Descriptor, "descriptor", "descriptor error: x"),
+            plain(Error::Persist, "persist", "persistence error: x"),
+            plain(Error::Backend, "backend", "backend error: x"),
             (
                 Error::Timeout(30),
                 "timeout",
                 Some(["secs"].as_slice()),
                 "the backend did not answer within 30 s",
             ),
-            (
-                Error::BuildTx("x".into()),
-                "build_tx",
-                None,
-                "transaction build error: x",
-            ),
+            plain(Error::BuildTx, "build_tx", "transaction build error: x"),
             (
                 Error::InsufficientFunds {
                     needed_sat: 10,
@@ -292,20 +293,14 @@ mod tests {
                 Some(["needed_sat", "available_sat", "frozen_sat", "all_frozen"].as_slice()),
                 "insufficient funds: need 10 sat, have 5 sat",
             ),
-            (
-                Error::InvalidFeeRate("x".into()),
+            plain(
+                Error::InvalidFeeRate,
                 "invalid_fee_rate",
-                None,
                 "invalid fee rate: x",
             ),
-            (Error::Sign("x".into()), "sign", None, "signing error: x"),
-            (Error::Psbt("x".into()), "psbt", None, "PSBT error: x"),
-            (
-                Error::Unsupported("x".into()),
-                "unsupported",
-                None,
-                "unsupported: x",
-            ),
+            plain(Error::Sign, "sign", "signing error: x"),
+            plain(Error::Psbt, "psbt", "PSBT error: x"),
+            plain(Error::Unsupported, "unsupported", "unsupported: x"),
             (
                 Error::Dust { output: 0 },
                 "dust",
@@ -327,22 +322,19 @@ mod tests {
                 None,
                 "no coins were selected to fund this transaction",
             ),
-            (
-                Error::UnknownCoin("x".into()),
+            plain(
+                Error::UnknownCoin,
                 "unknown_coin",
-                None,
                 "not an unspent coin of this wallet: x",
             ),
-            (
-                Error::InvalidTxid("x".into()),
+            plain(
+                Error::InvalidTxid,
                 "invalid_txid",
-                None,
                 "invalid transaction id: x",
             ),
-            (
-                Error::NotReplaceable("x".into()),
+            plain(
+                Error::NotReplaceable,
                 "not_replaceable",
-                None,
                 "transaction cannot be replaced: x",
             ),
             (
@@ -358,37 +350,20 @@ mod tests {
         ]
     }
 
-    /// Adding a variant fails to compile here until it has an ordinal. Give
-    /// it the next one, raise `VARIANTS` beside it, and add its row to
-    /// `samples` — `the_table_covers_every_variant` fails until all three agree.
-    fn ordinal(e: &Error) -> usize {
-        match e {
-            Error::InvalidKey(_) => 0,
-            Error::InvalidAddress(_) => 1,
-            Error::Descriptor(_) => 2,
-            Error::Persist(_) => 3,
-            Error::Backend(_) => 4,
-            Error::Timeout(_) => 5,
-            Error::BuildTx(_) => 6,
-            Error::InsufficientFunds { .. } => 7,
-            Error::InvalidFeeRate(_) => 8,
-            Error::Sign(_) => 9,
-            Error::Psbt(_) => 10,
-            Error::Unsupported(_) => 11,
-            Error::Dust { .. } => 12,
-            Error::FeeTooLow { .. } => 13,
-            Error::NoUtxos => 14,
-            Error::InvalidTxid(_) => 15,
-            Error::NotReplaceable(_) => 16,
-            Error::CorruptState { .. } => 17,
-            Error::UnknownCoin(_) => 18,
-        }
+    /// The row of a variant that carries only a string, made with "x": no
+    /// details, and `message` is what that "x" reads as.
+    fn plain(variant: fn(String) -> Error, code: &'static str, message: &'static str) -> Sample {
+        (variant("x".into()), code, None, message)
     }
-    const VARIANTS: usize = 19;
+
+    /// Adding a variant fails to compile in [`Error::ordinal`] until it has
+    /// one. Give it the next, raise `VARIANTS` here, and add its row to
+    /// `samples` — `the_table_covers_every_variant` fails until all three agree.
+    const VARIANTS: u8 = 19;
 
     #[test]
     fn the_table_covers_every_variant() {
-        let mut seen: Vec<usize> = samples().iter().map(|(e, ..)| ordinal(e)).collect();
+        let mut seen: Vec<u8> = samples().iter().map(|(e, ..)| e.ordinal()).collect();
         seen.sort_unstable();
         assert_eq!(seen, (0..VARIANTS).collect::<Vec<_>>());
     }

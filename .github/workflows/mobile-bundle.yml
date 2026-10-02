@@ -26,20 +26,13 @@ jobs:
         with:
           targets: aarch64-linux-android,wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      # The version comes from `packageManager` in the root package.json.
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
       # The generated Gradle project wants a JDK 17; pin it rather than trust
       # whatever the image defaults to this month.
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
-      - uses: ./.github/actions/wasm-core
+      - uses: ./.github/actions/frontend
       - run: pnpm install --frozen-lockfile
       - name: Build the APK
         working-directory: apps/native
@@ -65,13 +58,7 @@ jobs:
         with:
           targets: aarch64-apple-ios-sim,wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - uses: ./.github/actions/wasm-core
+      - uses: ./.github/actions/frontend
       - run: pnpm install --frozen-lockfile
       - name: Build the Simulator app
         working-directory: apps/native

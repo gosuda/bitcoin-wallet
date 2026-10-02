@@ -1,9 +1,5 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
 import { api } from "../src/api";
 import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderDashboard } from "../src/screens/dashboard";
@@ -60,15 +56,7 @@ const sent = (confirmations: number | null = null): TxDetail => ({
 function history(...txs: TxDetail[]): void {
   fake.state.estimate = { "1": 5, "3": 3, "6": 2 };
   for (const d of txs) {
-    fake.state.transactions.push({
-      txid: d.txid,
-      net_sat: d.net_sat,
-      sent_sat: d.sent_sat,
-      received_sat: d.received_sat,
-      fee_sat: d.fee_sat,
-      confirmations: d.confirmations,
-      timestamp: d.timestamp,
-    });
+    fake.state.transactions.push(fake.summaryOf(d));
     fake.state.details[d.txid] = d;
     d.outputs.forEach((o, vout) => {
       if (!o.ours) return;

@@ -1,8 +1,7 @@
 import { api } from "../../api";
-import { headlineSat } from "../../balance";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -18,7 +17,7 @@ import {
 } from "../../types";
 import { chooseLockAfter, lockAfter } from "../../ui/autolock";
 import { banner, el, formatNumber } from "../../ui/dom";
-import { formatSats } from "../../ui/format";
+import { rescanAt } from "../../ui/settings";
 import { forgetWarning, RESCAN_HINT } from "../../ui/text";
 import {
   body,
@@ -40,11 +39,8 @@ type Wait = `${LockAfter}`;
 export function renderSettings(): HTMLElement {
   const info = session.wallet;
   const cfg = session.config;
+  if (!info || !cfg) return redirect("setup");
   const host = el("main");
-  if (!info || !cfg) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
 
   const alert = banner();
@@ -82,21 +78,7 @@ export function renderSettings(): HTMLElement {
   );
   const rescan = button(
     "Rescan",
-    () =>
-      withBusy(rescan, async () => {
-        alert.hide();
-        try {
-          const balance = await api.rescan(Number(gap.value()));
-          if (!onScreen()) return;
-          session.lastSyncedAt = new Date();
-          alert.show(
-            "ok",
-            `Rescanned with a gap of ${gap.value()}: ${formatSats(headlineSat(balance))} in this wallet.`,
-          );
-        } catch (e) {
-          if (onScreen()) alert.show("error", errorMessage(e));
-        }
-      }),
+    () => withBusy(rescan, () => rescanAt(gap.value(), alert, onScreen)),
     { icon: "refresh" },
   );
   const rescanBlock = el("div", { className: "m-block" }, [

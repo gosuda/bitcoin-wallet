@@ -1,3 +1,4 @@
+import type { Unit } from "../amount";
 import { type IconName, icon } from "./icons";
 import { sentence } from "./text";
 
@@ -58,9 +59,7 @@ export function button(
   withIcon?: ButtonIcon,
 ): HTMLButtonElement {
   const cls = ["btn"];
-  if (variant === "primary") cls.push("btn-primary");
-  if (variant === "danger") cls.push("btn-danger");
-  if (variant === "quiet") cls.push("btn-quiet");
+  if (variant !== "default") cls.push(`btn-${variant}`);
   if (size === "sm") cls.push("btn-sm");
   const btn = el("button", {
     className: cls.join(" "),
@@ -155,6 +154,14 @@ export function textInput(
   return input;
 }
 
+/** Says `message` in `slot`, under a field, and marks `input` invalid; `null` clears both. */
+export function setFieldError(slot: HTMLElement, input: HTMLElement, message: string | null): void {
+  slot.textContent = message ?? "";
+  input.classList.toggle("input-invalid", message !== null);
+  if (message === null) input.removeAttribute("aria-invalid");
+  else input.setAttribute("aria-invalid", "true");
+}
+
 export interface Checkbox {
   node: HTMLLabelElement;
   input: HTMLInputElement;
@@ -170,6 +177,36 @@ export function checkbox(label: string, hint?: string, name?: string): Checkbox 
     hint ? el("span", { className: "hint", text: hint }) : null,
   ]);
   return { node, input };
+}
+
+/**
+ * The sat / BTC pair beside an amount field, on the Wallet page and on Send:
+ * native radios named `name`, sat chosen. `inputs` are the two, sat first.
+ */
+export function unitChips(
+  name: string,
+  onChange: (unit: Unit) => void,
+): { node: HTMLElement; inputs: HTMLInputElement[] } {
+  const group = el("div", {
+    className: "unit-group",
+    attrs: { role: "radiogroup", "aria-label": "Amount unit" },
+  });
+  const inputs: HTMLInputElement[] = [];
+  for (const [unit, label] of [
+    ["sat", "sat"],
+    ["btc", "BTC"],
+  ] as const) {
+    const input = el("input", { attrs: { type: "radio", name, value: unit } });
+    input.checked = unit === "sat";
+    input.addEventListener("change", () => {
+      if (input.checked) onChange(unit);
+    });
+    inputs.push(input);
+    group.appendChild(
+      el("label", { className: "unit-chip" }, [input, el("span", { text: label })]),
+    );
+  }
+  return { node: group, inputs };
 }
 
 /**
@@ -199,7 +236,7 @@ export function radioGroup<T extends string>(
   return group;
 }
 
-export type BannerKind = "error" | "ok" | "warn" | "info";
+export type BannerKind = "error" | "ok" | "warn";
 
 export interface Banner {
   node: HTMLElement;

@@ -1,9 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
+import { describe, expect, it } from "vitest";
 import { api } from "../src/api";
 import { boot } from "../src/app";
 import { at, leaveTo, settle, useScreenHarness } from "./harness";

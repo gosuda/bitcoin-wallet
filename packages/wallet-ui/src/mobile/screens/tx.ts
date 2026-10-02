@@ -2,19 +2,18 @@ import { api } from "../../api";
 import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../../feebump";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { sameWalletGuard, screenGuard } from "../../screen";
+import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   type BroadcastResult,
   errorMessage,
-  FEE_TARGETS,
+  FEE_TARGET_CHOICES,
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
   MAX_FEE_RATE_SAT_VB,
   type TxDetail,
   type TxOutput,
-  type TxPreview,
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
@@ -29,6 +28,7 @@ import {
   typeableRate,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { heldPreview } from "../../ui/preview";
 import { estimateUnavailable, explorerFailed, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
 import {
   body,
@@ -82,11 +82,8 @@ export function renderTransaction(): HTMLElement {
   const sameWallet = sameWalletGuard();
   const info = session.wallet;
   const txid = current;
+  if (!info || !txid) return redirect("dashboard");
   const host = el("main");
-  if (!info || !txid) {
-    navigate("dashboard");
-    return host;
-  }
 
   const alert = banner();
   const content = body(alert.node, lede("Loading…"));
@@ -98,47 +95,8 @@ export function renderTransaction(): HTMLElement {
   // Speed up and Cancel each show a built preview before anything is signed,
   // and a transaction offers one or the other, so there is at most one
   // preview: dropped when it is replaced, when Cancel is called off and when
-  // the screen goes. `previewGen` moves on with every drop, so a build still
-  // running then is discarded when it lands instead of being offered.
-  let heldPreview: TxPreview | null = null;
-  let previewGen = 0;
-
-  const dropPreview = (): void => {
-    previewGen += 1;
-    if (heldPreview) void api.discardTx(heldPreview.psbt_id);
-    heldPreview = null;
-  };
-
-  /**
-   * Builds the preview the screen offers, in place of any held before. `null`
-   * when the screen or a newer build moved on first; a failure is thrown only
-   * while this build is still the one that counts.
-   */
-  const holdPreview = async (build: () => Promise<TxPreview>): Promise<TxPreview | null> => {
-    dropPreview();
-    const gen = previewGen;
-    const counts = () => gen === previewGen && onScreen();
-    let preview: TxPreview;
-    try {
-      preview = await build();
-    } catch (e) {
-      if (counts()) throw e;
-      return null;
-    }
-    if (!counts()) {
-      void api.discardTx(preview.psbt_id);
-      return null;
-    }
-    heldPreview = preview;
-    return preview;
-  };
-
-  /** Hands the held preview over to be signed, which uses it up either way. */
-  const takePreview = (): TxPreview | null => {
-    const preview = heldPreview;
-    heldPreview = null;
-    return preview;
-  };
+  // the screen goes. What it builds counts only while this screen is shown.
+  const preview = heldPreview(alert);
 
   /**
    * After a broadcast from this screen. It went out, so it is recorded for
@@ -251,8 +209,8 @@ export function renderTransaction(): HTMLElement {
             return alert.show("error", rateErr);
           }
           try {
-            const preview = await api.buildFeeBump(id, value);
-            session.lastResult = await api.signAndBroadcast(preview.psbt_id);
+            const built = await api.buildFeeBump(id, value);
+            session.lastResult = await api.signAndBroadcast(built.psbt_id);
             navigate("result");
           } catch (e) {
             // A rate below the replacement rules is refused by the node; its
@@ -320,29 +278,15 @@ export function renderTransaction(): HTMLElement {
 
     /** Back to Bump fee and the Cancel button, with nothing held. */
     const close = (): void => {
-      dropPreview();
+      preview.drop();
       host.replaceChildren(trigger);
       folded.replaceWith(bump);
     };
     folded.addEventListener("click", close);
 
-    const confirm = async (): Promise<void> => {
-      const built = takePreview();
-      if (!built) {
-        close();
-        return;
-      }
-      alert.hide();
-      try {
-        broadcastDone(await api.signAndBroadcast(built.psbt_id));
-      } catch (e) {
-        if (!onScreen()) return;
-        // Signing used the preview up whether or not it went out, so the card
-        // has nothing left to send; asking again builds another.
-        close();
-        alert.show("error", errorMessage(e));
-      }
-    };
+    // Signing used the preview up whether or not it went out, so after a
+    // failure the card has nothing left to send; asking again builds another.
+    const confirm = () => preview.send(onScreen, broadcastDone, close);
 
     const ask = async (): Promise<void> => {
       alert.hide();
@@ -354,8 +298,9 @@ export function renderTransaction(): HTMLElement {
       }
       if (!onScreen()) return;
       try {
-        const built = await holdPreview(() =>
-          api.buildCancel(d.txid, suggestBumpRate(estimate, d.fee_rate_sat_vb)),
+        const built = await preview.hold(
+          () => api.buildCancel(d.txid, suggestBumpRate(estimate, d.fee_rate_sat_vb)),
+          onScreen,
         );
         if (!built) return;
         const go = button("Cancel transaction", () => withBusy(go, confirm), {
@@ -425,7 +370,7 @@ export function renderTransaction(): HTMLElement {
 
     /** Nothing on screen that could be sent, yet or at all. */
     const blank = (mark: string): void => {
-      dropPreview();
+      preview.drop();
       fee.textContent = mark;
       pays.textContent = mark;
       keep.textContent = mark;
@@ -477,7 +422,7 @@ export function renderTransaction(): HTMLElement {
       keep.textContent = "…";
       const at = rate;
       try {
-        const built = await holdPreview(() => api.buildCpfp(d.txid, at));
+        const built = await preview.hold(() => api.buildCpfp(d.txid, at), onScreen);
         if (!built) return;
         fee.textContent = `${formatSats(built.fee_sat)}`;
         // The child spends our coins from this payment and nothing else, so
@@ -491,13 +436,7 @@ export function renderTransaction(): HTMLElement {
     };
 
     const target = chips<SpeedChoice>(
-      [
-        ...FEE_TARGETS.map((t) => ({
-          value: `${t}` as SpeedChoice,
-          label: `${t} block${t > 1 ? "s" : ""}`,
-        })),
-        { value: "custom", label: "Custom" },
-      ],
+      [...FEE_TARGET_CHOICES, { value: "custom", label: "Custom" }],
       "1",
       (choice) => {
         alert.hide();
@@ -514,24 +453,10 @@ export function renderTransaction(): HTMLElement {
     );
     custom.addEventListener("input", () => void refresh());
 
-    const send = async (): Promise<void> => {
-      const built = takePreview();
-      // Nothing built to send: the last build failed, or is still running.
-      if (!built) {
-        await refresh();
-        return;
-      }
-      alert.hide();
-      try {
-        broadcastDone(await api.signAndBroadcast(built.psbt_id));
-      } catch (e) {
-        if (!onScreen()) return;
-        alert.show("error", errorMessage(e));
-        // Signing used the preview up whether or not it went out; build
-        // another, so what the button would send is on screen again.
-        await refresh();
-      }
-    };
+    // Nothing built to send — the last build failed, or is still running — or
+    // signing used it up: build another, so what the button would send is on
+    // screen again.
+    const send = () => preview.send(onScreen, broadcastDone, refresh);
     const go = button("Speed up", () => withBusy(go, send), { variant: "primary", block: true });
 
     void refresh();
@@ -573,14 +498,6 @@ export function renderTransaction(): HTMLElement {
     if (isBumpable(d)) return "replace";
     return canPayForParent(d, await api.listUtxos()) ? "child" : "none";
   };
-
-  // Screens are rebuilt on every navigation, so a preview still held when
-  // this one goes away is unreachable, stranded in the core's pending map.
-  const discardOnLeave = (): void => {
-    dropPreview();
-    window.removeEventListener("hashchange", discardOnLeave);
-  };
-  window.addEventListener("hashchange", discardOnLeave);
 
   void (async () => {
     try {

@@ -3,6 +3,7 @@ import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { errorMessage } from "../../types";
+import { readClipboard } from "../../ui/clipboard";
 import { banner, el } from "../../ui/dom";
 import { body, button, header, lede, reticle, seeThroughMark } from "../ui";
 import { prefillSend } from "./send";
@@ -92,24 +93,20 @@ export function renderScan(): HTMLElement {
 
   const paste = button("Paste from clipboard", async () => {
     alert.hide();
-    let text: string;
-    try {
-      text = await navigator.clipboard.readText();
-    } catch (e) {
-      console.error("could not read the clipboard:", e);
-      if (!onScreen()) return;
+    const got = await readClipboard();
+    if (!onScreen()) return;
+    if (!("text" in got)) {
       // A refusal is the user's to change; anything else is this build or
       // browser, and typing the address is the way round it.
-      const refused = e instanceof DOMException && e.name === "NotAllowedError";
       alert.show(
         "warn",
-        refused
+        got.refused
           ? "Clipboard access was refused. Allow it and try again, or type the address."
           : "The clipboard cannot be read here. Type the address instead.",
       );
       return;
     }
-    if (onScreen()) accept(text, "clipboard");
+    accept(got.text, "clipboard");
   });
 
   host.appendChild(header("Scan"));

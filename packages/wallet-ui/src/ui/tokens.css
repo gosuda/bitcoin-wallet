@@ -45,8 +45,6 @@
   --text-base: 14px;
   --text-sm: 12px;
   --text-xs: 11px;
-  --text-lg: 18px;
-  --text-xl: 24px;
 }
 
 @media (prefers-color-scheme: dark) {

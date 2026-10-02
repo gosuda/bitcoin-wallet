@@ -18,8 +18,6 @@ import type {
   BroadcastResult,
   CoinId,
   FeeEstimate,
-  GeneratedKey,
-  GeneratedMnemonic,
   Network,
   PsbtReview,
   PublicDescriptors,
@@ -349,30 +347,11 @@ async function newAddress(): Promise<string> {
   return address;
 }
 
-async function syncWallet(): Promise<Balance> {
+/** Runs `work` on the open wallet, then reads its balance. */
+async function thenBalance(work: (wallet: WalletApi) => Promise<void>): Promise<Balance> {
   const wallet = requireWallet();
-  await wallet.sync();
+  await work(wallet);
   return wallet.balance();
-}
-
-async function rescanWallet(stopGap: number): Promise<Balance> {
-  const wallet = requireWallet();
-  await wallet.rescan(stopGap);
-  return wallet.balance();
-}
-
-/** Holds the unsigned PSBT for `signAndBroadcast` and hands the screen its preview. */
-function retainPsbt(built: BuiltTx): TxPreview {
-  const psbtId = `${Date.now().toString(16)}-${(psbtCounter++).toString(16)}`;
-  pending.set(psbtId, built.psbt_base64);
-  return {
-    psbt_id: psbtId,
-    fee_sat: built.fee_sat,
-    vsize: built.vsize,
-    total_out_sat: built.total_out_sat,
-    change_sat: built.change_sat,
-    input_count: built.input_count,
-  };
 }
 
 function requireRate(feeRateSatVb: number): void {
@@ -391,66 +370,25 @@ function requireRate(feeRateSatVb: number): void {
 }
 
 /**
- * A payment. With `coins`, it is funded by those coins and no others, and
- * every one of them is spent.
+ * Checks `feeRateSatVb`, builds with the open wallet, holds the unsigned PSBT
+ * for `signAndBroadcast` and hands the screen its preview.
  */
-async function buildTransfer(
-  recipients: Recipient[],
+async function buildPreview(
   feeRateSatVb: number,
-  coins?: readonly CoinId[],
+  build: (wallet: WalletApi) => Promise<BuiltTx>,
 ): Promise<TxPreview> {
   requireRate(feeRateSatVb);
-  const wallet = requireWallet();
-  return retainPsbt(
-    await (coins
-      ? wallet.build_transfer_from(coins, recipients, feeRateSatVb)
-      : wallet.build_transfer(recipients, feeRateSatVb)),
-  );
-}
-
-/**
- * Everything to one address — or, with `coins`, all of those coins. The
- * preview's `total_out_sat` is what arrives.
- */
-async function buildDrain(
-  address: string,
-  feeRateSatVb: number,
-  coins?: readonly CoinId[],
-): Promise<TxPreview> {
-  requireRate(feeRateSatVb);
-  const wallet = requireWallet();
-  return retainPsbt(
-    await (coins
-      ? wallet.build_drain_from(coins, address, feeRateSatVb)
-      : wallet.build_drain(address, feeRateSatVb)),
-  );
-}
-
-/**
- * Replacement for an unconfirmed transaction of ours at a higher rate. The
- * preview is interchangeable with `buildTransfer`'s: confirm it the same way.
- */
-async function buildFeeBump(txid: string, feeRateSatVb: number): Promise<TxPreview> {
-  requireRate(feeRateSatVb);
-  return retainPsbt(await requireWallet().build_fee_bump(txid, feeRateSatVb));
-}
-
-/**
- * Takes back an unconfirmed send: a replacement paying all of it, less the
- * fee, to us. Its preview has `total_out_sat` 0 and everything in `change_sat`.
- */
-async function buildCancel(txid: string, feeRateSatVb: number): Promise<TxPreview> {
-  requireRate(feeRateSatVb);
-  return retainPsbt(await requireWallet().build_cancel(txid, feeRateSatVb));
-}
-
-/**
- * Speeds up an unconfirmed transaction, incoming ones included, with a child
- * that spends our output of it: the two together pay `packageRateSatVb`.
- */
-async function buildCpfp(txid: string, packageRateSatVb: number): Promise<TxPreview> {
-  requireRate(packageRateSatVb);
-  return retainPsbt(await requireWallet().build_cpfp(txid, packageRateSatVb));
+  const built = await build(requireWallet());
+  const psbtId = `${Date.now().toString(16)}-${(psbtCounter++).toString(16)}`;
+  pending.set(psbtId, built.psbt_base64);
+  return {
+    psbt_id: psbtId,
+    fee_sat: built.fee_sat,
+    vsize: built.vsize,
+    total_out_sat: built.total_out_sat,
+    change_sat: built.change_sat,
+    input_count: built.input_count,
+  };
 }
 
 async function signAndBroadcast(psbtId: string): Promise<BroadcastResult> {
@@ -478,48 +416,32 @@ async function broadcastSigned(wallet: WalletApi, signed: string): Promise<Broad
 export const api = {
   getConfig: (): Promise<AppConfig | null> => platform().getConfig(),
   setConfig: (config: AppConfig): Promise<void> => platform().setConfig(config),
-  generateKey: (network: Network, addressType: AddressType): Promise<GeneratedKey> =>
-    generateKey(network, addressType),
-  generateMnemonic: (
-    network: Network,
-    addressType: AddressType,
-    wordCount: number,
-  ): Promise<GeneratedMnemonic> => generateMnemonic(network, addressType, wordCount),
-  validateMnemonic: (words: string): Promise<void> => validateMnemonic(words),
+  generateKey,
+  generateMnemonic,
+  validateMnemonic,
   /**
    * `appPassword` seals the key when `remember` is set on a platform that
    * `needsAppPassword` (the browser); an OS keystore ignores it.
    */
-  openWallet: (
-    secret: string,
-    addressType: AddressType,
-    remember: boolean,
-    passphrase?: string,
-    appPassword?: string,
-  ) => openWallet(secret, addressType, remember, passphrase, appPassword),
+  openWallet,
   /**
    * `openWallet` for a wallet whose saved history here cannot be read: that
    * history is deleted and the wallet opened again. The key store and the
    * settings are not touched.
    */
-  resetHistoryAndOpen: (
-    secret: string,
-    addressType: AddressType,
-    remember: boolean,
-    passphrase?: string,
-    appPassword?: string,
-  ) => resetHistoryAndOpen(secret, addressType, remember, passphrase, appPassword),
+  resetHistoryAndOpen,
   closeWallet: async (): Promise<void> => releaseWallet(),
   getRemembered: (): Promise<RememberedWallet | null> => platform().getRemembered(),
   /** `appPassword` is the browser's, typed on Unlock; an OS keystore needs none. */
   unlockWallet: (appPassword?: string) => unlockWallet(false, appPassword),
   /** `unlockWallet` for such a wallet, the same way; its key stays in the keystore. */
   resetHistoryAndUnlock: (appPassword?: string) => unlockWallet(true, appPassword),
-  forgetWallet: () => forgetWallet(),
-  sync: (): Promise<Balance> => holdOpen(syncWallet),
+  forgetWallet,
+  sync: (): Promise<Balance> => holdOpen(() => thenBalance((wallet) => wallet.sync())),
   /** Look `stopGap` unused addresses past the last used one, then re-read the balance. */
-  rescan: (stopGap: number): Promise<Balance> => holdOpen(() => rescanWallet(stopGap)),
-  newAddress: (): Promise<string> => newAddress(),
+  rescan: (stopGap: number): Promise<Balance> =>
+    holdOpen(() => thenBalance((wallet) => wallet.rescan(stopGap))),
+  newAddress,
   publicDescriptors: (): Promise<PublicDescriptors> => requireWallet().public_descriptors(),
   transaction: (txid: string): Promise<TxDetail | null> => requireWallet().transaction(txid),
   /** Block-explorer page for a txid, or `null` where none exists. */
@@ -534,13 +456,44 @@ export const api = {
     requireWallet().set_frozen(coin, frozen),
   listTransactions: async (): Promise<TxSummary[]> => requireWallet().list_transactions(),
   estimateFee: async (): Promise<FeeEstimate> => requireWallet().estimate_fee(),
+  /**
+   * A payment. With `coins`, it is funded by those coins and no others, and
+   * every one of them is spent.
+   */
   buildTransfer: (recipients: Recipient[], feeRateSatVb: number, coins?: readonly CoinId[]) =>
-    buildTransfer(recipients, feeRateSatVb, coins),
+    buildPreview(feeRateSatVb, (wallet) =>
+      coins
+        ? wallet.build_transfer_from(coins, recipients, feeRateSatVb)
+        : wallet.build_transfer(recipients, feeRateSatVb),
+    ),
+  /**
+   * Everything to one address — or, with `coins`, all of those coins. The
+   * preview's `total_out_sat` is what arrives.
+   */
   buildDrain: (address: string, feeRateSatVb: number, coins?: readonly CoinId[]) =>
-    buildDrain(address, feeRateSatVb, coins),
-  buildFeeBump: (txid: string, feeRateSatVb: number) => buildFeeBump(txid, feeRateSatVb),
-  buildCancel: (txid: string, feeRateSatVb: number) => buildCancel(txid, feeRateSatVb),
-  buildCpfp: (txid: string, packageRateSatVb: number) => buildCpfp(txid, packageRateSatVb),
+    buildPreview(feeRateSatVb, (wallet) =>
+      coins
+        ? wallet.build_drain_from(coins, address, feeRateSatVb)
+        : wallet.build_drain(address, feeRateSatVb),
+    ),
+  /**
+   * Replacement for an unconfirmed transaction of ours at a higher rate. The
+   * preview is interchangeable with `buildTransfer`'s: confirm it the same way.
+   */
+  buildFeeBump: (txid: string, feeRateSatVb: number) =>
+    buildPreview(feeRateSatVb, (wallet) => wallet.build_fee_bump(txid, feeRateSatVb)),
+  /**
+   * Takes back an unconfirmed send: a replacement paying all of it, less the
+   * fee, to us. Its preview has `total_out_sat` 0 and everything in `change_sat`.
+   */
+  buildCancel: (txid: string, feeRateSatVb: number) =>
+    buildPreview(feeRateSatVb, (wallet) => wallet.build_cancel(txid, feeRateSatVb)),
+  /**
+   * Speeds up an unconfirmed transaction, incoming ones included, with a child
+   * that spends our output of it: the two together pay `packageRateSatVb`.
+   */
+  buildCpfp: (txid: string, packageRateSatVb: number) =>
+    buildPreview(packageRateSatVb, (wallet) => wallet.build_cpfp(txid, packageRateSatVb)),
   signAndBroadcast: (psbtId: string) => holdOpen(() => signAndBroadcast(psbtId)),
   /** Reads a PSBT made elsewhere, pasted as base64 or hex. Signs nothing. */
   importPsbt: async (psbt: string): Promise<PsbtReview> => requireWallet().import_psbt(psbt),

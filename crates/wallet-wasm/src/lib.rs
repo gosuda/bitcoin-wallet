@@ -63,6 +63,12 @@ fn to_js<T: serde::Serialize>(v: &T) -> Result<JsValue, JsValue> {
     serde_wasm_bindgen::to_value(v).map_err(other_err)
 }
 
+/// What a wallet-core call returned, as JS: the value through [`to_js`], or
+/// the error through [`core_err`].
+fn core_to_js<T: serde::Serialize>(result: wallet_core::Result<T>) -> Result<JsValue, JsValue> {
+    to_js(&result.map_err(core_err)?)
+}
+
 fn parse_network(s: &str) -> Result<Network, JsValue> {
     Network::parse(s).ok_or_else(|| js_error("unsupported", &format!("unknown network '{s}'")))
 }
@@ -136,9 +142,10 @@ pub fn start() {
 /// Generate a fresh key: `{ priv_hex, wif, pub_hex, address }`. The only call that returns a secret.
 #[wasm_bindgen]
 pub fn generate_key(network: &str, address_type: &str) -> Result<JsValue, JsValue> {
-    let k = wallet_core::generate_key(parse_network(network)?, parse_address_type(address_type)?)
-        .map_err(core_err)?;
-    to_js(&k)
+    core_to_js(wallet_core::generate_key(
+        parse_network(network)?,
+        parse_address_type(address_type)?,
+    ))
 }
 
 /// Generate a fresh BIP39 mnemonic: `{ words, address }`, where `address` is
@@ -151,13 +158,11 @@ pub fn generate_mnemonic(
     address_type: &str,
     word_count: u8,
 ) -> Result<JsValue, JsValue> {
-    let m = wallet_core::generate_mnemonic(
+    core_to_js(wallet_core::generate_mnemonic(
         parse_network(network)?,
         parse_address_type(address_type)?,
         word_count,
-    )
-    .map_err(core_err)?;
-    to_js(&m)
+    ))
 }
 
 /// Check a BIP39 phrase (English wordlist plus checksum). Throws with a
@@ -370,12 +375,11 @@ impl Wallet {
     ) -> Result<JsValue, JsValue> {
         let recipients: Vec<Recipient> =
             serde_wasm_bindgen::from_value(recipients).map_err(other_err)?;
-        let built = self
-            .inner
-            .build_transfer(&recipients, fee_rate_sat_vb)
-            .await
-            .map_err(core_err)?;
-        to_js(&built)
+        core_to_js(
+            self.inner
+                .build_transfer(&recipients, fee_rate_sat_vb)
+                .await,
+        )
     }
 
     /// `build_transfer` funded by `coins` (`[{ txid, vout }]`) and nothing
@@ -389,12 +393,11 @@ impl Wallet {
         let coins: Vec<CoinId> = serde_wasm_bindgen::from_value(coins).map_err(other_err)?;
         let recipients: Vec<Recipient> =
             serde_wasm_bindgen::from_value(recipients).map_err(other_err)?;
-        let built = self
-            .inner
-            .build_transfer_from(&coins, &recipients, fee_rate_sat_vb)
-            .await
-            .map_err(core_err)?;
-        to_js(&built)
+        core_to_js(
+            self.inner
+                .build_transfer_from(&coins, &recipients, fee_rate_sat_vb)
+                .await,
+        )
     }
 
     /// Empty the wallet into `address`. Same shape as `build_transfer`;
@@ -404,13 +407,7 @@ impl Wallet {
         address: &str,
         fee_rate_sat_vb: f64,
     ) -> Result<JsValue, JsValue> {
-        to_js(
-            &self
-                .inner
-                .build_drain(address, fee_rate_sat_vb)
-                .await
-                .map_err(core_err)?,
-        )
+        core_to_js(self.inner.build_drain(address, fee_rate_sat_vb).await)
     }
 
     /// `build_drain` of `coins` (`[{ txid, vout }]`) alone: all of them, less
@@ -422,12 +419,10 @@ impl Wallet {
         fee_rate_sat_vb: f64,
     ) -> Result<JsValue, JsValue> {
         let coins: Vec<CoinId> = serde_wasm_bindgen::from_value(coins).map_err(other_err)?;
-        to_js(
-            &self
-                .inner
+        core_to_js(
+            self.inner
                 .build_drain_from(&coins, address, fee_rate_sat_vb)
-                .await
-                .map_err(core_err)?,
+                .await,
         )
     }
 
@@ -439,13 +434,7 @@ impl Wallet {
         txid: &str,
         fee_rate_sat_vb: f64,
     ) -> Result<JsValue, JsValue> {
-        to_js(
-            &self
-                .inner
-                .build_fee_bump(txid, fee_rate_sat_vb)
-                .await
-                .map_err(core_err)?,
-        )
+        core_to_js(self.inner.build_fee_bump(txid, fee_rate_sat_vb).await)
     }
 
     /// Take back an unconfirmed send of ours: the same coins, all of it back
@@ -453,13 +442,7 @@ impl Wallet {
     /// original's fee by its own size at 1 sat/vB. Same shape as
     /// `build_transfer`.
     pub async fn build_cancel(&self, txid: &str, fee_rate_sat_vb: f64) -> Result<JsValue, JsValue> {
-        to_js(
-            &self
-                .inner
-                .build_cancel(txid, fee_rate_sat_vb)
-                .await
-                .map_err(core_err)?,
-        )
+        core_to_js(self.inner.build_cancel(txid, fee_rate_sat_vb).await)
     }
 
     /// Speed up an unconfirmed transaction with a child spending our output
@@ -470,26 +453,20 @@ impl Wallet {
         txid: &str,
         package_rate_sat_vb: f64,
     ) -> Result<JsValue, JsValue> {
-        to_js(
-            &self
-                .inner
-                .build_cpfp(txid, package_rate_sat_vb)
-                .await
-                .map_err(core_err)?,
-        )
+        core_to_js(self.inner.build_cpfp(txid, package_rate_sat_vb).await)
     }
 
     /// Read a PSBT made elsewhere (base64 or hex): this wallet's record of
     /// its own coins goes in, signatures it can complete are finalized, and
     /// the result comes back described. Signs nothing.
     pub async fn import_psbt(&self, psbt: &str) -> Result<JsValue, JsValue> {
-        to_js(&self.inner.import_psbt(psbt).await.map_err(core_err)?)
+        core_to_js(self.inner.import_psbt(psbt).await)
     }
 
     /// Sign every input of ours in a PSBT made elsewhere. Same shape as
     /// `import_psbt`; `finalized` says whether it can be broadcast yet.
     pub async fn sign_psbt(&self, psbt: &str) -> Result<JsValue, JsValue> {
-        to_js(&self.inner.sign_psbt(psbt).await.map_err(core_err)?)
+        core_to_js(self.inner.sign_psbt(psbt).await)
     }
 
     /// Sign + finalize a PSBT (base64) produced by `build_transfer`.
@@ -500,12 +477,6 @@ impl Wallet {
     /// Broadcast a signed PSBT. Returns `{ txid, persist_error }` — a set
     /// `persist_error` means the send succeeded but local state was not saved.
     pub async fn broadcast(&self, signed_psbt_base64: &str) -> Result<JsValue, JsValue> {
-        to_js(
-            &self
-                .inner
-                .broadcast(signed_psbt_base64)
-                .await
-                .map_err(core_err)?,
-        )
+        core_to_js(self.inner.broadcast(signed_psbt_base64).await)
     }
 }

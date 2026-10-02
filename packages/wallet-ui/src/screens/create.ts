@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { navigate } from "../router";
-import { routeGuard } from "../screen";
+import { redirect, routeGuard, screenHead } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -49,10 +49,7 @@ function pickPositions(count: number, total: number): number[] {
 
 export function renderCreate(): HTMLElement {
   const cfg = session.config;
-  if (!cfg) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!cfg) return redirect("setup");
   const onScreen = routeGuard();
 
   const mine = ++generation;
@@ -185,13 +182,7 @@ export function renderCreate(): HTMLElement {
   })();
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "New wallet" }),
-      el("p", {
-        className: "muted small",
-        text: `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`,
-      }),
-    ]),
+    screenHead("New wallet", `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`),
     alert.node,
     offer.node,
     el("section", { className: "card secret-box" }, [

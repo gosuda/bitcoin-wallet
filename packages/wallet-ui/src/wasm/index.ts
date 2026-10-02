@@ -26,6 +26,7 @@ import type {
   PublicDescriptors,
   Recipient,
   TxDetail,
+  TxPreview,
   TxSummary,
   Utxo,
 } from "../types";
@@ -56,13 +57,8 @@ export interface WalletPersister {
 }
 
 /** Unsigned transaction from `build_transfer`; the PSBT stays in the app. */
-export interface BuiltTx {
+export interface BuiltTx extends Omit<TxPreview, "psbt_id"> {
   psbt_base64: string;
-  fee_sat: number;
-  vsize: number;
-  total_out_sat: number;
-  change_sat: number;
-  input_count: number;
 }
 
 /** Broadcast outcome. A set `persist_error` means the send succeeded anyway. */
@@ -116,10 +112,6 @@ export class WalletApi {
 
   get network(): Network {
     return this.inner.network as Network;
-  }
-
-  get address_type(): AddressType {
-    return this.inner.address_type as AddressType;
   }
 
   /** A BIP32 account (mnemonic) rather than a single key. */
@@ -269,33 +261,31 @@ export class WalletApi {
   }
 }
 
-/** Generate a fresh key. The only call that returns secret material. */
-export async function generateKey(
-  network: Network,
-  addressType: AddressType,
-): Promise<GeneratedKey> {
-  await load();
-  return generate_key(network, addressType) as GeneratedKey;
+/** Wraps `call` to instantiate the module first, as every plain call below needs. */
+function afterLoad<A extends unknown[], R>(call: (...args: A) => R): (...args: A) => Promise<R> {
+  return async (...args) => {
+    await load();
+    return call(...args);
+  };
 }
+
+/** Generate a fresh key. The only call that returns secret material. */
+export const generateKey = afterLoad(
+  (network: Network, addressType: AddressType) =>
+    generate_key(network, addressType) as GeneratedKey,
+);
 
 /**
  * Generate a fresh BIP39 phrase and the account's first address. Returns secret
  * material: hand `words` to the user once and never persist it.
  */
-export async function generateMnemonic(
-  network: Network,
-  addressType: AddressType,
-  wordCount: number,
-): Promise<GeneratedMnemonic> {
-  await load();
-  return generate_mnemonic(network, addressType, wordCount) as GeneratedMnemonic;
-}
+export const generateMnemonic = afterLoad(
+  (network: Network, addressType: AddressType, wordCount: number) =>
+    generate_mnemonic(network, addressType, wordCount) as GeneratedMnemonic,
+);
 
 /** Throws with a readable reason when `words` is not a valid BIP39 phrase. */
-export async function validateMnemonic(words: string): Promise<void> {
-  await load();
-  validate_mnemonic(words);
-}
+export const validateMnemonic = afterLoad((words: string) => validate_mnemonic(words));
 
 /**
  * Non-secret wallet id: the IndexedDB record key and the OS-keystore entry name.
@@ -304,25 +294,16 @@ export async function validateMnemonic(words: string): Promise<void> {
  * passphrases are two wallets, and this is what keeps them from sharing a
  * stored record or a keychain entry.
  */
-export async function walletIdForKey(
-  secret: string,
-  network: Network,
-  addressType: AddressType,
-  passphrase?: string,
-): Promise<string> {
-  await load();
-  return wallet_id_for_key(secret, network, addressType, passphrase);
-}
+export const walletIdForKey = afterLoad(
+  (secret: string, network: Network, addressType: AddressType, passphrase?: string) =>
+    wallet_id_for_key(secret, network, addressType, passphrase),
+);
 
 /**
  * Block-explorer page for a txid, on the explorer fronting `backendUrl` when it
  * has one; `null` on regtest, where there is nothing public to open.
  */
-export async function explorerTxUrl(
-  network: Network,
-  backendUrl: string,
-  txid: string,
-): Promise<string | null> {
-  await load();
-  return explorer_tx_url(network, backendUrl, txid) ?? null;
-}
+export const explorerTxUrl = afterLoad(
+  (network: Network, backendUrl: string, txid: string) =>
+    explorer_tx_url(network, backendUrl, txid) ?? null,
+);

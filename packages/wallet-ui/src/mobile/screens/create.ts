@@ -1,6 +1,6 @@
 import { api } from "../../api";
 import { navigate } from "../../router";
-import { routeGuard } from "../../screen";
+import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -8,7 +8,7 @@ import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
 import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
-import { body, button, card, header, historyReset, labelled, spacer, withBusy } from "../ui";
+import { body, button, card, header, historyReset, labelled, lede, spacer, withBusy } from "../ui";
 
 /** How many words the user has to type back before the wallet is created. */
 const CHECKS = 3;
@@ -31,16 +31,13 @@ export function renderCreate(): HTMLElement {
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const host = el("main");
   const cfg = session.config;
-  if (!cfg) {
-    navigate("setup");
-    return host;
-  }
+  if (!cfg) return redirect("setup");
+  const host = el("main");
 
   // Named as the desktop names it, after the button that leads here.
   host.appendChild(header("New wallet", { back: "key" }));
-  const content = body(alert.node, el("p", { className: "m-lede", text: "Generating…" }));
+  const content = body(alert.node, lede("Generating…"));
   host.appendChild(content);
 
   void (async () => {
@@ -106,19 +103,15 @@ export function renderCreate(): HTMLElement {
         alert.node,
         card(
           sectionLabel("Recovery phrase — shown once"),
-          el("p", { className: "m-lede", text: `${WORDS_SPEND} ${WORDS_KEEP}` }),
+          lede(`${WORDS_SPEND} ${WORDS_KEEP}`),
           shown,
           copyButton(() => generated.words),
         ),
-        card(
-          sectionLabel("Confirm your backup"),
-          el("p", { className: "m-lede", text: MISSING_WORDS }),
-          confirm,
-        ),
+        card(sectionLabel("Confirm your backup"), lede(MISSING_WORDS), confirm),
         card(
           labelled("Passphrase", passphrase, "(optional)"),
           passphrase,
-          el("p", { className: "m-lede", text: PASSPHRASE_HINT }),
+          lede(PASSPHRASE_HINT),
           remember.node,
         ),
         spacer(),

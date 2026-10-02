@@ -10,74 +10,21 @@
 #![cfg(test)]
 
 use std::str::FromStr;
-use std::time::Duration;
 
-use bdk_testenv::TestEnv;
-use wallet_core::bitcoin::{Address, Amount, Txid};
+mod common;
+use common::{TIMEOUT, build_payment, config, confirm, fund, open, send, start};
+use wallet_core::bitcoin::Txid;
 use wallet_core::{
-    AddressType, BackendConfig, BuiltTx, CoinId, KeyMaterial, MemoryPersister, Network, Recipient,
-    WalletConfig, WalletHandle,
+    AddressType, CoinId, KeyMaterial, MemoryPersister, Network, Recipient, WalletConfig,
+    WalletHandle,
 };
 
-const TIMEOUT: Duration = Duration::from_secs(60);
 const FUNDING_SAT: u64 = 200_000;
-
-fn config(url: &str) -> WalletConfig {
-    WalletConfig {
-        network: Network::Regtest,
-        address_type: AddressType::P2wpkh,
-        backend: BackendConfig::Esplora { url: url.into() },
-    }
-}
-
-fn regtest_address(addr: &str) -> Address {
-    Address::from_str(addr)
-        .expect("wallet address parses")
-        .require_network(wallet_core::bitcoin::Network::Regtest)
-        .expect("wallet address is regtest")
-}
-
-/// `bitcoind` plus an Esplora-serving `electrs`, with coinbase maturity mined
-/// so the node has coins to pay us. Returns the Esplora URL beside it.
-fn start() -> anyhow::Result<(TestEnv, String)> {
-    let env = TestEnv::new()?;
-    let url = format!(
-        "http://{}",
-        env.electrsd
-            .esplora_url
-            .clone()
-            .expect("electrs was started with the esplora http api")
-    );
-    env.mine_blocks(101, None)?;
-    Ok((env, url))
-}
-
-/// Pay `sat` from the node to `address` and wait until the index has it.
-fn fund(env: &TestEnv, address: &str, sat: u64) -> anyhow::Result<()> {
-    let txid = env.send(&regtest_address(address), Amount::from_sat(sat))?;
-    env.wait_until_electrum_sees_txid(txid, TIMEOUT)?;
-    Ok(())
-}
-
-/// Mine one block and wait until the index has it.
-fn confirm(env: &TestEnv) -> anyhow::Result<()> {
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
-    Ok(())
-}
-
-async fn open(url: &str, key: &KeyMaterial) -> anyhow::Result<WalletHandle> {
-    Ok(WalletHandle::open(config(url), key, Box::new(MemoryPersister::new())).await?)
-}
 
 /// A new HD wallet, as the app's "New wallet" makes one.
 async fn new_hd_wallet(url: &str) -> anyhow::Result<WalletHandle> {
     let seed = wallet_core::generate_mnemonic(Network::Regtest, AddressType::P2wpkh, 12)?;
-    let key = KeyMaterial::Mnemonic {
-        words: seed.words.clone(),
-        passphrase: None,
-    };
-    open(url, &key).await
+    open(url, &KeyMaterial::parse(&seed.words)).await
 }
 
 /// A wallet of its own for a recipient, so an assertion reads what arrived
@@ -94,15 +41,6 @@ async fn recipient(url: &str, address_type: AddressType) -> anyhow::Result<Walle
     )
     .await?;
     Ok(wallet)
-}
-
-/// Sign and broadcast `built`, and wait until the index has it.
-async fn send(env: &TestEnv, wallet: &WalletHandle, built: &BuiltTx) -> anyhow::Result<String> {
-    let signed = wallet.sign(&built.psbt_base64).await?;
-    let sent = wallet.broadcast(&signed).await?;
-    assert_eq!(sent.persist_error, None, "local state must persist");
-    env.wait_until_electrum_sees_txid(Txid::from_str(&sent.txid)?, TIMEOUT)?;
-    Ok(sent.txid)
 }
 
 /// Two recipients in one transaction each receive exactly their amount, and
@@ -251,15 +189,7 @@ async fn a_watch_only_copy_mirrors_the_full_wallet() -> anyhow::Result<()> {
 
     // A spend with change, so the copy has the internal keychain to find too.
     let elsewhere = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
-    let built = wallet
-        .build_transfer(
-            &[Recipient {
-                address: elsewhere.address.clone(),
-                amount_sat: SEND_SAT,
-            }],
-            2.0,
-        )
-        .await?;
+    let built = build_payment(&wallet, &elsewhere.address, SEND_SAT, 2.0).await?;
     assert!(built.change_sat > 0);
     send(&env, &wallet, &built).await?;
     confirm(&env)?;
@@ -285,15 +215,7 @@ async fn a_watch_only_copy_mirrors_the_full_wallet() -> anyhow::Result<()> {
     assert_eq!(watcher.address().await, wallet.address().await);
 
     // It can build a payment, but signing one is refused.
-    let unsigned = watcher
-        .build_transfer(
-            &[Recipient {
-                address: elsewhere.address.clone(),
-                amount_sat: SEND_SAT,
-            }],
-            2.0,
-        )
-        .await?;
+    let unsigned = build_payment(&watcher, &elsewhere.address, SEND_SAT, 2.0).await?;
     let refused = watcher.sign(&unsigned.psbt_base64).await.unwrap_err();
     assert_eq!(refused.code(), "unsupported");
 
@@ -463,15 +385,7 @@ async fn a_cancel_takes_a_send_back() -> anyhow::Result<()> {
     wallet.sync().await?;
 
     let destination = recipient(&url, AddressType::P2wpkh).await?;
-    let original = wallet
-        .build_transfer(
-            &[Recipient {
-                address: destination.address().await,
-                amount_sat: SEND_SAT,
-            }],
-            20.0,
-        )
-        .await?;
+    let original = build_payment(&wallet, &destination.address().await, SEND_SAT, 20.0).await?;
     let first = send(&env, &wallet, &original).await?;
 
     let cancel = wallet.build_cancel(&first, 22.0).await?;
@@ -516,15 +430,7 @@ async fn a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_out() -> anyhow::Res
     watcher.sync().await?;
 
     let destination = recipient(&url, AddressType::P2wpkh).await?;
-    let unsigned = watcher
-        .build_transfer(
-            &[Recipient {
-                address: destination.address().await,
-                amount_sat: SEND_SAT,
-            }],
-            2.0,
-        )
-        .await?;
+    let unsigned = build_payment(&watcher, &destination.address().await, SEND_SAT, 2.0).await?;
     let refused = watcher.broadcast(&unsigned.psbt_base64).await.unwrap_err();
     assert_eq!(
         refused.code(),

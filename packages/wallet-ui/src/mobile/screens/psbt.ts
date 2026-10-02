@@ -1,8 +1,6 @@
-import { platform } from "../../platform";
-import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
-import { errorMessage, type PsbtInput, type PsbtReview } from "../../types";
+import type { PsbtInput, PsbtReview } from "../../types";
 import { banner, el, formatNumber, sectionLabel } from "../../ui/dom";
 import { feeLine, formatSats, shortOutpoint } from "../../ui/format";
 import { feeRate, psbtFlow, signedLine } from "../../ui/psbt";
@@ -14,11 +12,9 @@ import {
   header,
   ioLine,
   labelled,
-  lede,
   outputNote,
-  reticle,
   row,
-  seeThroughMark,
+  scanInPlace,
   spacer,
   withBusy,
 } from "../ui";
@@ -75,14 +71,10 @@ function reviewCard(r: PsbtReview): HTMLElement {
  */
 export function renderPsbt(): HTMLElement {
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
   const alert = banner();
-  const scanQr = platform().scanQr;
 
   const field = el("textarea", {
     className: "m-psbt-field",
@@ -146,57 +138,14 @@ export function renderPsbt(): HTMLElement {
 
   // --- scanning -----------------------------------------------------------------
   //
-  // In place, as Send scans: the screen steps aside for a reticle over a page
-  // turned see-through, and comes back as it was. One code only; a BC-UR one,
+  // In place, as Send scans (`scanInPlace`). One code only; a BC-UR one,
   // animated or not, is refused.
-  const mark = seeThroughMark();
-  /** Stops the camera and turns the page solid again; null while none runs. */
-  let stopScan: (() => void) | null = null;
-  const scanHead = header("Scan");
-  const scanner = body(
-    el("div", { className: "m-scan" }, [
-      reticle(),
-      lede("Point the camera at a PSBT that fits one QR code."),
-    ]),
-    button("Stop scanning", () => stopScan?.(), { block: true }),
+  const scan = scanInPlace(
+    host,
+    alert,
+    onScreen,
+    "Point the camera at a PSBT that fits one QR code.",
   );
-
-  const scanIn = async (): Promise<void> => {
-    if (!scanQr || stopScan) return;
-    alert.hide();
-    const camera = new AbortController();
-    const stop = (): void => {
-      camera.abort();
-      mark.clear();
-    };
-    stopScan = stop;
-    // Taking the form out of the page scrolls it back to the top.
-    const scrolled = form.scrollTop;
-    mark.set();
-    host.classList.add("m-scanner");
-    host.replaceChildren(scanHead, scanner);
-    let text: string | null = null;
-    try {
-      text = await scanQr(camera.signal);
-    } catch (e) {
-      if (onScreen()) alert.show("error", errorMessage(e));
-    }
-    stop();
-    stopScan = null;
-    host.classList.remove("m-scanner");
-    host.replaceChildren(head, form);
-    form.scrollTop = scrolled;
-    // Null is a cancel, not a failure: say nothing.
-    if (text === null || !onScreen()) return;
-    await flow.scanned(text);
-  };
-
-  // The camera offers no way out of its own, so leaving this screen stops it.
-  const stopOnLeave = (): void => {
-    stopScan?.();
-    window.removeEventListener("hashchange", stopOnLeave);
-  };
-  window.addEventListener("hashchange", stopOnLeave);
 
   const source = card(
     labelled("PSBT", field),
@@ -204,7 +153,9 @@ export function renderPsbt(): HTMLElement {
     error,
     row(
       button("Paste", () => void flow.paste(), { icon: "clipboard" }),
-      scanQr ? button("Scan", () => void scanIn(), { icon: "scan" }) : null,
+      scan
+        ? button("Scan", () => void scan(form, (text) => flow.scanned(text)), { icon: "scan" })
+        : null,
     ),
   );
   source.classList.add("m-psbt-source");

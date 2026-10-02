@@ -1233,6 +1233,410 @@ and is under Not doing.
       and at 390 px the four stay on one row, as M8 draws them. Measured in Chrome at all three
       widths on Send's fee and on Speed up's target, with a phone's overlay scrollbars
 
+## Round 9 — Less code
+
+Branch `round-9-less-code`. Picked on 2026-10-02: the owner asked for the duplicated
+functions and other refactoring targets to be found, planned and taken out, to bring the
+code down. Every item is a refactor that changes nothing the wallet does, says or draws, and
+every item has a proof. Two bugs found on the way are fixed beside the items, each in a
+commit of its own with a test that failed before it.
+
+**How the targets were found**
+
+1. **Measured.** Code, comment and blank lines per area over the tracked sources, leaving out
+   the frozen Go reference, the generated phone projects, the boards `gen.py` writes and the
+   lockfiles: 27,055 code lines at `2fefe72` (34,955 lines in all).
+2. **Mechanical leads.** A token clone detector, exact and with names abstracted, over the
+   Rust, TypeScript, CSS, Python, YAML and shell; and a dead-code pass over TypeScript
+   exports, Rust `pub` items and CSS classes. Dead code was almost nil, so the gain is in
+   repetition.
+3. **Read.** Seven read-only reviews, one per area: the core; the bindings, CLI and regtest
+   tests; the two shells' screens; the TypeScript modules; the UI tests; the stylesheets; the
+   board generator and CI. Each checked every lead against the code and looked for logic
+   repeated in other words.
+4. **Triage.** A target was taken when it saves lines net, keeps behaviour, text, markup and
+   rendering exactly, and has a proof. Code golf, fewer tests or assertions, weaker types,
+   formatter changes and anything visual were ruled out, and so were merges that would tie
+   together code that only happens to look alike. The leads not taken are in the PR, each
+   with its reason.
+
+**How an item is proved.** Each commit passed the checks for what it touches when it was made,
+and again on its own in the round's order: the TypeScript gate on every commit, and fmt and
+clippy, with the tests of the crates it touches, on every one that touches Rust. The whole
+gate (`just check`, `just test`, the regtest build) is green on the final tree, and every test
+the round started with is still there by name. On top of that, each item names its own proof:
+the DOM of every screen state the UI suite reaches (251 states, dumped with field values,
+checkedness, focus and the URL) is byte-identical; Chrome computes the same style for every
+element of those states, at desktop and phone widths, light and dark; the boards regenerate
+byte-identical; and a path no test reaches is pinned first by a characterization test, run on
+the old code and the new.
+
+**Result.** 27,055 code lines at `2fefe72`, 25,422 at the end: 1,633 fewer (6.0%), the most
+from the UI's modules and screens (−609), the core (−385) and the UI tests (−268, after the
+two fixes' tests). The browser build, rebuilt from the branch, was driven through Setup,
+Create with an app password, a reload to Unlock and Forget, and IndexedDB held both records
+and then neither. Stable Rust moved from 1.96 to 1.99 during the round, and the gate was run
+again on 1.99.
+
+**Reviewed** by cubic on 2026-10-02 (PR #42): four comments, all taken. A Rescan banner
+named a gap chosen while the rescan ran, not the one it ran with (fixed, with a test that
+failed before); `late-open.test.ts` picked its openers by name, so a rename would have
+dropped a case quietly (now it fails); `generate_key` was left off `core_to_js` for one line
+of layout (now on it); and 9.38's line count, which 9.17 then lowered by one, now says so.
+
+**Fixed beside the items.** The Rescan banner above, and the phone's Scan screen, whose Paste
+read the clipboard itself (`navigator.clipboard.readText()`) where every other Paste goes
+through `platform().readClipboard()`, the path Round 6 moved Paste to because the Tauri
+webview refuses a page's own read. Each has its own commit and a test that failed before it.
+Both were checked on an Android emulator on 2026-10-02. The build installed there before this
+round said "Clipboard access was refused. Allow it and try again, or type the address." for an
+address copied from Receive, where nothing can be allowed. This round's debug build, installed
+over it with the same wallet, went from Scan's Paste to Send with that address filled in, and
+its Rescan at a gap of 100 said "Rescanned with a gap of 100: 29,009 sat in this wallet."
+
+**The core and the CLI**
+
+- [x] **9.1 The core's tests share their fixtures** · M · `wallet.rs` (tests)
+      why: one recipient is written out in ten lines sixteen times, a coin id in five lines
+      seven times, a persister twice under two names, and two reviewed-size tests and two
+      replaceability checks are each one body written twice · done: 2026-10-02 — `pay_to`,
+      `elsewhere`, `coin_at`, `frozen_ids` and `funded` stand for what the tests wrote out;
+      `Recorder` gives way to `SharedPersister`, the reload test uses `open_from`, the
+      replaceability checks run in one loop over both transactions, and the two reviewed-size
+      tests share one body, which now also asserts each test's input count. 364 lines out, 137
+      in. The same 107 test names (the core's and the CLI's) pass before and after, and every
+      assertion that left a test body runs in the helper or loop that took its place
+- [x] **9.2 One mock backend, shared by its clones** · S · `backend/mock.rs`, `wallet.rs`
+      why: a 27-line forwarding backend exists only so a test can keep a handle on what the
+      mock recorded, and the mock carries two canned answers no test sets · done: 2026-10-02 —
+      the mock derives `Clone`, its clones sharing what they record behind an `Arc`, so the
+      forwarder goes, and so do the canned scan and sync answers no test set. The `Failing`
+      backend stays: its unreachable methods prove that nothing but broadcast talks to the
+      backend. The same 107 tests pass
+- [x] **9.3 The error table writes a plain sample on one line** · S · `error.rs` (tests)
+      why: each message-only variant takes six lines of the table that pins codes and messages
+      · done: 2026-10-02 — a `Sample` alias and `plain(variant, code, message)` write the
+      message-only rows; rustfmt keeps five of them over several lines, so 28 lines go rather
+      than 34. The 19 rows hold the same data and the three table tests pass
+- [x] **9.4 An address, a wallet id and an account xpub, each derived one way** · S ·
+  `keys.rs`, `wallet.rs`
+      why: the derivation tail is written three times, the id format three times and the walk
+      to the first xpub three times · done: 2026-10-02 — `address_for_key` derives every kind's
+      first receive address through one tail, `wallet_id` picks a prefix and a hash per kind
+      and formats once, and `first_xpub` finds the account xpub for the id,
+      `public_descriptors` and a test; `watch_only_descriptors`' doc sits on it again. A test
+      run on the old code and the new, then removed, printed `wallet_id` and `address_for_key`
+      for 12 kinds of key on 4 networks and 5 address types, and the public descriptors and id
+      of 7 opened wallets: 248 lines, byte-identical
+- [x] **9.5 A transfer and a drain build through one path** · S · `wallet.rs`
+      why: both lock, resolve chosen coins, set the rate and sequence, finish, name the
+      shortfall, persist and summarize, in two copies · done: 2026-10-02 — `build_paying(coins,
+      rate, paid)` holds the build, and `transfer` and `drain` keep their own checks and call
+      it, with the builder's setters in the order each called them. Every send test passes,
+      among them chosen coins, frozen coins, a shortfall, a drain with no change and a payment
+      to an address of our own
+- [x] **9.6 A chain position and a transaction's outputs, read in one place** · S ·
+  `wallet.rs`
+      why: confirmations, height and time are read from a chain position three times, and a
+      transaction's outputs are described twice · done: 2026-10-02 — `chain_status` reads
+      confirmations, height and time for the coins, the history and a transaction's detail, and
+      `outputs_of` describes the outputs of a detail and of a PSBT review. The history's new
+      sort key orders as the old one did: a test written first on the old code pinned the whole
+      order of three confirmed and four pending transactions, one pair tied and one seen twice,
+      and printed every summary, detail, coin and two reviews, byte-identical after the change;
+      then it was removed
+- [x] **9.7 The CLI's exit codes come from the core's error ordinal** · S · `error.rs`,
+  `wallet-cli`
+      why: the CLI's 19-arm exit-code match is the core's test-only ordinal plus ten · done:
+      2026-10-02 — `Error::ordinal` is public, the core's table test uses it, and the CLI exits
+      with 10 plus it. A new assertion that the 19 codes are exactly 10 to 28, in order, passed
+      on the old code first and stays
+- [x] **9.8 The CLI's error derives its messages** · S · `wallet-cli`
+      why: `Display` and `From<Error>` are written by hand for what `thiserror` derives, as the
+      core already does · done: 2026-10-02 — `CliError` derives `thiserror::Error`, with
+      `#[error("{0}")]` and `#[error(transparent)]`, as the core's error does; `From<String>`
+      stays by hand, and `thiserror` was already a workspace dependency. A temporary test of
+      `Display`, `Debug` and the exit code, for a CLI error and all 19 core errors, printed the
+      same before and after
+
+**The bindings and the regtest suite**
+
+- [x] **9.9 The regtest files share the node and wallet helpers** · M · `regtest-tests`
+      why: `flows.rs` has the helpers that start a node, fund, confirm, open and send, and the
+      other three files type them out again: the node start five times, the funding six times,
+      a one-recipient payment seven · done: 2026-10-02 — `tests/common` holds the helpers
+      `flows.rs` had (`start`, `fund`, `confirm`, `open`, `send`) and a new `build_payment`,
+      and the four files use them; the three wallets made from generated words open from
+      `KeyMaterial::parse`, which gives exactly the old literal for words bip39 prints. 341
+      lines out, 142 in. Every changed test was read end to end, and a listing of each assert
+      and expect per test, before and after, differs only by those now made once inside the
+      helpers. The same 12 tests list before and after, and clippy builds all four files with
+      -D warnings; they cannot run on this Mac, so CI runs them on this round's pull request
+- [x] **9.10 The wasm bindings hand a core result to JS through one helper** · S ·
+  `wallet-wasm`
+      why: `to_js(&…map_err(core_err)?)` takes seven lines each time rustfmt breaks it · done:
+      2026-10-02 — `core_to_js` passes a value through `to_js` or an error through `core_err`,
+      for eleven bindings; `generate_key`, `transaction` and `estimate_fee` keep their own
+      code, and no exported or js_name symbol changes. Before the change, 27 temporary wasm
+      tests pinned what those bindings return on inputs that need no network, as the code,
+      message and details or the value in JSON (`import_psbt`'s whole review of a foreign PSBT
+      among them). All 27 passed on the old code and the new, each built in a target directory
+      of its own, and were removed. The 9 binding tests pass
+- [x] **9.11 The Tauri error builds `internal` where it is used** · S · `src-tauri/src/error.rs`
+      why: a constructor with one caller · done: 2026-10-02 — `From<tauri::Error>` calls
+      `AppError::new("internal", …)` itself: the same code, the same message, no details.
+      Clippy builds the app with -D warnings
+
+**The UI's modules**
+
+- [x] **9.12 One builder for every transaction preview** · S · `api.ts`
+      why: five builders each check the rate, take the wallet, build and keep the PSBT, and the
+      `api` object restates each parameter list to forward it · done: 2026-10-02 —
+      `buildPreview(rate, build)` checks the rate, takes the wallet, builds and keeps the PSBT,
+      in that order, and the five builders are `api` entries that call it; sync and rescan
+      share `thenBalance`, and the entries that only forwarded are written short. The explicit
+      copy of the preview's fields stays, as an allow-list. A test run on the old code and the
+      new, then removed, gave 135 byte-identical outcomes: the rate refused with no wallet
+      open, then for every builder its exact call to the core and its preview, with sync,
+      rescan and the shortened entries. `typeof api` is the same type, and the race fix is
+      untouched
+- [x] **9.13 The types and normalizers derive what repeats** · S · `types.ts`, `wasm/*`
+      why: a transaction's detail restates its summary's seven fields, two inputs restate a
+      coin id, and the input normalizer is written twice · done: 2026-10-02 — `TxDetail`
+      extends `TxSummary`, `TxInput` and `PsbtInput` extend `CoinId`, `BuiltTx` extends the
+      preview without its id, and one `toTxInput` reads both kinds of input, keeping the order
+      of their keys. A type-equality check (with a negative control) shows all four types
+      unchanged, and both normalizers give byte-identical results over the test fixtures, Map
+      rows, odd values and throwing inputs, 18 cases, on the old code and the new
+- [x] **9.14 The wasm core loads once for every plain call** · S · `wasm/index.ts`
+      why: five wrappers each await the loader, then call · done: 2026-10-02 —
+      `afterLoad(call)` awaits the loader and then calls, for the five plain calls, with the
+      same names and types; the unused `address_type` getter goes, on `WalletApi` and on the
+      fake. With the generated module mocked, a test run on the old code and the new showed the
+      loader run before every call, the arguments passed through, `explorerTxUrl` turning
+      undefined into null and a failed load retried: byte-identical logs
+- [x] **9.15 A payment request reads its amount with the amount parser** · S · `bip21.ts`
+      why: `bip21.ts` keeps private copies of formatting and parsing a BTC amount · done:
+      2026-10-02 — it uses `parseAmount` and `formatAmount` from `amount.ts`, with one guard: a
+      URI's amount is never trimmed, as `btcToSats` never trimmed. The old and new code agree
+      on 991,739 amount strings (74,905 accepted), 320,020 sat values, 1,983,478 URIs parsed
+      and 320,020 built; without the guard, 46,591 strings differ, so the corpus does test it
+- [x] **9.16 One copy of the IndexedDB plumbing** · S · `persist/*`
+      why: the wallet state and the sealed secrets open, upgrade and transact with IndexedDB in
+      two copies of the same code · done: 2026-10-02 — `persist/idb.ts` has
+      `objectStore(spec)`, which opens its database once, retries one that failed and runs one
+      request per committed transaction; the wallet state and the sealed keys each describe
+      their database in a `StoreSpec`. The twelve error messages are the same, character for
+      character. A test with an in-memory IndexedDB, run on the old modules and the new and
+      then removed, logged 16 scenarios (upgrade, open errors, blocked, retry, request and
+      transaction errors and aborts, throws, no IndexedDB) byte-identical
+- [x] **9.17 Icons named from their shapes; the unused share icon goes** · S · `ui/icons.ts`,
+  `gen.py`
+      why: the 21 icon names are listed twice, and no screen or board draws `share` · done:
+      2026-10-02 — `IconName` is the keys of the shape table, `shapeAttrs` gives each shape its
+      attributes in the old order, and `share` leaves icons.ts and gen.py. `IconName` is the
+      old union less `share`, the markup of all 20 icons at three sizes and the brand mark is
+      byte-identical on the old code and the new, and the boards regenerate byte-identical
+- [x] **9.18 The clock, the Remember box, a field's error and a button's class, once each**
+  · S · `ui/*`
+      why: small blocks repeated in the shared UI modules · done: 2026-10-02 — `CLOCK` and
+      `dayOf` in `format.ts`, `rememberBox` in `remember.ts`, `setFieldError` in `ui/dom.ts`
+      (used by the app password and the PSBT field), and a desktop button's class built from
+      its variant. Old and new `format.ts` agree on 15,552 cases (12 locales, 6 time zones),
+      and every button variant and size and the Remember and app-password states render
+      byte-identical
+- [x] **9.19 The Tauri store read and written through two helpers** · S · `platform-tauri.ts`
+      why: four store methods repeat the load, read or write, and save · done: 2026-10-02 —
+      `readStore` and `writeStore` (null deletes the key) carry the four store methods, with
+      the same file, keys and calls. With the Tauri plugins mocked, a run on the old file and
+      the new, then removed, logged 34 steps byte-identical: each method on an empty, set and
+      odd stored value, every lock choice, and a failing load or save
+
+**The screens**
+
+- [x] **9.20 A held fee-bump or cancel preview is sent through one helper** · M ·
+  `dashboard.ts`, `mobile/screens/tx.ts`
+      why: both shells hold, drop and send a preview with the same counter and the same failure
+      handling, written four times · done: 2026-10-02 — `ui/preview.ts`'s `heldPreview(alert)`
+      holds, drops and sends the one preview, and drops it on the next navigation; the desktop
+      passes its "row still open" test as what counts. Cancel now says a failed sign before
+      folding its card, which touches nothing the banner does. Pinned first by 16 cases on the
+      old code (a failed sign during Speed up and during Cancel, nothing held after a failed
+      build, a sign failing after leaving, presses after leaving, a desktop row closed
+      mid-build), passing before and after, then removed; the 251 dumped screen states are
+      byte-identical to the base and the same 442 tests pass
+- [x] **9.21 A screen that lacks what it shows sends you on in one call** · S · 20 screens
+      why: `navigate(route); return el("main")` twenty times · done: 2026-10-02 —
+      `redirect(route)` in `screen.ts` navigates and hands back an empty `<main>`, at 21
+      guards, 10 desktop and 11 phone. A table of 26 cases on the old code first (each screen
+      without its wallet, settings, result, txid or remembered record: where it goes, and that
+      what it returns is an empty `<main>` with no attributes) passed before and after, then
+      was removed; the 251 dumped screen states are byte-identical to the base and the same 442
+      tests pass
+- [x] **9.22 Forget, Setup and Rescan, one way on both shells** · M · `ui/settings.ts`
+      why: forgetting a wallet is written three times and its desktop card twice; Setup's
+      Continue and Rescan once per shell · done: 2026-10-02 — `ui/settings.ts` has `saveSetup`,
+      `rescanAt`, `forgetThisWallet` and the desktop's `askForget` card; the phone's Settings
+      Forget keeps its own, since sharing it would hide a showing banner. 19 cases on the old
+      code first (a failing delete on desktop Settings, desktop Unlock and phone Unlock, with
+      the banner, focus and the card; Setup with no server on both shells; the phone's Rescan)
+      passed before and after, then were removed; the 251 dumped screen states are
+      byte-identical to the base and the same 442 tests pass
+- [x] **9.23 One scan-in-place for the phone's Send and Import PSBT** · S · `mobile/*`
+      why: 27 identical lines in both screens · done: 2026-10-02 — `scanInPlace` in
+      `mobile/ui.ts` swaps the screen for the scanner and back, and stops the camera on
+      leaving; it hands the code to the screen in the same turn as the still-on-screen check,
+      as before. A build with no camera takes no see-through mark, whose number only ever shows
+      through a scan. 17 cases on the old code first (scans, cancels, a refusing camera on both
+      screens, leaving Import PSBT mid-scan) passed before and after, then were removed; the
+      251 dumped screen states are byte-identical to the base and the same 442 tests pass
+- [x] **9.24 The phone Restore's opener catches and offers the reset** · S ·
+  `mobile/screens/restore.ts`
+      why: three identical try/catch blocks around it · done: 2026-10-02 — `openWith` takes the
+      values, the door's banner, offer and on-screen test, and a retry, and catches inside; the
+      phrase door still retries through `restore(true)`, which checks the words again. 18 cases
+      on the old code first passed before and after, then were removed; the 251 dumped screen
+      states are byte-identical to the base and the same 442 tests pass
+- [x] **9.25 One guard and render loop for both shells** · S · `app.ts`, `mobile/shell.ts`
+      why: the same guard read, redirect and hashchange wiring in each shell · done: 2026-10-02
+      — `listen(shell, draw, hasTxid)` in `app.ts` reads the guard's state, sends a refused
+      route on, clears `#app` and draws; each shell passes its own `draw`, and only the phone
+      has a stashed txid. No import cycle, and the browser build carries none of the phone's
+      code. 5 cases on the old code first (among them the phone at a transaction with no txid
+      landing on the wallet, and the desktop at an unknown route drawing Setup) passed before
+      and after, then were removed; the 251 dumped screen states are byte-identical to the base
+      and the same 442 tests pass
+- [x] **9.26 One heading helper for the desktop's screens** · S · `screen.ts`
+      why: the same `screen-head` block on nine screens · done: 2026-10-02 — `screenHead(title,
+      line?)` in `screen.ts`, on ten desktop screens; the dumps hold every one of the ten
+      headings, and the 251 dumped screen states are byte-identical to the base and the same
+      442 tests pass
+- [x] **9.27 The phone's containers, ledes and counts use the shared helpers** · S ·
+  `mobile/*`
+      why: the phone redoes what `el`, `lede` and `counted` already do · done: 2026-10-02 —
+      `add` goes from `mobile/ui.ts`, its containers built with `el`; `lede()` writes the
+      phone's ledes and `counted(n, "coin")`, the same formula, the coin counts. 5 cases on
+      the old code first passed before and after, then were removed; the 251 dumped screen
+      states are byte-identical to the base and the same 442 tests pass
+- [x] **9.28 The unit chips and the fee targets are built once** · S · `ui/dom.ts`, `types.ts`
+      why: Send rebuilds the dashboard's unit chips, and the target choices are written four
+      times · done: 2026-10-02 — `unitChips` moves from the dashboard to `ui/dom.ts` and builds
+      Send's rows too, its inputs locking with the form; `FEE_TARGET_CHOICES` in `types.ts`
+      serves the four target lists, keeping the literal digits. 3 cases on the old code first
+      passed before and after, then were removed; the 251 dumped screen states are
+      byte-identical to the base and the same 442 tests pass
+- [x] **9.29 The send screens show a field's error through the shared helper** · S · both
+  `send.ts`
+      why: the four lines 9.18 shares are still written out on both Send screens · done:
+      2026-10-02 — the phone calls `setFieldError` at its three fields, and the desktop's own
+      `setError` calls it and then hides an empty message, the one thing the desktop adds. The
+      251 dumped screen states, among them every invalid address, amount and rate the tests
+      type on both Send screens, are byte-identical to the base, and the same 442 tests pass
+
+**The UI tests**
+
+- [x] **9.30 A screen is mounted at its route in one call** · M · `test/*`
+      why: `at(route); mount(render())`, often with a settle, 65 times · done: 2026-10-02 — the
+      harness has `mountAt(route, render)` and `showAt(route, render)`, which also settles, and
+      80 sites use them. Where one `at` stood before several mounts, a temporary assertion on
+      the URL before each later mount passed first. Skipped: display's three `showTransaction`
+      sites, which also hand the screen its txid, and speedup-cancel, where the import would
+      outgrow a line and add lines. The same 442 tests pass with the same expect count in every
+      file, and the 251 screen states the suite reaches dump byte-identical to the base (field
+      values, checkedness, focus and the URL with them)
+- [x] **9.31 The reset and late-open tests share their openers** · S · `test/*`
+      why: five openers are written in both files · done: 2026-10-02 — `test/openers.ts` holds
+      the ten openers, each rendering at its route; reset runs all ten and late-open the five
+      it names, choosing what to hold by whether the opener unlocks a remembered wallet. Each
+      file's tests keep their names and order, the expect counts are the same, and the 251
+      screen states the suite reaches dump byte-identical to the base (field values,
+      checkedness, focus and the URL with them)
+- [x] **9.32 The shared fixtures live in fakes** · S · `test/fakes.ts`
+      why: the same remembered wallet six times, the phrase three, a summary copied out of a
+      detail three, an in-memory sealed store twice · done: 2026-10-02 — `fake.PHRASE`,
+      `fake.SAVED`, `fake.summaryOf(detail)` (a fresh row each call) and `fake.memoryStore()`
+      (a fresh map each call). Nothing in the source or the tests writes into a remembered
+      record, so one shared record is safe, and the Node-environment sealed tests load nothing
+      new at run time. The same 442 tests pass, and the 251 screen states the suite reaches
+      dump byte-identical to the base (field values, checkedness, focus and the URL with them)
+- [x] **9.33 The wasm core and IndexedDB are mocked for every file at once** · S ·
+  `vitest.config.ts`
+      why: twelve files open with the same two mocks · done: 2026-10-02 — `test/setup-fakes.ts`
+      makes the two mocks for every file, and says a test of either real module must
+      `vi.unmock` it. Shown first on vitest 5.0.2: a file stripped of its own mocks passed and
+      was the only one whose factories ran, it failed without the setup file, and only the
+      twelve files reach either module. The same 442 tests pass, with the same console output,
+      and the 251 screen states the suite reaches dump byte-identical to the base (field
+      values, checkedness, focus and the URL with them)
+- [x] **9.34 The PSBT and autolock tests open their screens through local helpers** · S
+      why: the same two or three opening lines twenty times in one file and eleven in the other
+      · done: 2026-10-02 — psbt's `openAnswering` and `openPasted` take 20 sites and autolock's
+      `openLocking` 11; `camera()`, which only sets the platform, moves above two calls. The
+      same tests pass with the same expect counts, and the 251 screen states the suite reaches
+      dump byte-identical to the base (field values, checkedness, focus and the URL with them)
+- [x] **9.35 The harness's cleanup is not repeated** · S
+      why: six places clear what the harness already clears after every test · done: 2026-10-02
+      — six resets of `session.remembered` and two `mockRestore` calls go. A temporary accessor
+      saw no read of the record between each removed line and the harness's own reset, over the
+      five files' 119 tests, and each removed spy had answered its one call. The same 442 tests
+      pass, and the 251 screen states the suite reaches dump byte-identical to the base (field
+      values, checkedness, focus and the URL with them)
+
+**The stylesheets**
+
+- [x] **9.36 CSS that never applies, or repeats what applies, goes** · S · `*.css`
+      why: an `h2` rule with no `<h2>`, a banner kind no code shows, two unused tokens, and
+      phone declarations that repeat what app.css already gives the same element · done:
+      2026-10-02 — the `h2` rule (no screen makes an `<h2>`), `.banner-info` with `"info"` in
+      `BannerKind` (no call passes it), `--text-lg` and `--text-xl` (nothing reads them), the
+      phone's redundant `input.input-invalid` and its textarea patch, and phone declarations
+      app.css already gives the same elements go; the two defensive select rules stay. Chrome
+      computed every non-custom property of every element and its ::before, ::after and
+      ::placeholder in all 251 dumped states, desktop at 1024 px and phone at 390 and 320 px,
+      light and dark, plus 23,970 focus, hover, press and invalid variants (101,251,872 values
+      static, 3,823,296,384 in states): 0 differences from the base, the base against itself 0,
+      and a deliberate edit in each channel caught
+- [x] **9.37 What two screens draw alike is styled once** · S · `app.css`, `mobile.css`
+      why: Unlock and Result build the same card, a history row is styled in two rules, a table
+      heading restates the label rule · done: 2026-10-02 — Unlock's and Result's card, head,
+      circle and title share one block, with only the circles' colours and Result's alignment
+      their own; `button.m-txrow` folds into `.m-txrow` (every history row is a button), a dead
+      `:last-child` rule with it; `th` joins the label rule it repeated, and `.m-io-addr` the
+      review's whole-address rule. The coin tick's focus ring keeps its own rule, since Biome
+      warns about it in the shared list. focus.test.ts still finds its rules, and Chrome
+      computed every non-custom property of every element and its ::before, ::after and
+      ::placeholder in all 251 dumped states, desktop at 1024 px and phone at 390 and 320 px,
+      light and dark, plus 23,970 focus, hover, press and invalid variants (101,251,872 values
+      static, 3,823,296,384 in states): 0 differences from the base, the base against itself 0,
+      and a deliberate edit in each channel caught
+
+**The generator and CI**
+
+- [x] **9.38 The boards' repeated parts are drawn with helpers** · S · `gen.py`
+      why: eighteen phone boards open and close their frame the same way, eight desktop cards
+      their heading row, and every board's file name is listed twice · done: 2026-10-02 — five
+      helpers draw what the boards spelled out by hand: `m_screen` (18 phone boards),
+      `card_head` (8 desktop cards), `tx_card`, `unlock_card` and `m_outputs`, and each canvas
+      row now carries its board, so the second list of file names and its assert go. gen.py
+      went from 1,506 lines to 1,422 (1,346 code lines to 1,259), and 9.17 then takes the share
+      icon's line, leaving 1,421 (1,258). Regenerating leaves all 38 boards, `canvas.json` and
+      `app-icon.svg` byte-identical, checked by sha256 against the base and by `git status`
+      listing only gen.py; only the order of the list it prints changed
+- [x] **9.39 One composite action sets up Node, pnpm and the wasm core** · S · `.github`
+      why: the same three steps in six jobs across three workflows · done: 2026-10-02 —
+      `.github/actions/frontend` runs pnpm's setup, Node 22 with the pnpm store cached and the
+      wasm-core action, in the six jobs that wrote those three steps out (rust's apps job,
+      release's bundle, Android and iOS, mobile-bundle's Android and iOS), each still followed
+      by its own `pnpm install`. actionlint 1.7.12 is clean on all four workflows before and
+      after, and resolves the new action. Every job keeps its id and name, so the ruleset's
+      required checks are untouched. With the action expanded, every job runs the same steps
+      with the same inputs; the apt-get and JDK steps now run before Node, which neither uses.
+      The pull request's apps job ran it, and manual runs on the branch ran it in every other
+      job that uses it, all green: mobile-bundle's Android APK and Simulator app (run
+      36977776603), and release's desktop bundles on Windows, Linux and both Macs (run
+      36977779495), which created no release. Release's two signed phone legs skip without
+      store keys; they run the same steps as mobile-bundle's two
+
 ## Later — not picked
 
 Listed, not scheduled; each goes to the design canvas first unless marked otherwise.
@@ -1280,6 +1684,9 @@ Listed, not scheduled; each goes to the design canvas first unless marked otherw
 - 2026-09-30 — The app password has no minimum length: the owner's call. SECURITY.md already
   says a short one can be guessed offline by anyone with the browser's files (6.12).
 - 2026-09-30 — The display text follows one standard on both shells (Round 7).
+- 2026-10-02 — Round 9 takes refactors only. Each keeps behaviour, text, markup and rendering
+  exactly, and has a proof; a lead that would change any of them, or would tie together code
+  that only happens to look alike, is left as it is.
 
 ## Not doing
 

@@ -2,14 +2,13 @@ import { addressError, addressLooksValid } from "../../address";
 import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
-import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   DEFAULT_FEE_TARGET,
   errorMessage,
-  FEE_TARGETS,
+  FEE_TARGET_CHOICES,
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
@@ -20,7 +19,7 @@ import {
   type TxPreview,
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
-import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
 import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
@@ -32,9 +31,8 @@ import {
   header,
   labelled,
   lede,
-  reticle,
   row,
-  seeThroughMark,
+  scanInPlace,
   spacer,
   withBusy,
 } from "../ui";
@@ -90,16 +88,12 @@ function recipientList(to: readonly Recipient[], fee: string, total: number): HT
 export function renderSend(): HTMLElement {
   const onScreen = screenGuard();
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
 
   const alert = banner();
   const taken = prefill;
   prefill = {};
-  const scanQr = platform().scanQr;
   /**
    * The coins ticked on Coins when Send selected opened this, or null. The
    * send spends exactly those, Max included, until Let the wallet choose
@@ -223,13 +217,7 @@ export function renderSend(): HTMLElement {
   let rate = 1;
 
   const fee = chips<FeeChoice>(
-    [
-      ...FEE_TARGETS.map((t) => ({
-        value: `${t}` as FeeChoice,
-        label: `${t} block${t > 1 ? "s" : ""}`,
-      })),
-      { value: "custom", label: "Custom" },
-    ],
+    [...FEE_TARGET_CHOICES, { value: "custom", label: "Custom" }],
     `${DEFAULT_FEE_TARGET}`,
     (choice) => {
       customRow.hidden = choice !== "custom";
@@ -290,13 +278,6 @@ export function renderSend(): HTMLElement {
   });
 
   // --- validation -----------------------------------------------------------
-  const setError = (slot: HTMLElement, input: HTMLInputElement, message: string | null) => {
-    slot.textContent = message ?? "";
-    input.classList.toggle("input-invalid", message !== null);
-    if (message === null) input.removeAttribute("aria-invalid");
-    else input.setAttribute("aria-invalid", "true");
-  };
-
   /**
    * `touched` decides only whether a field may show its message. Review
    * follows the values: a form filled in correctly is ready whether or not
@@ -326,18 +307,18 @@ export function renderSend(): HTMLElement {
 
   const refresh = (): void => {
     for (const r of rows) {
-      setError(
+      setFieldError(
         r.addressErr,
         r.address,
         r.touched.address ? addressError(r.address.value, info.network) : null,
       );
-      setError(
+      setFieldError(
         r.amountErr,
         r.amount,
         r.touched.amount ? parseAmount(r.amount.value, currentUnit).error : null,
       );
     }
-    setError(rateErr, rateInput, rateError());
+    setFieldError(rateErr, rateInput, rateError());
     review.disabled = recipients() === null || rateError() !== null;
   };
 
@@ -393,7 +374,7 @@ export function renderSend(): HTMLElement {
       scan: null,
       touched: { address: from.address !== undefined, amount: from.amountSat !== undefined },
     };
-    if (scanQr) {
+    if (scan) {
       r.scan = button("", () => void scanFor(r), {
         icon: "scan",
         ariaLabel: "Scan a QR code",
@@ -489,17 +470,12 @@ export function renderSend(): HTMLElement {
   // --- scanning ---------------------------------------------------------------
   //
   // The camera runs on this screen rather than on Scan, which would rebuild
-  // this one and lose every row. While it runs the form steps aside for what
-  // Scan shows: a reticle over a page turned see-through.
-  const mark = seeThroughMark();
-  /** Stops the camera and turns the page solid again; null while none runs. */
-  let stopScan: (() => void) | null = null;
-  const scanner = body(
-    el("div", { className: "m-scan" }, [
-      reticle(),
-      lede("Point the camera at an address or a bitcoin: QR code."),
-    ]),
-    button("Stop scanning", () => stopScan?.(), { block: true }),
+  // this one and lose every row (`scanInPlace`).
+  const scan = scanInPlace(
+    host,
+    alert,
+    onScreen,
+    "Point the camera at an address or a bitcoin: QR code.",
   );
   const scanNote = lede("Address filled in from a scan.");
 
@@ -532,37 +508,12 @@ export function renderSend(): HTMLElement {
     r.address.scrollIntoView({ block: "nearest" });
   };
 
-  const scanFor = async (pressed: RecipientRow): Promise<void> => {
-    if (!scanQr || stopScan) return;
-    alert.hide();
-    const camera = new AbortController();
-    const stop = (): void => {
-      camera.abort();
-      mark.clear();
-    };
-    stopScan = stop;
-    // Taking the form out of the page scrolls it back to the top.
-    const scrolled = form.scrollTop;
-    mark.set();
-    host.classList.add("m-scanner");
-    host.replaceChildren(scanHead, scanner);
-    let text: string | null = null;
-    try {
-      text = await scanQr(camera.signal);
-    } catch (e) {
-      if (onScreen()) alert.show("error", errorMessage(e));
-    }
-    stop();
-    stopScan = null;
-    host.classList.remove("m-scanner");
-    host.replaceChildren(head, form);
-    form.scrollTop = scrolled;
-    // Null is a cancel, not a failure: say nothing.
-    if (text === null || !onScreen()) return;
-    const payment = parsePaymentUri(text);
-    if (payment) fillFromScan(scanTarget(pressed), payment);
-    else alert.show("warn", "That QR code is not a Bitcoin address.");
-  };
+  const scanFor = async (pressed: RecipientRow): Promise<void> =>
+    scan?.(form, (text) => {
+      const payment = parsePaymentUri(text);
+      if (payment) fillFromScan(scanTarget(pressed), payment);
+      else alert.show("warn", "That QR code is not a Bitcoin address.");
+    });
 
   // --- review -----------------------------------------------------------------
   const reviewHost = el("div");
@@ -678,10 +629,8 @@ export function renderSend(): HTMLElement {
 
   // Screens are rebuilt on every navigation, so anything still pending when
   // this one goes away is unreachable — abandoned sends would grow the core's
-  // pending map without bound. The camera, which has no way out of its own,
-  // stops with the screen.
+  // pending map without bound.
   const discardOnLeave = (): void => {
-    stopScan?.();
     clearPreview();
     leaveDrain();
     window.removeEventListener("hashchange", discardOnLeave);
@@ -689,7 +638,6 @@ export function renderSend(): HTMLElement {
   window.addEventListener("hashchange", discardOnLeave);
 
   const head = header("Send", { back: "dashboard" });
-  const scanHead = header("Scan");
   const form = body(
     alert.node,
     coinsLine,

@@ -3,8 +3,7 @@ import QRCode from "qrcode";
 import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
 import { buildPaymentUri, qrPayload } from "../../bip21";
-import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -14,11 +13,8 @@ import { body, button, card, chips, header, labelled, lede, row, withBusy } from
 
 export function renderReceive(): HTMLElement {
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
 
   const alert = banner();

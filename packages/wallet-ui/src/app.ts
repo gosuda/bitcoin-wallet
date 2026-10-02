@@ -1,7 +1,7 @@
 import "./ui/tokens.css";
 import "./ui/app.css";
 import { api, canUnlockHere } from "./api";
-import { guardRoute, KEY_ROUTES } from "./guards";
+import { guardRoute, KEY_ROUTES, type Shell } from "./guards";
 import { currentRoute, navigate, type Route } from "./router";
 import { renderCreate } from "./screens/create";
 import { renderDashboard } from "./screens/dashboard";
@@ -99,33 +99,49 @@ const SCREENS: Partial<Record<Route, () => HTMLElement>> = {
   psbt: renderPsbt,
 };
 
-/** The rules live in `guards.ts`; this is where the desktop reads its state. */
-function guard(route: Route): Route {
-  return guardRoute(
-    route,
-    {
-      wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
-      configType: session.config?.address_type ?? null,
-      unlockable: canUnlockHere(),
-      hasResult: session.lastResult !== null,
-      hasTxid: false,
-    },
-    "desktop",
-  );
-}
-
-function render(): void {
-  const wanted = currentRoute();
-  const route = guard(wanted);
-  if (route !== wanted) {
-    navigate(route);
-    return;
-  }
-  const root = document.getElementById("app");
-  if (!root) throw new Error("missing #app root");
-  clear(root);
+/** The desktop's page: the top bar over the screen. */
+function drawDesktop(root: HTMLElement, route: Route): void {
   root.appendChild(topbar(route));
   root.appendChild((SCREENS[route] ?? renderSetup)());
+}
+
+/**
+ * Runs a shell from here on: on every navigation the rules in `guards.ts`
+ * read the session, a route they refuse is sent on, and `draw` fills the
+ * emptied `#app` with the one they let through. A first screen of Setup with
+ * a wallet to unlock here opens Unlock instead. Only the phone has a stashed
+ * transaction to show (`hasTxid`).
+ */
+export function listen(
+  shell: Shell,
+  draw: (root: HTMLElement, route: Route) => void,
+  hasTxid = (): boolean => false,
+): void {
+  const render = (): void => {
+    const wanted = currentRoute();
+    const route = guardRoute(
+      wanted,
+      {
+        wallet: session.wallet ? { watchOnly: session.wallet.is_watch_only } : null,
+        configType: session.config?.address_type ?? null,
+        unlockable: canUnlockHere(),
+        hasResult: session.lastResult !== null,
+        hasTxid: hasTxid(),
+      },
+      shell,
+    );
+    if (route !== wanted) {
+      navigate(route);
+      return;
+    }
+    const root = document.getElementById("app");
+    if (!root) throw new Error("missing #app root");
+    clear(root);
+    draw(root, route);
+  };
+  window.addEventListener("hashchange", render);
+  if (canUnlockHere() && currentRoute() === "setup") navigate("unlock");
+  else render();
 }
 
 export interface BootOptions {
@@ -177,9 +193,7 @@ export async function boot(options: BootOptions = {}): Promise<void> {
     options.mount();
     return;
   }
-  window.addEventListener("hashchange", render);
-  if (canUnlockHere() && currentRoute() === "setup") navigate("unlock");
-  else render();
+  listen("desktop", drawDesktop);
 }
 
 /**
