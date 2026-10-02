@@ -51,6 +51,9 @@ const LATE = new Set([
   "phone Create",
 ]);
 const LATE_OPENERS = OPENERS.filter((o) => LATE.has(o.name));
+// Found in review: an opener renamed in openers.ts would drop out of here
+// without a word, so a name that matches none fails the file instead.
+if (LATE_OPENERS.length !== LATE.size) throw new Error("LATE names an opener openers.ts lacks");
 
 describe.each(LATE_OPENERS)("an open that finishes after $name was left", (opener) => {
   it("opens the wallet, and leaves the screen the user went to alone", async () => {
