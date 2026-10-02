@@ -34,6 +34,7 @@ updates:
   - package-ecosystem: github-actions
     directories:
       - /
+      - /.github/actions/frontend
       - /.github/actions/wasm-core
     schedule:
       interval: weekly

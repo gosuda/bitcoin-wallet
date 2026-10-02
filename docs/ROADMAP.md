@@ -1430,9 +1430,17 @@ the new.
       boards, `canvas.json` and `app-icon.svg` byte-identical, checked by sha256 against the
       base and by `git status` listing only gen.py; only the order of the list it prints
       changed
-- [ ] **9.39 One composite action sets up Node, pnpm and the wasm core** · S · `.github`
-      why: the same three steps in six jobs across three workflows · done when: one action,
-      the job names unchanged, actionlint clean, green in CI
+- [x] **9.39 One composite action sets up Node, pnpm and the wasm core** · S · `.github`
+      why: the same three steps in six jobs across three workflows · done: 2026-10-02 —
+      `.github/actions/frontend` runs pnpm's setup, Node 22 with the pnpm store cached and the
+      wasm-core action, in the six jobs that wrote those three steps out (rust's apps job,
+      release's bundle, Android and iOS, mobile-bundle's Android and iOS), each still followed
+      by its own `pnpm install`. actionlint 1.7.12 is clean on all four workflows before and
+      after, and resolves the new action. Every job keeps its id and name, so the ruleset's
+      required checks are untouched. With the action expanded, every job runs the same steps
+      with the same inputs; the apt-get and JDK steps now run before Node, which neither uses.
+      A pull request runs the apps job; release and mobile-bundle run the same three steps, and
+      are proved on their next run
 
 ## Later — not picked
 
