@@ -1354,9 +1354,13 @@ the new.
       of their keys. A type-equality check (with a negative control) shows all four types
       unchanged, and both normalizers give byte-identical results over the test fixtures, Map
       rows, odd values and throwing inputs, 18 cases, on the old code and the new
-- [ ] **9.14 The wasm core loads once for every plain call** · S · `wasm/index.ts`
-      why: five wrappers each await the loader, then call · done when: one `afterLoad`, with
-      the load order pinned by a test on the old code
+- [x] **9.14 The wasm core loads once for every plain call** · S · `wasm/index.ts`
+      why: five wrappers each await the loader, then call · done: 2026-10-02 —
+      `afterLoad(call)` awaits the loader and then calls, for the five plain calls, with the
+      same names and types; the unused `address_type` getter goes, on `WalletApi` and on the
+      fake. With the generated module mocked, a test run on the old code and the new showed the
+      loader run before every call, the arguments passed through, `explorerTxUrl` turning
+      undefined into null and a failed load retried: byte-identical logs
 - [ ] **9.15 A payment request reads its amount with the amount parser** · S · `bip21.ts`
       why: `bip21.ts` keeps private copies of formatting and parsing a BTC amount · done
       when: it uses `amount.ts`, and the two agree over a generated corpus

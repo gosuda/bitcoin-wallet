@@ -123,9 +123,6 @@ class FakeWallet {
   get network(): string {
     return "testnet4";
   }
-  get address_type(): string {
-    return "p2wpkh";
-  }
   get isHd(): boolean {
     return true;
   }
