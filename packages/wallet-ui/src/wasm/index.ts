@@ -26,6 +26,7 @@ import type {
   PublicDescriptors,
   Recipient,
   TxDetail,
+  TxPreview,
   TxSummary,
   Utxo,
 } from "../types";
@@ -56,13 +57,8 @@ export interface WalletPersister {
 }
 
 /** Unsigned transaction from `build_transfer`; the PSBT stays in the app. */
-export interface BuiltTx {
+export interface BuiltTx extends Omit<TxPreview, "psbt_id"> {
   psbt_base64: string;
-  fee_sat: number;
-  vsize: number;
-  total_out_sat: number;
-  change_sat: number;
-  input_count: number;
 }
 
 /** Broadcast outcome. A set `persist_error` means the send succeeded anyway. */

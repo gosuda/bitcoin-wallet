@@ -136,9 +136,7 @@ export interface PublicDescriptors {
   fingerprint: string | null;
 }
 
-export interface TxInput {
-  txid: string;
-  vout: number;
+export interface TxInput extends CoinId {
   /** `null` when the spent output is not one the wallet has seen. */
   value_sat: number | null;
   ours: boolean;
@@ -152,24 +150,15 @@ export interface TxOutput {
 }
 
 /** Everything the wallet knows about one transaction in its history. */
-export interface TxDetail {
-  txid: string;
-  net_sat: number;
-  sent_sat: number;
-  received_sat: number;
-  fee_sat: number | null;
+export interface TxDetail extends TxSummary {
   fee_rate_sat_vb: number | null;
-  confirmations: number | null;
   block_height: number | null;
-  timestamp: number | null;
   vsize: number;
   inputs: TxInput[];
   outputs: TxOutput[];
 }
 
-export interface PsbtInput {
-  txid: string;
-  vout: number;
+export interface PsbtInput extends CoinId {
   /** From our own history for an input of ours; what the PSBT claims for anyone else's. */
   value_sat: number | null;
   /** Going by this wallet's own history, never by what the PSBT claims. */

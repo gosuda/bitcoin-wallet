@@ -1346,10 +1346,14 @@ the new.
       open, then for every builder its exact call to the core and its preview, with sync,
       rescan and the shortened entries. `typeof api` is the same type, and the race fix is
       untouched
-- [ ] **9.13 The types and normalizers derive what repeats** · S · `types.ts`, `wasm/*`
+- [x] **9.13 The types and normalizers derive what repeats** · S · `types.ts`, `wasm/*`
       why: a transaction's detail restates its summary's seven fields, two inputs restate a
-      coin id, and the input normalizer is written twice · done when: the types are derived
-      and the shapes unchanged
+      coin id, and the input normalizer is written twice · done: 2026-10-02 — `TxDetail`
+      extends `TxSummary`, `TxInput` and `PsbtInput` extend `CoinId`, `BuiltTx` extends the
+      preview without its id, and one `toTxInput` reads both kinds of input, keeping the order
+      of their keys. A type-equality check (with a negative control) shows all four types
+      unchanged, and both normalizers give byte-identical results over the test fixtures, Map
+      rows, odd values and throwing inputs, 18 cases, on the old code and the new
 - [ ] **9.14 The wasm core loads once for every plain call** · S · `wasm/index.ts`
       why: five wrappers each await the loader, then call · done when: one `afterLoad`, with
       the load order pinned by a test on the old code
