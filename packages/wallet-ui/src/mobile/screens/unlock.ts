@@ -3,10 +3,11 @@ import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
-import { ADDRESS_TYPE_LABELS, errorMessage, NETWORK_LABELS } from "../../types";
+import { ADDRESS_TYPE_LABELS, NETWORK_LABELS } from "../../types";
 import { banner, el } from "../../ui/dom";
 import { shortId } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { forgetThisWallet } from "../../ui/settings";
 import { forgetWarning } from "../../ui/text";
 import { body, button, confirmDanger, header, historyReset, spacer, withBusy } from "../ui";
 
@@ -55,16 +56,7 @@ export function renderUnlock(): HTMLElement {
     // bare xpub are two of those ways, and the app offers both.
     text: forgetWarning(null),
     confirm: "Delete it",
-    onConfirm: async () => {
-      alert.hide();
-      try {
-        await api.forgetWallet();
-        session.remembered = null;
-        navigate("key");
-      } catch (e) {
-        alert.show("error", errorMessage(e));
-      }
-    },
+    onConfirm: () => forgetThisWallet(alert, "key"),
   });
 
   host.appendChild(header("Unlock"));

@@ -1,5 +1,4 @@
 import { api } from "../api";
-import { headlineSat } from "../balance";
 import { platform } from "../platform";
 import { navigate } from "../router";
 import { redirect, screenGuard } from "../screen";
@@ -16,19 +15,10 @@ import {
 } from "../types";
 import { chooseLockAfter, lockAfter } from "../ui/autolock";
 import { copyButton } from "../ui/clipboard";
-import {
-  banner,
-  button,
-  el,
-  formatSats,
-  kv,
-  mono,
-  radioGroup,
-  sectionLabel,
-  withBusy,
-} from "../ui/dom";
+import { banner, button, el, kv, mono, radioGroup, sectionLabel, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
+import { askForget, rescanAt } from "../ui/settings";
 import {
   copyDescriptorsLabel,
   forgetWarning,
@@ -143,21 +133,7 @@ export function renderSettings(): HTMLElement {
   );
   const rescanBtn = button(
     "Rescan",
-    () =>
-      withBusy(rescanBtn, async () => {
-        alert.hide();
-        try {
-          const balance = await api.rescan(Number(gap));
-          if (!onScreen()) return;
-          session.lastSyncedAt = new Date();
-          alert.show(
-            "ok",
-            `Rescanned with a gap of ${gap}: ${formatSats(headlineSat(balance))} in this wallet.`,
-          );
-        } catch (e) {
-          if (onScreen()) alert.show("error", errorMessage(e));
-        }
-      }),
+    () => withBusy(rescanBtn, () => rescanAt(() => gap, alert, onScreen)),
     "default",
     "md",
     { name: "refresh" },
@@ -218,47 +194,7 @@ export function renderSettings(): HTMLElement {
     }),
   );
   const forgetSlot = el("div", { className: "slot" });
-  const showForget = () => {
-    const yes = button(
-      "Delete it",
-      () =>
-        withBusy(yes, async () => {
-          alert.hide();
-          try {
-            await api.forgetWallet();
-            session.remembered = null;
-            navigate("key");
-          } catch (e) {
-            alert.show("error", errorMessage(e));
-          }
-        }),
-      "danger",
-    );
-    // Read out with the button, which alone says only "Delete it".
-    yes.setAttribute("aria-describedby", "forget-warning");
-    forgetSlot.replaceChildren(
-      el("section", { className: "card danger-card" }, [
-        el("span", {
-          className: "muted",
-          text: forgetWarning(wallet),
-          attrs: { id: "forget-warning" },
-        }),
-        el("div", { className: "actions actions-end" }, [
-          // Back to the trigger, as Unlock does: the focused button is gone.
-          button(
-            "Keep it",
-            () => {
-              forgetSlot.replaceChildren();
-              forgetBtn?.focus();
-            },
-            "quiet",
-          ),
-          yes,
-        ]),
-      ]),
-    );
-    yes.focus();
-  };
+  const showForget = () => askForget(forgetSlot, forgetBtn, forgetWarning(wallet), alert, false);
   // Without a working keystore there is no saved key to delete, and a stale
   // record can still say "remembered" on such a build.
   const forgetBtn =

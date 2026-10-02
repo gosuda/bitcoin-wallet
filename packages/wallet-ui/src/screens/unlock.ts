@@ -15,6 +15,7 @@ import { shortId } from "../ui/format";
 import { icon } from "../ui/icons";
 import { appPasswordField, KEYCHAIN_NAME } from "../ui/remember";
 import { historyReset } from "../ui/reset";
+import { askForget } from "../ui/settings";
 import { forgetWarning, OPENED_WITH, sentence } from "../ui/text";
 
 export function renderUnlock(): HTMLElement {
@@ -87,46 +88,7 @@ export function renderUnlock(): HTMLElement {
   // The second step Settings has, in the same words: what is deleted and
   // what brings the wallet back, then Keep it or Delete it.
   const confirmSlot = el("div", { className: "slot" });
-  // Focus goes back to the trigger: the button that had it is gone, and a
-  // keyboard or screen reader was left at the page. Found by cubic.
-  const closeConfirm = () => {
-    confirmSlot.replaceChildren();
-    forgetBtn.focus();
-  };
-  const showConfirm = () => {
-    const yes = button(
-      "Delete it",
-      () =>
-        withBusy(yes, async () => {
-          alert.hide();
-          try {
-            await api.forgetWallet();
-            session.remembered = null;
-            navigate("key");
-          } catch (e) {
-            alert.show("error", errorMessage(e));
-            closeConfirm();
-          }
-        }),
-      "danger",
-    );
-    // Read out with the button, which alone says only "Delete it".
-    yes.setAttribute("aria-describedby", "forget-warning");
-    confirmSlot.replaceChildren(
-      el("section", { className: "card danger-card" }, [
-        el("span", {
-          className: "muted",
-          text: forgetWarning(null),
-          attrs: { id: "forget-warning" },
-        }),
-        el("div", { className: "actions actions-end" }, [
-          button("Keep it", closeConfirm, "quiet"),
-          yes,
-        ]),
-      ]),
-    );
-    yes.focus();
-  };
+  const showConfirm = () => askForget(confirmSlot, forgetBtn, forgetWarning(null), alert, true);
   showTrigger();
 
   return el("main", { className: "screen" }, [

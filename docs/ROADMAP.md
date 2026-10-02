@@ -1447,10 +1447,15 @@ the new.
       what it returns is an empty `<main>` with no attributes) passed before and after, then
       was removed; the 251 dumped screen states are byte-identical to the base and the same 442
       tests pass
-- [ ] **9.22 Forget, Setup and Rescan, one way on both shells** · M · `ui/settings.ts`
+- [x] **9.22 Forget, Setup and Rescan, one way on both shells** · M · `ui/settings.ts`
       why: forgetting a wallet is written three times and its desktop card twice; Setup's
-      Continue and Rescan once per shell · done when: shared helpers, the failure paths
-      pinned by tests on the old code
+      Continue and Rescan once per shell · done: 2026-10-02 — `ui/settings.ts` has `saveSetup`,
+      `rescanAt`, `forgetThisWallet` and the desktop's `askForget` card; the phone's Settings
+      Forget keeps its own, since sharing it would hide a showing banner. 19 cases on the old
+      code first (a failing delete on desktop Settings, desktop Unlock and phone Unlock, with
+      the banner, focus and the card; Setup with no server on both shells; the phone's Rescan)
+      passed before and after, then were removed; the 251 dumped screen states are
+      byte-identical to the base and the same 442 tests pass
 - [ ] **9.23 One scan-in-place for the phone's Send and Import PSBT** · S · `mobile/*`
       why: 27 identical lines in both screens · done when: one helper
 - [ ] **9.24 The phone Restore's opener catches and offers the reset** · S ·
