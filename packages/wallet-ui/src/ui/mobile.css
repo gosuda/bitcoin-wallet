@@ -459,7 +459,9 @@ body {
   grid-column: 1 / -1;
 }
 
-.m-review .m-review-to {
+/* An address, shown whole: a payee here, an input's or output's in Import PSBT. */
+.m-review .m-review-to,
+.m-io-addr {
   font-family: var(--font-mono);
   font-size: 13px;
   overflow-wrap: anywhere;
@@ -515,33 +517,24 @@ body {
 
 /* Transactions ------------------------------------------------------------ */
 
+/* A history row is a button: it opens the transaction. */
 .m-txrow {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: 11px var(--space-4);
-  border-bottom: 1px solid var(--border);
-  min-height: var(--tap);
-  box-sizing: border-box;
-}
-
-.m-txrow:last-child {
-  border-bottom: none;
-}
-
-/* A history row is a button when it opens the transaction. */
-button.m-txrow {
-  width: 100%;
-  background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
+  min-height: var(--tap);
+  width: 100%;
+  background: transparent;
   font: inherit;
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-button.m-txrow:last-child {
+.m-txrow:last-child {
   border-bottom: none;
 }
 
@@ -1065,12 +1058,6 @@ button.m-txrow:active {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-}
-
-.m-io-addr {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  overflow-wrap: anywhere;
 }
 
 .m-io-note {

@@ -1570,9 +1570,19 @@ the new.
       light and dark, plus 23,970 focus, hover, press and invalid variants (101,251,872 values
       static, 3,823,296,384 in states): 0 differences from the base, the base against itself 0,
       and a deliberate edit in each channel caught
-- [ ] **9.37 What two screens draw alike is styled once** · S · `app.css`, `mobile.css`
-      why: Unlock and Result build the same card, a history row is styled in two rules, a
-      table heading restates the label rule · done when: the same computed styles
+- [x] **9.37 What two screens draw alike is styled once** · S · `app.css`, `mobile.css`
+      why: Unlock and Result build the same card, a history row is styled in two rules, a table
+      heading restates the label rule · done: 2026-10-02 — Unlock's and Result's card, head,
+      circle and title share one block, with only the circles' colours and Result's alignment
+      their own; `button.m-txrow` folds into `.m-txrow` (every history row is a button), a dead
+      `:last-child` rule with it; `th` joins the label rule it repeated, and `.m-io-addr` the
+      review's whole-address rule. The coin tick's focus ring keeps its own rule, since Biome
+      warns about it in the shared list. focus.test.ts still finds its rules, and Chrome
+      computed every non-custom property of every element and its ::before, ::after and
+      ::placeholder in all 251 dumped states, desktop at 1024 px and phone at 390 and 320 px,
+      light and dark, plus 23,970 focus, hover, press and invalid variants (101,251,872 values
+      static, 3,823,296,384 in states): 0 differences from the base, the base against itself 0,
+      and a deliberate edit in each channel caught
 
 **The generator and CI**
 
