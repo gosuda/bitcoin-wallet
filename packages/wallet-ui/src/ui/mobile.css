@@ -22,14 +22,11 @@
 /* The shell owns scrolling, so the page itself never bounces. */
 html,
 body {
-  height: 100%;
   overflow: hidden;
 }
 
 #app {
   height: 100%;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 
@@ -62,10 +59,7 @@ body {
 }
 
 .m-head h1 {
-  margin: 0;
   font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
   text-align: center;
   flex: 1;
   min-width: 0;
@@ -120,7 +114,6 @@ body {
 }
 
 .m-lede {
-  margin: 0;
   font-size: 15px;
   line-height: 1.5;
   color: var(--muted);
@@ -314,10 +307,6 @@ body {
   display: none;
 }
 
-.m-body input.input-invalid {
-  border-color: var(--danger);
-}
-
 .m-optional {
   font-weight: 400;
   text-transform: none;
@@ -344,14 +333,9 @@ body {
   font: inherit;
   font-family: var(--font-mono);
   font-size: 16px;
-  width: 100%;
   min-height: 96px;
   padding: var(--space-3) 14px;
-  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--fg);
-  resize: vertical;
 }
 
 /* A chip group in a row sits next to the field it modifies, so it keeps its
@@ -782,7 +766,6 @@ button.m-txrow:active {
   font-size: 16px;
   text-align: left;
   cursor: pointer;
-  box-sizing: border-box;
 }
 
 .m-item:last-child {
@@ -1052,10 +1035,6 @@ button.m-txrow:active {
    16px floor rather than the board's 12px: anything smaller zooms iOS in. */
 .m-body .m-psbt-field {
   word-break: break-all;
-}
-
-.m-body textarea.input-invalid {
-  border-color: var(--danger);
 }
 
 .m-psbt,

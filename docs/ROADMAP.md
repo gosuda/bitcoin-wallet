@@ -1558,10 +1558,18 @@ the new.
 
 **The stylesheets**
 
-- [ ] **9.36 CSS that never applies, or repeats what applies, goes** · S · `*.css`
+- [x] **9.36 CSS that never applies, or repeats what applies, goes** · S · `*.css`
       why: an `h2` rule with no `<h2>`, a banner kind no code shows, two unused tokens, and
-      phone declarations that repeat what app.css already gives the same element · done
-      when: Chrome computes the same style for every element of every dumped state
+      phone declarations that repeat what app.css already gives the same element · done:
+      2026-10-02 — the `h2` rule (no screen makes an `<h2>`), `.banner-info` with `"info"` in
+      `BannerKind` (no call passes it), `--text-lg` and `--text-xl` (nothing reads them), the
+      phone's redundant `input.input-invalid` and its textarea patch, and phone declarations
+      app.css already gives the same elements go; the two defensive select rules stay. Chrome
+      computed every non-custom property of every element and its ::before, ::after and
+      ::placeholder in all 251 dumped states, desktop at 1024 px and phone at 390 and 320 px,
+      light and dark, plus 23,970 focus, hover, press and invalid variants (101,251,872 values
+      static, 3,823,296,384 in states): 0 differences from the base, the base against itself 0,
+      and a deliberate edit in each channel caught
 - [ ] **9.37 What two screens draw alike is styled once** · S · `app.css`, `mobile.css`
       why: Unlock and Result build the same card, a history row is styled in two rules, a
       table heading restates the label rule · done when: the same computed styles

@@ -236,7 +236,7 @@ export function radioGroup<T extends string>(
   return group;
 }
 
-export type BannerKind = "error" | "ok" | "warn" | "info";
+export type BannerKind = "error" | "ok" | "warn";
 
 export interface Banner {
   node: HTMLElement;

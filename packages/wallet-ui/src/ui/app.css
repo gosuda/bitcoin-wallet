@@ -151,12 +151,6 @@ h1 {
   letter-spacing: -0.01em;
 }
 
-h2 {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: 600;
-}
-
 p {
   margin: 0;
 }
@@ -539,12 +533,6 @@ textarea.input-invalid {
 .banner-warn {
   border-left-color: var(--accent);
   background: var(--warn-bg);
-  color: var(--fg);
-}
-
-.banner-info {
-  border-left-color: var(--muted);
-  background: var(--subtle);
   color: var(--fg);
 }
 
