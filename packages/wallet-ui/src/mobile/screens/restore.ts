@@ -3,8 +3,9 @@ import { navigate } from "../../router";
 import { routeGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type WordCount } from "../../types";
-import { banner, el, textInput } from "../../ui/dom";
+import { type Banner, banner, el, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
+import type { HistoryReset } from "../../ui/reset";
 import {
   KEY_SHOWN_ONCE,
   MISSING_WORDS,
@@ -49,24 +50,28 @@ export function renderRestore(): HTMLElement {
 /**
  * The open behind each door's button; `reset` goes through the api's history
  * reset. The wallet is open once it returns, whatever screen is up by then,
- * but only the door still on screen moves on to it.
+ * but only the door still on screen moves on to it, or offers a reset for a
+ * failure, which runs `again`.
  */
-function openWith(
-  secret: () => string,
-  remember: () => boolean,
-  passphrase: () => string | undefined,
-  alert: ReturnType<typeof banner>,
-  onScreen: () => boolean,
-) {
-  return async (reset = false) => {
+async function openWith(
+  secret: string,
+  remember: boolean,
+  passphrase: string | undefined,
+  { alert, offer, onScreen }: { alert: Banner; offer: HistoryReset; onScreen: () => boolean },
+  reset: boolean,
+  again: () => Promise<void>,
+): Promise<void> {
+  try {
     alert.hide();
     const cfg = session.config;
     if (!cfg) return navigate("setup");
     const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-    await open(secret(), cfg.address_type, remember(), passphrase());
+    await open(secret, cfg.address_type, remember, passphrase);
     session.remembered = await api.getRemembered();
     if (onScreen()) navigate("dashboard");
-  };
+  } catch (e) {
+    if (onScreen()) offer.report(e, again);
+  }
 }
 
 function phrase(): HTMLElement {
@@ -143,6 +148,7 @@ function phrase(): HTMLElement {
   // rebuilt for 24 words after this is armed.
   wipeOnLeave(() => [...inputs, passphrase]);
 
+  const door = { alert, offer, onScreen };
   const restore = async (reset = false): Promise<void> => {
     const typed = inputs.map((i) => i.value.trim().toLowerCase()).filter(Boolean);
     // Every cell first, as the desktop waits for: a blank before an unknown
@@ -159,17 +165,9 @@ function phrase(): HTMLElement {
       if (onScreen()) alert.show("error", phraseError(errorMessage(e), typed));
       return;
     }
-    try {
-      await openWith(
-        () => words,
-        () => remember.checked(),
-        () => passphrase.value || undefined,
-        alert,
-        onScreen,
-      )(reset);
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => restore(true));
-    }
+    await openWith(words, remember.checked(), passphrase.value || undefined, door, reset, () =>
+      restore(true),
+    );
   };
   const go = button("Restore wallet", () => withBusy(go, restore), {
     variant: "primary",
@@ -212,19 +210,9 @@ function singleKey(): HTMLElement {
   secret.setAttribute("autocorrect", "off");
   wipeOnLeave(() => [secret]);
 
-  const open = async (reset = false): Promise<void> => {
-    try {
-      await openWith(
-        () => secret.value.trim(),
-        () => remember.checked(),
-        () => undefined,
-        alert,
-        onScreen,
-      )(reset);
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => open(true));
-    }
-  };
+  const door = { alert, offer, onScreen };
+  const open = (reset = false): Promise<void> =>
+    openWith(secret.value.trim(), remember.checked(), undefined, door, reset, () => open(true));
   const go = button("Open wallet", () => withBusy(go, open), { variant: "primary", block: true });
 
   const generate = button("Generate new key", async () => {
@@ -279,19 +267,9 @@ function watchOnly(): HTMLElement {
   // future address — the same reason Export warns before it is shared.
   wipeOnLeave(() => [source]);
 
-  const follow = async (reset = false): Promise<void> => {
-    try {
-      await openWith(
-        () => source.value.trim(),
-        () => remember.checked(),
-        () => undefined,
-        alert,
-        onScreen,
-      )(reset);
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => follow(true));
-    }
-  };
+  const door = { alert, offer, onScreen };
+  const follow = (reset = false): Promise<void> =>
+    openWith(source.value.trim(), remember.checked(), undefined, door, reset, () => follow(true));
   const go = button("Follow this wallet", () => withBusy(go, follow), {
     variant: "primary",
     block: true,

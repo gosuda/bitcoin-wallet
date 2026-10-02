@@ -1464,9 +1464,13 @@ the new.
       through a scan. 17 cases on the old code first (scans, cancels, a refusing camera on both
       screens, leaving Import PSBT mid-scan) passed before and after, then were removed; the
       251 dumped screen states are byte-identical to the base and the same 442 tests pass
-- [ ] **9.24 The phone Restore's opener catches and offers the reset** · S ·
+- [x] **9.24 The phone Restore's opener catches and offers the reset** · S ·
   `mobile/screens/restore.ts`
-      why: three identical try/catch blocks around it · done when: once, inside
+      why: three identical try/catch blocks around it · done: 2026-10-02 — `openWith` takes the
+      values, the door's banner, offer and on-screen test, and a retry, and catches inside; the
+      phrase door still retries through `restore(true)`, which checks the words again. 18 cases
+      on the old code first passed before and after, then were removed; the 251 dumped screen
+      states are byte-identical to the base and the same 442 tests pass
 - [ ] **9.25 One guard and render loop for both shells** · S · `app.ts`, `mobile/shell.ts`
       why: the same guard read, redirect and hashchange wiring in each shell · done when:
       one `listen`
