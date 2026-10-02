@@ -1,9 +1,5 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
 import { api, canUnlockHere } from "../src/api";
 import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";

@@ -1426,9 +1426,15 @@ the new.
       record, so one shared record is safe, and the Node-environment sealed tests load nothing
       new at run time. The same 442 tests pass, and the 251 screen states the suite reaches
       dump byte-identical to the base (field values, checkedness, focus and the URL with them)
-- [ ] **9.33 The wasm core and IndexedDB are mocked for every file at once** · S ·
+- [x] **9.33 The wasm core and IndexedDB are mocked for every file at once** · S ·
   `vitest.config.ts`
-      why: twelve files open with the same two mocks · done when: a setup file holds them
+      why: twelve files open with the same two mocks · done: 2026-10-02 — `test/setup-fakes.ts`
+      makes the two mocks for every file, and says a test of either real module must
+      `vi.unmock` it. Shown first on vitest 5.0.2: a file stripped of its own mocks passed and
+      was the only one whose factories ran, it failed without the setup file, and only the
+      twelve files reach either module. The same 442 tests pass, with the same console output,
+      and the 251 screen states the suite reaches dump byte-identical to the base (field
+      values, checkedness, focus and the URL with them)
 - [ ] **9.34 The PSBT and autolock tests open their screens through local helpers** · S
       why: the same two or three opening lines twenty times in one file and eleven in the
       other · done when: a helper each

@@ -4,8 +4,8 @@
  * the IndexedDB persister replaced (`fakes.ts`). So what fails is a screen's
  * own handling of secrets, errors and work that outlives it.
  *
- * A test file mocks both modules at its top, as `fakes.ts` shows, and calls
- * `useScreenHarness()` once in its body.
+ * The fakes are in place for every file (`setup-fakes.ts`); a test file
+ * calls `useScreenHarness()` once in its body.
  */
 
 import { afterEach, beforeEach, vi } from "vitest";

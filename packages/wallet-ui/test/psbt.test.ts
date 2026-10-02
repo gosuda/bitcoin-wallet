@@ -1,10 +1,6 @@
 /** @vitest-environment jsdom */
 import { Buffer } from "node:buffer";
 import { describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
 import { api } from "../src/api";
 import { renderPsbt as renderPhonePsbt } from "../src/mobile/screens/psbt";
 import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";

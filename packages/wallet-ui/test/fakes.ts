@@ -1,9 +1,7 @@
 /*
  * What jsdom cannot provide to the screens: the WebAssembly wrapper and the
- * IndexedDB persister. A screen test replaces both with these, at its top:
- *
- *   vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
- *   vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
+ * IndexedDB persister. `setup-fakes.ts` puts these in their place for every
+ * test file.
  *
  * This module imports nothing that imports the wasm wrapper, so a mock
  * factory can load it. The helpers that drive screens are in `harness.ts`.

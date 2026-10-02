@@ -1,9 +1,5 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("../src/wasm", async () => (await import("./fakes")).wasmModule);
-vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persistModule);
-
 import { api } from "../src/api";
 import { platform, setPlatform } from "../src/platform";
 import { session } from "../src/session";
