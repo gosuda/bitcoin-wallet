@@ -1471,9 +1471,15 @@ the new.
       phrase door still retries through `restore(true)`, which checks the words again. 18 cases
       on the old code first passed before and after, then were removed; the 251 dumped screen
       states are byte-identical to the base and the same 442 tests pass
-- [ ] **9.25 One guard and render loop for both shells** · S · `app.ts`, `mobile/shell.ts`
-      why: the same guard read, redirect and hashchange wiring in each shell · done when:
-      one `listen`
+- [x] **9.25 One guard and render loop for both shells** · S · `app.ts`, `mobile/shell.ts`
+      why: the same guard read, redirect and hashchange wiring in each shell · done: 2026-10-02
+      — `listen(shell, draw, hasTxid)` in `app.ts` reads the guard's state, sends a refused
+      route on, clears `#app` and draws; each shell passes its own `draw`, and only the phone
+      has a stashed txid. No import cycle, and the browser build carries none of the phone's
+      code. 5 cases on the old code first (among them the phone at a transaction with no txid
+      landing on the wallet, and the desktop at an unknown route drawing Setup) passed before
+      and after, then were removed; the 251 dumped screen states are byte-identical to the base
+      and the same 442 tests pass
 - [ ] **9.26 One heading helper for the desktop's screens** · S · `screen.ts`
       why: the same `screen-head` block on nine screens · done when: one `screenHead`
 - [ ] **9.27 The phone's containers, ledes and counts use the shared helpers** · S ·
