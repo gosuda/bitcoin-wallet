@@ -1270,12 +1270,16 @@ the new.
 
 **The core and the CLI**
 
-- [ ] **9.1 The core's tests share their fixtures** · M · `wallet.rs` (tests)
+- [x] **9.1 The core's tests share their fixtures** · M · `wallet.rs` (tests)
       why: one recipient is written out in ten lines sixteen times, a coin id in five lines
       seven times, a persister twice under two names, and two reviewed-size tests and two
-      replaceability checks are each one body written twice · done when: the same 95 tests
-      check the same things, through `pay_to`, `elsewhere`, `coin_at`, `funded` and one
-      reviewed-size body
+      replaceability checks are each one body written twice · done: 2026-10-02 — `pay_to`,
+      `elsewhere`, `coin_at`, `frozen_ids` and `funded` stand for what the tests wrote out;
+      `Recorder` gives way to `SharedPersister`, the reload test uses `open_from`, the
+      replaceability checks run in one loop over both transactions, and the two reviewed-size
+      tests share one body, which now also asserts each test's input count. 364 lines out, 137
+      in. The same 107 test names (the core's and the CLI's) pass before and after, and every
+      assertion that left a test body runs in the helper or loop that took its place
 - [ ] **9.2 One mock backend, shared by its clones** · S · `backend/mock.rs`, `wallet.rs`
       why: a 27-line forwarding backend exists only so a test can keep a handle on what the
       mock recorded, and the mock carries two canned answers no test sets · done when: clones

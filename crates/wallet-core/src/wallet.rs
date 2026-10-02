@@ -1770,12 +1770,14 @@ mod tests {
     }
 
     async fn fund(handle: &WalletHandle, sats: u64) {
-        let mut inner = handle.inner.lock().await;
-        let spk = receiving_script(&inner.wallet);
-        inner
-            .wallet
-            .apply_unconfirmed_txs([(funding_tx(spk, sats), 1)]);
-        WalletHandle::persist(&mut inner).await.unwrap();
+        fund_values(handle, &[sats]).await;
+    }
+
+    /// A single-key wallet of type `t` holding one unconfirmed coin of `sats`.
+    async fn funded(t: AddressType, sats: u64) -> (WalletHandle, Arc<MockBackend>) {
+        let (handle, mock) = open(t).await;
+        fund(&handle, sats).await;
+        (handle, mock)
     }
 
     /// Several spendable outputs on one address. Calling `fund` twice cannot
@@ -1858,6 +1860,11 @@ mod tests {
             .clone()
     }
 
+    /// Somewhere outside the wallet: a fresh key's address.
+    fn elsewhere() -> String {
+        dest(AddressType::P2wpkh)
+    }
+
     /// A recipient that does not change between runs.
     ///
     /// `dest` makes a fresh key each call, so the transaction paying it has a
@@ -1869,6 +1876,17 @@ mod tests {
             "0000000000000000000000000000000000000000000000000000000000000002".into(),
         );
         crate::keys::address_for_key(&key, Network::Regtest, t).unwrap()
+    }
+
+    fn pay_to(address: String, amount_sat: u64) -> Vec<Recipient> {
+        vec![Recipient {
+            address,
+            amount_sat,
+        }]
+    }
+
+    fn pay(amount_sat: u64) -> Vec<Recipient> {
+        pay_to(elsewhere(), amount_sat)
     }
 
     #[tokio::test]
@@ -1887,13 +1905,7 @@ mod tests {
             assert_eq!(handle.list_utxos().await[0].address, handle.address().await);
 
             let built = handle
-                .build_transfer(
-                    &[Recipient {
-                        address: dest(AddressType::P2wpkh),
-                        amount_sat: 40_000,
-                    }],
-                    2.0,
-                )
+                .build_transfer(&pay(40_000), 2.0)
                 .await
                 .unwrap_or_else(|e| panic!("{t:?}: {e}"));
             assert_eq!(built.total_out_sat, 40_000);
@@ -1933,37 +1945,46 @@ mod tests {
             AddressType::NestedP2wpkh,
             AddressType::P2tr,
         ] {
-            let (handle, mock) = open(t).await;
-            fund(&handle, 100_000).await;
-            let rate = 3.0;
-            let built = handle
-                .build_transfer(
-                    &[Recipient {
-                        address: fixed_dest(AddressType::P2wpkh),
-                        amount_sat: 40_000,
-                    }],
-                    rate,
-                )
-                .await
-                .unwrap_or_else(|e| panic!("{t:?}: {e}"));
-
-            let reads_as = built.fee_sat as f64 / built.vsize as f64;
-            assert!(
-                (reads_as - rate).abs() < 0.05,
-                "{t:?}: {} sat over {} vB reads as {reads_as:.2} sat/vB, {rate} was asked for",
-                built.fee_sat,
-                built.vsize
-            );
-
-            let signed = handle.sign(&built.psbt_base64).await.unwrap();
-            handle.broadcast(&signed).await.unwrap();
-            let broadcast = mock.broadcasts.lock().unwrap()[0].vsize() as u64;
-            assert!(
-                built.vsize >= broadcast && built.vsize - broadcast <= 2,
-                "{t:?}: reviewed {} vB, broadcast {broadcast} vB",
-                built.vsize
-            );
+            check_reviewed_size(t, &[100_000], 40_000, 1).await;
         }
+    }
+
+    /// Fund a single key of type `t` with `coins`, pay `amount_sat` out of
+    /// `inputs` of them at 3 sat/vB, and hold the review to what goes out:
+    /// its fee over its size reads as the rate asked for, and its size is
+    /// never under the broadcast one, nor more than 2 vB per input over it.
+    async fn check_reviewed_size(t: AddressType, coins: &[u64], amount_sat: u64, inputs: u32) {
+        let (handle, mock) = open(t).await;
+        fund_values(&handle, coins).await;
+        let rate = 3.0;
+        let built = handle
+            .build_transfer(&pay_to(fixed_dest(AddressType::P2wpkh), amount_sat), rate)
+            .await
+            .unwrap_or_else(|e| panic!("{t:?}: {e}"));
+        assert_eq!(built.input_count, inputs, "{t:?} needs every output");
+
+        let reads_as = built.fee_sat as f64 / built.vsize as f64;
+        assert!(
+            (reads_as - rate).abs() < 0.05,
+            "{t:?}: {} sat over {} vB reads as {reads_as:.2} sat/vB, {rate} was asked for",
+            built.fee_sat,
+            built.vsize
+        );
+
+        let signed = handle.sign(&built.psbt_base64).await.unwrap();
+        handle.broadcast(&signed).await.unwrap();
+        let broadcast = mock.broadcasts.lock().unwrap()[0].vsize() as u64;
+        // Never under the real size — that is the half that protects the
+        // reader — and not far over it. The descriptor's maximum assumes a
+        // 73-byte signature; a real low-S DER signature is 71 or 72, and
+        // shorter again when r or s carry leading zeros, so for a legacy
+        // input, where every scriptSig byte is a vbyte, the estimate runs a
+        // byte or two per input high.
+        assert!(
+            built.vsize >= broadcast && built.vsize - broadcast <= 2 * u64::from(inputs),
+            "{t:?}: reviewed {} vB, broadcast {broadcast} vB",
+            built.vsize
+        );
     }
 
     /// History shows both sides of a spend: the incoming funding and the
@@ -1983,13 +2004,7 @@ mod tests {
         assert_eq!(history[0].confirmations, None, "funding tx is unconfirmed");
 
         let built = handle
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2tr),
-                    amount_sat: 40_000,
-                }],
-                2.0,
-            )
+            .build_transfer(&pay_to(dest(AddressType::P2tr), 40_000), 2.0)
             .await
             .unwrap();
         let signed = handle.sign(&built.psbt_base64).await.unwrap();
@@ -2011,16 +2026,9 @@ mod tests {
 
     #[tokio::test]
     async fn send_uses_estimate_and_floor() {
-        let (handle, mock) = open(AddressType::P2wpkh).await;
-        fund(&handle, 50_000).await;
+        let (handle, mock) = funded(AddressType::P2wpkh, 50_000).await;
         handle
-            .send(
-                &[Recipient {
-                    address: dest(AddressType::P2tr),
-                    amount_sat: 10_000,
-                }],
-                None,
-            )
+            .send(&pay_to(dest(AddressType::P2tr), 10_000), None)
             .await
             .unwrap();
         assert_eq!(mock.broadcasts.lock().unwrap().len(), 1);
@@ -2030,18 +2038,8 @@ mod tests {
     /// still get the txid and be able to tell this apart from a failed send.
     #[tokio::test]
     async fn broadcast_reports_persist_failure_separately() {
-        let (handle, mock) = open(AddressType::P2wpkh).await;
-        fund(&handle, 50_000).await;
-        let built = handle
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2wpkh),
-                    amount_sat: 10_000,
-                }],
-                1.0,
-            )
-            .await
-            .unwrap();
+        let (handle, mock) = funded(AddressType::P2wpkh, 50_000).await;
+        let built = handle.build_transfer(&pay(10_000), 1.0).await.unwrap();
         let signed = handle.sign(&built.psbt_base64).await.unwrap();
         handle.inner.lock().await.fail_next_persist = true;
 
@@ -2110,13 +2108,7 @@ mod tests {
         .unwrap();
         fund(&h2, 50_000).await;
         let built = h2
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2tr),
-                    amount_sat: 10_000,
-                }],
-                1.0,
-            )
+            .build_transfer(&pay_to(dest(AddressType::P2tr), 10_000), 1.0)
             .await
             .unwrap();
         let signed = h2.sign(&built.psbt_base64).await.unwrap();
@@ -2133,35 +2125,18 @@ mod tests {
 
     #[tokio::test]
     async fn build_rejects_bad_input() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 50_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 50_000).await;
         assert!(matches!(
             handle.build_transfer(&[], 1.0).await,
             Err(Error::BuildTx(_))
         ));
         let mainnet = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".to_string();
         assert!(matches!(
-            handle
-                .build_transfer(
-                    &[Recipient {
-                        address: mainnet,
-                        amount_sat: 1
-                    }],
-                    1.0
-                )
-                .await,
+            handle.build_transfer(&pay_to(mainnet, 1), 1.0).await,
             Err(Error::InvalidAddress(_))
         ));
         assert!(matches!(
-            handle
-                .build_transfer(
-                    &[Recipient {
-                        address: dest(AddressType::P2wpkh),
-                        amount_sat: 1_000_000
-                    }],
-                    1.0
-                )
-                .await,
+            handle.build_transfer(&pay(1_000_000), 1.0).await,
             Err(Error::InsufficientFunds { .. })
         ));
     }
@@ -2192,13 +2167,7 @@ mod tests {
         );
 
         let built = handle
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2tr),
-                    amount_sat: 40_000,
-                }],
-                2.0,
-            )
+            .build_transfer(&pay_to(dest(AddressType::P2tr), 40_000), 2.0)
             .await
             .unwrap();
         assert!(built.change_sat > 0, "the spend must produce change");
@@ -2279,8 +2248,8 @@ mod tests {
         assert!(fee_rate_from_sat_vb(MAX_FEE_RATE_SAT_VB).is_ok());
     }
 
-    /// Persister sharing one aggregated changeset between handles, so a
-    /// second handle opens what the first one saved.
+    /// Everything the wallet asked to have written, as one changeset shared
+    /// between handles, so a second handle opens what the first one saved.
     #[derive(Clone, Default)]
     struct SharedPersister(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
 
@@ -2301,17 +2270,9 @@ mod tests {
     /// — the same path IndexedDB takes: one aggregated changeset per wallet.
     #[tokio::test]
     async fn persists_and_reloads_through_persister() {
-        let key = KeyMaterial::PrivHex(SK_HEX.into());
         let store = SharedPersister::default();
 
-        let a = WalletHandle::open_with(
-            cfg(AddressType::P2wpkh),
-            &key,
-            Box::new(MockBackend::default()),
-            Box::new(store.clone()),
-        )
-        .await
-        .unwrap();
+        let a = open_from(&store).await;
         fund(&a, 1234).await;
         let address = a.address().await;
         drop(a);
@@ -2325,14 +2286,7 @@ mod tests {
         crate::persist::Persister::persist(&mut reloaded, &restored)
             .await
             .unwrap();
-        let b = WalletHandle::open_with(
-            cfg(AddressType::P2wpkh),
-            &key,
-            Box::new(MockBackend::default()),
-            Box::new(reloaded),
-        )
-        .await
-        .unwrap();
+        let b = open_from(&reloaded).await;
         assert_eq!(b.balance().await.total(), 1234);
         assert_eq!(b.address().await, address);
     }
@@ -2356,16 +2310,9 @@ mod tests {
 
     #[tokio::test]
     async fn insufficient_funds_carries_amounts() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 10_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 10_000).await;
         let err = handle
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2wpkh),
-                    amount_sat: 1_000_000,
-                }],
-                1.0,
-            )
+            .build_transfer(&pay(1_000_000), 1.0)
             .await
             .unwrap_err();
         assert_eq!(err.code(), "insufficient_funds");
@@ -2387,18 +2334,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_dust_output_is_refused_by_amount_not_lumped_into_build_tx() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
-        let err = handle
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2wpkh),
-                    amount_sat: 1,
-                }],
-                2.0,
-            )
-            .await
-            .unwrap_err();
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let err = handle.build_transfer(&pay(1), 2.0).await.unwrap_err();
         assert_eq!(err.code(), "dust");
         assert!(matches!(err, Error::Dust { .. }), "{err:?}");
     }
@@ -2415,8 +2352,7 @@ mod tests {
 
     #[tokio::test]
     async fn bumping_an_unknown_transaction_is_refused_as_not_replaceable() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         let unknown = bdk_wallet::bitcoin::Txid::from_str(&"22".repeat(32)).unwrap();
         let err = handle
             .build_fee_bump(&unknown.to_string(), 5.0)
@@ -2425,15 +2361,24 @@ mod tests {
         assert_eq!(err.code(), "not_replaceable");
     }
 
-    fn coin_id(u: &Utxo) -> CoinId {
+    fn coin_at(txid: impl Into<String>, vout: u32) -> CoinId {
         CoinId {
-            txid: u.txid.clone(),
-            vout: u.vout,
+            txid: txid.into(),
+            vout,
         }
+    }
+
+    fn coin_id(u: &Utxo) -> CoinId {
+        coin_at(&u.txid, u.vout)
     }
 
     async fn coin_ids(handle: &WalletHandle) -> Vec<CoinId> {
         handle.list_utxos().await.iter().map(coin_id).collect()
+    }
+
+    async fn frozen_ids(handle: &WalletHandle) -> Vec<CoinId> {
+        let utxos = handle.list_utxos().await;
+        utxos.iter().filter(|u| u.frozen).map(coin_id).collect()
     }
 
     /// Coins as sortable pairs: BDK shuffles a transaction's inputs.
@@ -2453,19 +2398,9 @@ mod tests {
             .unsigned_tx
             .input
             .iter()
-            .map(|i| CoinId {
-                txid: i.previous_output.txid.to_string(),
-                vout: i.previous_output.vout,
-            })
+            .map(|i| coin_at(i.previous_output.txid.to_string(), i.previous_output.vout))
             .collect();
         sorted(&coins)
-    }
-
-    fn pay(amount_sat: u64) -> Vec<Recipient> {
-        vec![Recipient {
-            address: dest(AddressType::P2wpkh),
-            amount_sat,
-        }]
     }
 
     /// Freezing moves a coin out of what can be spent and into a part of the
@@ -2480,23 +2415,13 @@ mod tests {
         assert_eq!(before.frozen, 0);
 
         handle.set_frozen(&coins[0], true).await.unwrap();
-        let frozen: Vec<CoinId> = handle
-            .list_utxos()
-            .await
-            .iter()
-            .filter(|u| u.frozen)
-            .map(coin_id)
-            .collect();
-        assert_eq!(frozen, vec![coins[0].clone()]);
+        assert_eq!(frozen_ids(&handle).await, vec![coins[0].clone()]);
         let after = handle.balance().await;
         assert_eq!(after.frozen, 50_000);
         assert_eq!(after.total(), before.total(), "a frozen coin is still ours");
         assert_eq!(after.total() - after.frozen, 100_000);
 
-        let max = handle
-            .build_drain(&dest(AddressType::P2wpkh), 2.0)
-            .await
-            .unwrap();
+        let max = handle.build_drain(&elsewhere(), 2.0).await.unwrap();
         assert_eq!(spent(&max), sorted(&coins[1..]));
         assert_eq!(max.total_out_sat + max.fee_sat, 100_000);
 
@@ -2515,10 +2440,7 @@ mod tests {
 
         handle.set_frozen(&coins[0], false).await.unwrap();
         assert_eq!(handle.balance().await, before);
-        let max = handle
-            .build_drain(&dest(AddressType::P2wpkh), 2.0)
-            .await
-            .unwrap();
+        let max = handle.build_drain(&elsewhere(), 2.0).await.unwrap();
         assert_eq!(spent(&max), sorted(&coins));
     }
 
@@ -2550,10 +2472,7 @@ mod tests {
         for coin in &coins[1..] {
             handle.set_frozen(coin, true).await.unwrap();
         }
-        let max = handle
-            .build_drain(&dest(AddressType::P2wpkh), 2.0)
-            .await
-            .unwrap_err();
+        let max = handle.build_drain(&elsewhere(), 2.0).await.unwrap_err();
         assert!(
             matches!(
                 max,
@@ -2596,10 +2515,7 @@ mod tests {
         handle.set_frozen(&big, true).await.unwrap();
 
         let payment = handle.build_transfer(&pay(5_000), 20.0).await.unwrap_err();
-        let max = handle
-            .build_drain(&dest(AddressType::P2wpkh), 10.0)
-            .await
-            .unwrap_err();
+        let max = handle.build_drain(&elsewhere(), 10.0).await.unwrap_err();
         for short in [payment, max] {
             assert!(
                 matches!(
@@ -2712,7 +2628,7 @@ mod tests {
         assert_eq!(short.code(), "insufficient_funds", "no other coin steps in");
 
         let drain = handle
-            .build_drain_from(&coins[..2], &dest(AddressType::P2wpkh), 2.0)
+            .build_drain_from(&coins[..2], &elsewhere(), 2.0)
             .await
             .unwrap();
         assert_eq!(spent(&drain), sorted(&coins[..2]));
@@ -2725,24 +2641,18 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(none.code(), "no_utxos");
-        let stranger = [CoinId {
-            txid: "22".repeat(32),
-            vout: 0,
-        }];
+        let stranger = [coin_at("22".repeat(32), 0)];
         let err = handle
             .build_transfer_from(&stranger, &pay(10_000), 2.0)
             .await
             .unwrap_err();
         assert_eq!(err.code(), "unknown_coin");
         let err = handle
-            .build_drain_from(&stranger, &dest(AddressType::P2wpkh), 2.0)
+            .build_drain_from(&stranger, &elsewhere(), 2.0)
             .await
             .unwrap_err();
         assert_eq!(err.code(), "unknown_coin");
-        let garbled = [CoinId {
-            txid: "zz".into(),
-            vout: 0,
-        }];
+        let garbled = [coin_at("zz", 0)];
         let err = handle
             .build_transfer_from(&garbled, &pay(10_000), 2.0)
             .await
@@ -2773,14 +2683,7 @@ mod tests {
         drop(first);
 
         let second = open_from(&store).await;
-        let frozen: Vec<CoinId> = second
-            .list_utxos()
-            .await
-            .iter()
-            .filter(|u| u.frozen)
-            .map(coin_id)
-            .collect();
-        assert_eq!(frozen, vec![coins[0].clone()]);
+        assert_eq!(frozen_ids(&second).await, vec![coins[0].clone()]);
         assert_eq!(second.balance().await.frozen, 50_000);
         second.set_frozen(&coins[0], false).await.unwrap();
         drop(second);
@@ -2792,24 +2695,17 @@ mod tests {
 
     #[tokio::test]
     async fn only_an_unspent_coin_of_ours_can_be_frozen() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         // The funding transaction's own input: seen, but never ours.
         for stranger in ["11", "22"] {
-            let coin = CoinId {
-                txid: stranger.repeat(32),
-                vout: 0,
-            };
+            let coin = coin_at(stranger.repeat(32), 0);
             let err = handle.set_frozen(&coin, true).await.unwrap_err();
             assert_eq!(err.code(), "unknown_coin");
             // Lifting a freeze that is not there is no error, so a coin spent
             // while frozen can always be cleared.
             handle.set_frozen(&coin, false).await.unwrap();
         }
-        let garbled = CoinId {
-            txid: "zz".into(),
-            vout: 0,
-        };
+        let garbled = coin_at("zz", 0);
         let err = handle.set_frozen(&garbled, true).await.unwrap_err();
         assert_eq!(err.code(), "invalid_txid");
         assert_eq!(handle.balance().await.frozen, 0);
@@ -2888,10 +2784,7 @@ mod tests {
         assert!(err.to_string().contains("not known"), "{err}");
 
         let (parent, _) = receive_paying_fee(&handle, 50_000, 100).await;
-        let coin = CoinId {
-            txid: parent.clone(),
-            vout: 0,
-        };
+        let coin = coin_at(&parent, 0);
         handle.set_frozen(&coin, true).await.unwrap();
         let err = handle.build_cpfp(&parent, 5.0).await.unwrap_err();
         assert_eq!(err.code(), "build_tx");
@@ -3078,8 +2971,7 @@ mod tests {
     /// is never asked to relay one.
     #[tokio::test]
     async fn broadcast_refuses_a_psbt_that_is_not_final() {
-        let (handle, mock) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, mock) = funded(AddressType::P2wpkh, 100_000).await;
         let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
         let err = handle.broadcast(&built.psbt_base64).await.unwrap_err();
         assert_eq!(err.code(), "psbt");
@@ -3091,8 +2983,7 @@ mod tests {
     /// left unsigned; ours is signed, and the whole cannot go out yet.
     #[tokio::test]
     async fn someone_elses_input_is_described_and_left_to_them() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
         let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
         let mut stranger = vec![0x00, 0x14];
@@ -3137,8 +3028,7 @@ mod tests {
     /// its amount. Signing refuses rather than sign whatever amount it says.
     #[tokio::test]
     async fn an_unseen_coin_of_ours_is_not_signed_on_the_psbts_word() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
         let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
         psbt.unsigned_tx.input[0].previous_output = OutPoint {
@@ -3183,8 +3073,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_psbt_reads_from_hex_as_from_base64() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
         let hex = Psbt::from_str(&built.psbt_base64).unwrap().serialize_hex();
         let from_hex = handle.import_psbt(&format!(" {hex}\n")).await.unwrap();
@@ -3198,12 +3087,8 @@ mod tests {
 
     #[tokio::test]
     async fn drain_builds_with_no_change_output() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
-        let built = handle
-            .build_drain(&dest(AddressType::P2wpkh), 2.0)
-            .await
-            .unwrap();
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let built = handle.build_drain(&elsewhere(), 2.0).await.unwrap();
         assert_eq!(built.change_sat, 0);
         assert_eq!(built.input_count, 1);
         assert_eq!(built.total_out_sat + built.fee_sat, 100_000);
@@ -3217,50 +3102,21 @@ mod tests {
     /// code. This pins the promise the fee-bump doc comment makes.
     #[tokio::test]
     async fn transfer_and_drain_signal_replaceability() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 200_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 200_000).await;
 
-        let transfer = handle
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2wpkh),
-                    amount_sat: 40_000,
-                }],
-                2.0,
-            )
-            .await
-            .unwrap();
-        let transfer_psbt = Psbt::from_str(&transfer.psbt_base64).unwrap();
-        assert!(
-            !transfer_psbt.unsigned_tx.input.is_empty(),
-            "the transfer must actually spend something"
-        );
-        assert!(
-            transfer_psbt
-                .unsigned_tx
-                .input
-                .iter()
-                .all(|i| i.sequence.is_rbf()),
-            "every input of a transfer must signal replaceability"
-        );
-
-        let drain = handle
-            .build_drain(&dest(AddressType::P2wpkh), 2.0)
-            .await
-            .unwrap();
-        let drain_psbt = Psbt::from_str(&drain.psbt_base64).unwrap();
-        assert!(
-            !drain_psbt.unsigned_tx.input.is_empty(),
-            "the drain must actually spend something"
-        );
-        assert!(
-            drain_psbt
-                .unsigned_tx
-                .input
-                .iter()
-                .all(|i| i.sequence.is_rbf()),
-            "every input of a drain must signal replaceability"
-        );
+        let transfer = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let drain = handle.build_drain(&elsewhere(), 2.0).await.unwrap();
+        for (what, built) in [("transfer", transfer), ("drain", drain)] {
+            let psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+            assert!(
+                !psbt.unsigned_tx.input.is_empty(),
+                "the {what} must actually spend something"
+            );
+            assert!(
+                psbt.unsigned_tx.input.iter().all(|i| i.sequence.is_rbf()),
+                "every input of a {what} must signal replaceability"
+            );
+        }
     }
 
     /// Sending to yourself is legitimate — consolidating, or moving to a
@@ -3286,13 +3142,7 @@ mod tests {
         fund(&handle, 100_000).await;
         let own = handle.address().await;
         let built = handle
-            .build_transfer(
-                &[Recipient {
-                    address: own,
-                    amount_sat: 40_000,
-                }],
-                2.0,
-            )
+            .build_transfer(&pay_to(own, 40_000), 2.0)
             .await
             .unwrap();
         assert_eq!(built.total_out_sat, 40_000);
@@ -3308,17 +3158,10 @@ mod tests {
     /// the wallet was spending its whole balance on a 40,000 sat transfer.
     #[tokio::test]
     async fn a_single_key_paying_itself_still_keeps_its_change() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         let own = handle.address().await;
         let built = handle
-            .build_transfer(
-                &[Recipient {
-                    address: own,
-                    amount_sat: 40_000,
-                }],
-                2.0,
-            )
+            .build_transfer(&pay_to(own, 40_000), 2.0)
             .await
             .unwrap();
         assert_eq!(built.total_out_sat, 40_000, "one payment, not both outputs");
@@ -3333,44 +3176,7 @@ mod tests {
     #[tokio::test]
     async fn a_multi_input_review_keeps_the_rate_and_stays_an_upper_bound() {
         for t in [AddressType::P2pkh, AddressType::P2wpkh] {
-            let (handle, mock) = open(t).await;
-            fund_with_outputs(&handle, 4, 30_000).await;
-            let rate = 3.0;
-            let built = handle
-                .build_transfer(
-                    &[Recipient {
-                        address: fixed_dest(AddressType::P2wpkh),
-                        amount_sat: 115_000,
-                    }],
-                    rate,
-                )
-                .await
-                .unwrap_or_else(|e| panic!("{t:?}: {e}"));
-            assert_eq!(built.input_count, 4, "{t:?} needs every output");
-
-            let reads_as = built.fee_sat as f64 / built.vsize as f64;
-            assert!(
-                (reads_as - rate).abs() < 0.05,
-                "{t:?}: {} sat over {} vB reads as {reads_as:.2} sat/vB",
-                built.fee_sat,
-                built.vsize
-            );
-
-            let signed = handle.sign(&built.psbt_base64).await.unwrap();
-            handle.broadcast(&signed).await.unwrap();
-            let broadcast = mock.broadcasts.lock().unwrap()[0].vsize() as u64;
-            // Never under the real size — that is the half that protects the
-            // reader — and not far over it. The descriptor's maximum assumes a
-            // 73-byte signature; a real low-S DER signature is 71 or 72, and
-            // shorter again when r or s carry leading zeros, so for a legacy
-            // input, where every scriptSig byte is a vbyte, the estimate runs a
-            // byte or two per input high.
-            assert!(
-                built.vsize >= broadcast
-                    && built.vsize - broadcast <= 2 * u64::from(built.input_count),
-                "{t:?}: reviewed {} vB, broadcast {broadcast} vB",
-                built.vsize
-            );
+            check_reviewed_size(t, &[30_000; 4], 115_000, 4).await;
         }
     }
 
@@ -3385,13 +3191,7 @@ mod tests {
         assert_eq!(key.address.len(), 66, "{}", key.address);
 
         let opened = WalletHandle::open_with(
-            WalletConfig {
-                network: Network::Regtest,
-                address_type: AddressType::P2pk,
-                backend: BackendConfig::Esplora {
-                    url: "http://127.0.0.1:1".into(),
-                },
-            },
+            cfg(AddressType::P2pk),
             &KeyMaterial::PrivHex(key.priv_hex.clone()),
             Box::new(MockBackend::default()),
             Box::new(crate::persist::MemoryPersister::new()),
@@ -3433,23 +3233,6 @@ mod tests {
     /// this is what makes that true rather than hoped.
     #[tokio::test]
     async fn persisted_state_carries_no_spending_material() {
-        /// Everything the wallet ever asked to have written.
-        #[derive(Clone, Default)]
-        struct Recorder(Arc<std::sync::Mutex<bdk_wallet::ChangeSet>>);
-
-        #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-        #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-        impl crate::persist::Persister for Recorder {
-            async fn initialize(&mut self) -> Result<bdk_wallet::ChangeSet> {
-                Ok(self.0.lock().unwrap().clone())
-            }
-
-            async fn persist(&mut self, delta: &bdk_wallet::ChangeSet) -> Result<()> {
-                self.0.lock().unwrap().merge(delta.clone());
-                Ok(())
-            }
-        }
-
         for material in [
             KeyMaterial::PrivHex(SK_HEX.into()),
             KeyMaterial::Mnemonic {
@@ -3457,7 +3240,7 @@ mod tests {
                 passphrase: Some("correct horse".into()),
             },
         ] {
-            let store = Recorder::default();
+            let store = SharedPersister::default();
             let handle = WalletHandle::open_with(
                 cfg(AddressType::P2wpkh),
                 &material,
@@ -3517,8 +3300,7 @@ mod tests {
 
     #[tokio::test]
     async fn transaction_detail_marks_our_outputs() {
-        let (handle, _) = open(AddressType::P2wpkh).await;
-        fund(&handle, 100_000).await;
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         let txid = handle.list_transactions().await[0].txid.clone();
         let d = handle.transaction(&txid).await.unwrap().expect("known tx");
         assert_eq!(d.txid, txid);
@@ -3575,16 +3357,7 @@ mod tests {
 
         // It can build — someone else could sign — but it cannot sign.
         fund(&watch, 100_000).await;
-        let built = watch
-            .build_transfer(
-                &[Recipient {
-                    address: dest(AddressType::P2wpkh),
-                    amount_sat: 10_000,
-                }],
-                1.0,
-            )
-            .await
-            .unwrap();
+        let built = watch.build_transfer(&pay(10_000), 1.0).await.unwrap();
         let err = watch.sign(&built.psbt_base64).await.unwrap_err();
         assert_eq!(err.code(), "unsupported");
         assert!(err.to_string().contains("watch-only"), "{err}");
