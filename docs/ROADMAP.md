@@ -1402,9 +1402,15 @@ the new.
 
 **The UI tests**
 
-- [ ] **9.30 A screen is mounted at its route in one call** · M · `test/*`
-      why: `at(route); mount(render())`, often with a settle, 65 times · done when: `mountAt`
-      and `showAt`
+- [x] **9.30 A screen is mounted at its route in one call** · M · `test/*`
+      why: `at(route); mount(render())`, often with a settle, 65 times · done: 2026-10-02 — the
+      harness has `mountAt(route, render)` and `showAt(route, render)`, which also settles, and
+      80 sites use them. Where one `at` stood before several mounts, a temporary assertion on
+      the URL before each later mount passed first. Skipped: display's three `showTransaction`
+      sites, which also hand the screen its txid, and speedup-cancel, where the import would
+      outgrow a line and add lines. The same 442 tests pass with the same expect count in every
+      file, and the 251 screen states the suite reaches dump byte-identical to the base (field
+      values, checkedness, focus and the URL with them)
 - [ ] **9.31 The reset and late-open tests share their openers** · S · `test/*`
       why: five openers are written in both files · done when: one table, each file's tests
       keeping their names

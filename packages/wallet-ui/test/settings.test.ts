@@ -11,14 +11,13 @@ import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
 import type { RememberedWallet } from "../src/types";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, mount, settle, useScreenHarness } from "./harness";
+import { buttonNamed, find, mountAt, settle, showAt, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
 async function openSettings(): Promise<HTMLElement> {
   await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-  at("settings");
-  return mount(renderSettings());
+  return mountAt("settings", renderSettings);
 }
 
 function buttonsNamed(root: ParentNode, name: string): HTMLButtonElement[] {
@@ -38,9 +37,7 @@ describe("Settings on the desktop (6.8)", () => {
     // Nothing is remembered on this device, so there is nothing to forget.
     expect(buttonsNamed(screen, "Forget this wallet")).toHaveLength(0);
 
-    at("dashboard");
-    const dashboard = mount(renderDashboard());
-    await settle();
+    const dashboard = await showAt("dashboard", renderDashboard);
     expect(buttonsNamed(dashboard, "Rescan")).toHaveLength(0);
     expect(dashboard.textContent).not.toContain("Public keys");
     expect(buttonNamed(dashboard, "Close wallet")).toBeTruthy();
@@ -111,8 +108,7 @@ describe("Settings on the desktop (6.8)", () => {
       forgetSecret,
     });
     session.remembered = record;
-    at("settings");
-    const screen = mount(renderSettings());
+    const screen = mountAt("settings", renderSettings);
     expect(screen.textContent).toContain("in the ");
 
     buttonNamed(screen, "Forget this wallet").click();

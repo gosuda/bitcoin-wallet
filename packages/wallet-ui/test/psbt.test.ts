@@ -14,7 +14,7 @@ import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
 import { type PsbtInput, type PsbtReview, WalletError } from "../src/types";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, mount, settle, type, useScreenHarness } from "./harness";
+import { buttonNamed, find, mountAt, settle, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -148,13 +148,11 @@ const DESKTOP: Shell = {
   shell: "desktop",
   async open() {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("psbt");
-    return mount(renderPsbt());
+    return mountAt("psbt", renderPsbt);
   },
   async enter() {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("settings");
-    const settings = mount(renderSettings());
+    const settings = mountAt("settings", renderSettings);
     const link = find<HTMLAnchorElement>(settings, 'a[href="#/psbt"]');
     expect(link.textContent).toBe("Import PSBT");
     // Its own card, beside Public keys, as 6 draws it.
@@ -203,13 +201,11 @@ const PHONE: Shell = {
   shell: "phone",
   async open() {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("psbt");
-    return mount(renderPhonePsbt());
+    return mountAt("psbt", renderPhonePsbt);
   },
   async enter() {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("settings");
-    const settings = mount(renderPhoneSettings());
+    const settings = mountAt("settings", renderPhoneSettings);
     const rows = [...settings.querySelectorAll<HTMLElement>(".m-item")];
     const names = rows.map((r) => r.firstElementChild?.textContent);
     // Where M10b draws it: right after Coins.

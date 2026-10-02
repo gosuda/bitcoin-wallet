@@ -14,7 +14,7 @@ import { session } from "../src/session";
 import { DEFAULT_LOCK_AFTER, lockAfterFrom } from "../src/types";
 import { chooseLockAfter, lockAfter, startAutolock } from "../src/ui/autolock";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, mount, useScreenHarness } from "./harness";
+import { at, buttonNamed, find, mountAt, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -308,8 +308,7 @@ describe("Lock after in Settings (6.11)", () => {
   it("the desktop offers it in the Security card, as a select saved on change", async () => {
     await openRemembered();
     stop = await startAutolock();
-    at("settings");
-    const screen = mount(renderSettings());
+    const screen = mountAt("settings", renderSettings);
     const select = find<HTMLSelectElement>(screen, "select[name=lock_after]");
 
     expect([...select.options].map((o) => o.text)).toEqual([
@@ -335,8 +334,7 @@ describe("Lock after in Settings (6.11)", () => {
   it("the phone offers it beside Remembered on this device, as chips saved on a tap", async () => {
     await openRemembered();
     stop = await startAutolock();
-    at("settings");
-    const screen = mount(renderPhoneSettings());
+    const screen = mountAt("settings", renderPhoneSettings);
     const chips = find(screen, "[role=radiogroup][aria-label='Lock after']");
 
     expect([...chips.querySelectorAll("[role=radio]")].map((c) => c.textContent)).toEqual([
@@ -357,14 +355,13 @@ describe("Lock after in Settings (6.11)", () => {
 
   it("both say it is not available where no key can be kept", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("settings");
 
-    const desktop = mount(renderSettings());
+    const desktop = mountAt("settings", renderSettings);
     expect(desktop.querySelector("select")).toBeNull();
     expect(rowNamed(desktop, ".setting-row", "Lock after")).toBe("Lock afterNot available here");
     expect(desktop.textContent).not.toContain("After this long in the background");
 
-    const phone = mount(renderPhoneSettings());
+    const phone = mountAt("settings", renderPhoneSettings);
     expect(phone.querySelector("[aria-label='Lock after']")).toBeNull();
     expect(rowNamed(phone, ".m-item", "Lock after")).toBe("Lock afterNot available here");
   });
@@ -378,8 +375,7 @@ describe("Lock after in Settings (6.11)", () => {
         throw new Error("store locked");
       },
     });
-    at("settings");
-    const screen = mount(renderSettings());
+    const screen = mountAt("settings", renderSettings);
     const select = find<HTMLSelectElement>(screen, "select[name=lock_after]");
 
     select.value = "1";

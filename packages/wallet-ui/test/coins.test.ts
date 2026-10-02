@@ -13,7 +13,7 @@ import { renderSend } from "../src/screens/send";
 import { session } from "../src/session";
 import type { Utxo } from "../src/types";
 import { fake } from "./fakes";
-import { at, buttonNamed, find, leaveTo, mount, settle, type, useScreenHarness } from "./harness";
+import { buttonNamed, find, leaveTo, settle, showAt, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
@@ -100,21 +100,13 @@ const DESKTOP: Shell = {
   shell: "desktop",
   async list() {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const screen = mount(renderDashboard());
-    await settle();
-    return screen;
+    return showAt("dashboard", renderDashboard);
   },
   row: (control) => control.closest("tr"),
   dimmed: "coin-frozen",
   selection: (screen) => (buttonNamed(screen, "Send selected").hidden ? null : head(screen)),
   twoTicked: `3 coins · 1 frozen · 2 selected, ${n(61_234)} sat`,
-  async send() {
-    at("send");
-    const screen = mount(renderSend());
-    await settle();
-    return screen;
-  },
+  send: () => showAt("send", renderSend),
   fields: (screen) => ({
     address: find<HTMLInputElement>(screen, "#recipient-address-0"),
     amount: find<HTMLInputElement>(screen, "#recipient-amount-0"),
@@ -125,10 +117,7 @@ const PHONE: Shell = {
   shell: "phone",
   async list() {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("coins");
-    const screen = mount(renderCoins());
-    await settle();
-    return screen;
+    return showAt("coins", renderCoins);
   },
   row: (control) => control.closest(".m-coin"),
   dimmed: "m-coin-frozen",
@@ -137,12 +126,7 @@ const PHONE: Shell = {
     return send.hidden ? null : (send.textContent ?? "");
   },
   twoTicked: `Send selected (2 coins · ${n(61_234)} sat)`,
-  async send() {
-    at("send");
-    const screen = mount(renderPhoneSend());
-    await settle();
-    return screen;
-  },
+  send: () => showAt("send", renderPhoneSend),
   fields: (screen) => ({
     address: find<HTMLInputElement>(screen, "input[name=address]"),
     amount: find<HTMLInputElement>(screen, "input[name=amount]"),
@@ -370,9 +354,7 @@ describe("Coins on the phone (M13)", () => {
   it("Settings says how many coins there are and how many are frozen, and its row opens Coins", async () => {
     threeCoins();
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("settings");
-    const screen = mount(renderPhoneSettings());
-    await settle();
+    const screen = await showAt("settings", renderPhoneSettings);
 
     const rows = [...screen.querySelectorAll<HTMLElement>(".m-item")];
     const names = rows.map((r) => r.firstElementChild?.textContent);

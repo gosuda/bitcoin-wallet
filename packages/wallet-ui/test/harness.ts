@@ -60,6 +60,19 @@ export async function settle(): Promise<void> {
   for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/** Renders a screen at `route`, as the shell would, and puts it on the page. */
+export function mountAt(route: Route, render: () => HTMLElement): HTMLElement {
+  at(route);
+  return mount(render());
+}
+
+/** `mountAt`, then lets the screen's own async work settle. */
+export async function showAt(route: Route, render: () => HTMLElement): Promise<HTMLElement> {
+  const screen = mountAt(route, render);
+  await settle();
+  return screen;
+}
+
 /**
  * Every test starts configured for testnet4 on a device that keeps no keys,
  * with an empty fake wallet, and ends with the wallet closed and the page
