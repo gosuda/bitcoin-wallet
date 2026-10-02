@@ -1,4 +1,4 @@
-import { redirect } from "../screen";
+import { redirect, screenHead } from "../screen";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
@@ -184,13 +184,7 @@ export function renderPsbt(): HTMLElement {
 
   paint(null);
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Import PSBT" }),
-      el("p", {
-        className: "muted small",
-        text: PSBT_LEDE,
-      }),
-    ]),
+    screenHead("Import PSBT", PSBT_LEDE),
     alert.node,
     el("section", { className: "card" }, [
       el("div", { className: "card-head" }, [

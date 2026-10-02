@@ -1,3 +1,4 @@
+import { screenHead } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -65,13 +66,7 @@ export function renderSetup(): HTMLElement {
   );
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Setup" }),
-      el("p", {
-        className: "muted small",
-        text: SETUP_LEDE,
-      }),
-    ]),
+    screenHead("Setup", SETUP_LEDE),
     alert.node,
     el("section", { className: "card card-loose" }, [
       field("Network", networkGroup),

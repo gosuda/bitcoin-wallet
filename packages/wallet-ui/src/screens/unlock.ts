@@ -1,7 +1,7 @@
 import { api } from "../api";
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { redirect, routeGuard } from "../screen";
+import { redirect, routeGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -92,13 +92,7 @@ export function renderUnlock(): HTMLElement {
   showTrigger();
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Unlock" }),
-      el("p", {
-        className: "muted small",
-        text: `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`,
-      }),
-    ]),
+    screenHead("Unlock", `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`),
     alert.node,
     offer.node,
     el("section", { className: "card unlock-card" }, [

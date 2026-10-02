@@ -1480,8 +1480,11 @@ the new.
       landing on the wallet, and the desktop at an unknown route drawing Setup) passed before
       and after, then were removed; the 251 dumped screen states are byte-identical to the base
       and the same 442 tests pass
-- [ ] **9.26 One heading helper for the desktop's screens** · S · `screen.ts`
-      why: the same `screen-head` block on nine screens · done when: one `screenHead`
+- [x] **9.26 One heading helper for the desktop's screens** · S · `screen.ts`
+      why: the same `screen-head` block on nine screens · done: 2026-10-02 — `screenHead(title,
+      line?)` in `screen.ts`, on ten desktop screens; the dumps hold every one of the ten
+      headings, and the 251 dumped screen states are byte-identical to the base and the same
+      442 tests pass
 - [ ] **9.27 The phone's containers, ledes and counts use the shared helpers** · S ·
   `mobile/*`
       why: the phone redoes what `el`, `lede` and `counted` already do · done when: it uses

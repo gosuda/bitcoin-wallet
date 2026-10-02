@@ -1,6 +1,6 @@
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { redirect } from "../screen";
+import { redirect, screenHead } from "../screen";
 import { session } from "../session";
 import { errorMessage } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -38,7 +38,7 @@ export function renderResult(): HTMLElement {
     : null;
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [el("h1", { text: "Sent" })]),
+    screenHead("Sent"),
     alert.node,
     el("section", { className: "card result-card" }, [
       el("div", { className: "result-head" }, [

@@ -6,7 +6,7 @@ import { buildPaymentUri, qrPayload } from "../bip21";
 import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../feebump";
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { redirect, sameWalletGuard, screenGuard } from "../screen";
+import { redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -845,13 +845,10 @@ export function renderDashboard(): HTMLElement {
 
   const kind = wallet.is_watch_only ? " · Watch-only" : "";
   const screen = el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Wallet" }),
-      el("p", {
-        className: "muted small",
-        text: `${NETWORK_LABELS[wallet.network]} · ${ADDRESS_TYPE_LABELS[wallet.address_type]}${kind} · ${wallet.wallet_id}`,
-      }),
-    ]),
+    screenHead(
+      "Wallet",
+      `${NETWORK_LABELS[wallet.network]} · ${ADDRESS_TYPE_LABELS[wallet.address_type]}${kind} · ${wallet.wallet_id}`,
+    ),
     alert.node,
     el("section", { className: "card card-tight" }, [
       el("div", { className: "card-head" }, [

@@ -1,7 +1,7 @@
 import { api } from "../api";
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { redirect, screenGuard } from "../screen";
+import { redirect, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -202,13 +202,10 @@ export function renderSettings(): HTMLElement {
 
   const kind = wallet.is_watch_only ? " · Watch-only" : "";
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Settings" }),
-      el("p", {
-        className: "muted small",
-        text: `${NETWORK_LABELS[wallet.network]} · ${ADDRESS_TYPE_LABELS[wallet.address_type]}${kind} · ${wallet.wallet_id}`,
-      }),
-    ]),
+    screenHead(
+      "Settings",
+      `${NETWORK_LABELS[wallet.network]} · ${ADDRESS_TYPE_LABELS[wallet.address_type]}${kind} · ${wallet.wallet_id}`,
+    ),
     alert.node,
     el("section", { className: "card card-rows" }, [
       el("div", { className: "card-head" }, [

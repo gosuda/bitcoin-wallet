@@ -2,7 +2,7 @@ import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
-import { redirect, screenGuard } from "../screen";
+import { redirect, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   backendHost,
@@ -618,13 +618,10 @@ export function renderSend(): HTMLElement {
   void loadEstimate();
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Send" }),
-      // As every desktop heading says it. A wallet's address was here, which
-      // for a recovery phrase is only the next receiving address, not where
-      // the coins come from.
-      el("p", { className: "muted small", text: `${networkName} · ${host}` }),
-    ]),
+    // As every desktop heading says it. A wallet's address was here, which
+    // for a recovery phrase is only the next receiving address, not where
+    // the coins come from.
+    screenHead("Send", `${networkName} · ${host}`),
     alert.node,
     coinsLine,
     rowsBox,

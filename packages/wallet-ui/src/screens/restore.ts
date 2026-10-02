@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { navigate } from "../router";
-import { redirect, routeGuard } from "../screen";
+import { redirect, routeGuard, screenHead } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount } from "../types";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
@@ -204,13 +204,7 @@ export function renderRestore(): HTMLElement {
   );
 
   return el("main", { className: "screen" }, [
-    el("div", { className: "screen-head" }, [
-      el("h1", { text: "Restore wallet" }),
-      el("p", {
-        className: "muted small",
-        text: `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`,
-      }),
-    ]),
+    screenHead("Restore wallet", `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`),
     alert.node,
     offer.node,
     el("section", { className: "card card-loose" }, [
