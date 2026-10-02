@@ -1435,9 +1435,12 @@ the new.
       twelve files reach either module. The same 442 tests pass, with the same console output,
       and the 251 screen states the suite reaches dump byte-identical to the base (field
       values, checkedness, focus and the URL with them)
-- [ ] **9.34 The PSBT and autolock tests open their screens through local helpers** · S
-      why: the same two or three opening lines twenty times in one file and eleven in the
-      other · done when: a helper each
+- [x] **9.34 The PSBT and autolock tests open their screens through local helpers** · S
+      why: the same two or three opening lines twenty times in one file and eleven in the other
+      · done: 2026-10-02 — psbt's `openAnswering` and `openPasted` take 20 sites and autolock's
+      `openLocking` 11; `camera()`, which only sets the platform, moves above two calls. The
+      same tests pass with the same expect counts, and the 251 screen states the suite reaches
+      dump byte-identical to the base (field values, checkedness, focus and the URL with them)
 - [ ] **9.35 The harness's cleanup is not repeated** · S
       why: six places clear what the harness already clears after every test · done when:
       gone

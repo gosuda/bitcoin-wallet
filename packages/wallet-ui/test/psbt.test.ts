@@ -252,6 +252,19 @@ const PHONE: Shell = {
   ],
 };
 
+/** Opens `shell`'s Import PSBT, with the core answering any PSBT with `review`. */
+function openAnswering(shell: Shell, review: PsbtReview): Promise<HTMLElement> {
+  fake.state.psbtReview = review;
+  return shell.open();
+}
+
+/** That, with `review`'s PSBT pasted in and described. */
+async function openPasted(shell: Shell, review: PsbtReview): Promise<HTMLElement> {
+  const screen = await openAnswering(shell, review);
+  await paste(screen, review.psbt_base64);
+  return screen;
+}
+
 describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   it("is opened from Settings", async () => {
     await shell.enter();
@@ -259,8 +272,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("describes a pasted PSBT as soon as it parses, as the board draws it, signing nothing", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
+    const screen = await openAnswering(shell, UNSIGNED);
     expect(shell.said(screen)).toEqual([]);
 
     await paste(screen, `  ${UNSIGNED.psbt_base64}\n`);
@@ -271,10 +283,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("tells this wallet's inputs from another's and signed from not, and says an unknown fee is unknown", async () => {
-    fake.state.psbtReview = SHARED;
-    const screen = await shell.open();
-
-    await paste(screen, SHARED.psbt_base64);
+    const screen = await openPasted(shell, SHARED);
 
     expect(shell.said(screen)).toEqual(shell.drawnShared);
   });
@@ -315,9 +324,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("Sign signs the PSBT on screen and redraws it, the field holding what was signed", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
-    await paste(screen, UNSIGNED.psbt_base64);
+    const screen = await openPasted(shell, UNSIGNED);
 
     fake.state.psbtReview = SIGNED;
     buttonNamed(screen, "Sign").click();
@@ -350,9 +357,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("Broadcast sends the final PSBT and lands where Send lands, the result kept for it", async () => {
-    fake.state.psbtReview = SIGNED;
-    const screen = await shell.open();
-    await paste(screen, SIGNED.psbt_base64);
+    const screen = await openPasted(shell, SIGNED);
 
     buttonNamed(screen, "Broadcast").click();
     await settle();
@@ -365,9 +370,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   // The code that says a paste is no PSBT also refuses one at broadcast;
   // there the core's reason is the one to read.
   it("says why Broadcast was refused, and stays with the PSBT", async () => {
-    fake.state.psbtReview = SIGNED;
-    const screen = await shell.open();
-    await paste(screen, SIGNED.psbt_base64);
+    const screen = await openPasted(shell, SIGNED);
     const why = "PSBT error: absurdly high fee rate of 30000 sat/vB";
     const refused = vi
       .spyOn(api, "broadcastPsbt")
@@ -385,8 +388,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
 
   it("a watch-only wallet has no Sign, and broadcasts a PSBT signed elsewhere", async () => {
     fake.state.watchOnly = true;
-    fake.state.psbtReview = SIGNED;
-    const screen = await shell.open();
+    const screen = await openAnswering(shell, SIGNED);
     expect(buttonsNamed(screen, "Sign")).toHaveLength(0);
 
     await paste(screen, SIGNED.psbt_base64);
@@ -399,8 +401,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("never lets an earlier paste's answer replace a later one's", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
+    const screen = await openAnswering(shell, UNSIGNED);
     const release = fake.holdPsbt();
     await paste(screen, UNSIGNED.psbt_base64);
 
@@ -415,9 +416,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("drops a signing the PSBT has moved on from", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
-    await paste(screen, UNSIGNED.psbt_base64);
+    const screen = await openPasted(shell, UNSIGNED);
     fake.state.psbtReview = SIGNED;
     const release = fake.holdPsbt();
     buttonNamed(screen, "Sign").click();
@@ -434,9 +433,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("says so when this wallet holds no key for any input, rather than sign nothing in silence", async () => {
-    fake.state.psbtReview = THEIRS_ONLY;
-    const screen = await shell.open();
-    await paste(screen, THEIRS_ONLY.psbt_base64);
+    const screen = await openPasted(shell, THEIRS_ONLY);
 
     buttonNamed(screen, "Sign").click();
     await settle();
@@ -448,8 +445,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("Paste reads the clipboard into the field and describes it", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
+    const screen = await openAnswering(shell, UNSIGNED);
 
     await withClipboard(`\n${UNSIGNED.psbt_base64}\n`, async () => {
       buttonNamed(screen, "Paste").click();
@@ -464,8 +460,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   // A Tauri webview refuses the page's own read with nothing the user could
   // allow, so the apps read through the shell, and Paste asks the platform.
   it("Paste reads through the platform where the page's own clipboard is refused", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
+    const screen = await openAnswering(shell, UNSIGNED);
     Object.defineProperty(navigator, "clipboard", {
       value: {
         readText: async () => {
@@ -488,8 +483,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("keeps what was typed while Paste was still reading the clipboard", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
+    const screen = await openAnswering(shell, UNSIGNED);
     let answer = (_text: string): void => {};
     setPlatform({
       ...platform(),
@@ -510,9 +504,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   });
 
   it("Paste says an empty clipboard is empty, and keeps what is in the field", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
-    await paste(screen, UNSIGNED.psbt_base64);
+    const screen = await openPasted(shell, UNSIGNED);
     setPlatform({ ...platform(), readClipboard: async () => "" });
 
     buttonNamed(screen, "Paste").click();
@@ -525,9 +517,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
 
   it("Paste says so where the clipboard cannot be read, and keeps what is in the field", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await shell.open();
-    await paste(screen, UNSIGNED.psbt_base64);
+    const screen = await openPasted(shell, UNSIGNED);
 
     // jsdom has no clipboard to read, as some webviews have none.
     buttonNamed(screen, "Paste").click();
@@ -559,8 +549,7 @@ describe("Import PSBT on the desktop (7)", () => {
   });
 
   it("reads a .psbt file of raw bytes as base64", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await DESKTOP.open();
+    const screen = await openAnswering(DESKTOP, UNSIGNED);
     // The magic, then the start of what follows it in any PSBT. Bytes past
     // 0x7f are where reading the file as text would go wrong.
     const bytes = new Uint8Array([
@@ -577,8 +566,7 @@ describe("Import PSBT on the desktop (7)", () => {
   });
 
   it("keeps what was typed while a chosen file was still being read", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await DESKTOP.open();
+    const screen = await openAnswering(DESKTOP, UNSIGNED);
     let answer = (_bytes: ArrayBuffer): void => {};
     const slow = new File([SHARED.psbt_base64], "shared.txt");
     Object.defineProperty(slow, "arrayBuffer", {
@@ -600,8 +588,7 @@ describe("Import PSBT on the desktop (7)", () => {
   });
 
   it("reads any other file as its text, trimmed: base64, or hex", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await DESKTOP.open();
+    const screen = await openAnswering(DESKTOP, UNSIGNED);
 
     choose(screen, new File([`\n  ${UNSIGNED.psbt_base64}  \r\n`], "unsigned.txt"));
     await settle();
@@ -614,8 +601,7 @@ describe("Import PSBT on the desktop (7)", () => {
   });
 
   it("says why Broadcast waits, until it no longer does", async () => {
-    fake.state.psbtReview = UNSIGNED;
-    const screen = await DESKTOP.open();
+    const screen = await openAnswering(DESKTOP, UNSIGNED);
     const waits = [...screen.querySelectorAll<HTMLElement>(".psbt-foot .hint")].find(
       (e) =>
         e.textContent === "Broadcast waits until every input is signed and the PSBT is finalized.",
@@ -640,9 +626,8 @@ describe("Import PSBT on the phone (M14)", () => {
   }
 
   it("Scan reads a PSBT that fits one QR code into the field, and describes it", async () => {
-    fake.state.psbtReview = UNSIGNED;
     const scanQr = camera(UNSIGNED.psbt_base64);
-    const screen = await PHONE.open();
+    const screen = await openAnswering(PHONE, UNSIGNED);
 
     buttonNamed(screen, "Scan").click();
     await settle();
@@ -654,10 +639,8 @@ describe("Import PSBT on the phone (M14)", () => {
   });
 
   it("refuses a BC-UR code, saying such codes are not supported yet, and keeps the field", async () => {
-    fake.state.psbtReview = UNSIGNED;
     camera("UR:CRYPTO-PSBT/1-3/LPADAXCFAXHLCYYNAEHSYNDMWKAOLTAJPLEK");
-    const screen = await PHONE.open();
-    await paste(screen, UNSIGNED.psbt_base64);
+    const screen = await openPasted(PHONE, UNSIGNED);
 
     buttonNamed(screen, "Scan").click();
     await settle();
