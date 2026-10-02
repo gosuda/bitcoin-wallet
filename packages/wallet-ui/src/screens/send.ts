@@ -29,6 +29,7 @@ import {
   kv,
   radioGroup,
   sectionLabel,
+  setFieldError,
   textInput,
   unitChips,
   withBusy,
@@ -187,11 +188,8 @@ export function renderSend(): HTMLElement {
   };
 
   const setError = (slot: HTMLElement, input: HTMLInputElement, message: string | null) => {
-    slot.textContent = message ?? "";
+    setFieldError(slot, input, message);
     slot.classList.toggle("hidden", message === null);
-    input.classList.toggle("input-invalid", message !== null);
-    if (message === null) input.removeAttribute("aria-invalid");
-    else input.setAttribute("aria-invalid", "true");
   };
 
   const renderRowErrors = (row: RecipientRow) => {

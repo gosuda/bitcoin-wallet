@@ -1499,10 +1499,13 @@ the new.
       serves the four target lists, keeping the literal digits. 3 cases on the old code first
       passed before and after, then were removed; the 251 dumped screen states are
       byte-identical to the base and the same 442 tests pass
-- [ ] **9.29 The send screens show a field's error through the shared helper** · S · both
+- [x] **9.29 The send screens show a field's error through the shared helper** · S · both
   `send.ts`
-      why: the four lines 9.18 shares are still written out on both Send screens · done when:
-      they use it
+      why: the four lines 9.18 shares are still written out on both Send screens · done:
+      2026-10-02 — the phone calls `setFieldError` at its three fields, and the desktop's own
+      `setError` calls it and then hides an empty message, the one thing the desktop adds. The
+      251 dumped screen states, among them every invalid address, amount and rate the tests
+      type on both Send screens, are byte-identical to the base, and the same 442 tests pass
 
 **The UI tests**
 

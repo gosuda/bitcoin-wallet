@@ -19,7 +19,7 @@ import {
   type TxPreview,
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
-import { banner, el, kv, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
 import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
@@ -278,13 +278,6 @@ export function renderSend(): HTMLElement {
   });
 
   // --- validation -----------------------------------------------------------
-  const setError = (slot: HTMLElement, input: HTMLInputElement, message: string | null) => {
-    slot.textContent = message ?? "";
-    input.classList.toggle("input-invalid", message !== null);
-    if (message === null) input.removeAttribute("aria-invalid");
-    else input.setAttribute("aria-invalid", "true");
-  };
-
   /**
    * `touched` decides only whether a field may show its message. Review
    * follows the values: a form filled in correctly is ready whether or not
@@ -314,18 +307,18 @@ export function renderSend(): HTMLElement {
 
   const refresh = (): void => {
     for (const r of rows) {
-      setError(
+      setFieldError(
         r.addressErr,
         r.address,
         r.touched.address ? addressError(r.address.value, info.network) : null,
       );
-      setError(
+      setFieldError(
         r.amountErr,
         r.amount,
         r.touched.amount ? parseAmount(r.amount.value, currentUnit).error : null,
       );
     }
-    setError(rateErr, rateInput, rateError());
+    setFieldError(rateErr, rateInput, rateError());
     review.disabled = recipients() === null || rateError() !== null;
   };
 
