@@ -1367,10 +1367,15 @@ the new.
       URI's amount is never trimmed, as `btcToSats` never trimmed. The old and new code agree
       on 991,739 amount strings (74,905 accepted), 320,020 sat values, 1,983,478 URIs parsed
       and 320,020 built; without the guard, 46,591 strings differ, so the corpus does test it
-- [ ] **9.16 One copy of the IndexedDB plumbing** · S · `persist/*`
-      why: the wallet state and the sealed secrets open, upgrade and transact with IndexedDB
-      in two copies of the same code · done when: one `objectStore`, every error message the
-      same, pinned by a test on the old code
+- [x] **9.16 One copy of the IndexedDB plumbing** · S · `persist/*`
+      why: the wallet state and the sealed secrets open, upgrade and transact with IndexedDB in
+      two copies of the same code · done: 2026-10-02 — `persist/idb.ts` has
+      `objectStore(spec)`, which opens its database once, retries one that failed and runs one
+      request per committed transaction; the wallet state and the sealed keys each describe
+      their database in a `StoreSpec`. The twelve error messages are the same, character for
+      character. A test with an in-memory IndexedDB, run on the old modules and the new and
+      then removed, logged 16 scenarios (upgrade, open errors, blocked, retry, request and
+      transaction errors and aborts, throws, no IndexedDB) byte-identical
 - [ ] **9.17 Icons named from their shapes; the unused share icon goes** · S · `ui/icons.ts`,
   `gen.py`
       why: the 21 icon names are listed twice, and no screen or board draws `share` · done
