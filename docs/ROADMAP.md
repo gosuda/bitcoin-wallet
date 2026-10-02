@@ -1391,9 +1391,12 @@ the new.
       its variant. Old and new `format.ts` agree on 15,552 cases (12 locales, 6 time zones),
       and every button variant and size and the Remember and app-password states render
       byte-identical
-- [ ] **9.19 The Tauri store read and written through two helpers** · S · `platform-tauri.ts`
-      why: four store methods repeat the load, read or write, and save · done when: two
-      helpers, the same keys and the same values
+- [x] **9.19 The Tauri store read and written through two helpers** · S · `platform-tauri.ts`
+      why: four store methods repeat the load, read or write, and save · done: 2026-10-02 —
+      `readStore` and `writeStore` (null deletes the key) carry the four store methods, with
+      the same file, keys and calls. With the Tauri plugins mocked, a run on the old file and
+      the new, then removed, logged 34 steps byte-identical: each method on an empty, set and
+      odd stored value, every lock choice, and a failing load or save
 
 **The screens**
 
