@@ -1,35 +1,12 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-export type IconName =
-  | "copy"
-  | "refresh"
-  | "external"
-  | "check"
-  | "plus"
-  | "x"
-  | "eye"
-  | "key"
-  | "chevron"
-  | "arrow"
-  | "back"
-  | "wallet"
-  | "scan"
-  | "gear"
-  | "up"
-  | "down"
-  | "share"
-  | "faceid"
-  | "alert"
-  | "lock"
-  | "clipboard";
-
 type Shape =
   | readonly ["path", string]
   | readonly ["circle", string, string, string]
   | readonly ["rect", string, string, string, string, string];
 
 /** Path data mirrors `icon()` in design/gen.py exactly. */
-const SHAPES: Record<IconName, readonly Shape[]> = {
+const SHAPES = {
   copy: [
     ["rect", "9", "9", "11", "11", "2"],
     ["path", "M5 15V5a2 2 0 0 1 2-2h10"],
@@ -92,11 +69,6 @@ const SHAPES: Record<IconName, readonly Shape[]> = {
     ["path", "M12 5v14"],
     ["path", "M18 13l-6 6-6-6"],
   ],
-  share: [
-    ["path", "M12 16V4"],
-    ["path", "M8 8l4-4 4 4"],
-    ["path", "M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"],
-  ],
   faceid: [
     ["path", "M4 8V6a2 2 0 0 1 2-2h2"],
     ["path", "M16 4h2a2 2 0 0 1 2 2v2"],
@@ -123,12 +95,26 @@ const SHAPES: Record<IconName, readonly Shape[]> = {
     ["rect", "8", "3", "8", "4", "1"],
     ["path", "M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"],
   ],
-};
+} satisfies Record<string, readonly Shape[]>;
+
+export type IconName = keyof typeof SHAPES;
 
 function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
   const node = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
   return node;
+}
+
+/** A shape's attributes, in the order gen.py writes them. */
+function shapeAttrs(shape: Shape): Record<string, string> {
+  switch (shape[0]) {
+    case "path":
+      return { d: shape[1] };
+    case "circle":
+      return { cx: shape[1], cy: shape[2], r: shape[3] };
+    case "rect":
+      return { x: shape[1], y: shape[2], width: shape[3], height: shape[4], rx: shape[5] };
+  }
 }
 
 /** Inline stroke icon (24-unit viewBox, `currentColor`), sized in px. */
@@ -145,27 +131,7 @@ export function icon(name: IconName, size = 16): SVGSVGElement {
     "aria-hidden": "true",
   }) as SVGSVGElement;
   svg.classList.add("icon");
-  for (const shape of SHAPES[name]) {
-    switch (shape[0]) {
-      case "path":
-        svg.appendChild(svgEl("path", { d: shape[1] }));
-        break;
-      case "circle":
-        svg.appendChild(svgEl("circle", { cx: shape[1], cy: shape[2], r: shape[3] }));
-        break;
-      case "rect":
-        svg.appendChild(
-          svgEl("rect", {
-            x: shape[1],
-            y: shape[2],
-            width: shape[3],
-            height: shape[4],
-            rx: shape[5],
-          }),
-        );
-        break;
-    }
-  }
+  for (const shape of SHAPES[name]) svg.appendChild(svgEl(shape[0], shapeAttrs(shape)));
   return svg;
 }
 

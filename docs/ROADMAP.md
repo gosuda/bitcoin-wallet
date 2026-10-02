@@ -1376,10 +1376,13 @@ the new.
       character. A test with an in-memory IndexedDB, run on the old modules and the new and
       then removed, logged 16 scenarios (upgrade, open errors, blocked, retry, request and
       transaction errors and aborts, throws, no IndexedDB) byte-identical
-- [ ] **9.17 Icons named from their shapes; the unused share icon goes** · S · `ui/icons.ts`,
+- [x] **9.17 Icons named from their shapes; the unused share icon goes** · S · `ui/icons.ts`,
   `gen.py`
-      why: the 21 icon names are listed twice, and no screen or board draws `share` · done
-      when: the names come from the shape table and every icon's markup is byte-identical
+      why: the 21 icon names are listed twice, and no screen or board draws `share` · done:
+      2026-10-02 — `IconName` is the keys of the shape table, `shapeAttrs` gives each shape its
+      attributes in the old order, and `share` leaves icons.ts and gen.py. `IconName` is the
+      old union less `share`, the markup of all 20 icons at three sizes and the brand mark is
+      byte-identical on the old code and the new, and the boards regenerate byte-identical
 - [ ] **9.18 The clock, the Remember box, a field's error and a button's class, once each**
   · S · `ui/*`
       why: small blocks repeated in the shared UI modules · done when: one of each
