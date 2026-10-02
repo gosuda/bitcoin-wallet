@@ -1318,11 +1318,16 @@ the new.
       and expect per test, before and after, differs only by those now made once inside the
       helpers. The same 12 tests list before and after, and clippy builds all four files with
       -D warnings; they cannot run on this Mac, so CI runs them on this round's pull request
-- [ ] **9.10 The wasm bindings hand a core result to JS through one helper** · S ·
+- [x] **9.10 The wasm bindings hand a core result to JS through one helper** · S ·
   `wallet-wasm`
-      why: `to_js(&…map_err(core_err)?)` takes seven lines each time rustfmt breaks it · done
-      when: one `core_to_js`, with what each binding returns pinned first by tests on the old
-      code
+      why: `to_js(&…map_err(core_err)?)` takes seven lines each time rustfmt breaks it · done:
+      2026-10-02 — `core_to_js` passes a value through `to_js` or an error through `core_err`,
+      for eleven bindings; `generate_key`, `transaction` and `estimate_fee` keep their own
+      code, and no exported or js_name symbol changes. Before the change, 27 temporary wasm
+      tests pinned what those bindings return on inputs that need no network, as the code,
+      message and details or the value in JSON (`import_psbt`'s whole review of a foreign PSBT
+      among them). All 27 passed on the old code and the new, each built in a target directory
+      of its own, and were removed. The 9 binding tests pass
 - [ ] **9.11 The Tauri error builds `internal` where it is used** · S · `src-tauri/src/error.rs`
       why: a constructor with one caller · done when: inlined, same code and message
 
