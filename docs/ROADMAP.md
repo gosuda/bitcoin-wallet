@@ -1237,8 +1237,9 @@ and is under Not doing.
 
 Branch `round-9-less-code`. Picked on 2026-10-02: the owner asked for the duplicated
 functions and other refactoring targets to be found, planned and taken out, to bring the
-code down. Nothing in this round changes what the wallet does, says or draws: every item is a
-refactor, and every item has a proof.
+code down. Every item is a refactor that changes nothing the wallet does, says or draws, and
+every item has a proof. Two bugs found on the way are fixed beside the items, each in a
+commit of its own with a test that failed before it.
 
 **How the targets were found**
 
@@ -1259,21 +1260,23 @@ refactor, and every item has a proof.
    together code that only happens to look alike. The leads not taken are in the PR, each
    with its reason.
 
-**How an item is proved.** After every commit the whole gate is green (`just check`,
-`just test`, the regtest build), and the names of the tests are the same as before it, so
-no test was lost. On top of that, each item names its own proof: the DOM of every screen
-state the UI suite reaches (251 states, dumped with field values, checkedness, focus and the
-URL) is byte-identical; Chrome computes the same style for every element of those states,
-at desktop and phone widths, light and dark; the boards regenerate byte-identical; and a
-path no test reaches is pinned first by a characterization test, run on the old code and
-the new.
+**How an item is proved.** Each commit passed the checks for what it touches when it was made,
+and again on its own in the round's order: the TypeScript gate on every commit, and fmt and
+clippy, with the tests of the crates it touches, on every one that touches Rust. The whole
+gate (`just check`, `just test`, the regtest build) is green on the final tree, and every test
+the round started with is still there by name. On top of that, each item names its own proof:
+the DOM of every screen state the UI suite reaches (251 states, dumped with field values,
+checkedness, focus and the URL) is byte-identical; Chrome computes the same style for every
+element of those states, at desktop and phone widths, light and dark; the boards regenerate
+byte-identical; and a path no test reaches is pinned first by a characterization test, run on
+the old code and the new.
 
-**Result.** 27,055 code lines at `2fefe72`, 25,402 at the end: 1,653 fewer (6.1%), the most
-from the UI's modules and screens (−606), the core (−385) and the UI tests (−291). Each of
-the round's commits passes the gate on its own. The browser build, rebuilt from the branch,
-was driven through Setup, Create with an app password, a reload to Unlock and Forget, and
-IndexedDB held both records and then neither. Stable Rust moved from 1.96 to 1.99 during
-the round, and the gate was run again on 1.99.
+**Result.** 27,055 code lines at `2fefe72`, 25,422 at the end: 1,633 fewer (6.0%), the most
+from the UI's modules and screens (−609), the core (−385) and the UI tests (−268, after the
+two fixes' tests). The browser build, rebuilt from the branch, was driven through Setup,
+Create with an app password, a reload to Unlock and Forget, and IndexedDB held both records
+and then neither. Stable Rust moved from 1.96 to 1.99 during the round, and the gate was run
+again on 1.99.
 
 **Reviewed** by cubic on 2026-10-02 (PR #42): four comments, all taken. A Rescan banner
 named a gap chosen while the rescan ran, not the one it ran with (fixed, with a test that
@@ -1281,11 +1284,15 @@ failed before); `late-open.test.ts` picked its openers by name, so a rename woul
 dropped a case quietly (now it fails); `generate_key` was left off `core_to_js` for one line
 of layout (now on it); and 9.38's line count, which 9.17 then lowered by one, now says so.
 
-**Found, not fixed.** The phone's Scan screen reads the clipboard itself
-(`navigator.clipboard.readText()` in `mobile/screens/scan.ts`), where every other Paste
-goes through `platform().readClipboard()`, the path Round 6 moved Paste to because the Tauri
-webview refuses a page's own read. Its Paste likely fails in the phone app. A behaviour
-change, so not in this round.
+**Fixed beside the items.** The Rescan banner above, and the phone's Scan screen, whose Paste
+read the clipboard itself (`navigator.clipboard.readText()`) where every other Paste goes
+through `platform().readClipboard()`, the path Round 6 moved Paste to because the Tauri
+webview refuses a page's own read. Each has its own commit and a test that failed before it.
+Both were checked on an Android emulator on 2026-10-02. The build installed there before this
+round said "Clipboard access was refused. Allow it and try again, or type the address." for an
+address copied from Receive, where nothing can be allowed. This round's debug build, installed
+over it with the same wallet, went from Scan's Paste to Send with that address filled in, and
+its Rescan at a gap of 100 said "Rescanned with a gap of 100: 29,009 sat in this wallet."
 
 **The core and the CLI**
 
