@@ -6,19 +6,11 @@ vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persis
 
 import { platform, setPlatform } from "../src/platform";
 import { session } from "../src/session";
-import type { RememberedWallet } from "../src/types";
 import { fake } from "./fakes";
 import { buttonNamed, leaveTo, settle, useScreenHarness } from "./harness";
-import { OPENERS, PHRASE } from "./openers";
+import { OPENERS } from "./openers";
 
 useScreenHarness();
-
-const SAVED: RememberedWallet = {
-  wallet_id: "testnet4-p2wpkh-fake",
-  address: fake.ADDRESS,
-  network: "testnet4",
-  address_type: "p2wpkh",
-};
 
 /** A promise held open until `release` is called. */
 function held<T>(value: T): { promise: Promise<T>; release: () => void } {
@@ -34,13 +26,13 @@ function unlocking(gate: Promise<void>): void {
   setPlatform({
     ...platform(),
     canRememberWallet: true,
-    getRemembered: async () => SAVED,
+    getRemembered: async () => fake.SAVED,
     loadSecret: async () => {
       await gate;
-      return { secret: PHRASE, passphrase: null };
+      return { secret: fake.PHRASE, passphrase: null };
     },
   });
-  session.remembered = SAVED;
+  session.remembered = fake.SAVED;
 }
 
 /** The phone's openers read the remembered record back once the wallet is open. */
@@ -79,7 +71,7 @@ describe.each(LATE_OPENERS)("an open that finishes after $name was left", (opene
     await settle();
 
     // It went through, so the wallet is open wherever the user is now…
-    expect(session.wallet?.wallet_id).toBe(SAVED.wallet_id);
+    expect(session.wallet?.wallet_id).toBe(fake.SAVED.wallet_id);
     // …but the screen they went to is theirs.
     expect(window.location.hash).toBe("#/setup");
   });

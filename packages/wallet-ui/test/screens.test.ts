@@ -20,7 +20,7 @@ import { renderSend } from "../src/screens/send";
 import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
-import { NETWORK_LABELS, type Network, type RememberedWallet } from "../src/types";
+import { NETWORK_LABELS, type Network } from "../src/types";
 import { fake } from "./fakes";
 import {
   buttonNamed,
@@ -261,23 +261,16 @@ describe("every choice group has a name (3.9)", () => {
 });
 
 describe("a remembered wallet is reachable after Setup (6.2)", () => {
-  const SAVED: RememberedWallet = {
-    wallet_id: "testnet4-p2wpkh-fake",
-    address: fake.ADDRESS,
-    network: "testnet4",
-    address_type: "p2wpkh",
-  };
-
-  /** A device that keeps keys, with SAVED remembered on it; returns the key loader. */
+  /** A device that keeps keys, with `fake.SAVED` remembered on it; returns the key loader. */
   function rememberSaved() {
     const loadSecret = vi.fn(async () => ({ secret: "abandon abandon abandon", passphrase: null }));
     setPlatform({
       ...platform(),
       canRememberWallet: true,
-      getRemembered: async () => SAVED,
+      getRemembered: async () => fake.SAVED,
       loadSecret,
     });
-    session.remembered = SAVED;
+    session.remembered = fake.SAVED;
     return loadSecret;
   }
 
@@ -358,7 +351,7 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
   it("Unlock opens a wallet saved on the chosen network", async () => {
     const loadSecret = rememberSaved();
     const info = await api.unlockWallet();
-    expect(loadSecret).toHaveBeenCalledWith(SAVED.wallet_id);
+    expect(loadSecret).toHaveBeenCalledWith(fake.SAVED.wallet_id);
     expect(info.network).toBe("testnet4");
     expect(session.wallet?.network).toBe("testnet4");
   });

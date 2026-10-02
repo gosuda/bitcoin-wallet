@@ -10,12 +10,16 @@
  *
  * The fake wallet answers from `fake.state`, which a test sets up and
  * `fake.reset()` puts back, and records every call the core would have
- * received in `fake.calls`.
+ * received in `fake.calls`. It also holds the fixtures the tests share: the
+ * wallet's phrase and remembered record, a transaction's history row, and a
+ * sealed store kept in memory.
  */
 
+import type { SealedStore } from "../src/platform/sealed";
 import {
   type Balance,
   type PsbtReview,
+  type RememberedWallet,
   type TxDetail,
   type TxSummary,
   type Utxo,
@@ -23,6 +27,16 @@ import {
 } from "../src/types";
 
 const ADDRESS = "tb1q4gp4z4utc286kcdpdsj3qwgpefcf9u4mv9a0d5";
+/** The recovery phrase `generateMnemonic` hands out. */
+const PHRASE =
+  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+/** The wallet the fake core opens, whatever opened it, as a device remembers it. */
+const SAVED: RememberedWallet = {
+  wallet_id: "testnet4-p2wpkh-fake",
+  address: ADDRESS,
+  network: "testnet4",
+  address_type: "p2wpkh",
+};
 
 const built = (total: number) => ({
   psbt_base64: `psbt-${total}`,
@@ -106,7 +120,7 @@ class FakeWallet {
     return new FakeWallet();
   }
   get id(): string {
-    return "testnet4-p2wpkh-fake";
+    return SAVED.wallet_id;
   }
   get network(): string {
     return "testnet4";
@@ -209,6 +223,8 @@ class FakeWallet {
 
 export const fake = {
   ADDRESS,
+  PHRASE,
+  SAVED,
   FakeWallet,
   state,
   calls,
@@ -243,20 +259,42 @@ export const fake = {
     syncGate = Promise.resolve();
     psbtGate = null;
   },
+  /** The row the core lists in the history for `detail`, as a fresh object. */
+  summaryOf(detail: TxDetail): TxSummary {
+    return {
+      txid: detail.txid,
+      net_sat: detail.net_sat,
+      sent_sat: detail.sent_sat,
+      received_sat: detail.received_sat,
+      fee_sat: detail.fee_sat,
+      confirmations: detail.confirmations,
+      timestamp: detail.timestamp,
+    };
+  },
+  /** Where IndexedDB would keep sealed records: a map, which a test can read. */
+  memoryStore(): SealedStore & { records: Map<string, unknown> } {
+    const records = new Map<string, unknown>();
+    return {
+      records,
+      get: async (walletId) => records.get(walletId),
+      put: async (walletId, record) => {
+        records.set(walletId, record);
+      },
+      delete: async (walletId) => {
+        records.delete(walletId);
+      },
+    };
+  },
 };
 
 export const wasmModule = {
   WalletApi: FakeWallet,
-  walletIdForKey: async () => "testnet4-p2wpkh-fake",
+  walletIdForKey: async () => SAVED.wallet_id,
   explorerTxUrl: async () => null,
   generateKey: async () => {
     throw new Error("not used here");
   },
-  generateMnemonic: async () => ({
-    words:
-      "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-    address: ADDRESS,
-  }),
+  generateMnemonic: async () => ({ words: PHRASE, address: ADDRESS }),
   validateMnemonic: async () => undefined,
 };
 

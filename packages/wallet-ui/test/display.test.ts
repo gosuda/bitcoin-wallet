@@ -31,7 +31,7 @@ import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
-import { type RememberedWallet, type TxDetail, WalletError } from "../src/types";
+import { type TxDetail, WalletError } from "../src/types";
 import { banner } from "../src/ui/dom";
 import { formatTime, shortId } from "../src/ui/format";
 import {
@@ -144,14 +144,8 @@ describe("ids and addresses (7.3)", () => {
   });
 
   it("shortens the saved wallet's address the same way on both Unlock screens", async () => {
-    const saved: RememberedWallet = {
-      wallet_id: "testnet4-p2wpkh-fake",
-      address: fake.ADDRESS,
-      network: "testnet4",
-      address_type: "p2wpkh",
-    };
-    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => saved });
-    session.remembered = saved;
+    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => fake.SAVED });
+    session.remembered = fake.SAVED;
 
     const desktop = mountAt("unlock", renderUnlock);
     const shown = texts(desktop, ".mono");
@@ -264,17 +258,7 @@ describe("amounts and rates (7.4)", () => {
   });
 
   it("writes the phone's history amounts with their unit", async () => {
-    fake.state.transactions = [
-      {
-        txid: SENT,
-        net_sat: -40_153,
-        sent_sat: 49_580,
-        received_sat: 9_427,
-        fee_sat: 153,
-        confirmations: 3,
-        timestamp: 1_790_000_000,
-      },
-    ];
+    fake.state.transactions = [fake.summaryOf(sent)];
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = await showAt("dashboard", renderPhoneWallet);
 
@@ -283,15 +267,7 @@ describe("amounts and rates (7.4)", () => {
 });
 
 describe("pending, confirmations and time (7.5)", () => {
-  const pending = {
-    txid: SENT,
-    net_sat: -40_153,
-    sent_sat: 49_580,
-    received_sat: 9_427,
-    fee_sat: 153,
-    confirmations: null,
-    timestamp: null,
-  };
+  const pending = fake.summaryOf({ ...sent, confirmations: null, timestamp: null });
 
   it("says Pending on both shells, the desktop's in the pending colour", async () => {
     fake.state.transactions = [pending];
@@ -334,18 +310,11 @@ describe("pending, confirmations and time (7.5)", () => {
 });
 
 describe("one word for each action (7.6)", () => {
-  const saved: RememberedWallet = {
-    wallet_id: "testnet4-p2wpkh-fake",
-    address: fake.ADDRESS,
-    network: "testnet4",
-    address_type: "p2wpkh",
-  };
-
   // The desktop's Unlock asked "Really forget?" with no warning, and its way
   // out said "key" where the phone's said "wallet".
   it("offers the same way out and the same Forget on both Unlock screens", () => {
-    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => saved });
-    session.remembered = saved;
+    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => fake.SAVED });
+    session.remembered = fake.SAVED;
 
     for (const render of [renderUnlock, renderPhoneUnlock]) {
       const screen = mountAt("unlock", render);

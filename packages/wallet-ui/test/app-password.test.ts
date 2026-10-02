@@ -6,7 +6,7 @@ vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persis
 
 import { api } from "../src/api";
 import { platform, setPlatform } from "../src/platform";
-import { type SealedStore, sealedKeystore, unseal } from "../src/platform/sealed";
+import { sealedKeystore, unseal } from "../src/platform/sealed";
 import type { Route } from "../src/router";
 import { renderCreate } from "../src/screens/create";
 import { renderKey } from "../src/screens/key";
@@ -24,18 +24,9 @@ useScreenHarness();
 /** The fake core gives every wallet this id, whatever opened it. */
 const WALLET_ID = "testnet4-p2wpkh-fake";
 const KEY = "11".repeat(32);
-const PHRASE =
-  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const PASSWORD = "correct horse battery staple";
 /** Few rounds, so a test does not wait on the real count; a record carries its own. */
 const ROUNDS = 1_000;
-
-const SAVED: RememberedWallet = {
-  wallet_id: WALLET_ID,
-  address: fake.ADDRESS,
-  network: "testnet4",
-  address_type: "p2wpkh",
-};
 
 // The canvas's words (2e, 2f).
 const BROWSER_HINT = "· encrypted with an app password and kept in this browser";
@@ -50,17 +41,8 @@ const MISMATCH = "The passwords do not match.";
  * the sealed records sit in a map where IndexedDB would keep them.
  */
 function inTheBrowser() {
-  const records = new Map<string, unknown>();
+  const store = fake.memoryStore();
   let remembered: RememberedWallet | null = null;
-  const store: SealedStore = {
-    get: async (walletId) => records.get(walletId),
-    put: async (walletId, record) => {
-      records.set(walletId, record);
-    },
-    delete: async (walletId) => {
-      records.delete(walletId);
-    },
-  };
   setPlatform({
     ...platform(),
     canRememberWallet: true,
@@ -71,15 +53,15 @@ function inTheBrowser() {
     },
     ...sealedKeystore(store, ROUNDS),
   });
-  return { records, remembered: () => remembered };
+  return { records: store.records, remembered: () => remembered };
 }
 
 /** A wallet remembered in this browser under PASSWORD, as Key leaves one. */
 async function savedInTheBrowser() {
   const browser = inTheBrowser();
   await platform().rememberSecret(WALLET_ID, KEY, undefined, PASSWORD);
-  await platform().setRemembered(SAVED);
-  session.remembered = SAVED;
+  await platform().setRemembered(fake.SAVED);
+  session.remembered = fake.SAVED;
   return browser;
 }
 
@@ -258,14 +240,14 @@ describe("remembering in the browser takes an app password (6.12)", () => {
     await landsOn("dashboard");
 
     expect(await unseal(WALLET_ID, browser.records.get(WALLET_ID), PASSWORD)).toEqual({
-      secret: PHRASE,
+      secret: fake.PHRASE,
       passphrase: "TREZOR",
     });
   });
 
   it("Settings says the key is kept in this browser", async () => {
     inTheBrowser();
-    session.remembered = await api.openWallet(PHRASE, "p2wpkh", true, undefined, PASSWORD);
+    session.remembered = await api.openWallet(fake.PHRASE, "p2wpkh", true, undefined, PASSWORD);
     const screen = mountAt("settings", renderSettings);
     expect(screen.textContent).toContain("Yes · in this browser, encrypted with your app password");
   });
@@ -392,7 +374,7 @@ describe("where the OS keystore keeps the key, nothing asks for an app password 
     setPlatform({
       ...platform(),
       canRememberWallet: true,
-      getRemembered: async () => SAVED,
+      getRemembered: async () => fake.SAVED,
       loadSecret,
     });
 
@@ -410,7 +392,7 @@ describe("where the OS keystore keeps the key, nothing asks for an app password 
       expect(screen.textContent).not.toMatch(/app password/i);
     }
 
-    session.remembered = SAVED;
+    session.remembered = fake.SAVED;
     const screen = mountAt("unlock", renderUnlock);
     expect(screen.textContent).toContain("Wallet saved on this device");
     expect(screen.textContent).not.toMatch(/app password/i);

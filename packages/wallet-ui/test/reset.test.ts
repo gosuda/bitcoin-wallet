@@ -7,22 +7,15 @@ vi.mock("../src/persist/indexeddb", async () => (await import("./fakes")).persis
 import { api } from "../src/api";
 import { platform, setPlatform } from "../src/platform";
 import { session } from "../src/session";
-import { historyResetFixes, type RememberedWallet, WalletError } from "../src/types";
+import { historyResetFixes, WalletError } from "../src/types";
 import { fake } from "./fakes";
 import { buttonNamed, find, settle, useScreenHarness } from "./harness";
-import { OPENERS, type Opener, PHRASE } from "./openers";
+import { OPENERS, type Opener } from "./openers";
 
 useScreenHarness();
 
 /** The fake core gives every wallet this id, whatever opened it. */
 const WALLET_ID = "testnet4-p2wpkh-fake";
-
-const SAVED: RememberedWallet = {
-  wallet_id: WALLET_ID,
-  address: fake.ADDRESS,
-  network: "testnet4",
-  address_type: "p2wpkh",
-};
 
 // The canvas's words (MUnlockReset and its note), and that freezing goes with the history.
 const UNREADABLE = "The saved wallet data on this device cannot be read.";
@@ -53,12 +46,12 @@ async function failToOpen(opener: Opener, reason: Reason) {
     ...(opener.remembered
       ? {
           canRememberWallet: true,
-          getRemembered: async () => SAVED,
-          loadSecret: async () => ({ secret: PHRASE, passphrase: null }),
+          getRemembered: async () => fake.SAVED,
+          loadSecret: async () => ({ secret: fake.PHRASE, passphrase: null }),
         }
       : {}),
   });
-  session.remembered = opener.remembered ? SAVED : null;
+  session.remembered = opener.remembered ? fake.SAVED : null;
   const screen = await opener.render();
 
   fake.state.corrupt = reason;
@@ -166,7 +159,7 @@ describe("the reset deletes only a record that has just failed to read (6.7)", (
   });
 
   it("opens a wallet whose record reads, and deletes nothing", async () => {
-    await api.resetHistoryAndOpen(PHRASE, "p2wpkh", false);
+    await api.resetHistoryAndOpen(fake.PHRASE, "p2wpkh", false);
 
     expect(fake.callNames()).toEqual(["open"]);
     expect(session.wallet?.wallet_id).toBe(WALLET_ID);
@@ -175,7 +168,7 @@ describe("the reset deletes only a record that has just failed to read (6.7)", (
   it("leaves a record from a newer version alone", async () => {
     fake.state.corrupt = "future_version";
 
-    await expect(api.resetHistoryAndOpen(PHRASE, "p2wpkh", false)).rejects.toMatchObject({
+    await expect(api.resetHistoryAndOpen(fake.PHRASE, "p2wpkh", false)).rejects.toMatchObject({
       code: "corrupt_state",
     });
     expect(fake.callNames()).toEqual(["open"]);
@@ -183,11 +176,11 @@ describe("the reset deletes only a record that has just failed to read (6.7)", (
   });
 
   it("reads a remembered key from the key store once", async () => {
-    const loadSecret = vi.fn(async () => ({ secret: PHRASE, passphrase: null }));
+    const loadSecret = vi.fn(async () => ({ secret: fake.PHRASE, passphrase: null }));
     setPlatform({
       ...platform(),
       canRememberWallet: true,
-      getRemembered: async () => SAVED,
+      getRemembered: async () => fake.SAVED,
       loadSecret,
     });
     fake.state.corrupt = "malformed";

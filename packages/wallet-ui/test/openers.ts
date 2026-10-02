@@ -12,11 +12,10 @@ import { renderCreate } from "../src/screens/create";
 import { renderKey } from "../src/screens/key";
 import { renderRestore } from "../src/screens/restore";
 import { renderUnlock } from "../src/screens/unlock";
+import { fake } from "./fakes";
 import { find, mountAt, settle, showAt, type } from "./harness";
 
-export const PHRASE =
-  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-const WORDS = PHRASE.split(" ");
+const WORDS = fake.PHRASE.split(" ");
 
 /** Types the phrase's word into every word box there is, by the position its label names. */
 export function typeWords(screen: HTMLElement): void {

@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   PBKDF2_ITERATIONS,
   type SealedSecret,
-  type SealedStore,
   seal,
   sealedKeystore,
   unseal,
 } from "../src/platform/sealed";
 import { errorMessage, type StoredSecret } from "../src/types";
+import { fake } from "./fakes";
 
 /**
  * Far fewer rounds than the real count, which takes most of a second each
@@ -16,9 +16,7 @@ import { errorMessage, type StoredSecret } from "../src/types";
 const ROUNDS = 1_000;
 
 const WALLET = "testnet4-p2wpkh-3f0c9a1b";
-const PHRASE =
-  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-const STORED: StoredSecret = { secret: PHRASE, passphrase: "TREZOR" };
+const STORED: StoredSecret = { secret: fake.PHRASE, passphrase: "TREZOR" };
 const PASSWORD = "correct horse battery staple";
 
 function bytes(base64: string): Uint8Array {
@@ -34,21 +32,6 @@ function flipped(record: SealedSecret, field: "salt" | "iv" | "ciphertext"): Sea
   const data = bytes(record[field]);
   data[0] = (data[0] ?? 0) ^ 1;
   return { ...record, [field]: base64(data) };
-}
-
-/** Where IndexedDB would keep the records. */
-function memoryStore(): SealedStore & { records: Map<string, unknown> } {
-  const records = new Map<string, unknown>();
-  return {
-    records,
-    get: async (walletId) => records.get(walletId),
-    put: async (walletId, record) => {
-      records.set(walletId, record);
-    },
-    delete: async (walletId) => {
-      records.delete(walletId);
-    },
-  };
 }
 
 describe("a secret sealed under an app password (6.12)", () => {
@@ -172,10 +155,10 @@ describe("a secret sealed under an app password (6.12)", () => {
 
 describe("the key store over sealed records (6.12)", () => {
   it("remembers, loads and forgets a wallet's secret", async () => {
-    const store = memoryStore();
+    const store = fake.memoryStore();
     const keystore = sealedKeystore(store, ROUNDS);
 
-    await keystore.rememberSecret("wallet-a", PHRASE, "TREZOR", PASSWORD);
+    await keystore.rememberSecret("wallet-a", fake.PHRASE, "TREZOR", PASSWORD);
     expect(store.records.get("wallet-a")).toMatchObject({ version: 1, iterations: ROUNDS });
     expect(await keystore.loadSecret("wallet-a", PASSWORD)).toEqual(STORED);
     expect(await keystore.loadSecret("wallet-b", PASSWORD)).toBeNull();
@@ -188,7 +171,7 @@ describe("the key store over sealed records (6.12)", () => {
   });
 
   it("keeps a single key's missing passphrase as none", async () => {
-    const keystore = sealedKeystore(memoryStore(), ROUNDS);
+    const keystore = sealedKeystore(fake.memoryStore(), ROUNDS);
     await keystore.rememberSecret("wallet-a", "11".repeat(32), undefined, PASSWORD);
     expect(await keystore.loadSecret("wallet-a", PASSWORD)).toEqual({
       secret: "11".repeat(32),
@@ -197,9 +180,9 @@ describe("the key store over sealed records (6.12)", () => {
   });
 
   it("does not open one wallet's record in another's place", async () => {
-    const store = memoryStore();
+    const store = fake.memoryStore();
     const keystore = sealedKeystore(store, ROUNDS);
-    await keystore.rememberSecret("wallet-a", PHRASE, "TREZOR", PASSWORD);
+    await keystore.rememberSecret("wallet-a", fake.PHRASE, "TREZOR", PASSWORD);
 
     // The same password and an intact record, under the wrong id: GCM's tag
     // covers the id, and cannot say which part failed.
@@ -211,15 +194,15 @@ describe("the key store over sealed records (6.12)", () => {
   });
 
   it("stores nothing without an app password, and opens nothing without the right one", async () => {
-    const store = memoryStore();
+    const store = fake.memoryStore();
     const keystore = sealedKeystore(store, ROUNDS);
 
-    await expect(keystore.rememberSecret("wallet-a", PHRASE)).rejects.toMatchObject({
+    await expect(keystore.rememberSecret("wallet-a", fake.PHRASE)).rejects.toMatchObject({
       code: "no_app_password",
     });
     expect(store.records.size).toBe(0);
 
-    await keystore.rememberSecret("wallet-a", PHRASE, undefined, PASSWORD);
+    await keystore.rememberSecret("wallet-a", fake.PHRASE, undefined, PASSWORD);
     await expect(keystore.loadSecret("wallet-a")).rejects.toMatchObject({
       code: "wrong_password",
     });

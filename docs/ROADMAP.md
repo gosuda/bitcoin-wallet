@@ -1418,9 +1418,14 @@ the new.
       file's tests keep their names and order, the expect counts are the same, and the 251
       screen states the suite reaches dump byte-identical to the base (field values,
       checkedness, focus and the URL with them)
-- [ ] **9.32 The shared fixtures live in fakes** · S · `test/fakes.ts`
+- [x] **9.32 The shared fixtures live in fakes** · S · `test/fakes.ts`
       why: the same remembered wallet six times, the phrase three, a summary copied out of a
-      detail three, an in-memory sealed store twice · done when: one of each in `fakes`
+      detail three, an in-memory sealed store twice · done: 2026-10-02 — `fake.PHRASE`,
+      `fake.SAVED`, `fake.summaryOf(detail)` (a fresh row each call) and `fake.memoryStore()`
+      (a fresh map each call). Nothing in the source or the tests writes into a remembered
+      record, so one shared record is safe, and the Node-environment sealed tests load nothing
+      new at run time. The same 442 tests pass, and the 251 screen states the suite reaches
+      dump byte-identical to the base (field values, checkedness, focus and the URL with them)
 - [ ] **9.33 The wasm core and IndexedDB are mocked for every file at once** · S ·
   `vitest.config.ts`
       why: twelve files open with the same two mocks · done when: a setup file holds them
