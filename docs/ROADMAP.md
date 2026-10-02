@@ -1302,10 +1302,13 @@ the new.
       run on the old code and the new, then removed, printed `wallet_id` and `address_for_key`
       for 12 kinds of key on 4 networks and 5 address types, and the public descriptors and id
       of 7 opened wallets: 248 lines, byte-identical
-- [ ] **9.5 A transfer and a drain build through one path** · S · `wallet.rs`
+- [x] **9.5 A transfer and a drain build through one path** · S · `wallet.rs`
       why: both lock, resolve chosen coins, set the rate and sequence, finish, name the
-      shortfall, persist and summarize, in two copies · done when: one private builder, the
-      public signatures and every send test unchanged
+      shortfall, persist and summarize, in two copies · done: 2026-10-02 — `build_paying(coins,
+      rate, paid)` holds the build, and `transfer` and `drain` keep their own checks and call
+      it, with the builder's setters in the order each called them. Every send test passes,
+      among them chosen coins, frozen coins, a shortfall, a drain with no change and a payment
+      to an address of our own
 - [ ] **9.6 A chain position and a transaction's outputs, read in one place** · S ·
   `wallet.rs`
       why: confirmations, height and time are read from a chain position three times, and a

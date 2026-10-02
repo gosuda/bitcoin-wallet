@@ -1074,41 +1074,7 @@ impl WalletHandle {
             }
             outputs.push((addr.script_pubkey(), Amount::from_sat(r.amount_sat)));
         }
-        // Kept so the summary can tell a payment from change even when a
-        // recipient is one of our own addresses.
-        let destinations = outputs.clone();
-
-        let mut inner = self.inner.lock().await;
-        let chosen = coins
-            .map(|coins| Self::chosen_outpoints(&inner.wallet, coins))
-            .transpose()?;
-        let psbt = {
-            let mut builder = inner.wallet.build_tx();
-            if let Some(chosen) = &chosen {
-                builder
-                    .add_utxos(chosen)
-                    .map_err(|e| Error::UnknownCoin(e.to_string()))?
-                    .manually_selected_only();
-            }
-            builder
-                .set_recipients(outputs)
-                .fee_rate(rate)
-                // BDK defaults to this already when no CSV descriptor requires
-                // otherwise, which is every address type this wallet offers.
-                // Set explicitly so replaceability is a property of the code,
-                // not of a default that could change upstream.
-                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
-            let built = builder.finish().map_err(build_error);
-            let draw = if chosen.is_some() {
-                Draw::Chosen
-            } else {
-                Draw::Any
-            };
-            Self::short_of_frozen(built, &inner.wallet, draw)?
-        };
-        Self::persist(&mut inner).await?;
-
-        Self::summarize(&inner, psbt, Paid::Exact(&destinations))
+        self.build_paying(coins, rate, Paid::Exact(&outputs)).await
     }
 
     /// Build a transfer that empties the wallet into one address.
@@ -1145,26 +1111,47 @@ impl WalletHandle {
         let rate = fee_rate_from_sat_vb(fee_rate_sat_vb)?;
         let addr = self.recipient_address(address)?;
         let destination = addr.script_pubkey();
+        self.build_paying(coins, rate, Paid::Drain(&destination))
+            .await
+    }
+
+    /// The build behind a transfer, which pays [`Paid::Exact`], and a drain,
+    /// which pays [`Paid::Drain`], once their input is checked. Chosen
+    /// `coins` are spent and nothing else is; without them the wallet
+    /// selects coins, and a drain takes every one it can spend.
+    async fn build_paying(
+        &self,
+        coins: Option<&[CoinId]>,
+        rate: FeeRate,
+        paid: Paid<'_>,
+    ) -> Result<BuiltTx> {
         let mut inner = self.inner.lock().await;
         let chosen = coins
             .map(|coins| Self::chosen_outpoints(&inner.wallet, coins))
             .transpose()?;
         let psbt = {
             let mut builder = inner.wallet.build_tx();
-            match &chosen {
-                Some(chosen) => {
-                    builder
-                        .add_utxos(chosen)
-                        .map_err(|e| Error::UnknownCoin(e.to_string()))?
-                        .manually_selected_only();
-                }
-                None => {
-                    builder.drain_wallet();
-                }
+            if let Some(chosen) = &chosen {
+                builder
+                    .add_utxos(chosen)
+                    .map_err(|e| Error::UnknownCoin(e.to_string()))?
+                    .manually_selected_only();
+            } else if let Paid::Drain(_) = paid {
+                builder.drain_wallet();
+            }
+            if let Paid::Exact(outputs) = paid {
+                // A copy: `paid` keeps the outputs so the summary can tell a
+                // payment from change even when a recipient is one of ours.
+                builder.set_recipients(outputs.to_vec());
+            } else if let Paid::Drain(destination) = paid {
+                builder.drain_to(destination.clone());
             }
             builder
-                .drain_to(destination.clone())
                 .fee_rate(rate)
+                // BDK defaults to this already when no CSV descriptor requires
+                // otherwise, which is every address type this wallet offers.
+                // Set explicitly so replaceability is a property of the code,
+                // not of a default that could change upstream.
                 .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
             let built = builder.finish().map_err(build_error);
             let draw = if chosen.is_some() {
@@ -1175,7 +1162,7 @@ impl WalletHandle {
             Self::short_of_frozen(built, &inner.wallet, draw)?
         };
         Self::persist(&mut inner).await?;
-        Self::summarize(&inner, psbt, Paid::Drain(&destination))
+        Self::summarize(&inner, psbt, paid)
     }
 
     /// Parse an address and insist it belongs to this wallet's network.
