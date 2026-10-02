@@ -1233,6 +1233,201 @@ and is under Not doing.
       and at 390 px the four stay on one row, as M8 draws them. Measured in Chrome at all three
       widths on Send's fee and on Speed up's target, with a phone's overlay scrollbars
 
+## Round 9 — Less code
+
+Branch `round-9-less-code`. Picked on 2026-10-02: the owner asked for the duplicated
+functions and other refactoring targets to be found, planned and taken out, to bring the
+code down. Nothing in this round changes what the wallet does, says or draws: every item is a
+refactor, and every item has a proof.
+
+**How the targets were found**
+
+1. **Measured.** Code, comment and blank lines per area over the tracked sources, leaving out
+   the frozen Go reference, the generated phone projects, the boards `gen.py` writes and the
+   lockfiles: 27,055 code lines at `2fefe72` (34,955 lines in all).
+2. **Mechanical leads.** A token clone detector, exact and with names abstracted, over the
+   Rust, TypeScript, CSS, Python, YAML and shell; and a dead-code pass over TypeScript
+   exports, Rust `pub` items and CSS classes. Dead code was almost nil, so the gain is in
+   repetition.
+3. **Read.** Seven read-only reviews, one per area: the core; the bindings, CLI and regtest
+   tests; the two shells' screens; the TypeScript modules; the UI tests; the stylesheets; the
+   board generator and CI. Each checked every lead against the code and looked for logic
+   repeated in other words.
+4. **Triage.** A target was taken when it saves lines net, keeps behaviour, text, markup and
+   rendering exactly, and has a proof. Code golf, fewer tests or assertions, weaker types,
+   formatter changes and anything visual were ruled out, and so were merges that would tie
+   together code that only happens to look alike. The leads not taken are in the PR, each
+   with its reason.
+
+**How an item is proved.** After every commit the whole gate is green (`just check`,
+`just test`, the regtest build), and the names of the tests are the same as before it, so
+no test was lost. On top of that, each item names its own proof: the DOM of every screen
+state the UI suite reaches (251 states, dumped with field values, checkedness, focus and the
+URL) is byte-identical; Chrome computes the same style for every element of those states,
+at desktop and phone widths, light and dark; the boards regenerate byte-identical; and a
+path no test reaches is pinned first by a characterization test, run on the old code and
+the new.
+
+**The core and the CLI**
+
+- [ ] **9.1 The core's tests share their fixtures** · M · `wallet.rs` (tests)
+      why: one recipient is written out in ten lines sixteen times, a coin id in five lines
+      seven times, a persister twice under two names, and two reviewed-size tests and two
+      replaceability checks are each one body written twice · done when: the same 95 tests
+      check the same things, through `pay_to`, `elsewhere`, `coin_at`, `funded` and one
+      reviewed-size body
+- [ ] **9.2 One mock backend, shared by its clones** · S · `backend/mock.rs`, `wallet.rs`
+      why: a 27-line forwarding backend exists only so a test can keep a handle on what the
+      mock recorded, and the mock carries two canned answers no test sets · done when: clones
+      of the mock share what they record and the forwarder is gone
+- [ ] **9.3 The error table writes a plain sample on one line** · S · `error.rs` (tests)
+      why: each message-only variant takes six lines of the table that pins codes and
+      messages · done when: the same 19 rows hold the same data
+- [ ] **9.4 An address, a wallet id and an account xpub, each derived one way** · S ·
+  `keys.rs`, `wallet.rs`
+      why: the derivation tail is written three times, the id format three times and the
+      walk to the first xpub three times · done when: one of each, with the pinned addresses,
+      ids and fingerprints unchanged
+- [ ] **9.5 A transfer and a drain build through one path** · S · `wallet.rs`
+      why: both lock, resolve chosen coins, set the rate and sequence, finish, name the
+      shortfall, persist and summarize, in two copies · done when: one private builder, the
+      public signatures and every send test unchanged
+- [ ] **9.6 A chain position and a transaction's outputs, read in one place** · S ·
+  `wallet.rs`
+      why: confirmations, height and time are read from a chain position three times, and a
+      transaction's outputs are described twice · done when: one reading of each, with the
+      order of the history pinned by a test run on the old code first
+- [ ] **9.7 The CLI's exit codes come from the core's error ordinal** · S · `error.rs`,
+  `wallet-cli`
+      why: the CLI's 19-arm exit-code match is the core's test-only ordinal plus ten · done
+      when: `Error::ordinal` is public, the CLI adds ten, and a test pins all 19 codes
+- [ ] **9.8 The CLI's error derives its messages** · S · `wallet-cli`
+      why: `Display` and `From<Error>` are written by hand for what `thiserror` derives, as
+      the core already does · done when: the same messages, derived
+
+**The bindings and the regtest suite**
+
+- [ ] **9.9 The regtest files share the node and wallet helpers** · M · `regtest-tests`
+      why: `flows.rs` has the helpers that start a node, fund, confirm, open and send, and
+      the other three files type them out again: the node start five times, the funding six
+      times, a one-recipient payment seven · done when: one set in `tests/common`, every test
+      keeping its steps and assertions, green in CI
+- [ ] **9.10 The wasm bindings hand a core result to JS through one helper** · S ·
+  `wallet-wasm`
+      why: `to_js(&…map_err(core_err)?)` takes seven lines each time rustfmt breaks it · done
+      when: one `core_to_js`, with what each binding returns pinned first by tests on the old
+      code
+- [ ] **9.11 The Tauri error builds `internal` where it is used** · S · `src-tauri/src/error.rs`
+      why: a constructor with one caller · done when: inlined, same code and message
+
+**The UI's modules**
+
+- [ ] **9.12 One builder for every transaction preview** · S · `api.ts`
+      why: five builders each check the rate, take the wallet, build and keep the PSBT, and
+      the `api` object restates each parameter list to forward it · done when: one
+      `buildPreview`, the same order of checks, the race fix untouched
+- [ ] **9.13 The types and normalizers derive what repeats** · S · `types.ts`, `wasm/*`
+      why: a transaction's detail restates its summary's seven fields, two inputs restate a
+      coin id, and the input normalizer is written twice · done when: the types are derived
+      and the shapes unchanged
+- [ ] **9.14 The wasm core loads once for every plain call** · S · `wasm/index.ts`
+      why: five wrappers each await the loader, then call · done when: one `afterLoad`, with
+      the load order pinned by a test on the old code
+- [ ] **9.15 A payment request reads its amount with the amount parser** · S · `bip21.ts`
+      why: `bip21.ts` keeps private copies of formatting and parsing a BTC amount · done
+      when: it uses `amount.ts`, and the two agree over a generated corpus
+- [ ] **9.16 One copy of the IndexedDB plumbing** · S · `persist/*`
+      why: the wallet state and the sealed secrets open, upgrade and transact with IndexedDB
+      in two copies of the same code · done when: one `objectStore`, every error message the
+      same, pinned by a test on the old code
+- [ ] **9.17 Icons named from their shapes; the unused share icon goes** · S · `ui/icons.ts`,
+  `gen.py`
+      why: the 21 icon names are listed twice, and no screen or board draws `share` · done
+      when: the names come from the shape table and every icon's markup is byte-identical
+- [ ] **9.18 The clock, the Remember box, a field's error and a button's class, once each**
+  · S · `ui/*`
+      why: small blocks repeated in the shared UI modules · done when: one of each
+- [ ] **9.19 The Tauri store read and written through two helpers** · S · `platform-tauri.ts`
+      why: four store methods repeat the load, read or write, and save · done when: two
+      helpers, the same keys and the same values
+
+**The screens**
+
+- [ ] **9.20 A held fee-bump or cancel preview is sent through one helper** · M ·
+  `dashboard.ts`, `mobile/screens/tx.ts`
+      why: both shells hold, drop and send a preview with the same counter and the same
+      failure handling, written four times · done when: one `heldPreview`, the failure paths
+      pinned by tests on the old code
+- [ ] **9.21 A screen that lacks what it shows sends you on in one call** · S · 20 screens
+      why: `navigate(route); return el("main")` twenty times · done when: one `redirect`,
+      each screen's guard pinned by a test on the old code
+- [ ] **9.22 Forget, Setup and Rescan, one way on both shells** · M · `ui/settings.ts`
+      why: forgetting a wallet is written three times and its desktop card twice; Setup's
+      Continue and Rescan once per shell · done when: shared helpers, the failure paths
+      pinned by tests on the old code
+- [ ] **9.23 One scan-in-place for the phone's Send and Import PSBT** · S · `mobile/*`
+      why: 27 identical lines in both screens · done when: one helper
+- [ ] **9.24 The phone Restore's opener catches and offers the reset** · S ·
+  `mobile/screens/restore.ts`
+      why: three identical try/catch blocks around it · done when: once, inside
+- [ ] **9.25 One guard and render loop for both shells** · S · `app.ts`, `mobile/shell.ts`
+      why: the same guard read, redirect and hashchange wiring in each shell · done when:
+      one `listen`
+- [ ] **9.26 One heading helper for the desktop's screens** · S · `screen.ts`
+      why: the same `screen-head` block on nine screens · done when: one `screenHead`
+- [ ] **9.27 The phone's containers, ledes and counts use the shared helpers** · S ·
+  `mobile/*`
+      why: the phone redoes what `el`, `lede` and `counted` already do · done when: it uses
+      them
+- [ ] **9.28 The unit chips and the fee targets are built once** · S · `ui/dom.ts`, `types.ts`
+      why: Send rebuilds the dashboard's unit chips, and the target choices are written four
+      times · done when: one of each
+- [ ] **9.29 The send screens show a field's error through the shared helper** · S · both
+  `send.ts`
+      why: the four lines 9.18 shares are still written out on both Send screens · done when:
+      they use it
+
+**The UI tests**
+
+- [ ] **9.30 A screen is mounted at its route in one call** · M · `test/*`
+      why: `at(route); mount(render())`, often with a settle, 65 times · done when: `mountAt`
+      and `showAt`
+- [ ] **9.31 The reset and late-open tests share their openers** · S · `test/*`
+      why: five openers are written in both files · done when: one table, each file's tests
+      keeping their names
+- [ ] **9.32 The shared fixtures live in fakes** · S · `test/fakes.ts`
+      why: the same remembered wallet six times, the phrase three, a summary copied out of a
+      detail three, an in-memory sealed store twice · done when: one of each in `fakes`
+- [ ] **9.33 The wasm core and IndexedDB are mocked for every file at once** · S ·
+  `vitest.config.ts`
+      why: twelve files open with the same two mocks · done when: a setup file holds them
+- [ ] **9.34 The PSBT and autolock tests open their screens through local helpers** · S
+      why: the same two or three opening lines twenty times in one file and eleven in the
+      other · done when: a helper each
+- [ ] **9.35 The harness's cleanup is not repeated** · S
+      why: six places clear what the harness already clears after every test · done when:
+      gone
+
+**The stylesheets**
+
+- [ ] **9.36 CSS that never applies, or repeats what applies, goes** · S · `*.css`
+      why: an `h2` rule with no `<h2>`, a banner kind no code shows, two unused tokens, and
+      phone declarations that repeat what app.css already gives the same element · done
+      when: Chrome computes the same style for every element of every dumped state
+- [ ] **9.37 What two screens draw alike is styled once** · S · `app.css`, `mobile.css`
+      why: Unlock and Result build the same card, a history row is styled in two rules, a
+      table heading restates the label rule · done when: the same computed styles
+
+**The generator and CI**
+
+- [ ] **9.38 The boards' repeated parts are drawn with helpers** · S · `gen.py`
+      why: eighteen phone boards open and close their frame the same way, eight desktop cards
+      their heading row, and every board's file name is listed twice · done when: every
+      board, `canvas.json` and the icon regenerate byte-identical
+- [ ] **9.39 One composite action sets up Node, pnpm and the wasm core** · S · `.github`
+      why: the same three steps in six jobs across three workflows · done when: one action,
+      the job names unchanged, actionlint clean, green in CI
+
 ## Later — not picked
 
 Listed, not scheduled; each goes to the design canvas first unless marked otherwise.
@@ -1280,6 +1475,9 @@ Listed, not scheduled; each goes to the design canvas first unless marked otherw
 - 2026-09-30 — The app password has no minimum length: the owner's call. SECURITY.md already
   says a short one can be guessed offline by anyone with the browser's files (6.12).
 - 2026-09-30 — The display text follows one standard on both shells (Round 7).
+- 2026-10-02 — Round 9 takes refactors only. Each keeps behaviour, text, markup and rendering
+  exactly, and has a proof; a lead that would change any of them, or would tie together code
+  that only happens to look alike, is left as it is.
 
 ## Not doing
 
