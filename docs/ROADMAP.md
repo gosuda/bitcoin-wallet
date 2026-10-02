@@ -1485,10 +1485,13 @@ the new.
       line?)` in `screen.ts`, on ten desktop screens; the dumps hold every one of the ten
       headings, and the 251 dumped screen states are byte-identical to the base and the same
       442 tests pass
-- [ ] **9.27 The phone's containers, ledes and counts use the shared helpers** · S ·
+- [x] **9.27 The phone's containers, ledes and counts use the shared helpers** · S ·
   `mobile/*`
-      why: the phone redoes what `el`, `lede` and `counted` already do · done when: it uses
-      them
+      why: the phone redoes what `el`, `lede` and `counted` already do · done: 2026-10-02 —
+      `add` goes from `mobile/ui.ts`, its containers built with `el`; `lede()` writes the
+      phone's ledes and `counted(n, "coin")`, the same formula, the coin counts. 5 cases on
+      the old code first passed before and after, then were removed; the 251 dumped screen
+      states are byte-identical to the base and the same 442 tests pass
 - [ ] **9.28 The unit chips and the fee targets are built once** · S · `ui/dom.ts`, `types.ts`
       why: Send rebuilds the dashboard's unit chips, and the target choices are written four
       times · done when: one of each

@@ -7,7 +7,7 @@ import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel } from "../../ui/dom";
 import { icon } from "../../ui/icons";
 import { explorerFailed, SENT_LINE, SENT_TITLE, sentNotSaved } from "../../ui/text";
-import { body, button, card, header, spacer } from "../ui";
+import { body, button, card, header, lede, spacer } from "../ui";
 
 export function renderResult(): HTMLElement {
   const result = session.lastResult;
@@ -22,10 +22,7 @@ export function renderResult(): HTMLElement {
       alert.node,
       el("div", { className: "m-centre" }, [
         el("span", { className: "m-badge" }, [icon("check", 36)]),
-        el("div", {}, [
-          el("p", { className: "m-card-title", text: SENT_TITLE }),
-          el("p", { className: "m-lede", text: SENT_LINE }),
-        ]),
+        el("div", {}, [el("p", { className: "m-card-title", text: SENT_TITLE }), lede(SENT_LINE)]),
       ]),
       card(
         sectionLabel("Transaction id"),

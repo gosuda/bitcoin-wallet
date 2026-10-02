@@ -17,13 +17,6 @@ import { sentence } from "../ui/text";
 
 export type Child = Node | string | null | undefined;
 
-function add(parent: HTMLElement, children: readonly Child[]): void {
-  for (const c of children) {
-    if (c === null || c === undefined) continue;
-    parent.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
-  }
-}
-
 /** A screen header: optional back button, centred title, optional right action. */
 export function header(
   title: string,
@@ -60,22 +53,16 @@ export function iconButton(name: IconName, label: string, onClick: () => void): 
 }
 
 export function body(...children: Child[]): HTMLElement {
-  const node = el("div", { className: "m-body" });
-  add(node, children);
-  return node;
+  return el("div", { className: "m-body" }, children);
 }
 
 export function card(...children: Child[]): HTMLElement {
-  const node = el("section", { className: "m-card" });
-  add(node, children);
-  return node;
+  return el("section", { className: "m-card" }, children);
 }
 
 /** A card whose children are full-bleed rows (`item`). */
 export function listCard(...children: Child[]): HTMLElement {
-  const node = el("section", { className: "m-card m-card-flush" });
-  add(node, children);
-  return node;
+  return el("section", { className: "m-card m-card-flush" }, children);
 }
 
 export interface ButtonOpts {
@@ -135,9 +122,7 @@ export function outputNote(owner: { net_sat: number }, output: TxOutput): string
 }
 
 export function row(...children: Child[]): HTMLElement {
-  const node = el("div", { className: "m-row" });
-  add(node, children);
-  return node;
+  return el("div", { className: "m-row" }, children);
 }
 
 /**

@@ -182,10 +182,7 @@ function phrase(): HTMLElement {
       card(
         labelled("Passphrase", passphrase, "(optional)"),
         passphrase,
-        el("p", {
-          className: "m-lede",
-          text: PASSPHRASE_HINT,
-        }),
+        lede(PASSPHRASE_HINT),
         remember.node,
       ),
       spacer(),
