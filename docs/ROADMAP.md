@@ -1325,9 +1325,13 @@ the new.
       2026-10-02 — `Error::ordinal` is public, the core's table test uses it, and the CLI exits
       with 10 plus it. A new assertion that the 19 codes are exactly 10 to 28, in order, passed
       on the old code first and stays
-- [ ] **9.8 The CLI's error derives its messages** · S · `wallet-cli`
-      why: `Display` and `From<Error>` are written by hand for what `thiserror` derives, as
-      the core already does · done when: the same messages, derived
+- [x] **9.8 The CLI's error derives its messages** · S · `wallet-cli`
+      why: `Display` and `From<Error>` are written by hand for what `thiserror` derives, as the
+      core already does · done: 2026-10-02 — `CliError` derives `thiserror::Error`, with
+      `#[error("{0}")]` and `#[error(transparent)]`, as the core's error does; `From<String>`
+      stays by hand, and `thiserror` was already a workspace dependency. A temporary test of
+      `Display`, `Debug` and the exit code, for a CLI error and all 19 core errors, printed the
+      same before and after
 
 **The bindings and the regtest suite**
 

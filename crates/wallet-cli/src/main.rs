@@ -164,30 +164,17 @@ enum Cmd {
 /// key given) that never reached wallet-core, or an [`Error`] that did.
 /// Distinct from a bare `String` so [`CliError::exit_code`] can tell the two
 /// apart without re-parsing a message.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 enum CliError {
+    #[error("{0}")]
     Cli(String),
-    Core(Error),
-}
-
-impl std::fmt::Display for CliError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CliError::Cli(s) => write!(f, "{s}"),
-            CliError::Core(e) => write!(f, "{e}"),
-        }
-    }
+    #[error(transparent)]
+    Core(#[from] Error),
 }
 
 impl From<String> for CliError {
     fn from(s: String) -> Self {
         CliError::Cli(s)
-    }
-}
-
-impl From<Error> for CliError {
-    fn from(e: Error) -> Self {
-        CliError::Core(e)
     }
 }
 
