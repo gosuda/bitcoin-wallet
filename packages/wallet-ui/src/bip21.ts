@@ -9,6 +9,8 @@
  * a bad address far more authoritatively than a regex could.
  */
 
+import { formatAmount, parseAmount } from "./amount";
+
 export interface PaymentRequest {
   address: string;
   /** Whole satoshis, when the URI carried an `amount` in BTC. */
@@ -61,7 +63,8 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
     // Parsed, not coerced. `Number` would read "1e-3" as 0.001 BTC and round
     // "0.000000009" up to a satoshi the payer never asked for; BIP21 amounts
     // are plain decimal BTC with at most eight places.
-    const sats = btcToSats(amount);
+    // `parseAmount` trims what the user types; a URI's amount is not trimmed.
+    const sats = amount === amount.trim() ? parseAmount(amount, "btc").sats : null;
     if (sats !== null) out.amountSat = sats;
   }
 
@@ -71,34 +74,11 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   return out;
 }
 
-/**
- * A BIP21 `amount` as whole satoshis, or null when it is not one.
- *
- * Integer arithmetic throughout, for the reason `parseAmount` gives: multiplying
- * a parsed float by 1e8 is off by a satoshi for ordinary values.
- */
-function btcToSats(raw: string): number | null {
-  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw)) return null;
-  const [whole = "", frac = ""] = raw.split(".");
-  if (frac.length > 8) return null;
-  const sats = Number(whole || "0") * 1e8 + Number(frac.padEnd(8, "0") || "0");
-  return Number.isSafeInteger(sats) && sats > 0 ? sats : null;
-}
-
-/** BTC with up to eight decimals and no trailing zeros, as BIP21 spells it. */
-function formatBtcAmount(sats: number): string {
-  const whole = Math.floor(sats / 1e8);
-  const frac = String(sats - whole * 1e8)
-    .padStart(8, "0")
-    .replace(/0+$/, "");
-  return frac ? `${whole}.${frac}` : String(whole);
-}
-
 /** The inverse of `parsePaymentUri`: what a Receive screen encodes. */
 export function buildPaymentUri(request: PaymentRequest): string {
   const params = new URLSearchParams();
   if (request.amountSat !== undefined && request.amountSat > 0) {
-    params.set("amount", formatBtcAmount(request.amountSat));
+    params.set("amount", formatAmount(request.amountSat, "btc"));
   }
   if (request.label) params.set("label", request.label);
   const query = params.toString();

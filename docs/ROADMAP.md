@@ -1361,9 +1361,12 @@ the new.
       fake. With the generated module mocked, a test run on the old code and the new showed the
       loader run before every call, the arguments passed through, `explorerTxUrl` turning
       undefined into null and a failed load retried: byte-identical logs
-- [ ] **9.15 A payment request reads its amount with the amount parser** · S · `bip21.ts`
-      why: `bip21.ts` keeps private copies of formatting and parsing a BTC amount · done
-      when: it uses `amount.ts`, and the two agree over a generated corpus
+- [x] **9.15 A payment request reads its amount with the amount parser** · S · `bip21.ts`
+      why: `bip21.ts` keeps private copies of formatting and parsing a BTC amount · done:
+      2026-10-02 — it uses `parseAmount` and `formatAmount` from `amount.ts`, with one guard: a
+      URI's amount is never trimmed, as `btcToSats` never trimmed. The old and new code agree
+      on 991,739 amount strings (74,905 accepted), 320,020 sat values, 1,983,478 URIs parsed
+      and 320,020 built; without the guard, 46,591 strings differ, so the corpus does test it
 - [ ] **9.16 One copy of the IndexedDB plumbing** · S · `persist/*`
       why: the wallet state and the sealed secrets open, upgrade and transact with IndexedDB
       in two copies of the same code · done when: one `objectStore`, every error message the
