@@ -75,6 +75,24 @@ describe("Settings on the desktop (6.8)", () => {
     expect(find(screen, ".banner").textContent).toContain("Rescanned with a gap of 100");
   });
 
+  // Found in review: the gap chips stay live while a rescan runs, and the
+  // banner read the gap again once it answered.
+  it("names the gap the rescan ran with, though another is chosen meanwhile", async () => {
+    const screen = await openSettings();
+    let answer = (): void => {};
+    vi.spyOn(api, "rescan").mockImplementationOnce(
+      () => new Promise((resolve) => (answer = () => resolve(fake.state.balance))),
+    );
+    find<HTMLInputElement>(screen, "input[name=rescan_gap][value='100']").click();
+    buttonNamed(screen, "Rescan").click();
+    find<HTMLInputElement>(screen, "input[name=rescan_gap][value='500']").click();
+    answer();
+    await settle();
+
+    expect(api.rescan).toHaveBeenCalledWith(100);
+    expect(find(screen, ".banner").textContent).toContain("Rescanned with a gap of 100");
+  });
+
   it("shows the public keys only when asked", async () => {
     const screen = await openSettings();
     expect(screen.textContent).not.toContain("wpkh(fake/0/*)");

@@ -43,22 +43,18 @@ export async function saveSetup(
 }
 
 /**
- * Rescan, at the gap chosen. `gap` is read again for what the banner says,
- * once the rescan answers.
+ * Rescan, at the gap chosen when it was asked for, which the banner names: the
+ * gap chips stay live while it runs.
  */
-export async function rescanAt(
-  gap: () => string,
-  alert: Banner,
-  onScreen: () => boolean,
-): Promise<void> {
+export async function rescanAt(gap: string, alert: Banner, onScreen: () => boolean): Promise<void> {
   alert.hide();
   try {
-    const balance = await api.rescan(Number(gap()));
+    const balance = await api.rescan(Number(gap));
     if (!onScreen()) return;
     session.lastSyncedAt = new Date();
     alert.show(
       "ok",
-      `Rescanned with a gap of ${gap()}: ${formatSats(headlineSat(balance))} in this wallet.`,
+      `Rescanned with a gap of ${gap}: ${formatSats(headlineSat(balance))} in this wallet.`,
     );
   } catch (e) {
     if (onScreen()) alert.show("error", errorMessage(e));

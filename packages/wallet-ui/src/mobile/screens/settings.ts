@@ -78,7 +78,7 @@ export function renderSettings(): HTMLElement {
   );
   const rescan = button(
     "Rescan",
-    () => withBusy(rescan, () => rescanAt(gap.value, alert, onScreen)),
+    () => withBusy(rescan, () => rescanAt(gap.value(), alert, onScreen)),
     { icon: "refresh" },
   );
   const rescanBlock = el("div", { className: "m-block" }, [

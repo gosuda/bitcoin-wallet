@@ -133,7 +133,7 @@ export function renderSettings(): HTMLElement {
   );
   const rescanBtn = button(
     "Rescan",
-    () => withBusy(rescanBtn, () => rescanAt(() => gap, alert, onScreen)),
+    () => withBusy(rescanBtn, () => rescanAt(gap, alert, onScreen)),
     "default",
     "md",
     { name: "refresh" },
