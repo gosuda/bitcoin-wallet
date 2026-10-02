@@ -1328,8 +1328,10 @@ the new.
       message and details or the value in JSON (`import_psbt`'s whole review of a foreign PSBT
       among them). All 27 passed on the old code and the new, each built in a target directory
       of its own, and were removed. The 9 binding tests pass
-- [ ] **9.11 The Tauri error builds `internal` where it is used** · S · `src-tauri/src/error.rs`
-      why: a constructor with one caller · done when: inlined, same code and message
+- [x] **9.11 The Tauri error builds `internal` where it is used** · S · `src-tauri/src/error.rs`
+      why: a constructor with one caller · done: 2026-10-02 — `From<tauri::Error>` calls
+      `AppError::new("internal", …)` itself: the same code, the same message, no details.
+      Clippy builds the app with -D warnings
 
 **The UI's modules**
 

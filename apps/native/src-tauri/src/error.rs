@@ -20,10 +20,6 @@ impl AppError {
             details: None,
         }
     }
-
-    pub fn internal(message: impl Into<String>) -> Self {
-        Self::new("internal", message)
-    }
 }
 
 impl From<wallet_core::Error> for AppError {
@@ -44,7 +40,7 @@ impl From<wallet_core::Error> for AppError {
 
 impl From<tauri::Error> for AppError {
     fn from(e: tauri::Error) -> Self {
-        Self::internal(e.to_string())
+        Self::new("internal", e.to_string())
     }
 }
 
