@@ -1309,11 +1309,16 @@ the new.
       it, with the builder's setters in the order each called them. Every send test passes,
       among them chosen coins, frozen coins, a shortfall, a drain with no change and a payment
       to an address of our own
-- [ ] **9.6 A chain position and a transaction's outputs, read in one place** · S ·
+- [x] **9.6 A chain position and a transaction's outputs, read in one place** · S ·
   `wallet.rs`
       why: confirmations, height and time are read from a chain position three times, and a
-      transaction's outputs are described twice · done when: one reading of each, with the
-      order of the history pinned by a test run on the old code first
+      transaction's outputs are described twice · done: 2026-10-02 — `chain_status` reads
+      confirmations, height and time for the coins, the history and a transaction's detail, and
+      `outputs_of` describes the outputs of a detail and of a PSBT review. The history's new
+      sort key orders as the old one did: a test written first on the old code pinned the whole
+      order of three confirmed and four pending transactions, one pair tied and one seen twice,
+      and printed every summary, detail, coin and two reviews, byte-identical after the change;
+      then it was removed
 - [ ] **9.7 The CLI's exit codes come from the core's error ordinal** · S · `error.rs`,
   `wallet-cli`
       why: the CLI's 19-arm exit-code match is the core's test-only ordinal plus ten · done

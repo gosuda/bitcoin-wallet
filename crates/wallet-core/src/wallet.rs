@@ -14,7 +14,7 @@ use bdk_wallet::bitcoin::{
     Address, Amount, FeeRate, NetworkKind, OutPoint, Psbt, ScriptBuf, Sequence, Transaction, Txid,
     Weight,
 };
-use bdk_wallet::chain::{CanonicalizationParams, ChainPosition, Merge};
+use bdk_wallet::chain::{CanonicalizationParams, ChainPosition, ConfirmationBlockTime, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::descriptor::{ExtendedDescriptor, IntoWalletDescriptor};
 use bdk_wallet::error::CreateTxError;
@@ -352,6 +352,39 @@ fn script_display(script: &ScriptBuf, net: bdk_wallet::bitcoin::Network) -> Opti
             .ok()
             .map(|a| a.to_string())
     })
+}
+
+/// The outputs of `tx` as a reader sees them: shown as [`script_display`]
+/// does, with their value, and marked when they are this wallet's.
+fn outputs_of(wallet: &Wallet, tx: &Transaction) -> Vec<TxOutput> {
+    tx.output
+        .iter()
+        .map(|o| TxOutput {
+            address: script_display(&o.script_pubkey, wallet.network()),
+            value_sat: o.value.to_sat(),
+            ours: wallet.is_mine(o.script_pubkey.clone()),
+        })
+        .collect()
+}
+
+/// Confirmations and block height (`None` while pending) of a transaction
+/// at `position` with the chain at `tip`, and its time: the block's once
+/// confirmed, else when it was first seen in the mempool.
+fn chain_status(
+    position: ChainPosition<ConfirmationBlockTime>,
+    tip: u32,
+) -> (Option<u32>, Option<u32>, Option<u64>) {
+    match position {
+        ChainPosition::Confirmed { anchor, .. } => (
+            Some(tip.saturating_sub(anchor.block_id.height).saturating_add(1)),
+            Some(anchor.block_id.height),
+            Some(anchor.confirmation_time),
+        ),
+        ChainPosition::Unconfirmed {
+            last_seen,
+            first_seen,
+        } => (None, None, first_seen.or(last_seen)),
+    }
 }
 
 /// Map a builder failure onto the error domain, keeping every case a UI can
@@ -822,12 +855,7 @@ impl WalletHandle {
                 txid: o.outpoint.txid.to_string(),
                 vout: o.outpoint.vout,
                 value: o.txout.value.to_sat(),
-                confirmations: match o.chain_position {
-                    ChainPosition::Confirmed { anchor, .. } => {
-                        Some(tip.saturating_sub(anchor.block_id.height).saturating_add(1))
-                    }
-                    ChainPosition::Unconfirmed { .. } => None,
-                },
+                confirmations: chain_status(o.chain_position, tip).0,
                 address: script_display(&o.txout.script_pubkey, net)
                     .unwrap_or_else(|| o.txout.script_pubkey.to_hex_string()),
                 frozen: inner.wallet.is_outpoint_locked(o.outpoint),
@@ -918,21 +946,13 @@ impl WalletHandle {
         let tip = inner.wallet.latest_checkpoint().height();
 
         // Sort key: unconfirmed outrank confirmed, then higher block first.
-        let mut rows: Vec<(u8, u32, u64, TxSummary)> = inner
+        let mut rows: Vec<(bool, Option<u32>, u64, TxSummary)> = inner
             .wallet
             .transactions()
             .map(|tx| {
                 let (sent, received) = inner.wallet.sent_and_received(&tx.tx_node.tx);
                 let (sent_sat, received_sat) = (sent.to_sat(), received.to_sat());
-                let (tier, height, timestamp) = match tx.chain_position {
-                    ChainPosition::Confirmed { anchor, .. } => {
-                        (0, anchor.block_id.height, Some(anchor.confirmation_time))
-                    }
-                    ChainPosition::Unconfirmed {
-                        last_seen,
-                        first_seen,
-                    } => (1, u32::MAX, first_seen.or(last_seen)),
-                };
+                let (confirmations, height, timestamp) = chain_status(tx.chain_position, tip);
                 let summary = TxSummary {
                     txid: tx.tx_node.txid.to_string(),
                     net_sat: received_sat as i64 - sent_sat as i64,
@@ -943,15 +963,10 @@ impl WalletHandle {
                         .calculate_fee(&tx.tx_node.tx)
                         .ok()
                         .map(|f| f.to_sat()),
-                    confirmations: match tx.chain_position {
-                        ChainPosition::Confirmed { .. } => {
-                            Some(tip.saturating_sub(height).saturating_add(1))
-                        }
-                        ChainPosition::Unconfirmed { .. } => None,
-                    },
+                    confirmations,
                     timestamp,
                 };
-                (tier, height, timestamp.unwrap_or(0), summary)
+                (height.is_none(), height, timestamp.unwrap_or(0), summary)
             })
             .collect();
 
@@ -973,19 +988,8 @@ impl WalletHandle {
             return Ok(None);
         };
         let tip = inner.wallet.latest_checkpoint().height();
-        let net = bdk_wallet::bitcoin::Network::from(self.network);
         let graph = inner.wallet.tx_graph();
-        let (confirmations, block_height, timestamp) = match d.chain_position {
-            ChainPosition::Confirmed { anchor, .. } => (
-                Some(tip.saturating_sub(anchor.block_id.height).saturating_add(1)),
-                Some(anchor.block_id.height),
-                Some(anchor.confirmation_time),
-            ),
-            ChainPosition::Unconfirmed {
-                last_seen,
-                first_seen,
-            } => (None, None, first_seen.or(last_seen)),
-        };
+        let (confirmations, block_height, timestamp) = chain_status(d.chain_position, tip);
         let inputs =
             d.tx.input
                 .iter()
@@ -999,15 +1003,7 @@ impl WalletHandle {
                     }
                 })
                 .collect();
-        let outputs =
-            d.tx.output
-                .iter()
-                .map(|o| TxOutput {
-                    address: script_display(&o.script_pubkey, net),
-                    value_sat: o.value.to_sat(),
-                    ours: inner.wallet.is_mine(o.script_pubkey.clone()),
-                })
-                .collect();
+        let outputs = outputs_of(&inner.wallet, &d.tx);
         Ok(Some(TxDetail {
             txid: txid.to_string(),
             net_sat: d.balance_delta.to_sat(),
@@ -1469,7 +1465,6 @@ impl WalletHandle {
     fn review(&self, inner: &Inner, psbt: Psbt) -> Result<PsbtReview> {
         let wallet = &inner.wallet;
         let graph = wallet.tx_graph();
-        let net = bdk_wallet::bitcoin::Network::from(self.network);
         // Ours by our own history, valued by it too.
         let own_values: Vec<Option<u64>> = psbt
             .unsigned_tx
@@ -1497,16 +1492,7 @@ impl WalletHandle {
                 finalized: input.final_script_sig.is_some() || input.final_script_witness.is_some(),
             })
             .collect();
-        let outputs: Vec<TxOutput> = psbt
-            .unsigned_tx
-            .output
-            .iter()
-            .map(|o| TxOutput {
-                address: script_display(&o.script_pubkey, net),
-                value_sat: o.value.to_sat(),
-                ours: wallet.is_mine(o.script_pubkey.clone()),
-            })
-            .collect();
+        let outputs = outputs_of(wallet, &psbt.unsigned_tx);
         let spent: u64 = own_values.iter().flatten().sum();
         let received: u64 = outputs.iter().filter(|o| o.ours).map(|o| o.value_sat).sum();
         let finalized = !inputs.is_empty() && inputs.iter().all(|i| i.finalized);
