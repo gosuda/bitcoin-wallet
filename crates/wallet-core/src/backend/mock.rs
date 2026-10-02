@@ -1,6 +1,6 @@
-//! In-memory backend for tests: replays canned responses and records broadcasts.
+//! In-memory backend for tests: scans find nothing, broadcasts are recorded.
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use bdk_wallet::KeychainKind;
 use bdk_wallet::bitcoin::{Transaction, Txid};
@@ -9,15 +9,15 @@ use bdk_wallet::chain::spk_client::{FullScanRequest, FullScanResponse, SyncReque
 use super::{ChainBackend, FeeEstimate};
 use crate::Result;
 
-#[derive(Default)]
+/// Clones share what they record, so a test can keep one and give the
+/// wallet the other.
+#[derive(Clone, Default)]
 pub struct MockBackend {
-    pub full_scan_response: Mutex<Option<FullScanResponse<KeychainKind>>>,
-    pub sync_response: Mutex<Option<SyncResponse>>,
     pub fee: FeeEstimate,
     pub height: u32,
-    pub broadcasts: Mutex<Vec<Transaction>>,
+    pub broadcasts: Arc<Mutex<Vec<Transaction>>>,
     /// What the wallet last asked a full scan to look past.
-    pub last_stop_gap: Mutex<Option<usize>>,
+    pub last_stop_gap: Arc<Mutex<Option<usize>>>,
 }
 
 impl MockBackend {
@@ -40,21 +40,11 @@ impl ChainBackend for MockBackend {
         stop_gap: usize,
     ) -> Result<FullScanResponse<KeychainKind>> {
         *self.last_stop_gap.lock().unwrap() = Some(stop_gap);
-        Ok(self
-            .full_scan_response
-            .lock()
-            .unwrap()
-            .take()
-            .unwrap_or_default())
+        Ok(FullScanResponse::default())
     }
 
     async fn sync(&self, _request: SyncRequest<(KeychainKind, u32)>) -> Result<SyncResponse> {
-        Ok(self
-            .sync_response
-            .lock()
-            .unwrap()
-            .take()
-            .unwrap_or_default())
+        Ok(SyncResponse::default())
     }
 
     async fn broadcast(&self, tx: &Transaction) -> Result<Txid> {

@@ -1640,43 +1640,12 @@ mod tests {
         }
     }
 
-    struct ArcBackend(Arc<MockBackend>);
-    #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-    #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-    impl ChainBackend for ArcBackend {
-        async fn full_scan(
-            &self,
-            r: bdk_wallet::chain::spk_client::FullScanRequest<KeychainKind>,
-            stop_gap: usize,
-        ) -> Result<bdk_wallet::chain::spk_client::FullScanResponse<KeychainKind>> {
-            self.0.full_scan(r, stop_gap).await
-        }
-        async fn sync(
-            &self,
-            r: bdk_wallet::chain::spk_client::SyncRequest<(KeychainKind, u32)>,
-        ) -> Result<bdk_wallet::chain::spk_client::SyncResponse> {
-            self.0.sync(r).await
-        }
-        async fn broadcast(&self, tx: &Transaction) -> Result<bdk_wallet::bitcoin::Txid> {
-            self.0.broadcast(tx).await
-        }
-        async fn fee_estimates(&self) -> Result<FeeEstimate> {
-            self.0.fee_estimates().await
-        }
-        async fn height(&self) -> Result<u32> {
-            self.0.height().await
-        }
-    }
-
-    async fn open_key(
-        address_type: AddressType,
-        key: KeyMaterial,
-    ) -> (WalletHandle, Arc<MockBackend>) {
-        let mock = Arc::new(MockBackend::with_fee(6, 2.0));
+    async fn open_key(address_type: AddressType, key: KeyMaterial) -> (WalletHandle, MockBackend) {
+        let mock = MockBackend::with_fee(6, 2.0);
         let handle = WalletHandle::open_with(
             cfg(address_type),
             &key,
-            Box::new(ArcBackend(mock.clone())),
+            Box::new(mock.clone()),
             Box::new(MemoryPersister::new()),
         )
         .await
@@ -1724,11 +1693,11 @@ mod tests {
         assert_eq!(handle.new_address().await.unwrap(), first);
     }
 
-    async fn open(address_type: AddressType) -> (WalletHandle, Arc<MockBackend>) {
+    async fn open(address_type: AddressType) -> (WalletHandle, MockBackend) {
         open_key(address_type, KeyMaterial::PrivHex(SK_HEX.into())).await
     }
 
-    async fn open_hd(address_type: AddressType) -> (WalletHandle, Arc<MockBackend>) {
+    async fn open_hd(address_type: AddressType) -> (WalletHandle, MockBackend) {
         open_key(
             address_type,
             KeyMaterial::Mnemonic {
@@ -1774,7 +1743,7 @@ mod tests {
     }
 
     /// A single-key wallet of type `t` holding one unconfirmed coin of `sats`.
-    async fn funded(t: AddressType, sats: u64) -> (WalletHandle, Arc<MockBackend>) {
+    async fn funded(t: AddressType, sats: u64) -> (WalletHandle, MockBackend) {
         let (handle, mock) = open(t).await;
         fund(&handle, sats).await;
         (handle, mock)
@@ -2870,7 +2839,7 @@ mod tests {
 
     /// An HD wallet and a watch-only copy of it, both seeing the same
     /// 100,000 sat coin; the copy's backend records what it broadcasts.
-    async fn keys_and_watcher(t: AddressType) -> (WalletHandle, WalletHandle, Arc<MockBackend>) {
+    async fn keys_and_watcher(t: AddressType) -> (WalletHandle, WalletHandle, MockBackend) {
         let (keys, _) = open_hd(t).await;
         let descriptor = keys.public_descriptors().await.external;
         let (watcher, mock) = open_key(t, KeyMaterial::parse(&descriptor)).await;

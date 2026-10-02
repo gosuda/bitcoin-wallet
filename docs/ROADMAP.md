@@ -1280,10 +1280,13 @@ the new.
       tests share one body, which now also asserts each test's input count. 364 lines out, 137
       in. The same 107 test names (the core's and the CLI's) pass before and after, and every
       assertion that left a test body runs in the helper or loop that took its place
-- [ ] **9.2 One mock backend, shared by its clones** · S · `backend/mock.rs`, `wallet.rs`
+- [x] **9.2 One mock backend, shared by its clones** · S · `backend/mock.rs`, `wallet.rs`
       why: a 27-line forwarding backend exists only so a test can keep a handle on what the
-      mock recorded, and the mock carries two canned answers no test sets · done when: clones
-      of the mock share what they record and the forwarder is gone
+      mock recorded, and the mock carries two canned answers no test sets · done: 2026-10-02 —
+      the mock derives `Clone`, its clones sharing what they record behind an `Arc`, so the
+      forwarder goes, and so do the canned scan and sync answers no test set. The `Failing`
+      backend stays: its unreachable methods prove that nothing but broadcast talks to the
+      backend. The same 107 tests pass
 - [ ] **9.3 The error table writes a plain sample on one line** · S · `error.rs` (tests)
       why: each message-only variant takes six lines of the table that pins codes and
       messages · done when: the same 19 rows hold the same data
