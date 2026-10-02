@@ -4,7 +4,7 @@ import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   DEFAULT_FEE_TARGET,
@@ -90,11 +90,8 @@ function recipientList(to: readonly Recipient[], fee: string, total: number): HT
 export function renderSend(): HTMLElement {
   const onScreen = screenGuard();
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
 
   const alert = banner();
   const taken = prefill;

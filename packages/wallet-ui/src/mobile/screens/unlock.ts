@@ -1,7 +1,7 @@
 import { api } from "../../api";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { routeGuard } from "../../screen";
+import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
 import { ADDRESS_TYPE_LABELS, errorMessage, NETWORK_LABELS } from "../../types";
 import { banner, el } from "../../ui/dom";
@@ -12,11 +12,8 @@ import { body, button, confirmDanger, header, historyReset, spacer, withBusy } f
 
 export function renderUnlock(): HTMLElement {
   const record = session.remembered;
+  if (!record) return redirect("key");
   const host = el("main");
-  if (!record) {
-    navigate("key");
-    return host;
-  }
 
   // `routeGuard`, not `screenGuard`: unlocking is what sets `session.wallet`.
   const onScreen = routeGuard();

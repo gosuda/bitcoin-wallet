@@ -1,5 +1,6 @@
 import { platform } from "../platform";
 import { navigate } from "../router";
+import { redirect } from "../screen";
 import { session } from "../session";
 import { errorMessage } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -9,10 +10,7 @@ import { explorerFailed, SENT_LINE, SENT_TITLE, sentNotSaved } from "../ui/text"
 
 export function renderResult(): HTMLElement {
   const result = session.lastResult;
-  if (!result) {
-    navigate("dashboard");
-    return el("main");
-  }
+  if (!result) return redirect("dashboard");
 
   const alert = banner();
   if (result.persist_error) {

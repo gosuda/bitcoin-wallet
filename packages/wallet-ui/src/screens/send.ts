@@ -2,7 +2,7 @@ import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
-import { screenGuard } from "../screen";
+import { redirect, screenGuard } from "../screen";
 import { session } from "../session";
 import {
   backendHost,
@@ -62,10 +62,7 @@ const MAX_HINT_CHOSEN =
 export function renderSend(): HTMLElement {
   const wallet = session.wallet;
   const cfg = session.config;
-  if (!wallet || !cfg) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!wallet || !cfg) return redirect("setup");
   const onScreen = screenGuard();
   const host = backendHost(cfg.backend);
   const networkName = NETWORK_LABELS[wallet.network];

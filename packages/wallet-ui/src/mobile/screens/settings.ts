@@ -2,7 +2,7 @@ import { api } from "../../api";
 import { headlineSat } from "../../balance";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -40,11 +40,8 @@ type Wait = `${LockAfter}`;
 export function renderSettings(): HTMLElement {
   const info = session.wallet;
   const cfg = session.config;
+  if (!info || !cfg) return redirect("setup");
   const host = el("main");
-  if (!info || !cfg) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
 
   const alert = banner();

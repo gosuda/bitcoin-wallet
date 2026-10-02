@@ -2,7 +2,7 @@ import { api } from "../../api";
 import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../../feebump";
 import { platform } from "../../platform";
 import { navigate } from "../../router";
-import { sameWalletGuard, screenGuard } from "../../screen";
+import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   type BroadcastResult,
@@ -82,11 +82,8 @@ export function renderTransaction(): HTMLElement {
   const sameWallet = sameWalletGuard();
   const info = session.wallet;
   const txid = current;
+  if (!info || !txid) return redirect("dashboard");
   const host = el("main");
-  if (!info || !txid) {
-    navigate("dashboard");
-    return host;
-  }
 
   const alert = banner();
   const content = body(alert.node, lede("Loading…"));

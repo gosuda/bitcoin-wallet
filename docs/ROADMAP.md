@@ -1439,9 +1439,14 @@ the new.
       build, a sign failing after leaving, presses after leaving, a desktop row closed
       mid-build), passing before and after, then removed; the 251 dumped screen states are
       byte-identical to the base and the same 442 tests pass
-- [ ] **9.21 A screen that lacks what it shows sends you on in one call** · S · 20 screens
-      why: `navigate(route); return el("main")` twenty times · done when: one `redirect`,
-      each screen's guard pinned by a test on the old code
+- [x] **9.21 A screen that lacks what it shows sends you on in one call** · S · 20 screens
+      why: `navigate(route); return el("main")` twenty times · done: 2026-10-02 —
+      `redirect(route)` in `screen.ts` navigates and hands back an empty `<main>`, at 21
+      guards, 10 desktop and 11 phone. A table of 26 cases on the old code first (each screen
+      without its wallet, settings, result, txid or remembered record: where it goes, and that
+      what it returns is an empty `<main>` with no attributes) passed before and after, then
+      was removed; the 251 dumped screen states are byte-identical to the base and the same 442
+      tests pass
 - [ ] **9.22 Forget, Setup and Rescan, one way on both shells** · M · `ui/settings.ts`
       why: forgetting a wallet is written three times and its desktop card twice; Setup's
       Continue and Rescan once per shell · done when: shared helpers, the failure paths

@@ -1,7 +1,7 @@
 import { api } from "../../api";
 import { headlineSat, pendingSat } from "../../balance";
 import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
@@ -55,11 +55,8 @@ export function renderWallet(): HTMLElement {
   const onScreen = screenGuard();
   const info = session.wallet;
   const alert = banner();
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
 
   const hero = el("span", { className: "m-hero", text: "—" });
   const sub = el("span", { className: "m-sub", text: "" });

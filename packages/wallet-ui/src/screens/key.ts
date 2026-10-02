@@ -1,7 +1,7 @@
 import { api } from "../api";
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { routeGuard } from "../screen";
+import { redirect, routeGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -30,10 +30,7 @@ export function showKeyAdvanced(): void {
 
 export function renderKey(): HTMLElement {
   const cfg = session.config;
-  if (!cfg) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!cfg) return redirect("setup");
   const onScreen = routeGuard();
 
   const alert = banner();

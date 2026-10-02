@@ -1,6 +1,5 @@
 import { api } from "../../api";
-import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type Utxo } from "../../types";
 import {
@@ -66,11 +65,8 @@ function coinRow(
  */
 export function renderCoins(): HTMLElement {
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
   const alert = banner();
 

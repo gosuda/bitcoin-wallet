@@ -1,5 +1,15 @@
-import { currentRoute } from "./router";
+import { currentRoute, navigate, type Route } from "./router";
 import { session } from "./session";
+
+/**
+ * For a screen rendered without what it shows — no wallet, no settings, no
+ * result: sends the user on to `route`, and hands back an empty `<main>` to
+ * stand in for the screen meanwhile.
+ */
+export function redirect(route: Route): HTMLElement {
+  navigate(route);
+  return document.createElement("main");
+}
 
 /**
  * Whether this render is still the one on screen, by route alone — no

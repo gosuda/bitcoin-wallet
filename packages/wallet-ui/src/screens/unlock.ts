@@ -1,7 +1,7 @@
 import { api } from "../api";
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { routeGuard } from "../screen";
+import { redirect, routeGuard } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -20,14 +20,8 @@ import { forgetWarning, OPENED_WITH, sentence } from "../ui/text";
 export function renderUnlock(): HTMLElement {
   const cfg = session.config;
   const remembered = session.remembered;
-  if (!cfg) {
-    navigate("setup");
-    return el("main");
-  }
-  if (!remembered) {
-    navigate("key");
-    return el("main");
-  }
+  if (!cfg) return redirect("setup");
+  if (!remembered) return redirect("key");
 
   // `routeGuard`, not `screenGuard`: unlocking is what sets `session.wallet`.
   const onScreen = routeGuard();

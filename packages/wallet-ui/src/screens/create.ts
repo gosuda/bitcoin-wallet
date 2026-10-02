@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { navigate } from "../router";
-import { routeGuard } from "../screen";
+import { redirect, routeGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
@@ -49,10 +49,7 @@ function pickPositions(count: number, total: number): number[] {
 
 export function renderCreate(): HTMLElement {
   const cfg = session.config;
-  if (!cfg) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!cfg) return redirect("setup");
   const onScreen = routeGuard();
 
   const mine = ++generation;

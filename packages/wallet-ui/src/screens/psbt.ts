@@ -1,4 +1,4 @@
-import { navigate } from "../router";
+import { redirect } from "../screen";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
@@ -104,10 +104,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
  */
 export function renderPsbt(): HTMLElement {
   const wallet = session.wallet;
-  if (!wallet) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!wallet) return redirect("setup");
   const alert = banner();
 
   const field = el("textarea", {

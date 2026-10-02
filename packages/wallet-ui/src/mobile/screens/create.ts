@@ -1,6 +1,6 @@
 import { api } from "../../api";
 import { navigate } from "../../router";
-import { routeGuard } from "../../screen";
+import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
@@ -31,12 +31,9 @@ export function renderCreate(): HTMLElement {
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const host = el("main");
   const cfg = session.config;
-  if (!cfg) {
-    navigate("setup");
-    return host;
-  }
+  if (!cfg) return redirect("setup");
+  const host = el("main");
 
   // Named as the desktop names it, after the button that leads here.
   host.appendChild(header("New wallet", { back: "key" }));

@@ -1,6 +1,5 @@
 import { platform } from "../../platform";
-import { navigate } from "../../router";
-import { screenGuard } from "../../screen";
+import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type PsbtInput, type PsbtReview } from "../../types";
 import { banner, el, formatNumber, sectionLabel } from "../../ui/dom";
@@ -75,11 +74,8 @@ function reviewCard(r: PsbtReview): HTMLElement {
  */
 export function renderPsbt(): HTMLElement {
   const info = session.wallet;
+  if (!info) return redirect("setup");
   const host = el("main");
-  if (!info) {
-    navigate("setup");
-    return host;
-  }
   const onScreen = screenGuard();
   const alert = banner();
   const scanQr = platform().scanQr;

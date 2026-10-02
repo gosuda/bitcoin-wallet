@@ -1,6 +1,6 @@
 import { api } from "../api";
 import { navigate } from "../router";
-import { routeGuard } from "../screen";
+import { redirect, routeGuard } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount } from "../types";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
@@ -18,10 +18,7 @@ function isWordCount(n: number): n is WordCount {
 
 export function renderRestore(): HTMLElement {
   const cfg = session.config;
-  if (!cfg) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!cfg) return redirect("setup");
   const onScreen = routeGuard();
 
   const alert = banner();

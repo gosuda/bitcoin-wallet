@@ -6,7 +6,7 @@ import { buildPaymentUri, qrPayload } from "../bip21";
 import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../feebump";
 import { platform } from "../platform";
 import { navigate } from "../router";
-import { sameWalletGuard, screenGuard } from "../screen";
+import { redirect, sameWalletGuard, screenGuard } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -245,10 +245,7 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
 
 export function renderDashboard(): HTMLElement {
   const wallet = session.wallet;
-  if (!wallet) {
-    navigate("setup");
-    return el("main");
-  }
+  if (!wallet) return redirect("setup");
   const onScreen = screenGuard();
   const sameWallet = sameWalletGuard();
 
