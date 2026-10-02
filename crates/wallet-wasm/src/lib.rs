@@ -142,9 +142,10 @@ pub fn start() {
 /// Generate a fresh key: `{ priv_hex, wif, pub_hex, address }`. The only call that returns a secret.
 #[wasm_bindgen]
 pub fn generate_key(network: &str, address_type: &str) -> Result<JsValue, JsValue> {
-    let k = wallet_core::generate_key(parse_network(network)?, parse_address_type(address_type)?)
-        .map_err(core_err)?;
-    to_js(&k)
+    core_to_js(wallet_core::generate_key(
+        parse_network(network)?,
+        parse_address_type(address_type)?,
+    ))
 }
 
 /// Generate a fresh BIP39 mnemonic: `{ words, address }`, where `address` is
