@@ -1268,6 +1268,25 @@ at desktop and phone widths, light and dark; the boards regenerate byte-identica
 path no test reaches is pinned first by a characterization test, run on the old code and
 the new.
 
+**Result.** 27,055 code lines at `2fefe72`, 25,402 at the end: 1,653 fewer (6.1%), the most
+from the UI's modules and screens (−606), the core (−385) and the UI tests (−291). Each of
+the round's commits passes the gate on its own. The browser build, rebuilt from the branch,
+was driven through Setup, Create with an app password, a reload to Unlock and Forget, and
+IndexedDB held both records and then neither. Stable Rust moved from 1.96 to 1.99 during
+the round, and the gate was run again on 1.99.
+
+**Reviewed** by cubic on 2026-10-02 (PR #42): four comments, all taken. A Rescan banner
+named a gap chosen while the rescan ran, not the one it ran with (fixed, with a test that
+failed before); `late-open.test.ts` picked its openers by name, so a rename would have
+dropped a case quietly (now it fails); `generate_key` was left off `core_to_js` for one line
+of layout (now on it); and 9.38's line count, which 9.17 then lowered by one, now says so.
+
+**Found, not fixed.** The phone's Scan screen reads the clipboard itself
+(`navigator.clipboard.readText()` in `mobile/screens/scan.ts`), where every other Paste
+goes through `platform().readClipboard()`, the path Round 6 moved Paste to because the Tauri
+webview refuses a page's own read. Its Paste likely fails in the phone app. A behaviour
+change, so not in this round.
+
 **The core and the CLI**
 
 - [x] **9.1 The core's tests share their fixtures** · M · `wallet.rs` (tests)
@@ -1592,10 +1611,10 @@ the new.
       helpers draw what the boards spelled out by hand: `m_screen` (18 phone boards),
       `card_head` (8 desktop cards), `tx_card`, `unlock_card` and `m_outputs`, and each canvas
       row now carries its board, so the second list of file names and its assert go. gen.py
-      went from 1,506 lines to 1,422 (1,346 code lines to 1,259). Regenerating leaves all 38
-      boards, `canvas.json` and `app-icon.svg` byte-identical, checked by sha256 against the
-      base and by `git status` listing only gen.py; only the order of the list it prints
-      changed
+      went from 1,506 lines to 1,422 (1,346 code lines to 1,259), and 9.17 then takes the share
+      icon's line, leaving 1,421 (1,258). Regenerating leaves all 38 boards, `canvas.json` and
+      `app-icon.svg` byte-identical, checked by sha256 against the base and by `git status`
+      listing only gen.py; only the order of the list it prints changed
 - [x] **9.39 One composite action sets up Node, pnpm and the wasm core** · S · `.github`
       why: the same three steps in six jobs across three workflows · done: 2026-10-02 —
       `.github/actions/frontend` runs pnpm's setup, Node 22 with the pnpm store cached and the
