@@ -146,17 +146,16 @@ export function formatConf(confirmations: number | null): string {
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 
+/** How `formatTime` writes a clock time; `formatDateTime` writes it the same way. */
+const CLOCK: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+
 /**
  * A clock time, "14:02": the 24-hour clock the boards use, with no seconds.
  * A 12-hour time comes out in the device's words ("오후 2:02" on a Korean
  * device), which beside the app's English "Today" reads as two languages.
  */
 export function formatTime(date: Date): string {
-  return date.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
+  return date.toLocaleTimeString(undefined, CLOCK);
 }
 
 /**
@@ -173,11 +172,7 @@ function whenWords(date: Date, now: Date): string {
   if (age < MINUTE) return "just now";
   if (age < HOUR) return `${Math.floor(age / MINUTE)} min ago`;
   if (date.toDateString() === now.toDateString()) return `Today ${formatTime(date)}`;
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    ...(sameYear(date, now) ? {} : { year: "numeric" }),
-  });
+  return date.toLocaleDateString(undefined, dayOf(date, now));
 }
 
 /**
@@ -187,14 +182,12 @@ function whenWords(date: Date, now: Date): string {
  */
 export function formatDateTime(timestamp: number, now: Date = new Date()): string {
   const date = new Date(timestamp * 1000);
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    ...(sameYear(date, now) ? {} : { year: "numeric" }),
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  });
+  return date.toLocaleString(undefined, { ...dayOf(date, now), ...CLOCK });
+}
+
+/** How a list writes the day of `date`, "Aug 27": the year only when it is not this one. */
+function dayOf(date: Date, now: Date): Intl.DateTimeFormatOptions {
+  return { month: "short", day: "numeric", ...(sameYear(date, now) ? {} : { year: "numeric" }) };
 }
 
 /**

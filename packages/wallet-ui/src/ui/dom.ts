@@ -58,9 +58,7 @@ export function button(
   withIcon?: ButtonIcon,
 ): HTMLButtonElement {
   const cls = ["btn"];
-  if (variant === "primary") cls.push("btn-primary");
-  if (variant === "danger") cls.push("btn-danger");
-  if (variant === "quiet") cls.push("btn-quiet");
+  if (variant !== "default") cls.push(`btn-${variant}`);
   if (size === "sm") cls.push("btn-sm");
   const btn = el("button", {
     className: cls.join(" "),
@@ -153,6 +151,14 @@ export function textInput(
   if (opts.placeholder) input.placeholder = opts.placeholder;
   if (opts.name) input.name = opts.name;
   return input;
+}
+
+/** Says `message` in `slot`, under a field, and marks `input` invalid; `null` clears both. */
+export function setFieldError(slot: HTMLElement, input: HTMLElement, message: string | null): void {
+  slot.textContent = message ?? "";
+  input.classList.toggle("input-invalid", message !== null);
+  if (message === null) input.removeAttribute("aria-invalid");
+  else input.setAttribute("aria-invalid", "true");
 }
 
 export interface Checkbox {

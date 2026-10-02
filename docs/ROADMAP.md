@@ -1383,9 +1383,14 @@ the new.
       attributes in the old order, and `share` leaves icons.ts and gen.py. `IconName` is the
       old union less `share`, the markup of all 20 icons at three sizes and the brand mark is
       byte-identical on the old code and the new, and the boards regenerate byte-identical
-- [ ] **9.18 The clock, the Remember box, a field's error and a button's class, once each**
+- [x] **9.18 The clock, the Remember box, a field's error and a button's class, once each**
   · S · `ui/*`
-      why: small blocks repeated in the shared UI modules · done when: one of each
+      why: small blocks repeated in the shared UI modules · done: 2026-10-02 — `CLOCK` and
+      `dayOf` in `format.ts`, `rememberBox` in `remember.ts`, `setFieldError` in `ui/dom.ts`
+      (used by the app password and the PSBT field), and a desktop button's class built from
+      its variant. Old and new `format.ts` agree on 15,552 cases (12 locales, 6 time zones),
+      and every button variant and size and the Remember and app-password states render
+      byte-identical
 - [ ] **9.19 The Tauri store read and written through two helpers** · S · `platform-tauri.ts`
       why: four store methods repeat the load, read or write, and save · done when: two
       helpers, the same keys and the same values

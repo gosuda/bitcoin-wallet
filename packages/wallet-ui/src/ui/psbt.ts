@@ -12,7 +12,7 @@ import { sameWalletGuard, screenGuard } from "../screen";
 import { session } from "../session";
 import { errorMessage, isAppError, type PsbtReview } from "../types";
 import { readClipboard } from "./clipboard";
-import { type Banner, type BannerKind, formatNumber } from "./dom";
+import { type Banner, type BannerKind, formatNumber, setFieldError } from "./dom";
 import { sentence } from "./text";
 
 /** "psbt" and 0xff: the five bytes every PSBT starts with (BIP 174). */
@@ -160,12 +160,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
     view.show(review);
   };
 
-  const sayInvalid = (message: string | null): void => {
-    error.textContent = message ?? "";
-    field.classList.toggle("input-invalid", message !== null);
-    if (message === null) field.removeAttribute("aria-invalid");
-    else field.setAttribute("aria-invalid", "true");
-  };
+  const sayInvalid = (message: string | null): void => setFieldError(error, field, message);
 
   /** Describes `raw` once the core reads it; until then nothing is offered to sign or send. */
   const describe = async (raw: string): Promise<void> => {

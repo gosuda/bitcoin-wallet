@@ -1,5 +1,5 @@
 import { platform } from "../platform";
-import { checkbox, el, textInput } from "./dom";
+import { type Checkbox, checkbox, el, setFieldError, textInput } from "./dom";
 import { icon } from "./icons";
 import { wipeOnLeave } from "./words";
 
@@ -93,12 +93,7 @@ export function appPasswordField(label: string, name: string): AppPasswordField 
       error,
     ]),
     input,
-    setError(message) {
-      error.textContent = message ?? "";
-      input.classList.toggle("input-invalid", message !== null);
-      if (message === null) input.removeAttribute("aria-invalid");
-      else input.setAttribute("aria-invalid", "true");
-    },
+    setError: (message) => setFieldError(error, input, message),
   };
 }
 
@@ -138,11 +133,7 @@ export function rememberCheckbox(onChange?: () => void): RememberControl {
     };
   }
   if (platform().needsAppPassword) return appPasswordRemember(onChange);
-  const box = checkbox(
-    "Remember on this device",
-    `· stored in the ${KEYCHAIN_NAME}, unlocked with your login`,
-    "remember",
-  );
+  const box = rememberBox(`· stored in the ${KEYCHAIN_NAME}, unlocked with your login`);
   return {
     node: box.node,
     checked: () => box.input.checked,
@@ -151,13 +142,14 @@ export function rememberCheckbox(onChange?: () => void): RememberControl {
   };
 }
 
+/** The box itself, with what it says about where the key goes after its label. */
+function rememberBox(hint: string): Checkbox {
+  return checkbox("Remember on this device", hint, "remember");
+}
+
 /** The browser's box (2f): the app password and its confirmation hang under it once ticked. */
 function appPasswordRemember(onChange?: () => void): RememberControl {
-  const box = checkbox(
-    "Remember on this device",
-    "· encrypted with an app password and kept in this browser",
-    "remember",
-  );
+  const box = rememberBox("· encrypted with an app password and kept in this browser");
   const password = appPasswordField("App password", "app_password");
   const confirm = appPasswordField("Confirm app password", "app_password_confirm");
   const panel = el("div", { className: "remember-password" }, [
