@@ -136,6 +136,32 @@ impl Error {
         }
     }
 
+    /// A stable number for each variant, in the order the variants were added.
+    /// A number once given never changes: the CLI's exit codes are built on it.
+    pub fn ordinal(&self) -> u8 {
+        match self {
+            Error::InvalidKey(_) => 0,
+            Error::InvalidAddress(_) => 1,
+            Error::Descriptor(_) => 2,
+            Error::Persist(_) => 3,
+            Error::Backend(_) => 4,
+            Error::Timeout(_) => 5,
+            Error::BuildTx(_) => 6,
+            Error::InsufficientFunds { .. } => 7,
+            Error::InvalidFeeRate(_) => 8,
+            Error::Sign(_) => 9,
+            Error::Psbt(_) => 10,
+            Error::Unsupported(_) => 11,
+            Error::Dust { .. } => 12,
+            Error::FeeTooLow { .. } => 13,
+            Error::NoUtxos => 14,
+            Error::InvalidTxid(_) => 15,
+            Error::NotReplaceable(_) => 16,
+            Error::CorruptState { .. } => 17,
+            Error::UnknownCoin(_) => 18,
+        }
+    }
+
     /// Structured data a UI can use directly, for the variants that carry
     /// more than prose. `None` for everything else — the message already
     /// says all there is to say.
@@ -330,37 +356,14 @@ mod tests {
         (variant("x".into()), code, None, message)
     }
 
-    /// Adding a variant fails to compile here until it has an ordinal. Give
-    /// it the next one, raise `VARIANTS` beside it, and add its row to
+    /// Adding a variant fails to compile in [`Error::ordinal`] until it has
+    /// one. Give it the next, raise `VARIANTS` here, and add its row to
     /// `samples` — `the_table_covers_every_variant` fails until all three agree.
-    fn ordinal(e: &Error) -> usize {
-        match e {
-            Error::InvalidKey(_) => 0,
-            Error::InvalidAddress(_) => 1,
-            Error::Descriptor(_) => 2,
-            Error::Persist(_) => 3,
-            Error::Backend(_) => 4,
-            Error::Timeout(_) => 5,
-            Error::BuildTx(_) => 6,
-            Error::InsufficientFunds { .. } => 7,
-            Error::InvalidFeeRate(_) => 8,
-            Error::Sign(_) => 9,
-            Error::Psbt(_) => 10,
-            Error::Unsupported(_) => 11,
-            Error::Dust { .. } => 12,
-            Error::FeeTooLow { .. } => 13,
-            Error::NoUtxos => 14,
-            Error::InvalidTxid(_) => 15,
-            Error::NotReplaceable(_) => 16,
-            Error::CorruptState { .. } => 17,
-            Error::UnknownCoin(_) => 18,
-        }
-    }
-    const VARIANTS: usize = 19;
+    const VARIANTS: u8 = 19;
 
     #[test]
     fn the_table_covers_every_variant() {
-        let mut seen: Vec<usize> = samples().iter().map(|(e, ..)| ordinal(e)).collect();
+        let mut seen: Vec<u8> = samples().iter().map(|(e, ..)| e.ordinal()).collect();
         seen.sort_unstable();
         assert_eq!(seen, (0..VARIANTS).collect::<Vec<_>>());
     }

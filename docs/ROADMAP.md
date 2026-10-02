@@ -1319,10 +1319,12 @@ the new.
       order of three confirmed and four pending transactions, one pair tied and one seen twice,
       and printed every summary, detail, coin and two reviews, byte-identical after the change;
       then it was removed
-- [ ] **9.7 The CLI's exit codes come from the core's error ordinal** · S · `error.rs`,
+- [x] **9.7 The CLI's exit codes come from the core's error ordinal** · S · `error.rs`,
   `wallet-cli`
-      why: the CLI's 19-arm exit-code match is the core's test-only ordinal plus ten · done
-      when: `Error::ordinal` is public, the CLI adds ten, and a test pins all 19 codes
+      why: the CLI's 19-arm exit-code match is the core's test-only ordinal plus ten · done:
+      2026-10-02 — `Error::ordinal` is public, the core's table test uses it, and the CLI exits
+      with 10 plus it. A new assertion that the 19 codes are exactly 10 to 28, in order, passed
+      on the old code first and stays
 - [ ] **9.8 The CLI's error derives its messages** · S · `wallet-cli`
       why: `Display` and `From<Error>` are written by hand for what `thiserror` derives, as
       the core already does · done when: the same messages, derived

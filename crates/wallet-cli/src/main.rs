@@ -194,32 +194,12 @@ impl From<Error> for CliError {
 impl CliError {
     /// Stable across runs, so a script can branch on `$?` instead of
     /// matching stderr text. 1 is a CLI-level failure with no code of its
-    /// own; every `wallet_core::Error` variant gets its own number, in the
-    /// order the variants were added, so a number once given never changes.
+    /// own; every `wallet_core::Error` variant gets 10 plus its
+    /// [`Error::ordinal`], so a number once given never changes.
     fn exit_code(&self) -> u8 {
-        let CliError::Core(e) = self else {
-            return 1;
-        };
-        match e {
-            Error::InvalidKey(_) => 10,
-            Error::InvalidAddress(_) => 11,
-            Error::Descriptor(_) => 12,
-            Error::Persist(_) => 13,
-            Error::Backend(_) => 14,
-            Error::Timeout(_) => 15,
-            Error::BuildTx(_) => 16,
-            Error::InsufficientFunds { .. } => 17,
-            Error::InvalidFeeRate(_) => 18,
-            Error::Sign(_) => 19,
-            Error::Psbt(_) => 20,
-            Error::Unsupported(_) => 21,
-            Error::Dust { .. } => 22,
-            Error::FeeTooLow { .. } => 23,
-            Error::NoUtxos => 24,
-            Error::InvalidTxid(_) => 25,
-            Error::NotReplaceable(_) => 26,
-            Error::CorruptState { .. } => 27,
-            Error::UnknownCoin(_) => 28,
+        match self {
+            CliError::Cli(_) => 1,
+            CliError::Core(e) => 10 + e.ordinal(),
         }
     }
 }
@@ -535,12 +515,13 @@ mod tests {
         assert_eq!(passphrased.passphrase(), Some("TREZOR"));
     }
 
-    /// One instance of every `wallet_core::Error` variant. A table, not a
-    /// chain of asserts, so a new variant only needs one new row — and
-    /// forgetting the row here is safe: `CliError::exit_code`'s own match is
-    /// exhaustive, so the compiler catches a missing *arm* there regardless.
-    /// What this table catches is two variants sharing a code by mistake,
-    /// which an exhaustive match does not prevent on its own.
+    /// One instance of every `wallet_core::Error` variant, in exit-code
+    /// order. A table, not a chain of asserts, so a new variant only needs
+    /// one new row — and forgetting the row here is safe: `Error::ordinal`'s
+    /// match is exhaustive, so the compiler catches a missing *arm* there
+    /// regardless. What this table catches is two variants sharing a code by
+    /// mistake, or a code that moved, which an exhaustive match does not
+    /// prevent on its own.
     fn one_of_each_core_error() -> Vec<Error> {
         vec![
             Error::InvalidKey("x".into()),
@@ -595,6 +576,7 @@ mod tests {
             codes.len(),
             "duplicate exit code in {codes:?}"
         );
+        assert_eq!(codes, (10..=28).collect::<Vec<u8>>(), "a code moved");
     }
 
     #[test]
