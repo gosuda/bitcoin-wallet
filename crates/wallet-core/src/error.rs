@@ -227,60 +227,35 @@ pub type Result<T> = std::result::Result<T, Error>;
 mod tests {
     use super::*;
 
-    /// One instance of each variant with its code, the exact set of keys
-    /// `details()` must produce (for the variants that carry structured
-    /// data), and the message people see. A table, not a chain of asserts,
-    /// so a new variant only needs one new row here.
-    #[allow(clippy::type_complexity)]
-    fn samples() -> Vec<(
+    type Sample = (
         Error,
         &'static str,
         Option<&'static [&'static str]>,
         &'static str,
-    )> {
+    );
+
+    /// One instance of each variant with its code, the exact set of keys
+    /// `details()` must produce (for the variants that carry structured
+    /// data), and the message people see. A table, not a chain of asserts,
+    /// so a new variant only needs one new row here.
+    fn samples() -> Vec<Sample> {
         vec![
-            (
-                Error::InvalidKey("x".into()),
-                "invalid_key",
-                None,
-                "invalid key material: x",
-            ),
-            (
-                Error::InvalidAddress("x".into()),
+            plain(Error::InvalidKey, "invalid_key", "invalid key material: x"),
+            plain(
+                Error::InvalidAddress,
                 "invalid_address",
-                None,
                 "invalid address: x",
             ),
-            (
-                Error::Descriptor("x".into()),
-                "descriptor",
-                None,
-                "descriptor error: x",
-            ),
-            (
-                Error::Persist("x".into()),
-                "persist",
-                None,
-                "persistence error: x",
-            ),
-            (
-                Error::Backend("x".into()),
-                "backend",
-                None,
-                "backend error: x",
-            ),
+            plain(Error::Descriptor, "descriptor", "descriptor error: x"),
+            plain(Error::Persist, "persist", "persistence error: x"),
+            plain(Error::Backend, "backend", "backend error: x"),
             (
                 Error::Timeout(30),
                 "timeout",
                 Some(["secs"].as_slice()),
                 "the backend did not answer within 30 s",
             ),
-            (
-                Error::BuildTx("x".into()),
-                "build_tx",
-                None,
-                "transaction build error: x",
-            ),
+            plain(Error::BuildTx, "build_tx", "transaction build error: x"),
             (
                 Error::InsufficientFunds {
                     needed_sat: 10,
@@ -292,20 +267,14 @@ mod tests {
                 Some(["needed_sat", "available_sat", "frozen_sat", "all_frozen"].as_slice()),
                 "insufficient funds: need 10 sat, have 5 sat",
             ),
-            (
-                Error::InvalidFeeRate("x".into()),
+            plain(
+                Error::InvalidFeeRate,
                 "invalid_fee_rate",
-                None,
                 "invalid fee rate: x",
             ),
-            (Error::Sign("x".into()), "sign", None, "signing error: x"),
-            (Error::Psbt("x".into()), "psbt", None, "PSBT error: x"),
-            (
-                Error::Unsupported("x".into()),
-                "unsupported",
-                None,
-                "unsupported: x",
-            ),
+            plain(Error::Sign, "sign", "signing error: x"),
+            plain(Error::Psbt, "psbt", "PSBT error: x"),
+            plain(Error::Unsupported, "unsupported", "unsupported: x"),
             (
                 Error::Dust { output: 0 },
                 "dust",
@@ -327,22 +296,19 @@ mod tests {
                 None,
                 "no coins were selected to fund this transaction",
             ),
-            (
-                Error::UnknownCoin("x".into()),
+            plain(
+                Error::UnknownCoin,
                 "unknown_coin",
-                None,
                 "not an unspent coin of this wallet: x",
             ),
-            (
-                Error::InvalidTxid("x".into()),
+            plain(
+                Error::InvalidTxid,
                 "invalid_txid",
-                None,
                 "invalid transaction id: x",
             ),
-            (
-                Error::NotReplaceable("x".into()),
+            plain(
+                Error::NotReplaceable,
                 "not_replaceable",
-                None,
                 "transaction cannot be replaced: x",
             ),
             (
@@ -356,6 +322,12 @@ mod tests {
                 "saved wallet data could not be read: future_version",
             ),
         ]
+    }
+
+    /// The row of a variant that carries only a string, made with "x": no
+    /// details, and `message` is what that "x" reads as.
+    fn plain(variant: fn(String) -> Error, code: &'static str, message: &'static str) -> Sample {
+        (variant("x".into()), code, None, message)
     }
 
     /// Adding a variant fails to compile here until it has an ordinal. Give

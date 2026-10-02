@@ -1287,9 +1287,11 @@ the new.
       forwarder goes, and so do the canned scan and sync answers no test set. The `Failing`
       backend stays: its unreachable methods prove that nothing but broadcast talks to the
       backend. The same 107 tests pass
-- [ ] **9.3 The error table writes a plain sample on one line** · S · `error.rs` (tests)
-      why: each message-only variant takes six lines of the table that pins codes and
-      messages · done when: the same 19 rows hold the same data
+- [x] **9.3 The error table writes a plain sample on one line** · S · `error.rs` (tests)
+      why: each message-only variant takes six lines of the table that pins codes and messages
+      · done: 2026-10-02 — a `Sample` alias and `plain(variant, code, message)` write the
+      message-only rows; rustfmt keeps five of them over several lines, so 28 lines go rather
+      than 34. The 19 rows hold the same data and the three table tests pass
 - [ ] **9.4 An address, a wallet id and an account xpub, each derived one way** · S ·
   `keys.rs`, `wallet.rs`
       why: the derivation tail is written three times, the id format three times and the
