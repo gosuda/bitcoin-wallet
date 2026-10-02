@@ -1441,9 +1441,13 @@ the new.
       `openLocking` 11; `camera()`, which only sets the platform, moves above two calls. The
       same tests pass with the same expect counts, and the 251 screen states the suite reaches
       dump byte-identical to the base (field values, checkedness, focus and the URL with them)
-- [ ] **9.35 The harness's cleanup is not repeated** · S
-      why: six places clear what the harness already clears after every test · done when:
-      gone
+- [x] **9.35 The harness's cleanup is not repeated** · S
+      why: six places clear what the harness already clears after every test · done: 2026-10-02
+      — six resets of `session.remembered` and two `mockRestore` calls go. A temporary accessor
+      saw no read of the record between each removed line and the harness's own reset, over the
+      five files' 119 tests, and each removed spy had answered its one call. The same 442 tests
+      pass, and the 251 screen states the suite reaches dump byte-identical to the base (field
+      values, checkedness, focus and the URL with them)
 
 **The stylesheets**
 

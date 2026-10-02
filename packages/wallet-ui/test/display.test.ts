@@ -149,7 +149,6 @@ describe("ids and addresses (7.3)", () => {
 
     expect(shown).toContain(shortId(fake.ADDRESS));
     expect(texts(phone, ".m-address")).toEqual([shortId(fake.ADDRESS)]);
-    session.remembered = null;
   });
 });
 
@@ -327,7 +326,6 @@ describe("one word for each action (7.6)", () => {
       buttonNamed(screen, "Forget this wallet").click();
       expect(buttonNamed(screen, "Keep it")).toBeTruthy();
     }
-    session.remembered = null;
   });
 
   // Found in review: the desktop said "this transaction is not in the
@@ -374,18 +372,15 @@ describe("one name for each thing (7.7)", () => {
     cells.forEach((cell, i) => {
       cell.value = i === 3 ? "xyz" : "abandon";
     });
-    const refused = vi
-      .spyOn(api, "validateMnemonic")
-      .mockRejectedValueOnce(
-        new WalletError(
-          "invalid_key",
-          "invalid key material: invalid mnemonic: mnemonic contains an unknown word (word 3)",
-        ),
-      );
+    vi.spyOn(api, "validateMnemonic").mockRejectedValueOnce(
+      new WalletError(
+        "invalid_key",
+        "invalid key material: invalid mnemonic: mnemonic contains an unknown word (word 3)",
+      ),
+    );
 
     buttonNamed(screen, "Restore wallet").click();
     await settle();
-    refused.mockRestore();
 
     expect(find(screen, ".banner").textContent).toBe('Word 4 "xyz" is not in the word list.');
   });

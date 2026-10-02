@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api, canUnlockHere } from "../src/api";
 import { renderReceive as renderPhoneReceive } from "../src/mobile/screens/receive";
 import { renderRestore as renderPhoneRestore, setRestoreMode } from "../src/mobile/screens/restore";
@@ -269,10 +269,6 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
     session.remembered = fake.SAVED;
     return loadSecret;
   }
-
-  afterEach(() => {
-    session.remembered = null;
-  });
 
   const SHELL_SETUPS = [
     {

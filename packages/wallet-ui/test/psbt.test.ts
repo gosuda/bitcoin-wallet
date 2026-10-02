@@ -372,13 +372,10 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   it("says why Broadcast was refused, and stays with the PSBT", async () => {
     const screen = await openPasted(shell, SIGNED);
     const why = "PSBT error: absurdly high fee rate of 30000 sat/vB";
-    const refused = vi
-      .spyOn(api, "broadcastPsbt")
-      .mockRejectedValueOnce(new WalletError("psbt", why));
+    vi.spyOn(api, "broadcastPsbt").mockRejectedValueOnce(new WalletError("psbt", why));
 
     buttonNamed(screen, "Broadcast").click();
     await settle();
-    refused.mockRestore();
 
     expect(screen.textContent).toContain(why);
     expect(screen.textContent).not.toContain("This is not a PSBT the wallet can read.");

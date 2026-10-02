@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
 import { platform, setPlatform } from "../src/platform";
 import { session } from "../src/session";
@@ -55,10 +55,6 @@ async function failToOpen(opener: Opener, reason: Reason) {
   await settle();
   return { screen, ...watched };
 }
-
-afterEach(() => {
-  session.remembered = null;
-});
 
 describe("a wallet whose saved history cannot be read offers a reset (6.7)", () => {
   it.each(OPENERS)("$name says so, and deletes nothing before the second step", async (opener) => {

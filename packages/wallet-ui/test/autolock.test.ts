@@ -82,7 +82,6 @@ afterEach(() => {
   stop?.();
   stop = undefined;
   visibility = "visible";
-  session.remembered = null;
   vi.useRealTimers();
 });
 

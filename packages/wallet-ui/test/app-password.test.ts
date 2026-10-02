@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
 import { platform, setPlatform } from "../src/platform";
 import { sealedKeystore, unseal } from "../src/platform/sealed";
@@ -80,10 +80,6 @@ async function landsOn(route: Route): Promise<void> {
 function singleKey(): HTMLElement {
   return find(mountAt("key", renderKey), ".disclosure-body");
 }
-
-afterEach(() => {
-  session.remembered = null;
-});
 
 describe("remembering in the browser takes an app password (6.12)", () => {
   it("Key reveals App password and Confirm app password under a ticked Remember", () => {
