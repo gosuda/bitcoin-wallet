@@ -1420,10 +1420,16 @@ the new.
 
 **The generator and CI**
 
-- [ ] **9.38 The boards' repeated parts are drawn with helpers** · S · `gen.py`
+- [x] **9.38 The boards' repeated parts are drawn with helpers** · S · `gen.py`
       why: eighteen phone boards open and close their frame the same way, eight desktop cards
-      their heading row, and every board's file name is listed twice · done when: every
-      board, `canvas.json` and the icon regenerate byte-identical
+      their heading row, and every board's file name is listed twice · done: 2026-10-02 — five
+      helpers draw what the boards spelled out by hand: `m_screen` (18 phone boards),
+      `card_head` (8 desktop cards), `tx_card`, `unlock_card` and `m_outputs`, and each canvas
+      row now carries its board, so the second list of file names and its assert go. gen.py
+      went from 1,506 lines to 1,422 (1,346 code lines to 1,259). Regenerating leaves all 38
+      boards, `canvas.json` and `app-icon.svg` byte-identical, checked by sha256 against the
+      base and by `git status` listing only gen.py; only the order of the list it prints
+      changed
 - [ ] **9.39 One composite action sets up Node, pnpm and the wasm core** · S · `.github`
       why: the same three steps in six jobs across three workflows · done when: one action,
       the job names unchanged, actionlint clean, green in CI
