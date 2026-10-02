@@ -18,15 +18,14 @@ use bdk_wallet::chain::{CanonicalizationParams, ChainPosition, Merge};
 use bdk_wallet::coin_selection::InsufficientFunds;
 use bdk_wallet::descriptor::{ExtendedDescriptor, IntoWalletDescriptor};
 use bdk_wallet::error::CreateTxError;
-use bdk_wallet::keys::{DescriptorPublicKey, KeyMap};
-use bdk_wallet::miniscript::ForEachKey;
+use bdk_wallet::keys::KeyMap;
 use bdk_wallet::signer::SignersContainer;
 use bdk_wallet::{KeychainKind, LocalOutput, SignOptions, Wallet};
 use serde::{Deserialize, Serialize};
 use web_time::{SystemTime, UNIX_EPOCH};
 
 use crate::backend::{BackendConfig, ChainBackend, FeeEstimate};
-use crate::keys::{AddressType, Descriptors, KeyMaterial, descriptors_for, wallet_id};
+use crate::keys::{AddressType, Descriptors, KeyMaterial, descriptors_for, first_xpub, wallet_id};
 use crate::network::Network;
 use crate::persist::Persister;
 use crate::{Error, Result};
@@ -654,20 +653,7 @@ impl WalletHandle {
     pub async fn public_descriptors(&self) -> PublicDescriptors {
         let inner = self.inner.lock().await;
         let external = inner.wallet.public_descriptor(KeychainKind::External);
-        let mut account_xpub = None;
-        let mut fingerprint = None;
-        external.for_each_key(|k| {
-            if account_xpub.is_none()
-                && let DescriptorPublicKey::XPub(x) = k
-            {
-                account_xpub = Some(x.xkey.to_string());
-                fingerprint = Some(match &x.origin {
-                    Some((master, _)) => master.to_string(),
-                    None => x.xkey.fingerprint().to_string(),
-                });
-            }
-            true
-        });
+        let xpub = first_xpub(external);
         PublicDescriptors {
             external: external.to_string(),
             internal: self.is_hd.then(|| {
@@ -676,8 +662,11 @@ impl WalletHandle {
                     .public_descriptor(KeychainKind::Internal)
                     .to_string()
             }),
-            account_xpub,
-            fingerprint,
+            account_xpub: xpub.map(|x| x.xkey.to_string()),
+            fingerprint: xpub.map(|x| match &x.origin {
+                Some((master, _)) => master.to_string(),
+                None => x.xkey.fingerprint().to_string(),
+            }),
         }
     }
 

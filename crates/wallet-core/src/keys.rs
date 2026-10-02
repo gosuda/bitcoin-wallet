@@ -19,13 +19,13 @@ use std::fmt;
 use bdk_wallet::KeychainKind;
 use bdk_wallet::bitcoin::hashes::{Hash, hash160};
 use bdk_wallet::bitcoin::key::{CompressedPublicKey, Secp256k1};
-use bdk_wallet::bitcoin::{Address, NetworkKind, PrivateKey, PublicKey};
+use bdk_wallet::bitcoin::{Address, NetworkKind, PrivateKey, PublicKey, bip32::Xpub};
 use bdk_wallet::descriptor::{ExtendedDescriptor, IntoWalletDescriptor};
 use bdk_wallet::keys::bip39::{Language, Mnemonic, WordCount};
 use bdk_wallet::keys::{
     DescriptorPublicKey, GeneratableKey, GeneratedKey as BdkGeneratedKey, KeyMap,
 };
-use bdk_wallet::miniscript::descriptor::DescriptorType;
+use bdk_wallet::miniscript::descriptor::{DescriptorType, DescriptorXKey};
 use bdk_wallet::miniscript::{ForEachKey, Segwitv0};
 use bdk_wallet::template::{Bip44, Bip49, Bip84, Bip86};
 use serde::{Deserialize, Serialize};
@@ -374,22 +374,32 @@ fn parse_mnemonic(words: &str) -> Result<Mnemonic> {
         .map_err(|e| Error::InvalidKey(format!("invalid mnemonic: {e}")))
 }
 
-/// Address for the given key material. For a mnemonic this is the account's
-/// first receive address (external keychain, index 0).
+/// Address for the given key material. For a mnemonic or a watch-only source
+/// this is the first receive address (external keychain, index 0).
 pub fn address_for_key(
     key: &KeyMaterial,
     network: Network,
     address_type: AddressType,
 ) -> Result<String> {
-    if let KeyMaterial::WatchOnly(source) = key {
-        return watch_only_address_at(source, network, address_type, 0);
-    }
-    if key.is_hd() {
-        return hd_address_at(key, network, address_type, 0);
-    }
-    let sk = key.to_private_key(network)?;
-    let pubkey = sk.public_key(&Secp256k1::new());
-    address_string(&pubkey, network, address_type)
+    let (descriptor, _) = if let KeyMaterial::WatchOnly(source) = key {
+        let external = match watch_only_descriptors(source, address_type)? {
+            Descriptors::Hd { external, .. } | Descriptors::Single(external) => external,
+        };
+        ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), &external)
+            .map_err(|e| Error::Descriptor(e.to_string()))?
+    } else if key.is_hd() {
+        hd_wallet_descriptor(key, network, address_type, KeychainKind::External)?
+    } else {
+        let sk = key.to_private_key(network)?;
+        let pubkey = sk.public_key(&Secp256k1::new());
+        return address_string(&pubkey, network, address_type);
+    };
+    descriptor
+        .at_derivation_index(0)
+        .map_err(|e| Error::Descriptor(e.to_string()))?
+        .address(bdk_wallet::bitcoin::Network::from(network))
+        .map(|a| a.to_string())
+        .map_err(|e| Error::InvalidAddress(e.to_string()))
 }
 
 /// Encode an address for the public key. P2PK has no address encoding, so the
@@ -470,15 +480,6 @@ pub(crate) fn descriptors_for(
     )?))
 }
 
-/// Public descriptors from what a watch-only user pasted.
-///
-/// Three shapes are accepted. A bare account xpub is wrapped in the script
-/// type chosen in Setup, receive on `/0/*` and change on `/1/*` — the BIP44
-/// family layout every wallet exports. A descriptor with `<0;1>` is split
-/// into the two keychains. A descriptor with `/0/*` gets its change twin by
-/// substitution. Anything else — a single fixed key, say — is one keychain.
-/// A checksum is dropped: it would be wrong for the derived twin, and BDK
-/// recomputes it anyway.
 /// Extended private keys, across the version-byte variants wallets emit.
 const XPRV_PREFIXES: [&str; 6] = ["xprv", "tprv", "yprv", "zprv", "uprv", "vprv"];
 
@@ -496,6 +497,15 @@ fn carries_private_keys(descriptor: &str) -> bool {
         .is_ok_and(|(_, keymap)| !keymap.is_empty())
 }
 
+/// Public descriptors from what a watch-only user pasted.
+///
+/// Three shapes are accepted. A bare account xpub is wrapped in the script
+/// type chosen in Setup, receive on `/0/*` and change on `/1/*` — the BIP44
+/// family layout every wallet exports. A descriptor with `<0;1>` is split
+/// into the two keychains. A descriptor with `/0/*` gets its change twin by
+/// substitution. Anything else — a single fixed key, say — is one keychain.
+/// A checksum is dropped: it would be wrong for the derived twin, and BDK
+/// recomputes it anyway.
 fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Descriptors> {
     let bare = source.trim().split('#').next().unwrap_or("").to_owned();
     if bare.contains('(') && carries_private_keys(&bare) {
@@ -544,7 +554,6 @@ fn watch_only_descriptors(source: &str, address_type: AddressType) -> Result<Des
     Ok(Descriptors::Single(Zeroizing::new(bare)))
 }
 
-/// Receive address at `index` of a watch-only source.
 /// Refuse a descriptor whose outputs have no address.
 ///
 /// `pk(...)`, bare `multi(...)` and raw miniscript are perfectly valid
@@ -563,25 +572,6 @@ fn require_addressable(descriptor: &str) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn watch_only_address_at(
-    source: &str,
-    network: Network,
-    address_type: AddressType,
-    index: u32,
-) -> Result<String> {
-    let external = match watch_only_descriptors(source, address_type)? {
-        Descriptors::Hd { external, .. } | Descriptors::Single(external) => external,
-    };
-    let (descriptor, _) = ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), &external)
-        .map_err(|e| Error::Descriptor(e.to_string()))?;
-    descriptor
-        .at_derivation_index(index)
-        .map_err(|e| Error::Descriptor(e.to_string()))?
-        .address(bdk_wallet::bitcoin::Network::from(network))
-        .map(|a| a.to_string())
-        .map_err(|e| Error::InvalidAddress(e.to_string()))
 }
 
 /// Expand a mnemonic through the BDK descriptor template for `address_type`.
@@ -628,20 +618,18 @@ fn hd_descriptor_string(
     Ok(Zeroizing::new(descriptor.to_string_with_secret(&keymap)))
 }
 
-/// Address at `index` on the external keychain of an HD account.
-fn hd_address_at(
-    key: &KeyMaterial,
-    network: Network,
-    address_type: AddressType,
-    index: u32,
-) -> Result<String> {
-    let (descriptor, _) = hd_wallet_descriptor(key, network, address_type, KeychainKind::External)?;
-    descriptor
-        .at_derivation_index(index)
-        .map_err(|e| Error::Descriptor(e.to_string()))?
-        .address(bdk_wallet::bitcoin::Network::from(network))
-        .map(|a| a.to_string())
-        .map_err(|e| Error::InvalidAddress(e.to_string()))
+/// The first extended public key in `descriptor`: an HD account's xpub.
+pub(crate) fn first_xpub(descriptor: &ExtendedDescriptor) -> Option<&DescriptorXKey<Xpub>> {
+    let mut first = None;
+    descriptor.for_each_key(|k| {
+        if first.is_none()
+            && let DescriptorPublicKey::XPub(x) = k
+        {
+            first = Some(x);
+        }
+        true
+    });
+    first
 }
 
 /// Hash160 identifier of the account xpub, whose first four bytes are the
@@ -652,16 +640,9 @@ fn hd_account_identifier(
     address_type: AddressType,
 ) -> Result<String> {
     let (descriptor, _) = hd_wallet_descriptor(key, network, address_type, KeychainKind::External)?;
-    let mut identifier = None;
-    descriptor.for_each_key(|k| {
-        if identifier.is_none()
-            && let DescriptorPublicKey::XPub(xkey) = k
-        {
-            identifier = Some(xkey.xkey.identifier().to_string());
-        }
-        true
-    });
-    identifier.ok_or_else(|| Error::Descriptor("HD descriptor has no extended key".into()))
+    first_xpub(&descriptor)
+        .map(|x| x.xkey.identifier().to_string())
+        .ok_or_else(|| Error::Descriptor("HD descriptor has no extended key".into()))
 }
 
 /// Short, non-secret wallet identifier: `<network>-<addrtype>-<16 hex>`.
@@ -670,31 +651,23 @@ fn hd_account_identifier(
 /// comes from the account xpub, so the same seed used with a different script
 /// type or network is a different wallet.
 pub fn wallet_id(key: &KeyMaterial, network: Network, address_type: AddressType) -> Result<String> {
-    if let KeyMaterial::WatchOnly(source) = key {
+    let (watch, hash) = if let KeyMaterial::WatchOnly(source) = key {
         // Its own id, on purpose. A watch-only copy of an account this device
         // also holds the seed for must not share a keystore entry with it:
         // "remember" would otherwise replace the words with the xpub.
         let external = match watch_only_descriptors(source, address_type)? {
             Descriptors::Hd { external, .. } | Descriptors::Single(external) => external,
         };
-        let hash = hash160::Hash::hash(external.as_bytes()).to_string();
-        return Ok(format!(
-            "{}-{}-watch-{}",
-            network.id(),
-            address_type.id(),
-            &hash[..16]
-        ));
-    }
-    let hash = if key.is_hd() {
-        hd_account_identifier(key, network, address_type)?
+        let hash = hash160::Hash::hash(external.as_bytes());
+        ("watch-", hash.to_string())
+    } else if key.is_hd() {
+        ("", hd_account_identifier(key, network, address_type)?)
     } else {
-        key.to_private_key(network)?
-            .public_key(&Secp256k1::new())
-            .pubkey_hash()
-            .to_string()
+        let pubkey = key.to_private_key(network)?.public_key(&Secp256k1::new());
+        ("", pubkey.pubkey_hash().to_string())
     };
     Ok(format!(
-        "{}-{}-{}",
+        "{}-{}-{watch}{}",
         network.id(),
         address_type.id(),
         &hash[..16]
@@ -1168,14 +1141,8 @@ mod tests {
         let (public, _) =
             ExtendedDescriptor::parse_descriptor(&Secp256k1::new(), &abandon_public_descriptor())
                 .unwrap();
-        let mut xpub = None;
-        public.for_each_key(|k| {
-            if let DescriptorPublicKey::XPub(x) = k {
-                xpub = Some(x.xkey.to_string());
-            }
-            true
-        });
-        xpub.expect("an account xpub")
+        let xpub = first_xpub(&public).expect("an account xpub");
+        xpub.xkey.to_string()
     }
 
     #[test]

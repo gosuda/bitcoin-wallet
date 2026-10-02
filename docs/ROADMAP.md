@@ -1292,11 +1292,16 @@ the new.
       · done: 2026-10-02 — a `Sample` alias and `plain(variant, code, message)` write the
       message-only rows; rustfmt keeps five of them over several lines, so 28 lines go rather
       than 34. The 19 rows hold the same data and the three table tests pass
-- [ ] **9.4 An address, a wallet id and an account xpub, each derived one way** · S ·
+- [x] **9.4 An address, a wallet id and an account xpub, each derived one way** · S ·
   `keys.rs`, `wallet.rs`
-      why: the derivation tail is written three times, the id format three times and the
-      walk to the first xpub three times · done when: one of each, with the pinned addresses,
-      ids and fingerprints unchanged
+      why: the derivation tail is written three times, the id format three times and the walk
+      to the first xpub three times · done: 2026-10-02 — `address_for_key` derives every kind's
+      first receive address through one tail, `wallet_id` picks a prefix and a hash per kind
+      and formats once, and `first_xpub` finds the account xpub for the id,
+      `public_descriptors` and a test; `watch_only_descriptors`' doc sits on it again. A test
+      run on the old code and the new, then removed, printed `wallet_id` and `address_for_key`
+      for 12 kinds of key on 4 networks and 5 address types, and the public descriptors and id
+      of 7 opened wallets: 248 lines, byte-identical
 - [ ] **9.5 A transfer and a drain build through one path** · S · `wallet.rs`
       why: both lock, resolve chosen coins, set the rate and sequence, finish, name the
       shortfall, persist and summarize, in two copies · done when: one private builder, the
