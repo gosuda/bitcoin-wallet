@@ -1631,8 +1631,11 @@ its Rescan at a gap of 100 said "Rescanned with a gap of 100: 29,009 sat in this
       after, and resolves the new action. Every job keeps its id and name, so the ruleset's
       required checks are untouched. With the action expanded, every job runs the same steps
       with the same inputs; the apt-get and JDK steps now run before Node, which neither uses.
-      A pull request runs the apps job; release and mobile-bundle run the same three steps, and
-      are proved on their next run
+      The pull request's apps job ran it, and manual runs on the branch ran it in every other
+      job that uses it, all green: mobile-bundle's Android APK and Simulator app (run
+      36977776603), and release's desktop bundles on Windows, Linux and both Macs (run
+      36977779495), which created no release. Release's two signed phone legs skip without
+      store keys; they run the same steps as mobile-bundle's two
 
 ## Later — not picked
 
