@@ -6,6 +6,7 @@
  * chrome that a thumb touches is rebuilt here.
  */
 
+import { platform } from "../platform";
 import { navigate, type Route } from "../router";
 import { errorMessage, historyResetFixes, type TxOutput } from "../types";
 import { type Banner, el } from "../ui/dom";
@@ -385,6 +386,66 @@ export function seeThroughMark(): { set(): void; clear(): void } {
     clear: () => {
       if (root.dataset.scanning === id) delete root.dataset.scanning;
     },
+  };
+}
+
+/**
+ * Scanning without leaving the screen, as Send and Import PSBT do: Scan would
+ * rebuild the screen and lose what is on it. While the camera runs the screen
+ * steps aside for what Scan shows, a reticle over a page turned see-through,
+ * and comes back as it was. Null where this build has no camera.
+ *
+ * A scan hands what it read to `use` while the screen is still on; a failure
+ * is said in the banner, and a cancel says nothing. `form` is what scrolls.
+ */
+export function scanInPlace(
+  host: HTMLElement,
+  alert: Banner,
+  onScreen: () => boolean,
+  hint: string,
+): ((form: HTMLElement, use: (text: string) => void | Promise<void>) => Promise<void>) | null {
+  const scanQr = platform().scanQr;
+  if (!scanQr) return null;
+  const mark = seeThroughMark();
+  /** Stops the camera and turns the page solid again; null while none runs. */
+  let stopScan: (() => void) | null = null;
+  const scanHead = header("Scan");
+  const scanner = body(
+    el("div", { className: "m-scan" }, [reticle(), lede(hint)]),
+    button("Stop scanning", () => stopScan?.(), { block: true }),
+  );
+  // The camera offers no way out of its own, so leaving the screen stops it.
+  window.addEventListener("hashchange", () => stopScan?.(), { once: true });
+
+  return async (form, use) => {
+    if (stopScan) return;
+    alert.hide();
+    const camera = new AbortController();
+    const stop = (): void => {
+      camera.abort();
+      mark.clear();
+    };
+    stopScan = stop;
+    // Taking the form out of the page scrolls it back to the top.
+    const scrolled = form.scrollTop;
+    const page = [...host.childNodes];
+    mark.set();
+    host.classList.add("m-scanner");
+    host.replaceChildren(scanHead, scanner);
+    let text: string | null = null;
+    try {
+      text = await scanQr(camera.signal);
+    } catch (e) {
+      if (onScreen()) alert.show("error", errorMessage(e));
+    }
+    stop();
+    stopScan = null;
+    host.classList.remove("m-scanner");
+    host.replaceChildren(...page);
+    form.scrollTop = scrolled;
+    // Null is a cancel, not a failure: say nothing.
+    if (text === null || !onScreen()) return;
+    await use(text);
   };
 }
 

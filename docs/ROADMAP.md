@@ -1456,8 +1456,14 @@ the new.
       the banner, focus and the card; Setup with no server on both shells; the phone's Rescan)
       passed before and after, then were removed; the 251 dumped screen states are
       byte-identical to the base and the same 442 tests pass
-- [ ] **9.23 One scan-in-place for the phone's Send and Import PSBT** · S · `mobile/*`
-      why: 27 identical lines in both screens · done when: one helper
+- [x] **9.23 One scan-in-place for the phone's Send and Import PSBT** · S · `mobile/*`
+      why: 27 identical lines in both screens · done: 2026-10-02 — `scanInPlace` in
+      `mobile/ui.ts` swaps the screen for the scanner and back, and stops the camera on
+      leaving; it hands the code to the screen in the same turn as the still-on-screen check,
+      as before. A build with no camera takes no see-through mark, whose number only ever shows
+      through a scan. 17 cases on the old code first (scans, cancels, a refusing camera on both
+      screens, leaving Import PSBT mid-scan) passed before and after, then were removed; the
+      251 dumped screen states are byte-identical to the base and the same 442 tests pass
 - [ ] **9.24 The phone Restore's opener catches and offers the reset** · S ·
   `mobile/screens/restore.ts`
       why: three identical try/catch blocks around it · done when: once, inside
