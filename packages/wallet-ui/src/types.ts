@@ -194,6 +194,10 @@ export type FeeTarget = (typeof FEE_TARGETS)[number];
 /** What Send starts on in both shells: about an hour, at a rate that rarely overpays. */
 export const DEFAULT_FEE_TARGET: FeeTarget = 6;
 
+/** The targets as Send and Speed up offer them: "1 block", "3 blocks", "6 blocks". */
+export const FEE_TARGET_CHOICES: readonly { value: `${FeeTarget}`; label: string }[] =
+  FEE_TARGETS.map((t) => ({ value: `${t}`, label: `${t} block${t > 1 ? "s" : ""}` }));
+
 /** The address gaps a rescan offers; the first is the core's own default. */
 export const RESCAN_GAPS = [20, 100, 500] as const;
 export type RescanGap = (typeof RESCAN_GAPS)[number];

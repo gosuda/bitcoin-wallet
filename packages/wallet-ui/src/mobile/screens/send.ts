@@ -8,7 +8,7 @@ import { session } from "../../session";
 import {
   DEFAULT_FEE_TARGET,
   errorMessage,
-  FEE_TARGETS,
+  FEE_TARGET_CHOICES,
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
@@ -217,13 +217,7 @@ export function renderSend(): HTMLElement {
   let rate = 1;
 
   const fee = chips<FeeChoice>(
-    [
-      ...FEE_TARGETS.map((t) => ({
-        value: `${t}` as FeeChoice,
-        label: `${t} block${t > 1 ? "s" : ""}`,
-      })),
-      { value: "custom", label: "Custom" },
-    ],
+    [...FEE_TARGET_CHOICES, { value: "custom", label: "Custom" }],
     `${DEFAULT_FEE_TARGET}`,
     (choice) => {
       customRow.hidden = choice !== "custom";

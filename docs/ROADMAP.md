@@ -1492,9 +1492,13 @@ the new.
       phone's ledes and `counted(n, "coin")`, the same formula, the coin counts. 5 cases on
       the old code first passed before and after, then were removed; the 251 dumped screen
       states are byte-identical to the base and the same 442 tests pass
-- [ ] **9.28 The unit chips and the fee targets are built once** · S · `ui/dom.ts`, `types.ts`
+- [x] **9.28 The unit chips and the fee targets are built once** · S · `ui/dom.ts`, `types.ts`
       why: Send rebuilds the dashboard's unit chips, and the target choices are written four
-      times · done when: one of each
+      times · done: 2026-10-02 — `unitChips` moves from the dashboard to `ui/dom.ts` and builds
+      Send's rows too, its inputs locking with the form; `FEE_TARGET_CHOICES` in `types.ts`
+      serves the four target lists, keeping the literal digits. 3 cases on the old code first
+      passed before and after, then were removed; the 251 dumped screen states are
+      byte-identical to the base and the same 442 tests pass
 - [ ] **9.29 The send screens show a field's error through the shared helper** · S · both
   `send.ts`
       why: the four lines 9.18 shares are still written out on both Send screens · done when:

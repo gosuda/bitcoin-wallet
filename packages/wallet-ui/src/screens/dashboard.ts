@@ -13,7 +13,7 @@ import {
   type Balance,
   type BroadcastResult,
   errorMessage,
-  FEE_TARGETS,
+  FEE_TARGET_CHOICES,
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
@@ -49,6 +49,7 @@ import {
   readout,
   sectionLabel,
   textInput,
+  unitChips,
   withBusy,
 } from "../ui/dom";
 import {
@@ -148,28 +149,6 @@ const AUTO_SYNC_MS = 60_000;
 function outputLabel(d: TxDetail, o: TxOutput): string {
   if (!o.ours) return "To";
   return d.net_sat < 0 ? "Change" : "Received";
-}
-
-/** The sat / BTC pair beside an amount field, as on the Send screen. */
-function unitChips(name: string, onChange: (unit: Unit) => void): { node: HTMLElement } {
-  const group = el("div", {
-    className: "unit-group",
-    attrs: { role: "radiogroup", "aria-label": "Amount unit" },
-  });
-  for (const [unit, label] of [
-    ["sat", "sat"],
-    ["btc", "BTC"],
-  ] as const) {
-    const input = el("input", { attrs: { type: "radio", name, value: unit } });
-    input.checked = unit === "sat";
-    input.addEventListener("change", () => {
-      if (input.checked) onChange(unit);
-    });
-    group.appendChild(
-      el("label", { className: "unit-chip" }, [input, el("span", { text: label })]),
-    );
-  }
-  return { node: group };
 }
 
 type OpenRow = (tx: TxSummary, row: HTMLTableRowElement, chevron: HTMLElement) => void;
@@ -536,10 +515,7 @@ export function renderDashboard(): HTMLElement {
 
     const targets = radioGroup(
       "speedup_target",
-      FEE_TARGETS.map((t) => ({
-        value: `${t}` as `${FeeTarget}`,
-        label: `${t} block${t > 1 ? "s" : ""}`,
-      })),
+      FEE_TARGET_CHOICES,
       target,
       (value) => {
         target = value;

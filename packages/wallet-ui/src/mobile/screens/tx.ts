@@ -7,7 +7,7 @@ import { session } from "../../session";
 import {
   type BroadcastResult,
   errorMessage,
-  FEE_TARGETS,
+  FEE_TARGET_CHOICES,
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
@@ -436,13 +436,7 @@ export function renderTransaction(): HTMLElement {
     };
 
     const target = chips<SpeedChoice>(
-      [
-        ...FEE_TARGETS.map((t) => ({
-          value: `${t}` as SpeedChoice,
-          label: `${t} block${t > 1 ? "s" : ""}`,
-        })),
-        { value: "custom", label: "Custom" },
-      ],
+      [...FEE_TARGET_CHOICES, { value: "custom", label: "Custom" }],
       "1",
       (choice) => {
         alert.hide();

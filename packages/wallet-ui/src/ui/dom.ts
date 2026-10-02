@@ -1,3 +1,4 @@
+import type { Unit } from "../amount";
 import { type IconName, icon } from "./icons";
 import { sentence } from "./text";
 
@@ -176,6 +177,36 @@ export function checkbox(label: string, hint?: string, name?: string): Checkbox 
     hint ? el("span", { className: "hint", text: hint }) : null,
   ]);
   return { node, input };
+}
+
+/**
+ * The sat / BTC pair beside an amount field, on the Wallet page and on Send:
+ * native radios named `name`, sat chosen. `inputs` are the two, sat first.
+ */
+export function unitChips(
+  name: string,
+  onChange: (unit: Unit) => void,
+): { node: HTMLElement; inputs: HTMLInputElement[] } {
+  const group = el("div", {
+    className: "unit-group",
+    attrs: { role: "radiogroup", "aria-label": "Amount unit" },
+  });
+  const inputs: HTMLInputElement[] = [];
+  for (const [unit, label] of [
+    ["sat", "sat"],
+    ["btc", "BTC"],
+  ] as const) {
+    const input = el("input", { attrs: { type: "radio", name, value: unit } });
+    input.checked = unit === "sat";
+    input.addEventListener("change", () => {
+      if (input.checked) onChange(unit);
+    });
+    inputs.push(input);
+    group.appendChild(
+      el("label", { className: "unit-chip" }, [input, el("span", { text: label })]),
+    );
+  }
+  return { node: group, inputs };
 }
 
 /**

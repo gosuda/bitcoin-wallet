@@ -8,7 +8,7 @@ import {
   backendHost,
   DEFAULT_FEE_TARGET,
   errorMessage,
-  FEE_TARGETS,
+  FEE_TARGET_CHOICES,
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
@@ -30,6 +30,7 @@ import {
   radioGroup,
   sectionLabel,
   textInput,
+  unitChips,
   withBusy,
 } from "../ui/dom";
 import { feeLine, typeableRate } from "../ui/format";
@@ -134,20 +135,12 @@ export function renderSend(): HTMLElement {
   };
 
   let targetBlocks: TargetChoice = `${DEFAULT_FEE_TARGET}`;
-  const target = radioGroup(
-    "fee_target",
-    FEE_TARGETS.map((t) => ({
-      value: `${t}` as TargetChoice,
-      label: `${t} block${t > 1 ? "s" : ""}`,
-    })),
-    targetBlocks,
-    (v) => {
-      targetBlocks = v;
-      rateTouched = false;
-      leaveDrain();
-      applyEstimate();
-    },
-  );
+  const target = radioGroup("fee_target", FEE_TARGET_CHOICES, targetBlocks, (v) => {
+    targetBlocks = v;
+    rateTouched = false;
+    leaveDrain();
+    applyEstimate();
+  });
   const targetInputs = (): HTMLInputElement[] => Array.from(target.querySelectorAll("input"));
 
   const applyEstimate = () => {
@@ -333,13 +326,14 @@ export function renderSend(): HTMLElement {
     const maxBtn = button("Max", () => fillMax(row), "default", "sm");
     const maxHint = el("span", { className: "hint", text: maxHintText() });
     const maxBox = el("div", { className: "amount-max" }, [maxBtn, maxHint]);
+    const units = unitChips(`recipient-unit-${seq}`, (unit) => setUnit(row, unit));
 
     const row: RecipientRow = {
       node: el("div", { className: "recipient-row" }),
       address,
       amount,
       unit: "sat",
-      units: [],
+      units: units.inputs,
       remove: removeBtn,
       max: maxBtn,
       maxBox,
@@ -347,18 +341,6 @@ export function renderSend(): HTMLElement {
       addressError,
       amountError,
       touched: { address: false, amount: false },
-    };
-
-    const unitChip = (unit: Unit, label: string): HTMLLabelElement => {
-      const input = el("input", {
-        attrs: { type: "radio", name: `recipient-unit-${seq}`, value: unit },
-      });
-      input.checked = unit === row.unit;
-      input.addEventListener("change", () => {
-        if (input.checked) setUnit(row, unit);
-      });
-      row.units.push(input);
-      return el("label", { className: "unit-chip" }, [input, el("span", { text: label })]);
     };
 
     address.addEventListener("input", () => {
@@ -388,14 +370,7 @@ export function renderSend(): HTMLElement {
       ]),
       el("div", { className: "field" }, [
         el("label", { className: "field-label", text: "Amount", attrs: { for: amount.id } }),
-        el("div", { className: "amount-row" }, [
-          amount,
-          el(
-            "div",
-            { className: "unit-group", attrs: { role: "radiogroup", "aria-label": "Amount unit" } },
-            [unitChip("sat", "sat"), unitChip("btc", "BTC")],
-          ),
-        ]),
+        el("div", { className: "amount-row" }, [amount, units.node]),
         amountError,
         maxBox,
       ]),
