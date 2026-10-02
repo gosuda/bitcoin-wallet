@@ -1335,10 +1335,17 @@ the new.
 
 **The UI's modules**
 
-- [ ] **9.12 One builder for every transaction preview** · S · `api.ts`
-      why: five builders each check the rate, take the wallet, build and keep the PSBT, and
-      the `api` object restates each parameter list to forward it · done when: one
-      `buildPreview`, the same order of checks, the race fix untouched
+- [x] **9.12 One builder for every transaction preview** · S · `api.ts`
+      why: five builders each check the rate, take the wallet, build and keep the PSBT, and the
+      `api` object restates each parameter list to forward it · done: 2026-10-02 —
+      `buildPreview(rate, build)` checks the rate, takes the wallet, builds and keeps the PSBT,
+      in that order, and the five builders are `api` entries that call it; sync and rescan
+      share `thenBalance`, and the entries that only forwarded are written short. The explicit
+      copy of the preview's fields stays, as an allow-list. A test run on the old code and the
+      new, then removed, gave 135 byte-identical outcomes: the rate refused with no wallet
+      open, then for every builder its exact call to the core and its preview, with sync,
+      rescan and the shortened entries. `typeof api` is the same type, and the race fix is
+      untouched
 - [ ] **9.13 The types and normalizers derive what repeats** · S · `types.ts`, `wasm/*`
       why: a transaction's detail restates its summary's seven fields, two inputs restate a
       coin id, and the input normalizer is written twice · done when: the types are derived
