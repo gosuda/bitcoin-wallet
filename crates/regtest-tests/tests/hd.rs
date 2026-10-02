@@ -11,38 +11,14 @@
 // reach the helpers here, not just the #[test] functions.
 #![cfg(test)]
 
-use std::str::FromStr;
-use std::time::Duration;
-
-use bdk_testenv::TestEnv;
 mod common;
-use common::derived_address;
+use common::{build_payment, confirm, derived_address, fund, open, send, start};
 use wallet_core::bdk_wallet::KeychainKind;
-use wallet_core::bitcoin::{Address, Amount};
-use wallet_core::{
-    AddressType, BackendConfig, KeyMaterial, MemoryPersister, Network, Recipient, WalletConfig,
-    WalletHandle,
-};
+use wallet_core::{AddressType, KeyMaterial, Network};
 
-const TIMEOUT: Duration = Duration::from_secs(60);
 const FIRST_SAT: u64 = 200_000;
 const SECOND_SAT: u64 = 120_000;
 const SEND_SAT: u64 = 40_000;
-
-fn config(url: String) -> WalletConfig {
-    WalletConfig {
-        network: Network::Regtest,
-        address_type: AddressType::P2wpkh,
-        backend: BackendConfig::Esplora { url },
-    }
-}
-
-fn regtest_address(addr: &str) -> Address {
-    Address::from_str(addr)
-        .expect("wallet address parses")
-        .require_network(wallet_core::bitcoin::Network::Regtest)
-        .expect("wallet address is regtest")
-}
 
 fn derived(words: &str, keychain: KeychainKind, index: u32) -> String {
     derived_address(words, None, keychain, index)
@@ -50,29 +26,11 @@ fn derived(words: &str, keychain: KeychainKind, index: u32) -> String {
 
 #[tokio::test]
 async fn hd_wallet_receives_on_fresh_addresses_and_changes_internally() -> anyhow::Result<()> {
-    let env = TestEnv::new()?;
-    let esplora_url = format!(
-        "http://{}",
-        env.electrsd
-            .esplora_url
-            .clone()
-            .expect("electrs was started with the esplora http api")
-    );
-
-    // Coinbase maturity, so bitcoind has something spendable to send us.
-    env.mine_blocks(101, None)?;
+    let (env, esplora_url) = start()?;
 
     let seed = wallet_core::generate_mnemonic(Network::Regtest, AddressType::P2wpkh, 12)?;
     let words = seed.words.clone();
-    let wallet = WalletHandle::open(
-        config(esplora_url.clone()),
-        &KeyMaterial::Mnemonic {
-            words: words.clone(),
-            passphrase: None,
-        },
-        Box::new(MemoryPersister::new()),
-    )
-    .await?;
+    let wallet = open(&esplora_url, &KeyMaterial::parse(&words)).await?;
     assert!(wallet.is_hd(), "a mnemonic opens an HD wallet");
 
     // --- receive on the first address
@@ -85,10 +43,8 @@ async fn hd_wallet_receives_on_fresh_addresses_and_changes_internally() -> anyho
         "an unused address is handed out again"
     );
 
-    let first_txid = env.send(&regtest_address(&first), Amount::from_sat(FIRST_SAT))?;
-    env.wait_until_electrum_sees_txid(first_txid, TIMEOUT)?;
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    fund(&env, &first, FIRST_SAT)?;
+    confirm(&env)?;
 
     wallet.sync().await?;
     assert_eq!(wallet.balance().await.confirmed, FIRST_SAT);
@@ -99,10 +55,8 @@ async fn hd_wallet_receives_on_fresh_addresses_and_changes_internally() -> anyho
     assert_ne!(second, first, "new_address must not hand back the old one");
     assert_eq!(second, derived(&words, KeychainKind::External, 1));
 
-    let second_txid = env.send(&regtest_address(&second), Amount::from_sat(SECOND_SAT))?;
-    env.wait_until_electrum_sees_txid(second_txid, TIMEOUT)?;
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    fund(&env, &second, SECOND_SAT)?;
+    confirm(&env)?;
 
     wallet.sync().await?;
     let funded = FIRST_SAT + SECOND_SAT;
@@ -125,10 +79,9 @@ async fn hd_wallet_receives_on_fresh_addresses_and_changes_internally() -> anyho
     // with its own address space. Against the same chain and the same funded
     // words it must hand out an address this wallet does not own, and find none
     // of the coins.
-    let passphrased = WalletHandle::open(
-        config(esplora_url.clone()),
+    let passphrased = open(
+        &esplora_url,
         &KeyMaterial::parse_with_passphrase(&words, Some("regtest passphrase"))?,
-        Box::new(MemoryPersister::new()),
     )
     .await?;
     assert_ne!(
@@ -158,28 +111,12 @@ async fn hd_wallet_receives_on_fresh_addresses_and_changes_internally() -> anyho
 
     // --- spend: the change must not come back to a receive address
     let destination = wallet_core::generate_key(Network::Regtest, AddressType::P2tr)?;
-    let built = wallet
-        .build_transfer(
-            &[Recipient {
-                address: destination.address.clone(),
-                amount_sat: SEND_SAT,
-            }],
-            2.0,
-        )
-        .await?;
+    let built = build_payment(&wallet, &destination.address, SEND_SAT, 2.0).await?;
     assert_eq!(built.total_out_sat, SEND_SAT);
     assert!(built.change_sat > 0, "the spend must produce change");
 
-    let signed = wallet.sign(&built.psbt_base64).await?;
-    let broadcast = wallet.broadcast(&signed).await?;
-    assert_eq!(broadcast.persist_error, None, "local state must persist");
-
-    env.wait_until_electrum_sees_txid(
-        wallet_core::bitcoin::Txid::from_str(&broadcast.txid)?,
-        TIMEOUT,
-    )?;
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    send(&env, &wallet, &built).await?;
+    confirm(&env)?;
     wallet.sync().await?;
 
     assert_eq!(

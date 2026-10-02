@@ -11,67 +11,28 @@
 
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
-use bdk_testenv::TestEnv;
+mod common;
+use common::{TIMEOUT, build_payment, config, confirm, fund, open, send, start};
 use wallet_core::bdk_wallet::ChangeSet;
 use wallet_core::bdk_wallet::chain::Merge;
-use wallet_core::bitcoin::{Address, Amount};
+use wallet_core::bitcoin::Txid;
 use wallet_core::persist::{Persister, changeset_from_json, changeset_to_json};
-use wallet_core::{
-    AddressType, BackendConfig, KeyMaterial, MemoryPersister, Network, Recipient, WalletConfig,
-    WalletHandle,
-};
+use wallet_core::{AddressType, KeyMaterial, Network, WalletHandle};
 
-const TIMEOUT: Duration = Duration::from_secs(60);
 const FUNDING_SAT: u64 = 200_000;
 const SEND_SAT: u64 = 40_000;
 
-fn config(url: String) -> WalletConfig {
-    WalletConfig {
-        network: Network::Regtest,
-        address_type: AddressType::P2wpkh,
-        backend: BackendConfig::Esplora { url },
-    }
-}
-
-fn regtest_address(addr: &str) -> Address {
-    Address::from_str(addr)
-        .expect("wallet address parses")
-        .require_network(wallet_core::bitcoin::Network::Regtest)
-        .expect("wallet address is regtest")
-}
-
 #[tokio::test]
 async fn receive_then_spend_against_a_real_node() -> anyhow::Result<()> {
-    let env = TestEnv::new()?;
-    let esplora_url = format!(
-        "http://{}",
-        env.electrsd
-            .esplora_url
-            .clone()
-            .expect("electrs was started with the esplora http api")
-    );
-
-    // Coinbase maturity, so bitcoind has something spendable to send us.
-    env.mine_blocks(101, None)?;
+    let (env, esplora_url) = start()?;
 
     let key = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
-    let wallet = WalletHandle::open(
-        config(esplora_url.clone()),
-        &KeyMaterial::PrivHex(key.priv_hex.clone()),
-        Box::new(MemoryPersister::new()),
-    )
-    .await?;
+    let wallet = open(&esplora_url, &KeyMaterial::PrivHex(key.priv_hex.clone())).await?;
 
     // --- receive
-    let funding_txid = env.send(
-        &regtest_address(&wallet.address().await),
-        Amount::from_sat(FUNDING_SAT),
-    )?;
-    env.wait_until_electrum_sees_txid(funding_txid, TIMEOUT)?;
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    let funding_txid = fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    confirm(&env)?;
 
     wallet.sync().await?;
     let balance = wallet.balance().await;
@@ -90,26 +51,12 @@ async fn receive_then_spend_against_a_real_node() -> anyhow::Result<()> {
 
     // --- spend
     let destination = wallet_core::generate_key(Network::Regtest, AddressType::P2tr)?;
-    let built = wallet
-        .build_transfer(
-            &[Recipient {
-                address: destination.address.clone(),
-                amount_sat: SEND_SAT,
-            }],
-            2.0,
-        )
-        .await?;
+    let built = build_payment(&wallet, &destination.address, SEND_SAT, 2.0).await?;
     assert_eq!(built.total_out_sat, SEND_SAT);
     assert_eq!(built.change_sat, FUNDING_SAT - SEND_SAT - built.fee_sat);
 
-    let signed = wallet.sign(&built.psbt_base64).await?;
-    let broadcast = wallet.broadcast(&signed).await?;
-    assert_eq!(broadcast.persist_error, None, "local state must persist");
-
-    let spend_txid = wallet_core::bitcoin::Txid::from_str(&broadcast.txid)?;
-    env.wait_until_electrum_sees_txid(spend_txid, TIMEOUT)?;
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    let spend_txid = send(&env, &wallet, &built).await?;
+    confirm(&env)?;
 
     // --- read it back from the chain
     wallet.sync().await?;
@@ -124,13 +71,13 @@ async fn receive_then_spend_against_a_real_node() -> anyhow::Result<()> {
     assert_eq!(history.len(), 2, "funding and spend");
     let spend = history
         .iter()
-        .find(|t| t.txid == broadcast.txid)
+        .find(|t| t.txid == spend_txid)
         .expect("spend is in history");
     assert!(spend.is_outgoing());
     assert_eq!(spend.net_sat, -((SEND_SAT + built.fee_sat) as i64));
     assert_eq!(spend.fee_sat, Some(built.fee_sat));
     assert!(spend.confirmations.unwrap_or(0) >= 1, "spend confirmed");
-    assert_eq!(history[0].txid, broadcast.txid, "newest first");
+    assert_eq!(history[0].txid, spend_txid, "newest first");
 
     Ok(())
 }
@@ -139,47 +86,21 @@ async fn receive_then_spend_against_a_real_node() -> anyhow::Result<()> {
 /// one that ends up in a block.
 #[tokio::test]
 async fn fee_bump_replaces_the_original() -> anyhow::Result<()> {
-    let env = TestEnv::new()?;
-    let esplora_url = format!(
-        "http://{}",
-        env.electrsd
-            .esplora_url
-            .clone()
-            .expect("electrs was started with the esplora http api")
-    );
-    env.mine_blocks(101, None)?;
+    let (env, esplora_url) = start()?;
 
     let key = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
-    let wallet = WalletHandle::open(
-        config(esplora_url),
-        &KeyMaterial::PrivHex(key.priv_hex.clone()),
-        Box::new(MemoryPersister::new()),
-    )
-    .await?;
+    let wallet = open(&esplora_url, &KeyMaterial::PrivHex(key.priv_hex.clone())).await?;
 
-    let funding_txid = env.send(
-        &regtest_address(&wallet.address().await),
-        Amount::from_sat(FUNDING_SAT),
-    )?;
-    env.wait_until_electrum_sees_txid(funding_txid, TIMEOUT)?;
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    fund(&env, &wallet.address().await, FUNDING_SAT)?;
+    confirm(&env)?;
     wallet.sync().await?;
 
     // Send at the floor rate, leaving room to bump.
     let destination = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
-    let original = wallet
-        .build_transfer(
-            &[Recipient {
-                address: destination.address.clone(),
-                amount_sat: SEND_SAT,
-            }],
-            1.0,
-        )
-        .await?;
+    let original = build_payment(&wallet, &destination.address, SEND_SAT, 1.0).await?;
     let signed = wallet.sign(&original.psbt_base64).await?;
     let first = wallet.broadcast(&signed).await?;
-    env.wait_until_electrum_sees_txid(wallet_core::bitcoin::Txid::from_str(&first.txid)?, TIMEOUT)?;
+    env.wait_until_electrum_sees_txid(Txid::from_str(&first.txid)?, TIMEOUT)?;
 
     // Bump it while it is still unconfirmed.
     let bumped = wallet.build_fee_bump(&first.txid, 8.0).await?;
@@ -195,12 +116,8 @@ async fn fee_bump_replaces_the_original() -> anyhow::Result<()> {
     let replacement = wallet.broadcast(&signed).await?;
     assert_ne!(replacement.txid, first.txid, "replacement is a new txid");
 
-    env.wait_until_electrum_sees_txid(
-        wallet_core::bitcoin::Txid::from_str(&replacement.txid)?,
-        TIMEOUT,
-    )?;
-    env.mine_blocks(1, None)?;
-    env.wait_until_electrum_sees_block(TIMEOUT)?;
+    env.wait_until_electrum_sees_txid(Txid::from_str(&replacement.txid)?, TIMEOUT)?;
+    confirm(&env)?;
     wallet.sync().await?;
 
     let history = wallet.list_transactions().await;
@@ -263,15 +180,7 @@ impl Persister for JsonPersister {
 /// without touching the network — the path the browser build relies on.
 #[tokio::test]
 async fn state_survives_reopen_from_persister() -> anyhow::Result<()> {
-    let env = TestEnv::new()?;
-    let esplora_url = format!(
-        "http://{}",
-        env.electrsd
-            .esplora_url
-            .clone()
-            .expect("electrs was started with the esplora http api")
-    );
-    env.mine_blocks(101, None)?;
+    let (env, esplora_url) = start()?;
 
     let key = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
     let material = KeyMaterial::PrivHex(key.priv_hex.clone());
@@ -279,18 +188,13 @@ async fn state_survives_reopen_from_persister() -> anyhow::Result<()> {
 
     {
         let wallet = WalletHandle::open(
-            config(esplora_url.clone()),
+            config(&esplora_url),
             &material,
             Box::new(JsonPersister::new(store.clone())),
         )
         .await?;
-        let txid = env.send(
-            &regtest_address(&wallet.address().await),
-            Amount::from_sat(FUNDING_SAT),
-        )?;
-        env.wait_until_electrum_sees_txid(txid, TIMEOUT)?;
-        env.mine_blocks(1, None)?;
-        env.wait_until_electrum_sees_block(TIMEOUT)?;
+        fund(&env, &wallet.address().await, FUNDING_SAT)?;
+        confirm(&env)?;
         wallet.sync().await?;
         assert_eq!(wallet.balance().await.confirmed, FUNDING_SAT);
     }
@@ -301,7 +205,7 @@ async fn state_survives_reopen_from_persister() -> anyhow::Result<()> {
 
     // Reopen against the same record, with no sync at all.
     let reopened = WalletHandle::open(
-        config(esplora_url),
+        config(&esplora_url),
         &material,
         Box::new(JsonPersister::new(store)),
     )

@@ -1307,11 +1307,17 @@ the new.
 
 **The bindings and the regtest suite**
 
-- [ ] **9.9 The regtest files share the node and wallet helpers** · M · `regtest-tests`
-      why: `flows.rs` has the helpers that start a node, fund, confirm, open and send, and
-      the other three files type them out again: the node start five times, the funding six
-      times, a one-recipient payment seven · done when: one set in `tests/common`, every test
-      keeping its steps and assertions, green in CI
+- [x] **9.9 The regtest files share the node and wallet helpers** · M · `regtest-tests`
+      why: `flows.rs` has the helpers that start a node, fund, confirm, open and send, and the
+      other three files type them out again: the node start five times, the funding six times,
+      a one-recipient payment seven · done: 2026-10-02 — `tests/common` holds the helpers
+      `flows.rs` had (`start`, `fund`, `confirm`, `open`, `send`) and a new `build_payment`,
+      and the four files use them; the three wallets made from generated words open from
+      `KeyMaterial::parse`, which gives exactly the old literal for words bip39 prints. 341
+      lines out, 142 in. Every changed test was read end to end, and a listing of each assert
+      and expect per test, before and after, differs only by those now made once inside the
+      helpers. The same 12 tests list before and after, and clippy builds all four files with
+      -D warnings; they cannot run on this Mac, so CI runs them on this round's pull request
 - [ ] **9.10 The wasm bindings hand a core result to JS through one helper** · S ·
   `wallet-wasm`
       why: `to_js(&…map_err(core_err)?)` takes seven lines each time rustfmt breaks it · done
