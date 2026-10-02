@@ -17,6 +17,7 @@ import { session } from "../src/session";
 import type { RememberedWallet } from "../src/types";
 import { fake } from "./fakes";
 import { buttonNamed, find, leaveTo, mountAt, settle, type, useScreenHarness } from "./harness";
+import { typeWords } from "./openers";
 
 useScreenHarness();
 
@@ -91,15 +92,6 @@ function passwordPair(root: ParentNode): [HTMLInputElement, HTMLInputElement] {
 /** The error line under `input`'s field. */
 function errorUnder(input: HTMLInputElement): string {
   return find(input.closest(".field") ?? document, ".field-error").textContent ?? "";
-}
-
-/** Types the phrase's word into every word box there is, by the position its label names. */
-function typeWords(screen: HTMLElement): void {
-  const words = PHRASE.split(" ");
-  for (const box of screen.querySelectorAll<HTMLInputElement>('input[aria-label^="Word "]')) {
-    const position = Number(box.getAttribute("aria-label")?.slice("Word ".length));
-    type(box, words[position - 1] ?? "");
-  }
 }
 
 async function landsOn(route: Route): Promise<void> {

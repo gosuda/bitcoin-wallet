@@ -1411,9 +1411,13 @@ the new.
       outgrow a line and add lines. The same 442 tests pass with the same expect count in every
       file, and the 251 screen states the suite reaches dump byte-identical to the base (field
       values, checkedness, focus and the URL with them)
-- [ ] **9.31 The reset and late-open tests share their openers** · S · `test/*`
-      why: five openers are written in both files · done when: one table, each file's tests
-      keeping their names
+- [x] **9.31 The reset and late-open tests share their openers** · S · `test/*`
+      why: five openers are written in both files · done: 2026-10-02 — `test/openers.ts` holds
+      the ten openers, each rendering at its route; reset runs all ten and late-open the five
+      it names, choosing what to hold by whether the opener unlocks a remembered wallet. Each
+      file's tests keep their names and order, the expect counts are the same, and the 251
+      screen states the suite reaches dump byte-identical to the base (field values,
+      checkedness, focus and the URL with them)
 - [ ] **9.32 The shared fixtures live in fakes** · S · `test/fakes.ts`
       why: the same remembered wallet six times, the phrase three, a summary copied out of a
       detail three, an in-memory sealed store twice · done when: one of each in `fakes`
