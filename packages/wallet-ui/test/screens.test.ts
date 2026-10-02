@@ -201,6 +201,35 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     leaveTo("dashboard");
     expect(root.dataset.scanning).toBeUndefined();
   });
+
+  // Found in Round 9: Scan read the clipboard itself, which a Tauri webview
+  // refuses with nothing the user could allow, so its Paste failed in the apps.
+  it("Scan's Paste reads through the platform where the page's own clipboard is refused", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const screen = await showAt("scan", renderPhoneScan);
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        readText: async () => {
+          throw new DOMException("denied", "NotAllowedError");
+        },
+      },
+      configurable: true,
+    });
+    setPlatform({ ...platform(), readClipboard: async () => fake.ADDRESS });
+
+    try {
+      buttonNamed(screen, "Paste from clipboard").click();
+      await settle();
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+
+    expect(screen.querySelector(".banner-visible")).toBeNull();
+    expect(location.hash).toBe("#/send");
+    // Where the shell goes next: Send, with the address filled in.
+    const send = await showAt("send", renderPhoneSend);
+    expect(find<HTMLInputElement>(send, "input[name=address]").value).toBe(fake.ADDRESS);
+  });
 });
 
 /** What a screen reader announces a group as: its `aria-labelledby` text, else its `aria-label`. */
