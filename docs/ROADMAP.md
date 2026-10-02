@@ -1428,11 +1428,17 @@ the new.
 
 **The screens**
 
-- [ ] **9.20 A held fee-bump or cancel preview is sent through one helper** · M ·
+- [x] **9.20 A held fee-bump or cancel preview is sent through one helper** · M ·
   `dashboard.ts`, `mobile/screens/tx.ts`
-      why: both shells hold, drop and send a preview with the same counter and the same
-      failure handling, written four times · done when: one `heldPreview`, the failure paths
-      pinned by tests on the old code
+      why: both shells hold, drop and send a preview with the same counter and the same failure
+      handling, written four times · done: 2026-10-02 — `ui/preview.ts`'s `heldPreview(alert)`
+      holds, drops and sends the one preview, and drops it on the next navigation; the desktop
+      passes its "row still open" test as what counts. Cancel now says a failed sign before
+      folding its card, which touches nothing the banner does. Pinned first by 16 cases on the
+      old code (a failed sign during Speed up and during Cancel, nothing held after a failed
+      build, a sign failing after leaving, presses after leaving, a desktop row closed
+      mid-build), passing before and after, then removed; the 251 dumped screen states are
+      byte-identical to the base and the same 442 tests pass
 - [ ] **9.21 A screen that lacks what it shows sends you on in one call** · S · 20 screens
       why: `navigate(route); return el("main")` twenty times · done when: one `redirect`,
       each screen's guard pinned by a test on the old code

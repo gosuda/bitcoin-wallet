@@ -21,7 +21,6 @@ import {
   NETWORK_LABELS,
   type TxDetail,
   type TxOutput,
-  type TxPreview,
   type TxSummary,
   type Utxo,
 } from "../types";
@@ -62,6 +61,7 @@ import {
   shortOutpoint,
 } from "../ui/format";
 import { icon } from "../ui/icons";
+import { heldPreview } from "../ui/preview";
 import {
   explorerFailed,
   FROZEN_HINT,
@@ -355,55 +355,13 @@ export function renderDashboard(): HTMLElement {
   // Speed up and Cancel each show a built preview before anything is signed.
   // One row is open at a time and it offers one or the other, so there is at
   // most one preview: dropped when it is replaced, when its row closes, when
-  // the history is redrawn under it and when the screen goes. `previewGen`
-  // moves on with every drop, so a build still running then is discarded when
-  // it lands instead of being offered.
-  let heldPreview: TxPreview | null = null;
-  let previewGen = 0;
-
-  const dropPreview = (): void => {
-    previewGen += 1;
-    if (heldPreview) void api.discardTx(heldPreview.psbt_id);
-    heldPreview = null;
-  };
-
-  /**
-   * Builds the preview `ownerDetail`'s row offers, in place of any held
-   * before. `null` when the row, the screen or a newer build moved on first;
-   * a failure is thrown only while this build is still the one that counts.
-   */
-  const holdPreview = async (
-    build: () => Promise<TxPreview>,
-    ownerDetail: HTMLTableRowElement,
-  ): Promise<TxPreview | null> => {
-    dropPreview();
-    const gen = previewGen;
-    const counts = () => gen === previewGen && onScreen() && open?.detail === ownerDetail;
-    let preview: TxPreview;
-    try {
-      preview = await build();
-    } catch (e) {
-      if (counts()) throw e;
-      return null;
-    }
-    if (!counts()) {
-      void api.discardTx(preview.psbt_id);
-      return null;
-    }
-    heldPreview = preview;
-    return preview;
-  };
-
-  /** Hands the held preview over to be signed, which uses it up either way. */
-  const takePreview = (): TxPreview | null => {
-    const preview = heldPreview;
-    heldPreview = null;
-    return preview;
-  };
+  // the history is redrawn under it and when the screen goes. What a row
+  // builds counts only while that row is still the one open.
+  const preview = heldPreview(alert);
 
   const closeDetail = () => {
     if (!open) return;
-    dropPreview();
+    preview.drop();
     open.detail.remove();
     open.chevron.classList.remove("tx-chevron-open");
     open.row.setAttribute("aria-expanded", "false");
@@ -460,8 +418,8 @@ export function renderDashboard(): HTMLElement {
             return;
           }
           try {
-            const preview = await api.buildFeeBump(txid, value);
-            broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail);
+            const built = await api.buildFeeBump(txid, value);
+            broadcastDone(await api.signAndBroadcast(built.psbt_id), ownerDetail);
           } catch (e) {
             // A rate below the replacement rules is refused by the node; the
             // node's own wording is the most useful thing to show.
@@ -493,35 +451,22 @@ export function renderDashboard(): HTMLElement {
     bump: HTMLElement,
     slot: HTMLElement,
   ): HTMLButtonElement => {
+    const rowOpen = () => onScreen() && open?.detail === ownerDetail;
     const fold = () => {
       slot.replaceChildren();
       bump.classList.remove("hidden");
     };
-    const confirm = async (): Promise<void> => {
-      const preview = takePreview();
-      if (!preview) {
-        fold();
-        return;
-      }
-      alert.hide();
-      try {
-        broadcastDone(await api.signAndBroadcast(preview.psbt_id), ownerDetail);
-      } catch (e) {
-        if (!onScreen() || open?.detail !== ownerDetail) return;
-        // Signing used the preview up whether or not it went out, so the card
-        // has nothing left to send; asking again builds another.
-        fold();
-        alert.show("error", errorMessage(e));
-      }
-    };
+    // Signing used the preview up whether or not it went out, so after a
+    // failure the card has nothing left to send; asking again builds another.
+    const confirm = () => preview.send(rowOpen, (r) => broadcastDone(r, ownerDetail), fold);
     const ask = async (): Promise<void> => {
       alert.hide();
       try {
-        const preview = await holdPreview(() => api.buildCancel(txid, rate), ownerDetail);
-        if (!preview) return;
+        const built = await preview.hold(() => api.buildCancel(txid, rate), rowOpen);
+        if (!built) return;
         const yes = button("Cancel transaction", () => withBusy(yes, confirm), "danger", "sm");
         const keep = () => {
-          dropPreview();
+          preview.drop();
           fold();
         };
         slot.replaceChildren(
@@ -529,7 +474,7 @@ export function renderDashboard(): HTMLElement {
             sectionLabel("Cancel"),
             el("span", {
               className: "muted",
-              text: `Replace it with a transaction that pays ${formatSats(preview.change_sat)} back to this wallet. Fee ${formatSats(preview.fee_sat)}.`,
+              text: `Replace it with a transaction that pays ${formatSats(built.change_sat)} back to this wallet. Fee ${formatSats(built.fee_sat)}.`,
             }),
             el("div", { className: "actions actions-end" }, [
               button("Keep it", keep, "quiet", "sm"),
@@ -559,6 +504,7 @@ export function renderDashboard(): HTMLElement {
     ownerDetail: HTMLTableRowElement,
   ): HTMLElement => {
     let target: `${FeeTarget}` = "1";
+    const rowOpen = () => onScreen() && open?.detail === ownerDetail;
     const rateHint = el("span", { className: "hint" });
     const numbers = el("span", { className: "mono tx-card-numbers" });
 
@@ -575,7 +521,7 @@ export function renderDashboard(): HTMLElement {
       rateHint.textContent = `${formatRate(rate)} for the two together${why}`;
       numbers.textContent = "Working out the fee…";
       try {
-        const built = await holdPreview(() => api.buildCpfp(d.txid, rate), ownerDetail);
+        const built = await preview.hold(() => api.buildCpfp(d.txid, rate), rowOpen);
         if (!built) return;
         // The child spends our coins from this payment and nothing else, so
         // they come to what it keeps plus its fee.
@@ -586,24 +532,10 @@ export function renderDashboard(): HTMLElement {
       }
     };
 
-    const send = async (): Promise<void> => {
-      const built = takePreview();
-      // Nothing built to send: the last build failed, or is still running.
-      if (!built) {
-        await rebuild();
-        return;
-      }
-      alert.hide();
-      try {
-        broadcastDone(await api.signAndBroadcast(built.psbt_id), ownerDetail);
-      } catch (e) {
-        if (!onScreen() || open?.detail !== ownerDetail) return;
-        alert.show("error", errorMessage(e));
-        // Signing used the preview up whether or not it went out; build
-        // another, so what the button would send is on screen again.
-        await rebuild();
-      }
-    };
+    // Nothing built to send — the last build failed, or is still running — or
+    // signing used it up: build another, so what the button would send is on
+    // screen again.
+    const send = () => preview.send(rowOpen, (r) => broadcastDone(r, ownerDetail), rebuild);
 
     const targets = radioGroup(
       "speedup_target",
@@ -743,7 +675,7 @@ export function renderDashboard(): HTMLElement {
   const renderTxs = (txs: TxSummary[]) => {
     // The detail belongs to a row that is about to be replaced, and so does
     // any preview it held.
-    dropPreview();
+    preview.drop();
     open = null;
     txCount.textContent = `${formatNumber(txs.length)} · newest first · click a row for detail`;
     txBox.replaceChildren(txTable(txs, openDetail));
@@ -981,15 +913,6 @@ export function renderDashboard(): HTMLElement {
     // Rescan and the public keys are in Settings.
     el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);
-
-  // Screens are rebuilt on every navigation, so a preview an open row still
-  // holds when this one goes away is unreachable, stranded in the core's
-  // pending map.
-  const discardOnLeave = (): void => {
-    dropPreview();
-    window.removeEventListener("hashchange", discardOnLeave);
-  };
-  window.addEventListener("hashchange", discardOnLeave);
 
   // Keep the wallet fresh while this screen is open. The router swaps screens
   // without a teardown hook, so the timer retires itself once the node is gone.
