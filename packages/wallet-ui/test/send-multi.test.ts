@@ -139,7 +139,13 @@ describe("several recipients on the phone (6.9)", () => {
     ]);
     const review = find(screen, ".m-review");
     // Each payee whole: the review is where it is checked before it is signed.
-    expect(all(review, "dt").map((t) => t.textContent)).toEqual([FIRST, SECOND, "Fee", "Change", "Total"]);
+    expect(all(review, "dt").map((t) => t.textContent)).toEqual([
+      FIRST,
+      SECOND,
+      "Fee",
+      "Change",
+      "Total",
+    ]);
     expect(all(review, "dd").map((d) => d.textContent?.replace(/\u00a0/g, " "))).toEqual([
       `${(30_000).toLocaleString()} sat`,
       `${(18_000).toLocaleString()} sat`,
