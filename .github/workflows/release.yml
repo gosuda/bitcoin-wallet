@@ -8,7 +8,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+# A rerun of one tag must not race with another run replacing its draft assets.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,11 +27,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Check the version, and the tag when there is one
         env:
           TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
         run: scripts/check-version.sh ${TAG:+"$TAG"}
+
+      - name: Release action references are immutable
+        run: bash scripts/check-release-action-pins.sh
 
   bundle:
     name: ${{ matrix.name }}
@@ -58,12 +66,13 @@ jobs:
             args: ""
             rust-target: ""
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
+          toolchain: stable
           targets: wasm32-unknown-unknown${{ matrix.rust-target && format(',{0}', matrix.rust-target) || '' }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Install Linux build dependencies
         if: matrix.os == 'ubuntu-24.04'
@@ -77,53 +86,46 @@ jobs:
       # One workspace, one lockfile: install from the repo root.
       - run: pnpm install --frozen-lockfile
 
-      # Signing and notarisation happen only when these secrets exist; without
-      # them the bundles are unsigned (see docs/RELEASING.md). A secret that does
-      # not exist still arrives as an empty variable, and Tauri signs whenever
-      # APPLE_CERTIFICATE is set at all — so it failed importing an empty
-      # certificate. Each variable is therefore exported only when it has a value.
-      - name: Export the Apple signing secrets that exist
+      # Only the signing command sees Apple secrets. Empty secrets must not
+      # become APPLE_* environment variables: Tauri treats their presence as
+      # a request to sign, even if their value is empty.
+      - name: Build and sign macOS installers
         if: runner.os == 'macOS'
+        working-directory: apps/native
+        shell: bash
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SIGN_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          SIGN_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SIGN_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          SIGN_APPLE_ID: ${{ secrets.APPLE_ID }}
+          SIGN_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          SIGN_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
-            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-            value="${!name}"
-            [ -n "$value" ] || continue
-            delimiter="EOF_$(openssl rand -hex 8)"
-            printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "$value" "$delimiter" >> "$GITHUB_ENV"
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            source="SIGN_$name"
+            value="${!source}"
+            unset "$source"
+            if [[ -n "$value" ]]; then
+              export "$name=$value"
+            fi
           done
+          unset source value
+          pnpm tauri build --ci ${{ matrix.args }}
 
-      - uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: apps/native
-          # Only a tag publishes; a manual run just proves the bundles build.
-          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseDraft: true
-          prerelease: false
-          # No updater: v1 renamed this from includeUpdaterJson and defaults it
-          # to true, so the old name would be ignored and latest.json uploaded.
-          uploadUpdaterJson: false
-          args: ${{ matrix.args }}
+      - name: Build Linux and Windows installers
+        if: runner.os != 'macOS'
+        working-directory: apps/native
+        run: pnpm tauri build --ci ${{ matrix.args }}
 
-      - name: Keep the bundles for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        uses: actions/upload-artifact@v7
+      # Build jobs cannot modify releases. Artifacts are published only by the
+      # final job, after all requested platform builds have succeeded.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: bundle-${{ matrix.os }}-${{ matrix.rust-target || 'native' }}
+          name: release-bundle-${{ matrix.os }}-${{ matrix.rust-target || 'native' }}
           path: |
             target/release/bundle/**
             target/*/release/bundle/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
 
   # Which store signing keys the repository holds. A phone leg below runs only
@@ -153,12 +155,13 @@ jobs:
     # All four ABIs, each a full release build of the Rust library.
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
+          toolchain: stable
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android,wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-java@v6
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: 17
@@ -177,6 +180,7 @@ jobs:
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload.keystore"
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
           pnpm tauri android build --apk --aab --ci
 
@@ -188,21 +192,11 @@ jobs:
             "$apksigner" verify --print-certs "$apk"
           done
 
-      - name: Attach to the draft release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          gh release upload "$TAG" --clobber \
-            apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk \
-            apps/native/src-tauri/gen/android/app/build/outputs/bundle/*/*.aab
-
-      - name: Keep them for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        uses: actions/upload-artifact@v7
+      # Keep signed packages as workflow artifacts until publication. No
+      # repository write token is available in this signing job.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: android-release
+          name: release-android
           path: |
             apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
             apps/native/src-tauri/gen/android/app/build/outputs/bundle/*/*.aab
@@ -219,11 +213,12 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with:
+          toolchain: stable
           targets: aarch64-apple-ios,wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - uses: ./.github/actions/frontend
       - run: pnpm install --frozen-lockfile
 
@@ -238,6 +233,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           export APPLE_API_KEY_PATH="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY.p8"
+          trap 'rm -f "$APPLE_API_KEY_PATH"' EXIT
           printf '%s\n' "$APPLE_API_KEY_P8" > "$APPLE_API_KEY_PATH"
           pnpm tauri ios build --export-method release-testing --ci
 
@@ -250,18 +246,90 @@ jobs:
             codesign --display --verbose=2 "$unpacked"/Payload/*.app
           done
 
-      - name: Attach to the draft release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: gh release upload "$TAG" --clobber apps/native/src-tauri/gen/apple/build/*/*.ipa
-
-      - name: Keep it for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        uses: actions/upload-artifact@v7
+      # Keep signed packages as workflow artifacts until publication.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: ios-release
+          name: release-ios
           path: apps/native/src-tauri/gen/apple/build/*/*.ipa
           if-no-files-found: error
           retention-days: 7
+
+  # All build and signing jobs run with a read-only token. The only job with
+  # release-write authority downloads artifacts that have already been built.
+  publish:
+    name: Draft release
+    needs: [version, keys, bundle, android, ios]
+    if: >-
+      ${{
+        always() &&
+        startsWith(github.ref, 'refs/tags/v') &&
+        needs.version.result == 'success' &&
+        needs.keys.result == 'success' &&
+        needs.bundle.result == 'success' &&
+        (needs.android.result == 'success' || needs.android.result == 'skipped') &&
+        (needs.ios.result == 'success' || needs.ios.result == 'skipped')
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: release-*
+          path: release-artifacts
+
+      - name: Attach installers to a draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' -t files < <(
+            find release-artifacts -type f \
+              \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \
+                 -o -name '*.deb' -o -name '*.AppImage' -o -name '*.rpm' \
+                 -o -name '*.apk' -o -name '*.aab' -o -name '*.ipa' \) \
+              -print0 | sort -z
+          )
+          if (( ${#files[@]} == 0 )); then
+            echo "::error::No release installers were built"
+            exit 1
+          fi
+
+          declare -A names=()
+          manifest="$RUNNER_TEMP/SHA256SUMS"
+          : > "$manifest"
+          for file in "${files[@]}"; do
+            name="${file##*/}"
+            if [[ -n "${names[$name]:-}" ]]; then
+              echo "::error::Duplicate installer filename: $name"
+              exit 1
+            fi
+            names["$name"]=1
+            digest="$(sha256sum "$file" | cut -d ' ' -f 1)"
+            printf '%s  %s\n' "$digest" "$name" >> "$manifest"
+          done
+
+          if gh release view "$TAG" --json isDraft --jq '.isDraft' >/dev/null 2>&1; then
+            if [[ "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" != true ]]; then
+              echo "::error::Refusing to replace files on a published release"
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --draft --title "$TAG" --notes ""
+          fi
+          # A rerun must not leave old installers attached to the draft,
+          # especially if a platform's signing key has since been removed.
+          # Preserve unrelated assets that maintainers attached manually.
+          assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          while IFS= read -r asset; do
+            case "$asset" in
+              *.dmg|*.msi|*.exe|*.deb|*.AppImage|*.rpm|*.apk|*.aab|*.ipa|SHA256SUMS)
+                gh release delete-asset "$TAG" "$asset" --yes
+                ;;
+            esac
+          done <<< "$assets"
+          gh release upload "$TAG" "${files[@]}" "$manifest"
