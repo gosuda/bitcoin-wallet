@@ -11,7 +11,7 @@
     "./net": "./src/net.ts",
     "./types": "./src/types.ts",
     "./bip21": "./src/bip21.ts",
-    "./mobile-send": "./src/mobile/screens/send.ts",
+    "./mobile-send": "./src/mobile/send-prefill.ts",
     "./mobile-shell": "./src/mobile/shell.ts",
     "./session": "./src/session.ts",
     "./screen": "./src/screen.ts"

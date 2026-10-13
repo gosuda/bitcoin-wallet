@@ -2,6 +2,7 @@ import "./ui/tokens.css";
 import "./ui/app.css";
 import { api, canUnlockHere } from "./api";
 import { guardRoute, KEY_ROUTES, type Shell } from "./guards";
+import { clearSendPrefill } from "./mobile/send-prefill";
 import { currentRoute, navigate, type Route } from "./router";
 import { renderCreate } from "./screens/create";
 import { renderDashboard } from "./screens/dashboard";
@@ -130,6 +131,8 @@ export function listen(
       },
       shell,
     );
+    // A rejected Send, or leaving for any other screen, must drop its payment.
+    if (route !== "send") clearSendPrefill();
     if (route !== wanted) {
       navigate(route);
       return;

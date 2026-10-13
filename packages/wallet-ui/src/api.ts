@@ -8,6 +8,7 @@
  * boundary, and no secret is ever persisted by this module.
  */
 
+import { clearSendPrefill } from "./mobile/send-prefill";
 import { deleteWalletState, makePersister } from "./persist/indexeddb";
 import { platform } from "./platform";
 import { session } from "./session";
@@ -66,6 +67,7 @@ async function requireConfig(): Promise<AppConfig> {
  * not, which is how a fresh wallet came up wearing the previous one's sync time.
  */
 function releaseWallet(): void {
+  clearSendPrefill();
   const wallet = session.handle;
   session.handle = null;
   session.wallet = null;

@@ -1,12 +1,11 @@
 import { parsePaymentUri } from "../../bip21";
 import { platform } from "../../platform";
-import { navigate } from "../../router";
 import { screenGuard } from "../../screen";
 import { errorMessage } from "../../types";
 import { readClipboard } from "../../ui/clipboard";
 import { banner, el } from "../../ui/dom";
 import { body, button, header, lede, reticle, seeThroughMark } from "../ui";
-import { prefillSend } from "./send";
+import { openSendWithPayment } from "../send-prefill";
 
 /**
  * The camera preview is rendered by the OS behind the webview, not by us, so
@@ -47,11 +46,9 @@ export function renderScan(): HTMLElement {
       );
       return;
     }
-    prefillSend({
-      address: payment.address,
-      ...(payment.amountSat === undefined ? {} : { amountSat: payment.amountSat }),
-    });
-    navigate("send");
+    if (!openSendWithPayment(payment)) {
+      alert.show("warn", "This wallet cannot send payments.");
+    }
   };
 
   const scan = platform().scanQr;
