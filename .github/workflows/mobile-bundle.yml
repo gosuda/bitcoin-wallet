@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
+      - name: Validate the Gradle wrapper JAR
+        uses: gradle/actions/wrapper-validation@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,wasm32-unknown-unknown
