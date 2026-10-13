@@ -73,6 +73,9 @@ jobs:
       - name: Every copy of the version agrees
         if: runner.os == 'Linux'
         run: scripts/check-version.sh
+      - name: Release actions use immutable commits
+        if: runner.os == 'Linux'
+        run: bash scripts/check-release-action-pins.sh
       - uses: taiki-e/install-action@v2
         if: runner.os == 'Linux'
         with:

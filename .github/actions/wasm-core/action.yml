@@ -10,7 +10,7 @@ runs:
     # A prebuilt binary. `cargo install wasm-pack` compiled it from source in
     # every leg that needed it — minutes each time, for a tool that is the same
     # on every run.
-    - uses: taiki-e/install-action@v2
+    - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
       with:
         tool: wasm-pack
     # secp256k1's C sources are compiled for wasm32 too, and Apple's clang has
