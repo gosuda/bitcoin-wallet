@@ -206,6 +206,8 @@ pub struct BuiltTx {
     pub total_out_sat: u64,
     pub change_sat: u64,
     pub input_count: u32,
+    /// Actual payment outputs in the held PSBT; change is excluded.
+    pub recipients: Vec<Recipient>,
 }
 
 /// Outcome of a broadcast. `txid` is always the accepted transaction; the
@@ -1342,6 +1344,7 @@ impl WalletHandle {
         };
         let mut total_out_sat = 0_u64;
         let mut change_sat = 0_u64;
+        let mut recipients = Vec::new();
         for o in &tx.output {
             let designated = match paid {
                 Paid::Exact(_) => unclaimed
@@ -1352,11 +1355,31 @@ impl WalletHandle {
                 Paid::Drain(script) => *script == o.script_pubkey,
                 Paid::Rebuilt => false,
             };
-            if designated || !inner.wallet.is_mine(o.script_pubkey.clone()) {
+            let ours = inner.wallet.is_mine(o.script_pubkey.clone());
+            if designated {
+                let address =
+                    script_display(&o.script_pubkey, inner.wallet.network()).ok_or_else(|| {
+                        Error::BuildTx("payment output has no displayable address".into())
+                    })?;
+                recipients.push(Recipient {
+                    address,
+                    amount_sat: o.value.to_sat(),
+                });
+            } else if !ours && !matches!(paid, Paid::Rebuilt) {
+                return Err(Error::BuildTx(
+                    "transaction contains an unrequested external output".into(),
+                ));
+            }
+            if designated || !ours {
                 total_out_sat += o.value.to_sat();
             } else {
                 change_sat += o.value.to_sat();
             }
+        }
+        if !unclaimed.is_empty() || (matches!(paid, Paid::Drain(_)) && recipients.len() != 1) {
+            return Err(Error::BuildTx(
+                "transaction does not pay every requested recipient".into(),
+            ));
         }
         Ok(BuiltTx {
             psbt_base64: psbt.to_string(),
@@ -1365,6 +1388,7 @@ impl WalletHandle {
             total_out_sat,
             change_sat,
             input_count: tx.input.len() as u32,
+            recipients,
         })
     }
 
@@ -3050,6 +3074,31 @@ mod tests {
         }
     }
 
+    /// A preview names every actual payment output, and a mismatched request
+    /// must fail before the user can authorize its PSBT.
+    #[tokio::test]
+    async fn a_send_preview_names_only_its_actual_payment_outputs() {
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let mut to = pay_to(elsewhere(), 10_000);
+        to.extend(pay_to(elsewhere(), 20_000));
+        let built = handle.build_transfer(&to, 2.0).await.unwrap();
+
+        let mut expected = to;
+        expected.sort_by_key(|r| r.amount_sat);
+        let mut actual = built.recipients.clone();
+        actual.sort_by_key(|r| r.amount_sat);
+        assert_eq!(actual, expected);
+        assert_eq!(built.total_out_sat, 30_000);
+
+        let psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let inner = handle.inner.lock().await;
+        let incorrect = [(ScriptBuf::new(), Amount::from_sat(10_000))];
+        assert!(matches!(
+            WalletHandle::summarize(&inner, psbt, Paid::Exact(&incorrect)),
+            Err(Error::BuildTx(_))
+        ));
+    }
+
     /// Sending to yourself is legitimate — consolidating, or moving to a
     /// fresh address — and the summary has to describe it truthfully. Judging
     /// by ownership alone called the whole payment change and reported nothing
@@ -3063,6 +3112,11 @@ mod tests {
         assert_eq!(built.change_sat, 0, "a drain leaves nothing behind");
         assert_eq!(built.total_out_sat + built.fee_sat, 100_000);
         assert!(built.total_out_sat > 0, "it sends something");
+        assert_eq!(
+            built.recipients,
+            pay_to(own, built.total_out_sat),
+            "Max names its full destination and exact amount"
+        );
     }
 
     /// The same for an ordinary transfer: paying our own address is a payment,
@@ -3073,9 +3127,10 @@ mod tests {
         fund(&handle, 100_000).await;
         let own = handle.address().await;
         let built = handle
-            .build_transfer(&pay_to(own, 40_000), 2.0)
+            .build_transfer(&pay_to(own.clone(), 40_000), 2.0)
             .await
             .unwrap();
+        assert_eq!(built.recipients, pay_to(own, 40_000));
         assert_eq!(built.total_out_sat, 40_000);
         assert_eq!(
             built.change_sat + built.total_out_sat + built.fee_sat,
@@ -3096,6 +3151,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(built.total_out_sat, 40_000, "one payment, not both outputs");
+        assert_eq!(built.recipients, pay_to(own, 40_000));
         assert_eq!(built.change_sat, 100_000 - 40_000 - built.fee_sat);
     }
 

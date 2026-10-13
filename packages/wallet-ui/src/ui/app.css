@@ -556,6 +556,15 @@ textarea.input-invalid {
   margin: 0;
 }
 
+/* Full payee addresses must wrap beside the final send control. */
+.review-card .kv {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.review-card .send-review-address {
+  overflow-wrap: anywhere;
+}
+
 .strong {
   font-weight: 600;
 }

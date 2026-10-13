@@ -511,10 +511,19 @@ export function renderSend(): HTMLElement {
       }),
     );
     const muted = (text: string) => el("span", { className: "muted", text });
+    const recipients: [string, Node | string][] = p.recipients.flatMap(
+      (r, i): [string, Node | string][] => {
+        const suffix = p.recipients.length === 1 ? "" : ` ${i + 1}`;
+        return [
+          [`To${suffix}`, el("span", { className: "mono send-review-address", text: r.address })],
+          [`Amount${suffix}`, el("span", { className: "mono", text: formatSats(r.amount_sat) })],
+        ];
+      },
+    );
     previewBox.replaceChildren(
       sectionLabel("Review"),
       kv([
-        ["Amount", el("span", { className: "mono", text: formatSats(p.total_out_sat) })],
+        ...recipients,
         ["Fee", el("span", { className: "mono", text: feeLine(p.fee_sat, p.vsize, rate) })],
         [
           "Change",

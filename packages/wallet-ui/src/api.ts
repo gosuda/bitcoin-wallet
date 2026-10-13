@@ -369,16 +369,53 @@ function requireRate(feeRateSatVb: number): void {
   }
 }
 
+/** Bech32 destinations are case-insensitive; base58 is not. */
+function recipientKey(recipient: Recipient): string {
+  const address = /^(bc1|tb1|bcrt1)/i.test(recipient.address)
+    ? recipient.address.toLowerCase()
+    : recipient.address;
+  return `${address}\0${recipient.amount_sat}`;
+}
+
+/** Match payment outputs as a multiset; repeated equal outputs still count. */
+function sameRecipients(expected: readonly Recipient[], actual: readonly Recipient[]): boolean {
+  if (expected.length === 0 || expected.length !== actual.length) return false;
+  const counts = new Map<string, number>();
+  for (const recipient of actual) {
+    const key = recipientKey(recipient);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const recipient of expected) {
+    const key = recipientKey(recipient);
+    const count = counts.get(key);
+    if (count === undefined) return false;
+    if (count === 1) counts.delete(key);
+    else counts.set(key, count - 1);
+  }
+  return counts.size === 0;
+}
+
 /**
- * Checks `feeRateSatVb`, builds with the open wallet, holds the unsigned PSBT
- * for `signAndBroadcast` and hands the screen its preview.
+ * Validate payments from the PSBT before holding it for signing.
+ * Replacement transactions have no caller-specified recipients.
  */
 async function buildPreview(
   feeRateSatVb: number,
   build: (wallet: WalletApi) => Promise<BuiltTx>,
+  expectedRecipients?: (built: BuiltTx) => readonly Recipient[],
 ): Promise<TxPreview> {
   requireRate(feeRateSatVb);
   const built = await build(requireWallet());
+  if (
+    expectedRecipients &&
+    (!Array.isArray(built.recipients) ||
+      !sameRecipients(expectedRecipients(built), built.recipients))
+  ) {
+    throw new WalletError(
+      "review_mismatch",
+      "Built transaction recipients do not match the send request.",
+    );
+  }
   const psbtId = `${Date.now().toString(16)}-${(psbtCounter++).toString(16)}`;
   pending.set(psbtId, built.psbt_base64);
   return {
@@ -388,6 +425,7 @@ async function buildPreview(
     total_out_sat: built.total_out_sat,
     change_sat: built.change_sat,
     input_count: built.input_count,
+    recipients: built.recipients,
   };
 }
 
@@ -461,20 +499,26 @@ export const api = {
    * every one of them is spent.
    */
   buildTransfer: (recipients: Recipient[], feeRateSatVb: number, coins?: readonly CoinId[]) =>
-    buildPreview(feeRateSatVb, (wallet) =>
-      coins
-        ? wallet.build_transfer_from(coins, recipients, feeRateSatVb)
-        : wallet.build_transfer(recipients, feeRateSatVb),
+    buildPreview(
+      feeRateSatVb,
+      (wallet) =>
+        coins
+          ? wallet.build_transfer_from(coins, recipients, feeRateSatVb)
+          : wallet.build_transfer(recipients, feeRateSatVb),
+      () => recipients,
     ),
   /**
    * Everything to one address — or, with `coins`, all of those coins. The
    * preview's `total_out_sat` is what arrives.
    */
   buildDrain: (address: string, feeRateSatVb: number, coins?: readonly CoinId[]) =>
-    buildPreview(feeRateSatVb, (wallet) =>
-      coins
-        ? wallet.build_drain_from(coins, address, feeRateSatVb)
-        : wallet.build_drain(address, feeRateSatVb),
+    buildPreview(
+      feeRateSatVb,
+      (wallet) =>
+        coins
+          ? wallet.build_drain_from(coins, address, feeRateSatVb)
+          : wallet.build_drain(address, feeRateSatVb),
+      (built) => [{ address, amount_sat: built.total_out_sat }],
     ),
   /**
    * Replacement for an unconfirmed transaction of ours at a higher rate. The

@@ -139,12 +139,13 @@ describe("several recipients on the phone (6.9)", () => {
     ]);
     const review = find(screen, ".m-review");
     // Each payee whole: the review is where it is checked before it is signed.
-    expect(all(review, "dt").map((t) => t.textContent)).toEqual([FIRST, SECOND, "Fee", "Total"]);
+    expect(all(review, "dt").map((t) => t.textContent)).toEqual([FIRST, SECOND, "Fee", "Change", "Total"]);
     expect(all(review, "dd").map((d) => d.textContent?.replace(/\u00a0/g, " "))).toEqual([
       `${(30_000).toLocaleString()} sat`,
       `${(18_000).toLocaleString()} sat`,
       // The rate it was built at (2, above), not the fee over the size.
       "141 sat · 2.0 sat/vB · 141 vB",
+      "0 sat",
       `${(48_141).toLocaleString()} sat`,
     ]);
 
@@ -155,7 +156,7 @@ describe("several recipients on the phone (6.9)", () => {
     expect(window.location.hash).toBe("#/result");
   });
 
-  it("reviews a lone recipient as it always has: amount, fee, change and total", async () => {
+  it("reviews a lone recipient with its full address, amount, fee, change and total", async () => {
     const screen = await openSend();
     type(nth(addresses(screen), 0), FIRST);
     type(nth(amounts(screen), 0), "30000");
@@ -168,12 +169,15 @@ describe("several recipients on the phone (6.9)", () => {
       [{ address: FIRST, amount_sat: 30_000 }],
       2,
     ]);
-    expect(all(screen, ".kv dt").map((t) => t.textContent)).toEqual([
-      "Amount",
+    const review = find(screen, ".m-review");
+    expect(all(review, "dt").map((t) => t.textContent)).toEqual([
+      FIRST,
       "Fee",
       "Change",
       "Total",
     ]);
+    expect(all(review, "dd")[0]?.textContent?.replace(/\u00a0/g, " ")).toBe("30,000 sat");
+    expect(buttonNamed(screen, "Confirm and send").closest(".m-card")?.contains(review)).toBe(true);
   });
 
   it("fills the lone row from a payment the Scan tab or a link hands over, amount included", async () => {

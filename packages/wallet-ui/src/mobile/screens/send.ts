@@ -19,7 +19,7 @@ import {
   type TxPreview,
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
-import { banner, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
+import { banner, el, sectionLabel, setFieldError, textInput } from "../../ui/dom";
 import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
@@ -67,8 +67,8 @@ interface RecipientRow {
   touched: { address: boolean; amount: boolean };
 }
 
-/** A send to several, reviewed: every recipient, then the fee and the total. */
-function recipientList(to: readonly Recipient[], fee: string, total: number): HTMLElement {
+/** Every send's PSBT-derived payees, their fees and their exact totals. */
+function recipientList(to: readonly Recipient[], fee: string, change: number, total: number): HTMLElement {
   const list = el("dl", { className: "m-review" });
   for (const r of to) {
     list.append(
@@ -79,6 +79,8 @@ function recipientList(to: readonly Recipient[], fee: string, total: number): HT
   list.append(
     el("dt", { text: "Fee" }),
     el("dd", { text: fee }),
+    el("dt", { text: "Change" }),
+    el("dd", { text: formatSats(change) }),
     el("dt", { className: "m-review-total", text: "Total" }),
     el("dd", { className: "m-review-total", text: `${formatSats(total)}` }),
   );
@@ -142,8 +144,7 @@ export function renderSend(): HTMLElement {
   /**
    * See the desktop Send screen: `drain` is null while a build is in flight,
    * so it cannot be the thing that invalidates one. This can, and must —
-   * the confirm sheet does not repeat the recipient, so a stale drain would
-   * be broadcast with nothing on screen contradicting it.
+   * a stale drain must not outlive a form edit and reach confirmation.
    */
   let drainSeq = 0;
   const maxNote = el("span", { className: "hint" });
@@ -571,7 +572,7 @@ export function renderSend(): HTMLElement {
             if (preview !== drain) void api.discardTx(preview.psbt_id);
             return;
           }
-          showPreview(preview, to, at);
+          showPreview(preview, at);
         } catch (e) {
           if (onScreen()) alert.show("error", errorMessage(e));
         }
@@ -583,7 +584,7 @@ export function renderSend(): HTMLElement {
    * `rate` is the one it was built at, which Review names: BDK charges by
    * weight, and the fee over the rounded-up size reads a tenth under it.
    */
-  function showPreview(preview: TxPreview, to: readonly Recipient[], rate: number): void {
+  function showPreview(preview: TxPreview, rate: number): void {
     pendingPreview = preview;
     const confirm = button(
       "Confirm and send",
@@ -611,14 +612,7 @@ export function renderSend(): HTMLElement {
     const feeText = feeLine(preview.fee_sat, preview.vsize, rate);
     const sheet = card(
       sectionLabel("Review"),
-      to.length === 1
-        ? kv([
-            ["Amount", `${formatSats(preview.total_out_sat)}`],
-            ["Fee", feeText],
-            ["Change", `${formatSats(preview.change_sat)}`],
-            ["Total", `${formatSats(total)}`],
-          ])
-        : recipientList(to, feeText, total),
+      recipientList(preview.recipients, feeText, preview.change_sat, total),
       confirm,
       button("Edit", clearPreview, { variant: "quiet" }),
     );
