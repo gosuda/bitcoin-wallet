@@ -50,6 +50,6 @@ strip = true
 overflow-checks = true
 
 # The locked Esplora client buffers unbounded HTTP bodies and repeats full pages.
-# Keep the audited 0.12.3 API with bounded streaming and per-scan limits.
+# Preserve the pinned 0.12.3 API while enforcing resource limits.
 [patch.crates-io]
 esplora-client = { path = "vendor/esplora-client" }
