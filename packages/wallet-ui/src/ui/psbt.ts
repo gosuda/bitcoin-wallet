@@ -17,6 +17,20 @@ import { sentence } from "./text";
 
 /** "psbt" and 0xff: the five bytes every PSBT starts with (BIP 174). */
 const MAGIC = [0x70, 0x73, 0x62, 0x74, 0xff] as const;
+const HEX_MAGIC = "70736274ff";
+
+/** Maximum decoded size accepted by wallet-core's PSBT parser. */
+export const MAX_PSBT_BYTES = 1_048_576;
+const MAX_PSBT_TEXT_CHARS = MAX_PSBT_BYTES * 2;
+const MAX_PSBT_BASE64_CHARS = Math.ceil(MAX_PSBT_BYTES / 3) * 4;
+const INPUT_DEBOUNCE_MS = 100;
+export const PSBT_TOO_LARGE = "This PSBT exceeds the 1 MiB import limit.";
+
+class PsbtSizeError extends Error {
+  constructor() {
+    super(PSBT_TOO_LARGE);
+  }
+}
 
 /** Said for a BC-UR code, scanned or pasted, instead of the core's parse error. */
 export const UR_REFUSED =
@@ -40,7 +54,14 @@ const PASTE_UNAVAILABLE = "The clipboard cannot be read here. Paste into the fie
  * or a text file often arrives wrapped over several lines.
  */
 export function psbtText(raw: string): string {
-  return raw.replace(/\s+/g, "");
+  // Reject before normalization allocates a second full string.
+  if (raw.length > MAX_PSBT_TEXT_CHARS) throw new PsbtSizeError();
+  const text = raw.replace(/\s+/g, "");
+  const max = text.slice(0, HEX_MAGIC.length).toLowerCase() === HEX_MAGIC
+    ? MAX_PSBT_TEXT_CHARS
+    : MAX_PSBT_BASE64_CHARS;
+  if (text.length > max) throw new PsbtSizeError();
+  return text;
 }
 
 /**
@@ -49,6 +70,7 @@ export function psbtText(raw: string): string {
  * anything else is read as text, base64 or hex, as some tools save it.
  */
 export function psbtFromFile(bytes: Uint8Array): string {
+  if (bytes.length > MAX_PSBT_BYTES) throw new PsbtSizeError();
   if (MAGIC.every((byte, i) => bytes[i] === byte)) return base64(bytes);
   return psbtText(new TextDecoder().decode(bytes));
 }
@@ -154,6 +176,12 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
    * came back after the user typed, is dropped when it arrives.
    */
   let seq = 0;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+
+  const cancelPending = (): void => {
+    if (pending !== null) clearTimeout(pending);
+    pending = null;
+  };
 
   const put = (review: PsbtReview | null): void => {
     current = review;
@@ -164,14 +192,25 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
 
   /** Describes `raw` once the core reads it; until then nothing is offered to sign or send. */
   const describe = async (raw: string): Promise<void> => {
-    const text = psbtText(raw);
+    let text: string;
+    try {
+      text = psbtText(raw);
+    } catch (e) {
+      if (!(e instanceof PsbtSizeError)) throw e;
+      ++seq;
+      read = "";
+      alert.hide();
+      put(null);
+      sayInvalid(PSBT_TOO_LARGE);
+      return;
+    }
     if (text === read) return;
     read = text;
     const mine = ++seq;
     alert.hide();
     sayInvalid(null);
     put(null);
-    if (text === "") return;
+    if (text === "" || !onScreen()) return;
     if (isUr(text)) {
       sayInvalid(UR_REFUSED);
       return;
@@ -186,17 +225,46 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
   };
 
   const fill = (raw: string): Promise<void> => {
-    field.value = psbtText(raw);
-    return describe(field.value);
+    const text = psbtText(raw);
+    cancelPending();
+    field.value = text;
+    return describe(text);
   };
 
-  field.addEventListener("input", () => void describe(field.value));
+  const tryFill = async (raw: string): Promise<void> => {
+    try {
+      await fill(raw);
+    } catch (e) {
+      if (!(e instanceof PsbtSizeError)) throw e;
+      alert.show("warn", PSBT_TOO_LARGE);
+    }
+  };
+
+  // A pending edit invalidates an in-flight review immediately. Only the
+  // latest settled edit crosses into WASM; superseded timers never parse.
+  field.addEventListener("input", () => {
+    ++seq;
+    cancelPending();
+    read = "";
+    alert.hide();
+    sayInvalid(null);
+    put(null);
+    if (field.value.length > MAX_PSBT_TEXT_CHARS) {
+      sayInvalid(PSBT_TOO_LARGE);
+      return;
+    }
+    pending = setTimeout(() => {
+      pending = null;
+      if (onScreen()) void describe(field.value);
+    }, INPUT_DEBOUNCE_MS);
+  });
 
   return {
     review: () => current,
 
     async paste() {
       alert.hide();
+      cancelPending();
       const mine = ++seq;
       const got = await readClipboard();
       // Typed over, or loaded, while the clipboard was read: the newer stands.
@@ -206,16 +274,22 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
         return;
       }
       // An empty clipboard would otherwise wipe the PSBT already in the field.
-      if (psbtText(got.text) === "") {
+      if (got.text.trim() === "") {
         alert.show("warn", "The clipboard is empty.");
         return;
       }
-      await fill(got.text);
+      await tryFill(got.text);
     },
 
     async load(file) {
       alert.hide();
+      cancelPending();
       const mine = ++seq;
+      // Check Blob metadata before allocating an ArrayBuffer.
+      if (file.size > MAX_PSBT_BYTES) {
+        if (onScreen()) alert.show("warn", PSBT_TOO_LARGE);
+        return;
+      }
       let bytes: Uint8Array;
       try {
         bytes = new Uint8Array(await file.arrayBuffer());
@@ -226,7 +300,12 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
         return;
       }
       // As with Paste: whatever reached the field while the file was read stands.
-      if (mine === seq && onScreen()) await fill(psbtFromFile(bytes));
+      if (mine !== seq || !onScreen()) return;
+      if (bytes.length > MAX_PSBT_BYTES) {
+        alert.show("warn", PSBT_TOO_LARGE);
+        return;
+      }
+      await tryFill(psbtFromFile(bytes));
     },
 
     async scanned(text) {
@@ -234,7 +313,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
         alert.show("warn", UR_REFUSED);
         return;
       }
-      await fill(text);
+      await tryFill(text);
     },
 
     async sign() {
