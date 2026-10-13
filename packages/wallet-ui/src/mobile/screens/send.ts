@@ -23,6 +23,7 @@ import { banner, el, kv, sectionLabel, setFieldError, textInput } from "../../ui
 import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
+import { takeSendPrefill } from "../send-prefill";
 import {
   body,
   button,
@@ -40,13 +41,6 @@ import {
 interface Prefill {
   address?: string;
   amountSat?: number;
-}
-
-/** Set by the Scan screen and by a `bitcoin:` deep link before navigating here. */
-let prefill: Prefill = {};
-
-export function prefillSend(next: Prefill): void {
-  prefill = next;
 }
 
 type FeeChoice = `${FeeTarget}` | "custom";
@@ -92,8 +86,7 @@ export function renderSend(): HTMLElement {
   const host = el("main");
 
   const alert = banner();
-  const taken = prefill;
-  prefill = {};
+  const taken = takeSendPrefill();
   /**
    * The coins ticked on Coins when Send selected opened this, or null. The
    * send spends exactly those, Max included, until Let the wallet choose
@@ -647,11 +640,11 @@ export function renderSend(): HTMLElement {
     reviewHost,
     spacer(),
     review,
-    taken.address ? scanNote : null,
+    taken?.address ? scanNote : null,
   );
   host.append(head, form);
 
-  rows.push(newRow(taken));
+  rows.push(newRow(taken ?? {}));
   layout();
   refresh();
   void refreshRate();

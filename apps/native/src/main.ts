@@ -32,21 +32,13 @@ const MOBILE = PLATFORM === "ios" || PLATFORM === "android";
 async function wireDeepLinks(): Promise<void> {
   const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
   const { parsePaymentUri } = await import("@bitcoin-wallet/ui/bip21");
-  const { prefillSend } = await import("@bitcoin-wallet/ui/mobile-send");
-  const { session } = await import("@bitcoin-wallet/ui/session");
+  const { openSendWithPayment } = await import("@bitcoin-wallet/ui/mobile-send");
 
   const handle = (urls: readonly string[] | null): void => {
     const payment = urls?.map(parsePaymentUri).find((p) => p !== null);
     if (!payment) return;
-    // Dropping it means dropping it. Prefilling first and letting the route
-    // guard bounce it leaves the payment in a module-global that the
-    // next Send screen picks up — the recipient reappearing later, unasked.
-    if (!session.wallet) return;
-    prefillSend({
-      address: payment.address,
-      ...(payment.amountSat === undefined ? {} : { amountSat: payment.amountSat }),
-    });
-    window.location.hash = "#/send";
+    // Reject absent or watch-only wallets before storing a one-shot intent.
+    openSendWithPayment(payment);
   };
 
   await onOpenUrl((urls) => handle(urls));

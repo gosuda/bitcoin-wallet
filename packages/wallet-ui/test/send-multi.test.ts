@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
-import { prefillSend, renderSend } from "../src/mobile/screens/send";
+import { renderSend } from "../src/mobile/screens/send";
+import { openSendWithPayment } from "../src/mobile/send-prefill";
 import { platform, setPlatform } from "../src/platform";
 import { fake } from "./fakes";
 import { buttonNamed, find, leaveTo, settle, showAt, type, useScreenHarness } from "./harness";
@@ -177,8 +178,9 @@ describe("several recipients on the phone (6.9)", () => {
   });
 
   it("fills the lone row from a payment the Scan tab or a link hands over, amount included", async () => {
-    prefillSend({ address: SECOND, amountSat: 18_000 });
-    const screen = await openSend();
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    expect(openSendWithPayment({ address: SECOND, amountSat: 18_000 })).toBe(true);
+    const screen = await showAt("send", renderSend);
 
     expect(addresses(screen).map((f) => f.value)).toEqual([SECOND]);
     expect(amounts(screen).map((f) => f.value)).toEqual(["18000"]);
