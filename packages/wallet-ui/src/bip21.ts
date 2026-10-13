@@ -31,7 +31,12 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   // Not using `new URL`: `bitcoin:` is not hierarchical, so browsers park the
   // whole payload in `pathname` and the query handling differs between engines.
   const rest = text.slice("bitcoin:".length);
-  const [addressPart = "", queryPart = ""] = rest.split("?", 2);
+  const separator = rest.indexOf("?");
+  const addressPart = separator === -1 ? rest : rest.slice(0, separator);
+  const queryPart = separator === -1 ? "" : rest.slice(separator + 1);
+  // A second raw `?` is ambiguous and must not hide later required parameters.
+  // Percent-encoded question marks in values remain valid.
+  if (queryPart.includes("?")) return null;
   // `decodeURIComponent` throws on a malformed escape — "bitcoin:%" is enough.
   // This function promises null instead, and a throw here also aborted the
   // deep-link handler's map before it could reach a later valid URL.
@@ -48,12 +53,19 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   // BIP21: a `req-` parameter we do not implement invalidates the whole URI.
   // Honouring only the keys we know would strip a condition the payer made
   // mandatory and show the payment as an ordinary transfer.
+  const seen = new Set<string>();
   for (const key of params.keys()) {
     // Case-sensitive on purpose: BIP21 spells the required prefix "req-", and
     // query keys are not case-folded. "REQ-Foo" is therefore an unknown
     // *optional* parameter, which the spec says to ignore — rejecting it
     // turned a usable payment link into a dead one.
     if (key.startsWith("req-")) return null;
+    // Supported fields are singletons; accepting duplicates makes different
+    // wallets disagree about the amount or text attached to a payment.
+    if (key === "amount" || key === "label" || key === "message") {
+      if (seen.has(key)) return null;
+      seen.add(key);
+    }
   }
 
   const out: PaymentRequest = { address };
