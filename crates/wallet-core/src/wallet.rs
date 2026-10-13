@@ -167,7 +167,8 @@ fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
 /// graph has never seen. Signing and review must use this same boundary.
 fn known_wallet_input_values(wallet: &Wallet, psbt: &Psbt) -> Vec<Option<u64>> {
     let graph = wallet.tx_graph();
-    psbt.unsigned_tx
+    psbt
+        .unsigned_tx
         .input
         .iter()
         .map(|txin| {
