@@ -197,8 +197,8 @@ mod tests {
     fn a_resource_limit_stays_distinct_from_backend_errors() {
         let error = map_err(EsploraError::ResourceLimit("scan page budget exceeded"));
         assert!(matches!(
-            error,
-            Error::ResourceLimit(ref message) if message == "scan page budget exceeded"
+            &error,
+            Error::ResourceLimit(message) if message == "scan page budget exceeded"
         ));
         assert_eq!(error.code(), "resource_limit");
     }
@@ -225,10 +225,9 @@ mod tests {
         let backend = EsploraBackend::new(&url).unwrap();
         let error = backend.height().await.unwrap_err();
         assert!(matches!(
-            error,
-            Error::ResourceLimit(ref message) if message == "response body exceeds 16 MiB"
+            &error,
+            Error::ResourceLimit(message) if message == "response body exceeds 16 MiB"
         ));
         server.join().unwrap();
     }
-
 }
