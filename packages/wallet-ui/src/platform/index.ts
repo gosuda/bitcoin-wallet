@@ -38,6 +38,22 @@ export interface Platform {
   setRemembered(record: RememberedWallet | null): Promise<void>;
 
   /**
+   * Browser-only atomic lifecycle for an active remembered wallet. Saving
+   * replaces all previously sealed keys and the metadata in one transaction;
+   * forgetting clears both even when the metadata cannot be read. Native
+   * shells keep their OS keystore and separate non-secret settings.
+   */
+  readonly rememberedWalletStore?: {
+    save(
+      record: RememberedWallet,
+      secret: string,
+      passphrase?: string,
+      appPassword?: string,
+    ): Promise<void>;
+    forget(): Promise<void>;
+  };
+
+  /**
    * How long the app may sit in the background before a remembered wallet
    * closes to Unlock. Nothing saved, or a value this build does not offer,
    * reads as the default (`lockAfterFrom`).
