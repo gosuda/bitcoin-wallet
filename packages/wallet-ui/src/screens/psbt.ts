@@ -136,10 +136,10 @@ export function renderPsbt(): HTMLElement {
     signedText.textContent = r === null ? "" : signedLine(r);
     dot.classList.toggle("psbt-dot-done", final);
     waits.hidden = final;
-    signBtn.disabled = r === null || final;
+    signBtn.disabled = r === null || final || !r.signable;
     sendBtn.disabled = !final;
     // The accent sits on whichever of the two is next.
-    signBtn.classList.toggle("btn-primary", !final);
+    signBtn.classList.toggle("btn-primary", r?.signable === true && !final);
     sendBtn.classList.toggle("btn-primary", final);
   };
 

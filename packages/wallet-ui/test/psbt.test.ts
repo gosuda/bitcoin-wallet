@@ -286,6 +286,7 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     const screen = await openPasted(shell, SHARED);
 
     expect(shell.said(screen)).toEqual(shell.drawnShared);
+    expect(buttonNamed(screen, "Sign").disabled).toBe(false);
   });
 
   it("says in words that a paste is not a PSBT, and describes nothing", async () => {
@@ -429,16 +430,17 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     expect(buttonNamed(screen, "Broadcast").disabled).toBe(true);
   });
 
-  it("says so when this wallet holds no key for any input, rather than sign nothing in silence", async () => {
+  it("disables Sign when the core reports no signable input", async () => {
     const screen = await openPasted(shell, THEIRS_ONLY);
+    const sign = buttonNamed(screen, "Sign");
 
-    buttonNamed(screen, "Sign").click();
+    expect(sign.disabled).toBe(true);
+    expect(buttonNamed(screen, "Broadcast").disabled).toBe(true);
+    sign.click();
     await settle();
 
-    expect(fake.calls).toContainEqual(["sign_psbt", THEIRS_ONLY.psbt_base64]);
-    expect(find(screen, ".banner").textContent).toBe(
-      "This wallet holds no key for any of these inputs, so nothing was signed.",
-    );
+    expect(fake.callNames()).not.toContain("sign_psbt");
+    expect(field(screen).value).toBe(THEIRS_ONLY.psbt_base64);
   });
 
   it("Paste reads the clipboard into the field and describes it", async () => {

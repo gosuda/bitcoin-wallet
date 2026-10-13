@@ -239,7 +239,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
 
     async sign() {
       const before = current;
-      if (before === null || before.finalized) return;
+      if (before === null || before.finalized || !before.signable) return;
       const mine = ++seq;
       alert.hide();
       try {
