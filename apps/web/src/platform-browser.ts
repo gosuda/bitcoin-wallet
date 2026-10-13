@@ -17,7 +17,7 @@ import {
   saveRememberedSecret,
   sealedSecrets,
 } from "@bitcoin-wallet/ui/sealed-secrets";
-import { type AppConfig, lockAfterFrom, type RememberedWallet } from "@bitcoin-wallet/ui/types";
+import { type AppConfig, lockAfterFrom } from "@bitcoin-wallet/ui/types";
 
 const PREFIX = "bitcoin-wallet.v1.";
 const CONFIG_KEY = `${PREFIX}config`;
