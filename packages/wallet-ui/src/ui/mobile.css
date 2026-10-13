@@ -428,7 +428,7 @@ body {
   flex-wrap: nowrap;
 }
 
-/* The review of a send to several: each recipient, then the fee and the total. */
+/* Every send review: complete destinations and amounts, fee, change and total. */
 .m-review {
   display: grid;
   /* Values take what the labels leave, and wrap there: the fee line is too

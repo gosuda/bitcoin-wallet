@@ -17,6 +17,7 @@ import type { SealedStore } from "../src/platform/sealed";
 import {
   type Balance,
   type PsbtReview,
+  type Recipient,
   type RememberedWallet,
   type TxDetail,
   type TxSummary,
@@ -36,13 +37,14 @@ const SAVED: RememberedWallet = {
   address_type: "p2wpkh",
 };
 
-const built = (total: number) => ({
+const built = (total: number, recipients: readonly Recipient[] = []) => ({
   psbt_base64: `psbt-${total}`,
   fee_sat: 141,
   vsize: 141,
   total_out_sat: total,
   change_sat: 0,
   input_count: 1,
+  recipients,
 });
 
 interface FakeState {
@@ -169,21 +171,21 @@ class FakeWallet {
   async estimate_fee() {
     return { sat_per_vb_by_target: { ...state.estimate } };
   }
-  async build_transfer(recipients: { amount_sat: number }[], rate: number) {
+  async build_transfer(recipients: Recipient[], rate: number) {
     calls.push(["build_transfer", recipients, rate]);
-    return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0));
+    return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0), recipients);
   }
-  async build_transfer_from(coins: unknown, recipients: { amount_sat: number }[], rate: number) {
+  async build_transfer_from(coins: unknown, recipients: Recipient[], rate: number) {
     calls.push(["build_transfer_from", coins, recipients, rate]);
-    return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0));
+    return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0), recipients);
   }
   async build_drain(address: string, rate: number) {
     calls.push(["build_drain", address, rate]);
-    return built(49_859);
+    return built(49_859, [{ address, amount_sat: 49_859 }]);
   }
   async build_drain_from(coins: unknown, address: string, rate: number) {
     calls.push(["build_drain_from", coins, address, rate]);
-    return built(49_859);
+    return built(49_859, [{ address, amount_sat: 49_859 }]);
   }
   async build_fee_bump(txid: string, rate: number) {
     calls.push(["build_fee_bump", txid, rate]);

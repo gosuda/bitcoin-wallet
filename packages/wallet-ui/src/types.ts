@@ -308,6 +308,8 @@ export interface TxPreview {
   total_out_sat: number;
   change_sat: number;
   input_count: number;
+  /** Destinations and amounts from the held PSBT's payment outputs, never the form. */
+  recipients: readonly Recipient[];
 }
 
 export interface BroadcastResult {
