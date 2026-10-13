@@ -1,36 +1,96 @@
 /**
- * IndexedDB storage for the browser's remembered keys (6.12).
+ * Browser keystore and active-wallet metadata, stored together in IndexedDB.
  *
- * One record per wallet id in `bitcoin-wallet-keystore` / `sealed_secrets`,
- * exactly as `sealedKeystore` hands it over: ciphertext, and the salt, IV and
- * round count that open it with the app password. Nothing here can read it.
- * A database of its own rather than a store beside the wallet state, so
- * neither's version or reset can reach the other.
+ * Each successful save clears any previous sealed keys and writes the new
+ * encrypted key and its discoverable wallet record in ONE transaction. A
+ * failed or aborted transaction preserves the previous saved wallet.
  *
- * Raw IndexedDB wrapped in promises by `idb.ts`, as `indexeddb.ts` is; writes
- * resolve only once the transaction has committed.
+ * Older builds kept only sealed keys here and their pointer in localStorage.
+ * The first read migrates a referenced key; without a usable old pointer,
+ * any unreachable keys are deleted instead of left on disk indefinitely.
  */
 
+import { ADDRESS_TYPES, NETWORKS, type RememberedWallet } from "../types";
 import type { SealedSecret, SealedStore } from "../platform/sealed";
 import { objectStore } from "./idb";
+
+const ACTIVE_KEY = "__bitcoin_wallet_active__";
 
 const withStore = objectStore({
   db: "bitcoin-wallet-keystore",
   version: 1,
-  // No key path: keyed by wallet id from outside, so a record is only ever the sealed secret.
   store: "sealed_secrets",
   host: "browser",
   database: "key store",
   records: "key store",
 });
 
+/** A persisted pointer is untrusted, whether it came from IDB or localStorage. */
+function remembered(value: unknown): value is RememberedWallet {
+  if (typeof value !== "object" || value === null) return false;
+  const r = value as Record<string, unknown>;
+  return (
+    typeof r.wallet_id === "string" &&
+    r.wallet_id.length > 0 &&
+    r.wallet_id !== ACTIVE_KEY &&
+    typeof r.address === "string" &&
+    NETWORKS.some((network) => network === r.network) &&
+    ADDRESS_TYPES.some((addressType) => addressType === r.address_type)
+  );
+}
+
 export const sealedSecrets: SealedStore = {
   get: (walletId) => withStore<unknown>("readonly", (store) => store.get(walletId)),
   async put(walletId: string, record: SealedSecret): Promise<void> {
     await withStore("readwrite", (store) => store.put(record, walletId));
   },
-  // Deleting what is not there is not an error, as with the OS keystore.
   async delete(walletId: string): Promise<void> {
     await withStore("readwrite", (store) => store.delete(walletId));
   },
 };
+
+/** Clears the active record AND every sealed key, including legacy orphans. */
+export async function clearRememberedSecrets(): Promise<void> {
+  await withStore("readwrite", (store) => store.clear());
+}
+
+/**
+ * Makes one remembered wallet authoritative. The clear and both puts commit
+ * or abort together, so no secret can survive without its active pointer.
+ */
+export async function saveRememberedSecret(
+  record: RememberedWallet,
+  sealed: SealedSecret,
+): Promise<void> {
+  if (!remembered(record)) throw new Error("invalid remembered wallet");
+  await withStore("readwrite", (store) => {
+    store.clear();
+    store.put(sealed, record.wallet_id);
+    return store.put(record, ACTIVE_KEY);
+  });
+}
+
+/**
+ * Reads the active record, importing a v1 localStorage pointer if necessary.
+ * With no valid pointer, old sealed keys cannot be unlocked through the UI;
+ * clear them now to avoid retaining inaccessible ciphertext.
+ */
+export async function readRememberedSecret(legacy: unknown): Promise<RememberedWallet | null> {
+  const active = await withStore<unknown>("readonly", (store) => store.get(ACTIVE_KEY));
+  if (active !== undefined) {
+    if (remembered(active)) return active;
+    await clearRememberedSecrets();
+    return null;
+  }
+
+  if (remembered(legacy)) {
+    const oldKey = await sealedSecrets.get(legacy.wallet_id);
+    if (oldKey !== undefined && oldKey !== null) {
+      await saveRememberedSecret(legacy, oldKey as SealedSecret);
+      return legacy;
+    }
+  }
+
+  await clearRememberedSecrets();
+  return null;
+}
