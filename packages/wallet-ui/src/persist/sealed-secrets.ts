@@ -64,9 +64,16 @@ export async function saveRememberedSecret(
 ): Promise<void> {
   if (!remembered(record)) throw new Error("invalid remembered wallet");
   await withStore("readwrite", (store) => {
-    store.clear();
-    store.put(sealed, record.wallet_id);
-    return store.put(record, ACTIVE_KEY);
+    try {
+      store.clear();
+      store.put(sealed, record.wallet_id);
+      return store.put(record, ACTIVE_KEY);
+    } catch (e) {
+      // An IndexedDB request failure aborts automatically, but a synchronous
+      // put exception does not. Abort so a prior clear or put cannot commit.
+      store.transaction.abort();
+      throw e;
+    }
   });
 }
 
