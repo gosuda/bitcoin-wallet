@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
-import { openSendWithPayment } from "../src/mobile/send-prefill";
 import { renderSend } from "../src/mobile/screens/send";
+import { openSendWithPayment } from "../src/mobile/send-prefill";
 import { platform, setPlatform } from "../src/platform";
 import { fake } from "./fakes";
 import { buttonNamed, find, leaveTo, settle, showAt, type, useScreenHarness } from "./harness";

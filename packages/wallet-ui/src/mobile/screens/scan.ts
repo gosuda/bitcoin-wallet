@@ -4,8 +4,8 @@ import { screenGuard } from "../../screen";
 import { errorMessage } from "../../types";
 import { readClipboard } from "../../ui/clipboard";
 import { banner, el } from "../../ui/dom";
-import { body, button, header, lede, reticle, seeThroughMark } from "../ui";
 import { openSendWithPayment } from "../send-prefill";
+import { body, button, header, lede, reticle, seeThroughMark } from "../ui";
 
 /**
  * The camera preview is rendered by the OS behind the webview, not by us, so

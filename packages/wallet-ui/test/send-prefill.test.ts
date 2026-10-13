@@ -2,8 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { api } from "../src/api";
 import { listen } from "../src/app";
-import { openSendWithPayment, takeSendPrefill } from "../src/mobile/send-prefill";
 import { renderSend } from "../src/mobile/screens/send";
+import { openSendWithPayment, takeSendPrefill } from "../src/mobile/send-prefill";
 import { session } from "../src/session";
 import { fake } from "./fakes";
 import { find, settle, showAt, useScreenHarness } from "./harness";
