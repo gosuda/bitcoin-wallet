@@ -3,16 +3,20 @@
  *
  * A tab has no OS keychain, so a remembered key is sealed under an app
  * password the user chooses — PBKDF2-SHA256 and AES-GCM from WebCrypto — and
- * kept in an IndexedDB database of its own (`sealedKeystore` over
- * `sealedSecrets`). Without "Remember" nothing secret is written, and the key
- * lives in memory for the life of the tab. The non-secret records — the app
- * config, the remembered wallet and the lock time — are kept in `localStorage`
- * under a versioned key.
+ * kept in IndexedDB alongside its active-wallet metadata. Without "Remember"
+ * nothing secret is written, and the key lives in memory for the tab. Config
+ * and lock time stay in localStorage; old remembered pointers are migrated and
+ * then discarded.
  */
 
 import type { Platform } from "@bitcoin-wallet/ui/platform";
-import { sealedKeystore } from "@bitcoin-wallet/ui/sealed";
-import { sealedSecrets } from "@bitcoin-wallet/ui/sealed-secrets";
+import { seal, sealedKeystore } from "@bitcoin-wallet/ui/sealed";
+import {
+  clearRememberedSecrets,
+  readRememberedSecret,
+  saveRememberedSecret,
+  sealedSecrets,
+} from "@bitcoin-wallet/ui/sealed-secrets";
 import { type AppConfig, lockAfterFrom, type RememberedWallet } from "@bitcoin-wallet/ui/types";
 
 const PREFIX = "bitcoin-wallet.v1.";
@@ -39,9 +43,17 @@ function write(key: string, value: unknown): void {
     if (value === null) window.localStorage.removeItem(key);
     else window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // Storage is a convenience here, never a correctness requirement: a tab
-    // that cannot persist the config simply asks for it again next time.
+    // Only config, lock time and removal of an obsolete legacy pointer use
+    // this helper. The active wallet pointer is committed with the secret in
+    // IndexedDB, where failures are never ignored.
   }
+}
+
+async function forgetRemembered(): Promise<void> {
+  await clearRememberedSecrets();
+  // A failed legacy-pointer removal cannot retain ciphertext after the
+  // IndexedDB clear, and the next read will refuse that stale pointer.
+  write(REMEMBERED_KEY, null);
 }
 
 export const browserPlatform: Platform = {
@@ -54,8 +66,27 @@ export const browserPlatform: Platform = {
   getConfig: async () => read<AppConfig>(CONFIG_KEY),
   setConfig: async (config) => write(CONFIG_KEY, config),
 
-  getRemembered: async () => read<RememberedWallet>(REMEMBERED_KEY),
-  setRemembered: async (record) => write(REMEMBERED_KEY, record),
+  getRemembered: async () => {
+    const record = await readRememberedSecret(read<unknown>(REMEMBERED_KEY));
+    if (record) write(REMEMBERED_KEY, null);
+    return record;
+  },
+  setRemembered: async (record) => {
+    if (record !== null) throw new Error("remembered secrets must be saved atomically");
+    await forgetRemembered();
+  },
+  rememberedWalletStore: {
+    async save(record, secret, passphrase, appPassword) {
+      const sealed = await seal(
+        record.wallet_id,
+        { secret, passphrase: passphrase ?? null },
+        appPassword ?? "",
+      );
+      await saveRememberedSecret(record, sealed);
+      write(REMEMBERED_KEY, null);
+    },
+    forget: forgetRemembered,
+  },
 
   getLockAfter: async () => lockAfterFrom(read(LOCK_AFTER_KEY)),
   setLockAfter: async (choice) => write(LOCK_AFTER_KEY, choice),
