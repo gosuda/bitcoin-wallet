@@ -68,7 +68,12 @@ interface RecipientRow {
 }
 
 /** Every send's PSBT-derived payees, their fees and their exact totals. */
-function recipientList(to: readonly Recipient[], fee: string, change: number, total: number): HTMLElement {
+function recipientList(
+  to: readonly Recipient[],
+  fee: string,
+  change: number,
+  total: number,
+): HTMLElement {
   const list = el("dl", { className: "m-review" });
   for (const r of to) {
     list.append(

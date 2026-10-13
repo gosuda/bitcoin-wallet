@@ -23,14 +23,20 @@ function amounts(screen: HTMLElement): HTMLInputElement[] {
   return [...screen.querySelectorAll<HTMLInputElement>('[id^="recipient-amount-"]')];
 }
 
+function nth<T>(items: readonly T[], index: number): T {
+  const item = items[index];
+  if (item === undefined) throw new Error(`missing item ${index}`);
+  return item;
+}
+
 describe("desktop confirmation pays only reviewed PSBT destinations", () => {
   it("shows every full address and amount beside Confirm and send", async () => {
     const screen = await openSend();
-    type(recipients(screen)[0]!, FIRST);
-    type(amounts(screen)[0]!, "30000");
+    type(nth(recipients(screen), 0), FIRST);
+    type(nth(amounts(screen), 0), "30000");
     buttonNamed(screen, "Add recipient").click();
-    type(recipients(screen)[1]!, SECOND);
-    type(amounts(screen)[1]!, "18000");
+    type(nth(recipients(screen), 1), SECOND);
+    type(nth(amounts(screen), 1), "18000");
 
     buttonNamed(screen, "Review").click();
     await settle();
@@ -51,7 +57,7 @@ describe("desktop confirmation pays only reviewed PSBT destinations", () => {
 
   it("uses the core's exact Max output amount and address", async () => {
     const screen = await openSend();
-    type(recipients(screen)[0]!, FIRST);
+    type(nth(recipients(screen), 0), FIRST);
     buttonNamed(screen, "Max").click();
     await settle();
     buttonNamed(screen, "Review").click();
@@ -74,8 +80,8 @@ describe("desktop confirmation pays only reviewed PSBT destinations", () => {
     });
 
     const screen = await openSend();
-    type(recipients(screen)[0]!, FIRST);
-    type(amounts(screen)[0]!, "30000");
+    type(nth(recipients(screen), 0), FIRST);
+    type(nth(amounts(screen), 0), "30000");
     buttonNamed(screen, "Review").click();
     await settle();
 

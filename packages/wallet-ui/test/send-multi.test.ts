@@ -180,6 +180,20 @@ describe("several recipients on the phone (6.9)", () => {
     expect(buttonNamed(screen, "Confirm and send").closest(".m-card")?.contains(review)).toBe(true);
   });
 
+  it("shows a Max payment's full destination and built amount on final review", async () => {
+    const screen = await openSend();
+    type(nth(addresses(screen), 0), FIRST);
+    buttonNamed(screen, "Max").click();
+    await settle();
+    buttonNamed(screen, "Review").click();
+    await settle();
+
+    const review = find(screen, ".m-review");
+    expect(all(review, "dt")[0]?.textContent).toBe(FIRST);
+    expect(all(review, "dd")[0]?.textContent?.replace(/\u00a0/g, " ")).toBe("49,859 sat");
+    expect(buttonNamed(screen, "Confirm and send").closest(".m-card")?.contains(review)).toBe(true);
+  });
+
   it("fills the lone row from a payment the Scan tab or a link hands over, amount included", async () => {
     prefillSend({ address: SECOND, amountSat: 18_000 });
     const screen = await openSend();

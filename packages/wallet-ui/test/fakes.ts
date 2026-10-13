@@ -171,11 +171,11 @@ class FakeWallet {
   async estimate_fee() {
     return { sat_per_vb_by_target: { ...state.estimate } };
   }
-  async build_transfer(recipients: { amount_sat: number }[], rate: number) {
+  async build_transfer(recipients: Recipient[], rate: number) {
     calls.push(["build_transfer", recipients, rate]);
     return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0), recipients);
   }
-  async build_transfer_from(coins: unknown, recipients: { amount_sat: number }[], rate: number) {
+  async build_transfer_from(coins: unknown, recipients: Recipient[], rate: number) {
     calls.push(["build_transfer_from", coins, recipients, rate]);
     return built(recipients.reduce((sum, r) => sum + r.amount_sat, 0), recipients);
   }
