@@ -5,6 +5,7 @@
   "files": {
     "includes": [
       "src/**",
+      "test/**",
       "vite.config.ts",
       "*.json",
       "!dist",

@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "check": "biome check .",
+    "test": "node --test test/http-redirect-scope.test.mjs",
     "format": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri"
