@@ -109,8 +109,13 @@ function toTxInput(raw: unknown): TxInput {
 
 function toTxOutput(raw: unknown): TxOutput {
   const read = reader(raw);
+  const script = read("script_hex");
+  if (typeof script !== "string" || !/^(?:[0-9a-f]{2})*$/.test(script)) {
+    throw new TypeError("Transaction output has invalid script hex");
+  }
   return {
     address: optionalString(read("address")),
+    script_hex: script,
     value_sat: Number(read("value_sat")),
     ours: Boolean(read("ours")),
   };

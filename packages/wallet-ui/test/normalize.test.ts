@@ -109,8 +109,8 @@ describe("toTxDetail", () => {
       vsize: 141,
       inputs: [{ txid: "aa", vout: 0, value_sat: undefined, ours: true }],
       outputs: [
-        { address: "tb1qpay", value_sat: 500, ours: false },
-        { address: undefined, value_sat: 9300, ours: true },
+        { address: "tb1qpay", script_hex: "00", value_sat: 500, ours: false },
+        { address: undefined, script_hex: "00", value_sat: 9300, ours: true },
       ],
     };
     const detail = toTxDetail(raw);
@@ -119,8 +119,8 @@ describe("toTxDetail", () => {
     expect(detail.fee_sat).toBe(200);
     expect(detail.inputs).toEqual([{ txid: "aa", vout: 0, value_sat: null, ours: true }]);
     expect(detail.outputs).toEqual([
-      { address: "tb1qpay", value_sat: 500, ours: false },
-      { address: null, value_sat: 9300, ours: true },
+      { address: "tb1qpay", script_hex: "00", value_sat: 500, ours: false },
+      { address: null, script_hex: "00", value_sat: 9300, ours: true },
     ]);
   });
 });
@@ -153,7 +153,7 @@ describe("toPsbtReview", () => {
         { txid: "01", vout: 0, value_sat: 5000, ours: true, finalized: false },
         { txid: "02", vout: 3, value_sat: undefined, ours: false, finalized: false },
       ],
-      outputs: [{ address: undefined, value_sat: 0, ours: false }],
+      outputs: [{ address: undefined, script_hex: "00", value_sat: 0, ours: false }],
       fee_sat: undefined,
       vsize: undefined,
       net_sat: -5000,
@@ -167,7 +167,7 @@ describe("toPsbtReview", () => {
         { txid: "01", vout: 0, value_sat: 5000, ours: true, finalized: false },
         { txid: "02", vout: 3, value_sat: null, ours: false, finalized: false },
       ],
-      outputs: [{ address: null, value_sat: 0, ours: false }],
+      outputs: [{ address: null, script_hex: "00", value_sat: 0, ours: false }],
       fee_sat: null,
       vsize: null,
       net_sat: -5000,
@@ -175,4 +175,25 @@ describe("toPsbtReview", () => {
       signable: true,
     });
   });
+  it("rejects missing or malformed output script commitments", () => {
+    const raw = {
+      psbt_base64: "cHNidP8B",
+      txid: null,
+      inputs: [],
+      outputs: [{ address: null, value_sat: 0, ours: false }],
+      fee_sat: null,
+      vsize: null,
+      net_sat: 0,
+      finalized: false,
+      signable: false,
+    };
+    expect(() => toPsbtReview(raw)).toThrow("invalid script hex");
+    expect(() =>
+      toPsbtReview({ ...raw, outputs: [{ ...raw.outputs[0], script_hex: "6a0" }] }),
+    ).toThrow("invalid script hex");
+    expect(() =>
+      toPsbtReview({ ...raw, outputs: [{ ...raw.outputs[0], script_hex: "zz" }] }),
+    ).toThrow("invalid script hex");
+  });
+
 });

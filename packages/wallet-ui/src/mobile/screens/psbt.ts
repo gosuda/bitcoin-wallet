@@ -2,8 +2,14 @@ import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import type { PsbtInput, PsbtReview } from "../../types";
 import { banner, el, formatNumber, sectionLabel } from "../../ui/dom";
-import { feeLine, formatSats, shortOutpoint } from "../../ui/format";
-import { feeRate, psbtFlow, signedLine } from "../../ui/psbt";
+import { feeLine, formatSats, outputDestination, shortOutpoint } from "../../ui/format";
+import {
+  UNSUPPORTED_OUTPUT_WARNING,
+  feeRate,
+  hasUnsupportedOutputs,
+  psbtFlow,
+  signedLine,
+} from "../../ui/psbt";
 import { whoseInputs } from "../../ui/text";
 import {
   body,
@@ -51,8 +57,11 @@ function reviewCard(r: PsbtReview): HTMLElement {
       className: "section-label m-psbt-outputs",
       text: `Outputs · ${formatNumber(r.outputs.length)}`,
     }),
+    ...(hasUnsupportedOutputs(r)
+      ? [el("p", { className: "m-err", text: UNSUPPORTED_OUTPUT_WARNING })]
+      : []),
     ...r.outputs.map((output) =>
-      ioLine(output.address ?? "script", formatSats(output.value_sat), outputNote(r, output)),
+      ioLine(outputDestination(output), formatSats(output.value_sat), outputNote(r, output)),
     ),
     el("div", { className: "m-psbt-fee" }, [
       el("span", { text: "Fee" }),
@@ -104,8 +113,9 @@ export function renderPsbt(): HTMLElement {
     status.hidden = r === null;
     signedText.textContent = r === null ? "" : signedLine(r);
     dot.classList.toggle("psbt-dot-done", final);
-    sign.disabled = r === null || final;
-    send.disabled = !final;
+    const blocked = r !== null && hasUnsupportedOutputs(r);
+    sign.disabled = r === null || final || blocked;
+    send.disabled = !final || blocked;
     // The accent sits on whichever of the two is next.
     sign.classList.toggle("m-btn-primary", !final);
     send.classList.toggle("m-btn-primary", final);

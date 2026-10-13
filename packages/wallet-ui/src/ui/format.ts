@@ -4,7 +4,7 @@
  * rule is changed in one place and cannot drift between the shells again.
  */
 
-import type { CoinId } from "../types";
+import type { CoinId, TxOutput } from "../types";
 
 /*
  * Numbers on screen follow the device's locale, as dates already did. Text
@@ -47,6 +47,11 @@ export function formatBtc(sats: number): string {
 export function shortId(id: string): string {
   // Anything this short would come out no shorter.
   return id.length <= 19 ? id : `${id.slice(0, 10)}…${id.slice(-8)}`;
+}
+
+/** The full identity of a payment output. Address and P2PK displays stay unchanged. */
+export function outputDestination(output: TxOutput): string {
+  return output.address ?? `Script hex: 0x${output.script_hex}`;
 }
 
 /** An outpoint for a list: its txid shortened, then the output's index. */

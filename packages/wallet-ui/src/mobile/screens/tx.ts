@@ -24,6 +24,7 @@ import {
   formatDateTime,
   formatRate,
   formatSats,
+  outputDestination,
   outputRole,
   typeableRate,
 } from "../../ui/format";
@@ -147,7 +148,7 @@ export function renderTransaction(): HTMLElement {
     const outputs = card(
       sectionLabel(`Outputs · ${formatNumber(d.outputs.length)}`),
       ...d.outputs.map((o) =>
-        ioLine(o.address ?? "script", `${formatSats(o.value_sat)}`, detailNote(d, o)),
+        ioLine(outputDestination(o), `${formatSats(o.value_sat)}`, detailNote(d, o)),
       ),
     );
     outputs.classList.add("m-io-card");

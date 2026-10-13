@@ -145,6 +145,8 @@ export interface TxInput extends CoinId {
 export interface TxOutput {
   /** `null` for a script with no address form. */
   address: string | null;
+  /** Full locking script as lowercase hex, even without an address. */
+  script_hex: string;
   value_sat: number;
   ours: boolean;
 }

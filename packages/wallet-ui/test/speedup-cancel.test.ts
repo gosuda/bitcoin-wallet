@@ -28,8 +28,8 @@ const payment = (confirmations: number | null = null): TxDetail => ({
   vsize: 141,
   inputs: [{ txid: "ab".repeat(32), vout: 0, value_sat: 102_000, ours: false }],
   outputs: [
-    { address: fake.ADDRESS, value_sat: 30_000, ours: true },
-    { address: "tb1qgjekfa6uqy5m5c7lnlgzfq4hz0ax3yh80lfwtk", value_sat: 71_859, ours: false },
+    { address: fake.ADDRESS, script_hex: "00", value_sat: 30_000, ours: true },
+    { address: "tb1qgjekfa6uqy5m5c7lnlgzfq4hz0ax3yh80lfwtk", script_hex: "00", value_sat: 71_859, ours: false },
   ],
 });
 
@@ -47,8 +47,8 @@ const sent = (confirmations: number | null = null): TxDetail => ({
   vsize: 153,
   inputs: [{ txid: "cd".repeat(32), vout: 1, value_sat: 49_580, ours: true }],
   outputs: [
-    { address: "tb1p5n82a6xmp47yhkkc007dzr4k32", value_sat: 40_000, ours: false },
-    { address: fake.ADDRESS, value_sat: 9_427, ours: true },
+    { address: "tb1p5n82a6xmp47yhkkc007dzr4k32", script_hex: "00", value_sat: 40_000, ours: false },
+    { address: fake.ADDRESS, script_hex: "00", value_sat: 9_427, ours: true },
   ],
 });
 

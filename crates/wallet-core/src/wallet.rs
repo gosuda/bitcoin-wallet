@@ -246,6 +246,8 @@ pub struct TxInput {
 pub struct TxOutput {
     /// `None` for a script with no address form.
     pub address: Option<String>,
+    /// The complete locking script, including when it has no address form.
+    pub script_hex: String,
     pub value_sat: u64,
     pub ours: bool,
 }
@@ -354,6 +356,20 @@ fn script_display(script: &ScriptBuf, net: bdk_wallet::bitcoin::Network) -> Opti
     })
 }
 
+/// Refuse signing or broadcasting scripts that do not have an address or P2PK form.
+/// This guard also covers calls made without going through the review screens.
+fn require_reviewable_outputs(tx: &Transaction) -> Result<()> {
+    for (index, output) in tx.output.iter().enumerate() {
+        if script_display(&output.script_pubkey, bdk_wallet::bitcoin::Network::Bitcoin).is_none() {
+            return Err(Error::Psbt(format!(
+                "output {} has an unsupported non-address script; signing and broadcast are blocked",
+                index + 1
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// The outputs of `tx` as a reader sees them: shown as [`script_display`]
 /// does, with their value, and marked when they are this wallet's.
 fn outputs_of(wallet: &Wallet, tx: &Transaction) -> Vec<TxOutput> {
@@ -361,6 +377,7 @@ fn outputs_of(wallet: &Wallet, tx: &Transaction) -> Vec<TxOutput> {
         .iter()
         .map(|o| TxOutput {
             address: script_display(&o.script_pubkey, wallet.network()),
+            script_hex: hex::encode(o.script_pubkey.as_bytes()),
             value_sat: o.value.to_sat(),
             ours: wallet.is_mine(o.script_pubkey.clone()),
         })
@@ -1405,6 +1422,7 @@ impl WalletHandle {
     pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
         self.require_keys()?;
         let mut psbt = parse_psbt(psbt_base64)?;
+        require_reviewable_outputs(&psbt.unsigned_tx)?;
         let inner = self.inner.lock().await;
         // External keychain first, then change — the order the deprecated
         // wallet-owned `Wallet::sign` used internally.
@@ -1446,6 +1464,7 @@ impl WalletHandle {
     pub async fn sign_psbt(&self, psbt: &str) -> Result<PsbtReview> {
         self.require_keys()?;
         let mut psbt = parse_psbt(psbt)?;
+        require_reviewable_outputs(&psbt.unsigned_tx)?;
         let inner = self.inner.lock().await;
         fill_ours(&inner.wallet, &mut psbt);
         let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
@@ -1510,7 +1529,9 @@ impl WalletHandle {
             vsize,
             net_sat: received as i64 - spent as i64,
             finalized,
-            signable: !self.watch_only && inputs.iter().any(|i| i.ours && !i.finalized),
+            signable: !self.watch_only
+                && outputs.iter().all(|o| o.address.is_some())
+                && inputs.iter().any(|i| i.ours && !i.finalized),
             inputs,
             outputs,
             psbt_base64: psbt.to_string(),
@@ -1523,6 +1544,7 @@ impl WalletHandle {
     /// with a missing signature.
     pub fn extract_tx(psbt_base64: &str) -> Result<Transaction> {
         let psbt = parse_psbt(psbt_base64)?;
+        require_reviewable_outputs(&psbt.unsigned_tx)?;
         if let Some(n) = psbt
             .inputs
             .iter()
@@ -1862,6 +1884,48 @@ mod tests {
             );
             assert_eq!(handle.balance().await.total(), built.change_sat);
         }
+    }
+
+    /// Imported output scripts must be distinguishable, and unreviewable
+    /// scripts cannot be signed or broadcast by any public entry point.
+    #[tokio::test]
+    async fn unknown_psbt_outputs_have_full_hex_and_cannot_be_spent() {
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let original = parse_psbt(&built.psbt_base64).unwrap();
+        let ordinary = handle.import_psbt(&built.psbt_base64).await.unwrap();
+        assert!(ordinary.outputs[0].address.is_some());
+        assert_eq!(
+            ordinary.outputs[0].script_hex,
+            hex::encode(original.unsigned_tx.output[0].script_pubkey.as_bytes())
+        );
+
+        let mut commitments = Vec::new();
+        for bytes in [[0x6a, 0x01, 0x01], [0x6a, 0x01, 0x02]] {
+            let mut foreign = original.clone();
+            foreign.unsigned_tx.output[0].script_pubkey = ScriptBuf::from_bytes(bytes.to_vec());
+            let encoded = foreign.to_string();
+            let review = handle.import_psbt(&encoded).await.unwrap();
+            assert_eq!(review.outputs[0].address, None);
+            assert_eq!(review.outputs[0].script_hex, hex::encode(bytes));
+            assert!(!review.signable);
+            assert!(matches!(handle.sign(&encoded).await, Err(Error::Psbt(_))));
+            assert!(matches!(handle.sign_psbt(&encoded).await, Err(Error::Psbt(_))));
+            assert!(matches!(WalletHandle::extract_tx(&encoded), Err(Error::Psbt(_))));
+            assert!(matches!(handle.broadcast(&encoded).await, Err(Error::Psbt(_))));
+            commitments.push(review.outputs[0].script_hex.clone());
+        }
+        assert_ne!(commitments[0], commitments[1]);
+    }
+
+    #[test]
+    fn p2pk_keeps_its_public_key_display() {
+        let key = "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        let script = ScriptBuf::from_bytes(hex::decode(format!("21{key}ac")).unwrap());
+        assert_eq!(
+            script_display(&script, bdk_wallet::bitcoin::Network::Regtest).as_deref(),
+            Some(key)
+        );
     }
 
     /// A review prints the fee next to the size that fee buys, so the size has

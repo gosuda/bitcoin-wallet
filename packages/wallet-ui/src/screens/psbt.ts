@@ -2,8 +2,14 @@ import { redirect, screenHead } from "../screen";
 import { session } from "../session";
 import type { PsbtReview } from "../types";
 import { banner, button, el, formatNumber, sectionLabel, withBusy } from "../ui/dom";
-import { counted, feeLine, outputRole, shortOutpoint } from "../ui/format";
-import { feeRate, psbtFlow, signedLine } from "../ui/psbt";
+import { counted, feeLine, outputDestination, outputRole, shortOutpoint } from "../ui/format";
+import {
+  UNSUPPORTED_OUTPUT_WARNING,
+  feeRate,
+  hasUnsupportedOutputs,
+  psbtFlow,
+  signedLine,
+} from "../ui/psbt";
 import { PSBT_LEDE, whoseInputs } from "../ui/text";
 
 /** Beside Sign and Broadcast until the PSBT can go out, as 7 says it. */
@@ -45,7 +51,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
     const role = outputRole(r, output);
     return ioRow(
       `Output ${i + 1}`,
-      output.address ?? "script",
+      outputDestination(output),
       role === "recipient"
         ? "Recipient"
         : role === "change"
@@ -80,6 +86,9 @@ function reviewCard(r: PsbtReview): HTMLElement {
         text: `${counted(r.inputs.length, "input")}, ${whoseInputs(r.inputs)} · ${counted(r.outputs.length, "output")}`,
       }),
     ]),
+    ...(hasUnsupportedOutputs(r)
+      ? [el("p", { className: "field-error", text: UNSUPPORTED_OUTPUT_WARNING })]
+      : []),
     el("div", { className: "table-wrap" }, [
       el("table", {}, [
         el("thead", {}, [
@@ -136,8 +145,9 @@ export function renderPsbt(): HTMLElement {
     signedText.textContent = r === null ? "" : signedLine(r);
     dot.classList.toggle("psbt-dot-done", final);
     waits.hidden = final;
-    signBtn.disabled = r === null || final;
-    sendBtn.disabled = !final;
+    const blocked = r !== null && hasUnsupportedOutputs(r);
+    signBtn.disabled = r === null || final || blocked;
+    sendBtn.disabled = !final || blocked;
     // The accent sits on whichever of the two is next.
     signBtn.classList.toggle("btn-primary", !final);
     sendBtn.classList.toggle("btn-primary", final);
