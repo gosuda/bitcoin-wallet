@@ -29,7 +29,12 @@ const payment = (confirmations: number | null = null): TxDetail => ({
   inputs: [{ txid: "ab".repeat(32), vout: 0, value_sat: 102_000, ours: false }],
   outputs: [
     { address: fake.ADDRESS, script_hex: "00", value_sat: 30_000, ours: true },
-    { address: "tb1qgjekfa6uqy5m5c7lnlgzfq4hz0ax3yh80lfwtk", script_hex: "00", value_sat: 71_859, ours: false },
+    {
+      address: "tb1qgjekfa6uqy5m5c7lnlgzfq4hz0ax3yh80lfwtk",
+      script_hex: "00",
+      value_sat: 71_859,
+      ours: false,
+    },
   ],
 });
 
