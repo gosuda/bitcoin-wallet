@@ -57,6 +57,41 @@ describe("parsePaymentUri", () => {
     // Not `REQ-Foo`: see the case-sensitivity test below.
   });
 
+  it("rejects a second raw question mark, including one hiding a required parameter", () => {
+    for (const query of [
+      "amount=0.001?discarded=1&req-foo=1",
+      "amount=0.001?req-foo=1",
+      "amount=0.001?unrecognized=1",
+      "label=Where?Now",
+    ]) {
+      expect(parsePaymentUri(`bitcoin:${ADDR}?${query}`), query).toBeNull();
+    }
+    expect(parsePaymentUri(`bitcoin:${ADDR}?label=Really%3F&amount=0.001`)).toEqual({
+      address: ADDR,
+      amountSat: 100_000,
+      label: "Really?",
+    });
+  });
+
+  it("rejects repeated amount, label, or message parameters", () => {
+    for (const query of [
+      "amount=1&amount=2",
+      "amount=1&%61mount=2",
+      "label=A&label=B",
+      "label=&label=B",
+      "message=A&message=B",
+    ]) {
+      expect(parsePaymentUri(`bitcoin:${ADDR}?${query}`), query).toBeNull();
+    }
+    expect(parsePaymentUri(`bitcoin:${ADDR}?label=A&message=B`)).toEqual({
+      address: ADDR,
+      label: "A",
+    });
+    expect(parsePaymentUri(`bitcoin:${ADDR}?lightning=a&lightning=b`)).toEqual({
+      address: ADDR,
+    });
+  });
+
   // BIP21 writes the prefix as "req-" and query keys are not case-folded, so
   // an uppercase spelling is an unknown optional parameter, not a required
   // one. This test asserted the opposite when the req- rule was added.
