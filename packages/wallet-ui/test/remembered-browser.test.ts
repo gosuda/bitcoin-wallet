@@ -19,7 +19,11 @@ vi.mock("../src/persist/idb", () => ({
       const draft = new Map(idb.records);
       const request = <U>(value: U): IDBRequest<U> => ({ result: value }) as IDBRequest<U>;
       const store = {
-        transaction: { abort: () => { idb.aborts++; } },
+        transaction: {
+          abort: () => {
+            idb.aborts++;
+          },
+        },
         get: (key: IDBValidKey) => request(draft.get(String(key))),
         put: (value: unknown, key: IDBValidKey) => {
           if (idb.failPut === String(key)) throw new Error("transaction aborted");
