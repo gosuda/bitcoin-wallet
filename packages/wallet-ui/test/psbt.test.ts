@@ -18,9 +18,10 @@ useScreenHarness();
 describe("PSBT size budget", () => {
   it("rejects oversize input before normalization or conversion", () => {
     expect(() => psbtText("x".repeat(MAX_PSBT_BYTES * 2 + 1))).toThrow(PSBT_TOO_LARGE);
-    expect(() => psbtText("x".repeat(Math.ceil(MAX_PSBT_BYTES / 3) * 4 + 1))).toThrow(
-      PSBT_TOO_LARGE,
-    );
+    const encodedLength = Math.ceil(MAX_PSBT_BYTES / 3) * 4;
+    expect(() => psbtText("x".repeat(encodedLength + 1))).toThrow(PSBT_TOO_LARGE);
+    expect(() => psbtText("A".repeat(encodedLength))).toThrow(PSBT_TOO_LARGE);
+    expect(() => psbtText("A".repeat(encodedLength - 2) + "==")).not.toThrow();
     expect(() => psbtFromFile(new Uint8Array(MAX_PSBT_BYTES + 1))).toThrow(PSBT_TOO_LARGE);
   });
 

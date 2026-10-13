@@ -57,10 +57,18 @@ export function psbtText(raw: string): string {
   // Reject before normalization allocates a second full string.
   if (raw.length > MAX_PSBT_TEXT_CHARS) throw new PsbtSizeError();
   const text = raw.replace(/\s+/g, "");
-  const max = text.slice(0, HEX_MAGIC.length).toLowerCase() === HEX_MAGIC
-    ? MAX_PSBT_TEXT_CHARS
-    : MAX_PSBT_BASE64_CHARS;
-  if (text.length > max) throw new PsbtSizeError();
+  const isHex = text.slice(0, HEX_MAGIC.length).toLowerCase() === HEX_MAGIC;
+  if (isHex) {
+    if (text.length > MAX_PSBT_TEXT_CHARS) throw new PsbtSizeError();
+  } else {
+    if (text.length > MAX_PSBT_BASE64_CHARS) throw new PsbtSizeError();
+    // Base64 padding matters at the boundary: the same number of encoded
+    // characters can represent up to two more decoded bytes.
+    const padding = text.endsWith("==") ? 2 : text.endsWith("=") ? 1 : 0;
+    if (Math.floor((text.length * 3) / 4) - padding > MAX_PSBT_BYTES) {
+      throw new PsbtSizeError();
+    }
+  }
   return text;
 }
 
@@ -283,13 +291,13 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
 
     async load(file) {
       alert.hide();
-      cancelPending();
-      const mine = ++seq;
-      // Check Blob metadata before allocating an ArrayBuffer.
+      // A rejected file must not cancel an edit already waiting to parse.
       if (file.size > MAX_PSBT_BYTES) {
         if (onScreen()) alert.show("warn", PSBT_TOO_LARGE);
         return;
       }
+      cancelPending();
+      const mine = ++seq;
       let bytes: Uint8Array;
       try {
         bytes = new Uint8Array(await file.arrayBuffer());

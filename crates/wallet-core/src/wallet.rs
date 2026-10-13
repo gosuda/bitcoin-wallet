@@ -132,6 +132,20 @@ fn parse_psbt(text: &str) -> Result<Psbt> {
     if text.len() > max_chars {
         return Err(Error::Psbt("PSBT exceeds the 1 MiB import limit".into()));
     }
+    if !is_hex {
+        // At the last base64 quartet, padding distinguishes a 1 MiB payload
+        // from one or two extra decoded bytes.
+        let padding = if text.ends_with("==") {
+            2
+        } else if text.ends_with('=') {
+            1
+        } else {
+            0
+        };
+        if (text.len() * 3 / 4).saturating_sub(padding) > MAX_PSBT_BYTES {
+            return Err(Error::Psbt("PSBT exceeds the 1 MiB import limit".into()));
+        }
+    }
     let psbt = if is_hex {
         let bytes = Vec::<u8>::from_hex(text).map_err(|e| Error::Psbt(e.to_string()))?;
         Psbt::deserialize(&bytes).map_err(|e| Error::Psbt(e.to_string()))?
@@ -1646,8 +1660,9 @@ mod tests {
     #[test]
     fn psbt_import_rejects_oversize_base64_and_hex_before_decoding() {
         let base64 = "A".repeat(MAX_PSBT_BASE64_CHARS + 1);
+        let same_length_without_padding = "A".repeat(MAX_PSBT_BASE64_CHARS);
         let hex = format!("70736274ff{}", "00".repeat(MAX_PSBT_BYTES));
-        for text in [&base64, &hex] {
+        for text in [&base64, &same_length_without_padding, &hex] {
             let err = parse_psbt(text).unwrap_err();
             assert_eq!(err.code(), "psbt");
             assert!(err.to_string().contains("1 MiB"), "{err}");
