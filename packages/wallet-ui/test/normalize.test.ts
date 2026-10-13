@@ -175,6 +175,7 @@ describe("toPsbtReview", () => {
       signable: true,
     });
   });
+
   it("rejects missing or malformed output script commitments", () => {
     const raw = {
       psbt_base64: "cHNidP8B",
@@ -195,5 +196,4 @@ describe("toPsbtReview", () => {
       toPsbtReview({ ...raw, outputs: [{ ...raw.outputs[0], script_hex: "zz" }] }),
     ).toThrow("invalid script hex");
   });
-
 });
