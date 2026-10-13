@@ -11,14 +11,38 @@ paths=(
 failed=0
 
 for path in "${paths[@]}"; do
+  block_indent=-1
   while IFS= read -r line; do
+    # Text within a YAML literal/folded block is not a workflow key.
+    if [[ "$line" =~ ^[[:space:]]*$ ]]; then
+      continue
+    fi
+    indentation="${line%%[![:space:]]*}"
+    indent=${#indentation}
+    if (( block_indent >= 0 )); then
+      if (( indent > block_indent )); then
+        continue
+      fi
+      block_indent=-1
+    fi
+    if [[ "$line" =~ ^[[:space:]]*(-[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*:[[:space:]]*[|>][-+]? ]]; then
+      block_indent=$indent
+      continue
+    fi
     if [[ ! "$line" =~ ^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]+([^[:space:]#]+) ]]; then
       continue
     fi
     ref="${BASH_REMATCH[2]}"
-    if [[ "$ref" == ./* ]]; then
-      continue
-    fi
+    case "$ref" in
+      ./.github/actions/frontend|./.github/actions/wasm-core)
+        continue
+        ;;
+      ./*)
+        printf '::error file=%s::Unreviewed local action: %s\n' "$path" "$ref"
+        failed=1
+        continue
+        ;;
+    esac
     if [[ ! "$ref" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$ ]]; then
       printf '::error file=%s::Unpinned external action: %s\n' "$path" "$ref"
       failed=1
