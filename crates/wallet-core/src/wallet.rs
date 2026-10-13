@@ -160,6 +160,25 @@ fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
     }
 }
 
+/// Values of coins that our own graph confirms belong to this wallet.
+///
+/// A PSBT's previous transaction and derivation data are not enough to
+/// authorize a signature: BDK may recognize a wallet key that the local
+/// graph has never seen. Signing and review must use this same boundary.
+fn known_wallet_input_values(wallet: &Wallet, psbt: &Psbt) -> Vec<Option<u64>> {
+    let graph = wallet.tx_graph();
+    psbt.unsigned_tx
+        .input
+        .iter()
+        .map(|txin| {
+            graph
+                .get_txout(txin.previous_output)
+                .filter(|o| wallet.is_mine(o.script_pubkey.clone()))
+                .map(|o| o.value.to_sat())
+        })
+        .collect()
+}
+
 /// One wallet-relevant transaction, as shown in history.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TxSummary {
@@ -1449,34 +1468,41 @@ impl WalletHandle {
         let inner = self.inner.lock().await;
         fill_ours(&inner.wallet, &mut psbt);
         let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
-        // BDK's default refuses any input whose whole previous transaction is
-        // missing or does not hash to its txid. That is the defence against
-        // the segwit fee attack (CVE-2020-14199): without it, a coin of ours
-        // this wallet has not synced yet would be signed at whatever amount
-        // the PSBT claims. So it stays on, even though that means a PSBT
-        // must carry the previous transaction of everyone's inputs.
+        let known = known_wallet_input_values(&inner.wallet, &psbt);
+        let before = psbt.inputs.clone();
+        // Keep BDK's previous-transaction verification enabled (CVE-2020-14199).
+        // It can nevertheless sign an unseen coin with valid previous-transaction
+        // and key-origin data. Sign without finalizing so new signatures cannot
+        // be cleared before we check which inputs BDK actually changed.
+        let options = SignOptions {
+            try_finalize: false,
+            ..SignOptions::default()
+        };
         inner
             .wallet
-            .sign_with_signers(&mut psbt, &signers, SignOptions::default())
+            .sign_with_signers(&mut psbt, &signers, options)
+            .map_err(|e| Error::Sign(e.to_string()))?;
+        if let Some(n) = known
+            .iter()
+            .zip(&before)
+            .zip(&psbt.inputs)
+            .position(|((owned, previous), signed)| owned.is_none() && previous != signed)
+        {
+            return Err(Error::Sign(format!(
+                "input {n} is not a verified wallet coin; refusing to sign it"
+            )));
+        }
+        inner
+            .wallet
+            .finalize_psbt(&mut psbt, SignOptions::default())
             .map_err(|e| Error::Sign(e.to_string()))?;
         self.review(&inner, psbt)
     }
 
     fn review(&self, inner: &Inner, psbt: Psbt) -> Result<PsbtReview> {
         let wallet = &inner.wallet;
-        let graph = wallet.tx_graph();
-        // Ours by our own history, valued by it too.
-        let own_values: Vec<Option<u64>> = psbt
-            .unsigned_tx
-            .input
-            .iter()
-            .map(|i| {
-                graph
-                    .get_txout(i.previous_output)
-                    .filter(|o| wallet.is_mine(o.script_pubkey.clone()))
-                    .map(|o| o.value.to_sat())
-            })
-            .collect();
+        // The very same trust boundary that signing enforces.
+        let own_values = known_wallet_input_values(wallet, &psbt);
         let inputs: Vec<PsbtInput> = psbt
             .unsigned_tx
             .input
@@ -2973,6 +2999,69 @@ mod tests {
         );
         let err = handle.sign_psbt(&psbt.to_string()).await.unwrap_err();
         assert_eq!(err.code(), "sign");
+    }
+
+    /// Even a valid previous transaction is not enough: an unseen coin of
+    /// ours can be signed by BDK from the PSBT's key-origin data, but its value
+    /// would be omitted from review. Reject the result before returning any
+    /// signature. A known coin alongside it must not mask the unseen one.
+    #[tokio::test]
+    async fn an_unseen_coin_with_verified_history_is_not_signed() {
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut unseen_only = Psbt::from_str(&built.psbt_base64).unwrap();
+        let script = unseen_only.spend_utxo(0).unwrap().script_pubkey.clone();
+        let previous = funding_tx(script, 120_000);
+        unseen_only.unsigned_tx.input[0].previous_output = OutPoint {
+            txid: previous.compute_txid(),
+            vout: 0,
+        };
+        unseen_only.inputs[0].witness_utxo = Some(previous.output[0].clone());
+        unseen_only.inputs[0].non_witness_utxo = Some(previous);
+
+        // This is a real signing gap, not an input BDK refuses on its own.
+        let mut probe = unseen_only.clone();
+        {
+            let inner = handle.inner.lock().await;
+            let signers: Vec<&SignersContainer> = inner.signers.iter().collect();
+            inner
+                .wallet
+                .sign_with_signers(
+                    &mut probe,
+                    &signers,
+                    SignOptions {
+                        try_finalize: false,
+                        ..SignOptions::default()
+                    },
+                )
+                .unwrap();
+        }
+        assert!(!probe.inputs[0].partial_sigs.is_empty());
+
+        let review = handle.import_psbt(&unseen_only.to_string()).await.unwrap();
+        assert!(!review.inputs[0].ours);
+        assert!(!review.signable);
+        assert_eq!(review.inputs[0].value_sat, Some(120_000));
+        let err = handle
+            .sign_psbt(&unseen_only.to_string())
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "sign");
+        assert!(err.to_string().contains("input 0"), "{err}");
+
+        let mut mixed = Psbt::from_str(&built.psbt_base64).unwrap();
+        mixed
+            .unsigned_tx
+            .input
+            .push(unseen_only.unsigned_tx.input[0].clone());
+        mixed.inputs.push(unseen_only.inputs[0].clone());
+        let review = handle.import_psbt(&mixed.to_string()).await.unwrap();
+        assert!(review.signable);
+        assert!(review.inputs[0].ours);
+        assert!(!review.inputs[1].ours);
+        let err = handle.sign_psbt(&mixed.to_string()).await.unwrap_err();
+        assert_eq!(err.code(), "sign");
+        assert!(err.to_string().contains("input 1"), "{err}");
     }
 
     /// A legacy coin's value is in the transaction that made it, which this
