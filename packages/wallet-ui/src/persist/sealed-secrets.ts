@@ -10,8 +10,8 @@
  * any unreachable keys are deleted instead of left on disk indefinitely.
  */
 
-import { ADDRESS_TYPES, NETWORKS, type RememberedWallet } from "../types";
 import type { SealedSecret, SealedStore } from "../platform/sealed";
+import { ADDRESS_TYPES, NETWORKS, type RememberedWallet } from "../types";
 import { objectStore } from "./idb";
 
 const ACTIVE_KEY = "__bitcoin_wallet_active__";
