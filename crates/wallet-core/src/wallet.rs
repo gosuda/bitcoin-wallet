@@ -160,6 +160,33 @@ fn fill_ours(wallet: &Wallet, psbt: &mut Psbt) {
     }
 }
 
+/// Input values are trustworthy only when recorded by this wallet or backed by
+/// a complete previous transaction whose txid matches the referenced outpoint.
+/// A PSBT's witness_utxo alone is only a claim. Conflicting UTXO records cannot
+/// establish a fee even when one of them looks plausible.
+fn verified_input_value(
+    wallet: &Wallet,
+    prev: OutPoint,
+    input: &bdk_wallet::bitcoin::psbt::Input,
+) -> Option<u64> {
+    let previous_txout = input
+        .non_witness_utxo
+        .as_ref()
+        .filter(|tx| tx.compute_txid() == prev.txid)
+        .and_then(|tx| tx.output.get(prev.vout as usize));
+    if input.non_witness_utxo.is_some() && previous_txout.is_none() {
+        return None;
+    }
+
+    let verified = wallet.tx_graph().get_txout(prev).or(previous_txout)?;
+    if previous_txout.is_some_and(|out| out != verified)
+        || input.witness_utxo.as_ref().is_some_and(|out| out != verified)
+    {
+        return None;
+    }
+    Some(verified.value.to_sat())
+}
+
 /// One wallet-relevant transaction, as shown in history.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TxSummary {
@@ -274,8 +301,8 @@ pub struct TxDetail {
 pub struct PsbtInput {
     pub txid: String,
     pub vout: u32,
-    /// From this wallet's own history for an input of ours; for anyone
-    /// else's, what the PSBT claims, or `None` where it says nothing.
+    /// Verified against wallet history or a matching full previous transaction.
+    /// `None` when only unverified or conflicting PSBT metadata is available.
     pub value_sat: Option<u64>,
     /// Spends a coin of this wallet's, going by its own history rather than
     /// by anything the PSBT claims.
@@ -295,7 +322,7 @@ pub struct PsbtReview {
     pub txid: Option<String>,
     pub inputs: Vec<PsbtInput>,
     pub outputs: Vec<TxOutput>,
-    /// Inputs less outputs; `None` unless every input's value is known.
+    /// Inputs less outputs; `None` unless every input value is verified.
     pub fee_sat: Option<u64>,
     /// Exact once every input is final, an upper bound while every input is
     /// ours, `None` otherwise.
@@ -1483,11 +1510,10 @@ impl WalletHandle {
             .iter()
             .zip(&psbt.inputs)
             .zip(&own_values)
-            .enumerate()
-            .map(|(n, ((txin, input), own))| PsbtInput {
+            .map(|((txin, input), own)| PsbtInput {
                 txid: txin.previous_output.txid.to_string(),
                 vout: txin.previous_output.vout,
-                value_sat: own.or_else(|| psbt.spend_utxo(n).ok().map(|o| o.value.to_sat())),
+                value_sat: verified_input_value(wallet, txin.previous_output, input),
                 ours: own.is_some(),
                 finalized: input.final_script_sig.is_some() || input.final_script_witness.is_some(),
             })
@@ -1504,9 +1530,20 @@ impl WalletHandle {
             }
             None => None,
         };
+        // Do not use Psbt::fee: it accepts foreign witness_utxo values even
+        // when they are unrelated to the referenced previous transaction.
+        let total_in = inputs
+            .iter()
+            .try_fold(0_u64, |sum, input| sum.checked_add(input.value_sat?));
+        let total_out = psbt.unsigned_tx.output.iter().try_fold(0_u64, |sum, output| {
+            sum.checked_add(output.value.to_sat())
+        });
+        let fee_sat = total_in
+            .zip(total_out)
+            .and_then(|(inputs, outputs)| inputs.checked_sub(outputs));
         Ok(PsbtReview {
             txid: tx.map(|tx| tx.compute_txid().to_string()),
-            fee_sat: psbt.fee().ok().map(|f| f.to_sat()),
+            fee_sat,
             vsize,
             net_sat: received as i64 - spent as i64,
             finalized,
@@ -1688,6 +1725,34 @@ mod tests {
                 script_pubkey: spk,
             }],
         }
+    }
+
+    /// A PSBT containing an owned input and a foreign one with consistent
+    /// witness and full previous-transaction data.
+    fn mixed_input_psbt(built: &BuiltTx) -> Psbt {
+        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
+        let mut stranger = vec![0x00, 0x14];
+        stranger.extend([0x66; 20]);
+        let mut theirs = funding_tx(ScriptBuf::from_bytes(stranger.clone()), 1_000);
+        theirs.output.push(TxOut {
+            value: Amount::from_sat(30_000),
+            script_pubkey: ScriptBuf::from_bytes(stranger),
+        });
+        psbt.unsigned_tx.input.push(TxIn {
+            previous_output: OutPoint {
+                txid: theirs.compute_txid(),
+                vout: 1,
+            },
+            script_sig: ScriptBuf::new(),
+            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+            witness: Witness::new(),
+        });
+        psbt.inputs.push(bdk_wallet::bitcoin::psbt::Input {
+            witness_utxo: Some(theirs.output[1].clone()),
+            non_witness_utxo: Some(theirs),
+            ..Default::default()
+        });
+        psbt
     }
 
     /// The wallet's first receiving script. Not `peek_address`: that builds an
@@ -2910,48 +2975,86 @@ mod tests {
         assert!(mock.broadcasts.lock().unwrap().is_empty());
     }
 
-    /// An input that is not ours is described by what the PSBT claims and
+    /// A foreign input is valued from its verified previous transaction and
     /// left unsigned; ours is signed, and the whole cannot go out yet.
     #[tokio::test]
     async fn someone_elses_input_is_described_and_left_to_them() {
         let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
         let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
-        let mut psbt = Psbt::from_str(&built.psbt_base64).unwrap();
-        let mut stranger = vec![0x00, 0x14];
-        stranger.extend([0x66; 20]);
-        // Their coin, with the whole transaction that made it, as a PSBT
-        // must carry it for this wallet to sign alongside.
-        let mut theirs = funding_tx(ScriptBuf::from_bytes(stranger.clone()), 1_000);
-        theirs.output.push(TxOut {
-            value: Amount::from_sat(30_000),
-            script_pubkey: ScriptBuf::from_bytes(stranger),
-        });
-        psbt.unsigned_tx.input.push(TxIn {
-            previous_output: OutPoint {
-                txid: theirs.compute_txid(),
-                vout: 1,
-            },
-            script_sig: ScriptBuf::new(),
-            sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-            witness: Witness::new(),
-        });
-        psbt.inputs.push(bdk_wallet::bitcoin::psbt::Input {
-            witness_utxo: Some(theirs.output[1].clone()),
-            non_witness_utxo: Some(theirs),
-            ..Default::default()
-        });
+        let psbt = mixed_input_psbt(&built);
 
         let review = handle.sign_psbt(&psbt.to_string()).await.unwrap();
         let (ours, theirs) = (&review.inputs[0], &review.inputs[1]);
         assert!(ours.ours && ours.finalized);
         assert!(!theirs.ours && !theirs.finalized);
-        assert_eq!(theirs.value_sat, Some(30_000), "as the PSBT claims");
+        assert_eq!(theirs.value_sat, Some(30_000), "verified previous transaction");
         assert!(!review.finalized && !review.signable);
         assert_eq!(review.vsize, None, "their input's size is not ours to know");
         assert_eq!(review.fee_sat, Some(built.fee_sat + 30_000));
         assert_eq!(review.net_sat, -((40_000 + built.fee_sat) as i64));
         let err = handle.broadcast(&review.psbt_base64).await.unwrap_err();
         assert_eq!(err.code(), "psbt");
+    }
+
+    /// A claimed foreign witness output must not change the fee displayed to
+    /// the user, even though the PSBT fee helper accepts that claim.
+    #[tokio::test]
+    async fn an_unverified_foreign_witness_output_hides_the_fee() {
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = mixed_input_psbt(&built);
+        psbt.inputs[1].non_witness_utxo = None;
+        psbt.inputs[1].witness_utxo.as_mut().unwrap().value = Amount::from_sat(900_000);
+        assert!(psbt.fee().is_ok(), "PSBT fee trusts the forged witness output");
+
+        let review = handle.import_psbt(&psbt.to_string()).await.unwrap();
+        assert_eq!(review.inputs[0].value_sat, Some(100_000));
+        assert_eq!(review.inputs[1].value_sat, None);
+        assert_eq!(review.fee_sat, None);
+    }
+
+    /// Two forms of the same foreign outpoint must agree on both value and
+    /// script before the review can report an exact fee.
+    #[tokio::test]
+    async fn conflicting_foreign_utxo_records_hide_the_fee() {
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = mixed_input_psbt(&built);
+        psbt.inputs[1].witness_utxo.as_mut().unwrap().value = Amount::from_sat(55_000);
+
+        let review = handle.import_psbt(&psbt.to_string()).await.unwrap();
+        assert_eq!(review.inputs[1].value_sat, None);
+        assert_eq!(review.fee_sat, None);
+    }
+
+    /// A full previous transaction is trustworthy only when it commits to
+    /// the txid the unsigned transaction actually references.
+    #[tokio::test]
+    async fn mismatched_foreign_previous_txid_hides_the_fee() {
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = mixed_input_psbt(&built);
+        psbt.inputs[1].witness_utxo = None;
+        psbt.inputs[1].non_witness_utxo.as_mut().unwrap().output[1].value =
+            Amount::from_sat(55_000);
+
+        let review = handle.import_psbt(&psbt.to_string()).await.unwrap();
+        assert_eq!(review.inputs[1].value_sat, None);
+        assert_eq!(review.fee_sat, None);
+    }
+
+    /// Non-witness metadata can establish a foreign coin's value once the
+    /// previous transaction hashes to its referenced txid.
+    #[tokio::test]
+    async fn verified_non_witness_foreign_input_preserves_the_fee() {
+        let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
+        let built = handle.build_transfer(&pay(40_000), 2.0).await.unwrap();
+        let mut psbt = mixed_input_psbt(&built);
+        psbt.inputs[1].witness_utxo = None;
+
+        let review = handle.import_psbt(&psbt.to_string()).await.unwrap();
+        assert_eq!(review.inputs[1].value_sat, Some(30_000));
+        assert_eq!(review.fee_sat, Some(built.fee_sat + 30_000));
     }
 
     /// The segwit fee attack (CVE-2020-14199): a PSBT names a coin of ours

@@ -159,7 +159,7 @@ export interface TxDetail extends TxSummary {
 }
 
 export interface PsbtInput extends CoinId {
-  /** From our own history for an input of ours; what the PSBT claims for anyone else's. */
+  /** Verified from wallet history or a matching previous transaction; otherwise null. */
   value_sat: number | null;
   /** Going by this wallet's own history, never by what the PSBT claims. */
   ours: boolean;
@@ -175,7 +175,7 @@ export interface PsbtReview {
   txid: string | null;
   inputs: PsbtInput[];
   outputs: TxOutput[];
-  /** `null` unless every input's value is known. */
+  /** `null` unless every input value is verified and the fee arithmetic succeeds. */
   fee_sat: number | null;
   /** Exact once final, an upper bound while every input is ours, else `null`. */
   vsize: number | null;
