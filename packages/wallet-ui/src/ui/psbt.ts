@@ -30,6 +30,13 @@ export const UR_REFUSED =
  */
 export const NOT_A_PSBT = "This is not a PSBT the wallet can read.";
 
+export const UNSUPPORTED_OUTPUT_WARNING =
+  "Unsupported output script: its complete hex is shown below. This wallet will not sign or broadcast this PSBT.";
+
+export function hasUnsupportedOutputs(review: PsbtReview): boolean {
+  return review.outputs.some((output) => output.address === null);
+}
+
 const PASTE_REFUSED =
   "Clipboard access was refused. Allow it and try again, or paste into the field.";
 const PASTE_UNAVAILABLE = "The clipboard cannot be read here. Paste into the field instead.";
@@ -239,7 +246,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
 
     async sign() {
       const before = current;
-      if (before === null || before.finalized) return;
+      if (before === null || before.finalized || hasUnsupportedOutputs(before)) return;
       const mine = ++seq;
       alert.hide();
       try {
@@ -259,7 +266,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
 
     async broadcast() {
       const review = current;
-      if (review === null || !review.finalized) return;
+      if (review === null || !review.finalized || hasUnsupportedOutputs(review)) return;
       alert.hide();
       try {
         const result = await api.broadcastPsbt(review.psbt_base64);

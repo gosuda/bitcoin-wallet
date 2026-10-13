@@ -73,8 +73,8 @@ const sent: TxDetail = {
   vsize: 153,
   inputs: [{ txid: "cd".repeat(32), vout: 1, value_sat: 49_580, ours: true }],
   outputs: [
-    { address: PAYEE, value_sat: 40_000, ours: false },
-    { address: fake.ADDRESS, value_sat: 9_427, ours: true },
+    { address: PAYEE, script_hex: "00", value_sat: 40_000, ours: false },
+    { address: fake.ADDRESS, script_hex: "00", value_sat: 9_427, ours: true },
   ],
 };
 
@@ -108,8 +108,8 @@ describe("ids and addresses (7.3)", () => {
       received_sat: 30_000,
       inputs: [{ txid: "ef".repeat(32), vout: 0, value_sat: 101_990, ours: false }],
       outputs: [
-        { address: fake.ADDRESS, value_sat: 30_000, ours: true },
-        { address: PAYEE, value_sat: 71_859, ours: false },
+        { address: fake.ADDRESS, script_hex: "00", value_sat: 30_000, ours: true },
+        { address: PAYEE, script_hex: "00", value_sat: 71_859, ours: false },
       ],
     };
     showTransaction(RECEIVED);

@@ -58,6 +58,7 @@ import {
   formatRate,
   formatTime,
   formatWhen,
+  outputDestination,
   shortId,
   shortOutpoint,
 } from "../ui/format";
@@ -554,7 +555,7 @@ export function renderDashboard(): HTMLElement {
       ...d.outputs.map((o): [string, Node] => [
         outputLabel(d, o),
         el("span", { className: "mono" }, [
-          `${o.address ?? "script"} `,
+          `${outputDestination(o)} `,
           el("span", { className: "strong", text: formatSats(o.value_sat) }),
           o.ours && d.net_sat < 0 ? muted(" back to this wallet") : "",
         ]),

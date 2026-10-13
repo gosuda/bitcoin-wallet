@@ -51,8 +51,8 @@ const UNSIGNED: PsbtReview = {
   txid: null,
   inputs: [OURS_1, OURS_2],
   outputs: [
-    { address: RECIPIENT, value_sat: 40_000, ours: false },
-    { address: CHANGE, value_sat: 14_779, ours: true },
+    { address: RECIPIENT, script_hex: "00", value_sat: 40_000, ours: false },
+    { address: CHANGE, script_hex: "00", value_sat: 14_779, ours: true },
   ],
   fee_sat: 221,
   vsize: 221,
@@ -88,7 +88,7 @@ const THEIRS_ONLY: PsbtReview = {
   ...UNSIGNED,
   psbt_base64: "cHNidP8BAFICAAAAAtheirs",
   inputs: [{ ...THEIRS, value_sat: 41_000, finalized: false }],
-  outputs: [{ address: RECIPIENT, value_sat: 40_000, ours: false }],
+  outputs: [{ address: RECIPIENT, script_hex: "00", value_sat: 40_000, ours: false }],
   fee_sat: 1_000,
   vsize: null,
   net_sat: 0,
@@ -333,6 +333,37 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
     expect(fake.calls).toContainEqual(["sign_psbt", UNSIGNED.psbt_base64]);
     expect(shell.said(screen).at(-1)).toBe("Signed 2 of 2 inputs");
     expect(field(screen).value).toBe(SIGNED.psbt_base64);
+  });
+
+  it("shows distinct unknown output scripts and disables Sign and Broadcast", async () => {
+    for (const script_hex of ["6a0101", "6a0102"]) {
+      const unsafe: PsbtReview = {
+        ...UNSIGNED,
+        psbt_base64: `${UNSIGNED.psbt_base64}${script_hex}`,
+        outputs: [
+          { address: null, script_hex, value_sat: 40_000, ours: false },
+          { address: CHANGE, script_hex: "00", value_sat: 14_779, ours: true },
+        ],
+      };
+      const screen = await openPasted(shell, unsafe);
+      expect(shell.said(screen).join("\n")).toContain(`Script hex: 0x${script_hex}`);
+      expect(screen.textContent).toContain("Unsupported output script");
+      expect(buttonNamed(screen, "Sign").disabled).toBe(true);
+      expect(buttonNamed(screen, "Broadcast").disabled).toBe(true);
+      buttonNamed(screen, "Sign").click();
+      buttonNamed(screen, "Broadcast").click();
+      await settle();
+      expect(fake.callNames()).not.toContain("sign_psbt");
+      expect(fake.callNames()).not.toContain("broadcast");
+    }
+
+    const finalized: PsbtReview = {
+      ...SIGNED,
+      outputs: [{ address: null, script_hex: "6a0101", value_sat: 40_000, ours: false }],
+    };
+    const screen = await openPasted(shell, finalized);
+    expect(buttonNamed(screen, "Broadcast").disabled).toBe(true);
+    expect(fake.callNames()).not.toContain("broadcast");
   });
 
   it("keeps Broadcast off until every input is final", async () => {
