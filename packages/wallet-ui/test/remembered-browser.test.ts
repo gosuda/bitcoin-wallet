@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const idb = vi.hoisted(() => ({
   records: new Map<string, unknown>(),
   failPut: null as string | null,
+  aborts: 0,
 }));
 
 vi.mock("../src/persist/idb", () => ({
@@ -18,6 +19,7 @@ vi.mock("../src/persist/idb", () => ({
       const draft = new Map(idb.records);
       const request = <U>(value: U): IDBRequest<U> => ({ result: value }) as IDBRequest<U>;
       const store = {
+        transaction: { abort: () => { idb.aborts++; } },
         get: (key: IDBValidKey) => request(draft.get(String(key))),
         put: (value: unknown, key: IDBValidKey) => {
           if (idb.failPut === String(key)) throw new Error("transaction aborted");
@@ -67,6 +69,7 @@ beforeEach(() => {
   vi.stubGlobal("crypto", webcrypto);
   idb.records.clear();
   idb.failPut = null;
+  idb.aborts = 0;
   window.localStorage.clear();
 });
 
@@ -110,6 +113,17 @@ describe("browser remembered-wallet durability", () => {
     );
     expect(await readRememberedSecret(null)).toEqual(A);
     expect([...idb.records.keys()].sort()).toEqual([ACTIVE_KEY, A.wallet_id].sort());
+    expect(idb.aborts).toBe(1);
+  });
+
+  it("does not retain any key when the first metadata write throws", async () => {
+    idb.failPut = ACTIVE_KEY;
+
+    await expect(saveRememberedSecret(A, await sealed(A.wallet_id))).rejects.toThrow(
+      "transaction aborted",
+    );
+    expect(idb.aborts).toBe(1);
+    expect(idb.records.size).toBe(0);
   });
 
   it("replaces A with B and deletes A in the same commit", async () => {
