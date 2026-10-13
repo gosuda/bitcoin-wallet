@@ -9,6 +9,7 @@ paths=(
   .github/actions/wasm-core/action.yml
 )
 failed=0
+block_regex='^[[:space:]]*(-[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*:[[:space:]]*[|>][-+]?'
 
 for path in "${paths[@]}"; do
   block_indent=-1
@@ -25,7 +26,7 @@ for path in "${paths[@]}"; do
       fi
       block_indent=-1
     fi
-    if [[ "$line" =~ ^[[:space:]]*(-[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*:[[:space:]]*[|>][-+]? ]]; then
+    if [[ "$line" =~ $block_regex ]]; then
       block_indent=$indent
       continue
     fi
