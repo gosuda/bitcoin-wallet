@@ -53,6 +53,9 @@
           ]
         }
       ]
+    },
+    "http": {
+      "scopeRedirects": true
     }
   }
 }
