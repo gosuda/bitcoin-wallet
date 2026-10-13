@@ -8,11 +8,28 @@ import { platform, setPlatform } from "../src/platform";
 import { renderPsbt } from "../src/screens/psbt";
 import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
+import { MAX_PSBT_BYTES, PSBT_TOO_LARGE, psbtFromFile, psbtText } from "../src/ui/psbt";
 import { type PsbtInput, type PsbtReview, WalletError } from "../src/types";
 import { fake } from "./fakes";
 import { buttonNamed, find, mountAt, settle, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
+
+describe("PSBT size budget", () => {
+  it("rejects oversize input before normalization or conversion", () => {
+    expect(() => psbtText("x".repeat(MAX_PSBT_BYTES * 2 + 1))).toThrow(PSBT_TOO_LARGE);
+    const encodedLength = Math.ceil(MAX_PSBT_BYTES / 3) * 4;
+    expect(() => psbtText("x".repeat(encodedLength + 1))).toThrow(PSBT_TOO_LARGE);
+    expect(() => psbtText("A".repeat(encodedLength))).toThrow(PSBT_TOO_LARGE);
+    expect(() => psbtText("A".repeat(encodedLength - 2) + "==")).not.toThrow();
+    expect(() => psbtFromFile(new Uint8Array(MAX_PSBT_BYTES + 1))).toThrow(PSBT_TOO_LARGE);
+  });
+
+  it("accepts a hex encoding exactly at the byte limit", () => {
+    const hex = "70736274ff" + "0".repeat(MAX_PSBT_BYTES * 2 - 10);
+    expect(psbtText(hex)).toBe(hex);
+  });
+});
 
 const txid = (head: string, tail: string): string => `${head}${"0".repeat(46)}${tail}`;
 
@@ -104,6 +121,7 @@ const buttonsNamed = (root: ParentNode, name: string): HTMLButtonElement[] =>
 /** Pastes `text` into the field, as a person would, and lets the core answer. */
 async function paste(screen: HTMLElement, text: string): Promise<void> {
   type(field(screen), text);
+  await new Promise((resolve) => setTimeout(resolve, 125));
   await settle();
 }
 
@@ -266,6 +284,37 @@ async function openPasted(shell: Shell, review: PsbtReview): Promise<HTMLElement
 }
 
 describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
+  it("coalesces rapid edits into one import and rejects oversized textarea input", async () => {
+    const screen = await openAnswering(shell, UNSIGNED);
+    type(field(screen), "incomplete");
+    type(field(screen), UNSIGNED.psbt_base64);
+    await new Promise((resolve) => setTimeout(resolve, 125));
+    await settle();
+
+    expect(fake.calls.filter((call) => call[0] === "import_psbt")).toEqual([
+      ["import_psbt", UNSIGNED.psbt_base64],
+    ]);
+
+    type(field(screen), "x".repeat(MAX_PSBT_BYTES * 2 + 1));
+    await settle();
+    expect(find(screen, "#psbt-error").textContent).toBe(PSBT_TOO_LARGE);
+    expect(shell.said(screen)).toEqual([]);
+    expect(buttonNamed(screen, "Broadcast").disabled).toBe(true);
+    expect(fake.calls.filter((call) => call[0] === "import_psbt")).toHaveLength(1);
+  });
+
+  it("rejects an oversized clipboard without replacing the current PSBT", async () => {
+    const screen = await openPasted(shell, UNSIGNED);
+    await withClipboard("x".repeat(MAX_PSBT_BYTES * 2 + 1), async () => {
+      buttonNamed(screen, "Paste").click();
+      await settle();
+    });
+
+    expect(find(screen, ".banner").textContent).toBe(PSBT_TOO_LARGE);
+    expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
+    expect(fake.calls.filter((call) => call[0] === "import_psbt")).toHaveLength(1);
+  });
+
   it("is opened from Settings", async () => {
     await shell.enter();
     expect(window.location.hash).toBe("#/psbt");
@@ -543,6 +592,32 @@ describe("Import PSBT on the desktop (7)", () => {
     buttonNamed(screen, "Load file…").click();
 
     expect(opened).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a large file before reading any bytes", async () => {
+    const screen = await openAnswering(DESKTOP, UNSIGNED);
+    const file = new File([new Uint8Array(MAX_PSBT_BYTES + 1)], "large.psbt");
+    const read = vi.fn();
+    Object.defineProperty(file, "arrayBuffer", { value: read });
+
+    choose(screen, file);
+    await settle();
+
+    expect(read).not.toHaveBeenCalled();
+    expect(fake.callNames()).not.toContain("import_psbt");
+    expect(find(screen, ".banner").textContent).toBe(PSBT_TOO_LARGE);
+  });
+
+  it("accepts a binary file at the byte limit", async () => {
+    const screen = await openAnswering(DESKTOP, UNSIGNED);
+    const bytes = new Uint8Array(MAX_PSBT_BYTES);
+    bytes.set([0x70, 0x73, 0x62, 0x74, 0xff]);
+
+    choose(screen, new File([bytes], "limit.psbt"));
+    await settle();
+
+    expect(fake.calls.some((call) => call[0] === "import_psbt")).toBe(true);
+    expect(field(screen).value.length).toBe(Math.ceil(MAX_PSBT_BYTES / 3) * 4);
   });
 
   it("reads a .psbt file of raw bytes as base64", async () => {

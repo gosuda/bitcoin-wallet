@@ -43,6 +43,12 @@ pub const MAX_FEE_RATE_SAT_VB: f64 = 10_000.0;
 pub const DEFAULT_STOP_GAP: u32 = 20;
 /// Ceiling for a caller-chosen gap: past this a scan is minutes of round trips.
 pub const MAX_STOP_GAP: u32 = 1000;
+/// Maximum decoded PSBT size, shared with wallet-ui's import boundary.
+pub const MAX_PSBT_BYTES: usize = 1_048_576;
+/// Maximal input and output counts, independently, for imported PSBTs.
+pub const MAX_PSBT_IO_COUNT: usize = 256;
+const MAX_PSBT_BASE64_CHARS: usize = MAX_PSBT_BYTES.div_ceil(3) * 4;
+const MAX_PSBT_HEX_CHARS: usize = MAX_PSBT_BYTES * 2;
 
 /// Everything needed to open a wallet. Where state is stored is the
 /// platform's choice — see [`Persister`].
@@ -109,16 +115,51 @@ fn parse_txid(txid: &str) -> Result<Txid> {
 
 /// A PSBT in base64, or in hex as some tools write it.
 fn parse_psbt(text: &str) -> Result<Psbt> {
+    // Bound work before trimming, decoding or asking the PSBT parser to allocate.
+    if text.len() > MAX_PSBT_HEX_CHARS {
+        return Err(Error::Psbt("PSBT exceeds the 1 MiB import limit".into()));
+    }
     let text = text.trim();
     // "psbt" and 0xff, the magic every PSBT starts with.
-    if text
+    let is_hex = text
         .get(..10)
-        .is_some_and(|magic| magic.eq_ignore_ascii_case("70736274ff"))
-    {
-        let bytes = Vec::<u8>::from_hex(text).map_err(|e| Error::Psbt(e.to_string()))?;
-        return Psbt::deserialize(&bytes).map_err(|e| Error::Psbt(e.to_string()));
+        .is_some_and(|magic| magic.eq_ignore_ascii_case("70736274ff"));
+    let max_chars = if is_hex {
+        MAX_PSBT_HEX_CHARS
+    } else {
+        MAX_PSBT_BASE64_CHARS
+    };
+    if text.len() > max_chars {
+        return Err(Error::Psbt("PSBT exceeds the 1 MiB import limit".into()));
     }
-    Psbt::from_str(text).map_err(|e| Error::Psbt(e.to_string()))
+    if !is_hex {
+        // At the last base64 quartet, padding distinguishes a 1 MiB payload
+        // from one or two extra decoded bytes.
+        let padding = if text.ends_with("==") {
+            2
+        } else if text.ends_with('=') {
+            1
+        } else {
+            0
+        };
+        if (text.len() * 3 / 4).saturating_sub(padding) > MAX_PSBT_BYTES {
+            return Err(Error::Psbt("PSBT exceeds the 1 MiB import limit".into()));
+        }
+    }
+    let psbt = if is_hex {
+        let bytes = Vec::<u8>::from_hex(text).map_err(|e| Error::Psbt(e.to_string()))?;
+        Psbt::deserialize(&bytes).map_err(|e| Error::Psbt(e.to_string()))?
+    } else {
+        Psbt::from_str(text).map_err(|e| Error::Psbt(e.to_string()))?
+    };
+    if psbt.unsigned_tx.input.len() > MAX_PSBT_IO_COUNT
+        || psbt.unsigned_tx.output.len() > MAX_PSBT_IO_COUNT
+    {
+        return Err(Error::Psbt(format!(
+            "PSBT exceeds the limit of {MAX_PSBT_IO_COUNT} inputs or outputs"
+        )));
+    }
+    Ok(psbt)
 }
 
 /// Puts this wallet's own record of each coin of ours a PSBT spends into it,
@@ -1591,6 +1632,69 @@ mod tests {
 
     const SK_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000001";
     const MNEMONIC: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    fn import_test_psbt(inputs: usize, outputs: usize) -> Psbt {
+        let tx = Transaction {
+            version: transaction::Version::TWO,
+            lock_time: absolute::LockTime::ZERO,
+            input: vec![
+                TxIn {
+                    previous_output: OutPoint::null(),
+                    script_sig: ScriptBuf::new(),
+                    sequence: Sequence::MAX,
+                    witness: Witness::new(),
+                };
+                inputs
+            ],
+            output: vec![
+                TxOut {
+                    value: Amount::from_sat(1),
+                    script_pubkey: ScriptBuf::new(),
+                };
+                outputs
+            ],
+        };
+        Psbt::from_unsigned_tx(tx).expect("unsigned transaction")
+    }
+
+    #[test]
+    fn psbt_import_rejects_oversize_base64_and_hex_before_decoding() {
+        let base64 = "A".repeat(MAX_PSBT_BASE64_CHARS + 1);
+        let same_length_without_padding = "A".repeat(MAX_PSBT_BASE64_CHARS);
+        let hex = format!("70736274ff{}", "00".repeat(MAX_PSBT_BYTES));
+        for text in [&base64, &same_length_without_padding, &hex] {
+            let err = parse_psbt(text).unwrap_err();
+            assert_eq!(err.code(), "psbt");
+            assert!(err.to_string().contains("1 MiB"), "{err}");
+        }
+    }
+
+    #[test]
+    fn psbt_import_accepts_a_valid_psbt_near_the_byte_limit() {
+        let mut psbt = import_test_psbt(1, 1);
+        psbt.unknown.insert(
+            bdk_wallet::bitcoin::psbt::raw::Key {
+                type_value: 0xf0,
+                key: vec![1],
+            },
+            vec![0; MAX_PSBT_BYTES - 1024],
+        );
+        assert!(psbt.serialize().len() <= MAX_PSBT_BYTES);
+        assert!(parse_psbt(&psbt.to_string()).is_ok());
+    }
+
+    #[test]
+    fn psbt_import_rejects_excessive_input_and_output_counts() {
+        for (inputs, outputs) in [
+            (MAX_PSBT_IO_COUNT + 1, 1),
+            (1, MAX_PSBT_IO_COUNT + 1),
+        ] {
+            let text = import_test_psbt(inputs, outputs).to_string();
+            let err = parse_psbt(&text).unwrap_err();
+            assert_eq!(err.code(), "psbt");
+            assert!(err.to_string().contains("inputs or outputs"), "{err}");
+        }
+    }
 
     fn cfg(address_type: AddressType) -> WalletConfig {
         WalletConfig {
