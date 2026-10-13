@@ -81,6 +81,11 @@ jobs:
         if: runner.os == 'Linux'
         run: just --list
       - run: cargo test -p wallet-core -p wallet-cli
+      # The vendored Esplora client is excluded from the workspace so its
+      # upstream integration suite cannot require a local bitcoind here.
+      - name: Esplora resource regression tests
+        if: runner.os == 'Linux'
+        run: cargo test --manifest-path vendor/esplora-client/Cargo.toml --no-default-features --features async-https-rustls,tokio scan_resource_tests
       - run: cargo build -p wallet-cli --release
 
   regtest:

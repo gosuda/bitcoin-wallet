@@ -21,6 +21,7 @@ check:
 # Run every test that needs no node: the core and CLI, the wasm bindings in Node, and the UI.
 test:
     cargo test -p wallet-core -p wallet-cli
+    cargo test --manifest-path vendor/esplora-client/Cargo.toml --no-default-features --features async-https-rustls,tokio scan_resource_tests
     scripts/with-wasm-cc.sh wasm-pack test --node crates/wallet-wasm
     scripts/with-wasm-cc.sh wasm-pack test --node crates/wallet-core --no-default-features --features backend-esplora
     pnpm test

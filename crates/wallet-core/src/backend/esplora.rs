@@ -17,15 +17,14 @@ const PARALLEL_REQUESTS: usize = 4;
 /// Budget for one round trip: broadcast, fee estimates, tip height — and for
 /// each request of a scan.
 const CALL_DEADLINE_SECS: u64 = 30;
+/// Maximum wall-clock time for one scan, including all requests and retries.
+const SCAN_DEADLINE_SECS: u64 = 30 * 60;
 
-// A scan has no budget of its own. It is many round trips, as many as the
-// wallet's history needs: after the scripts, BDK fetches one block hash per
-// confirmation height, one after another. A fixed budget cut a long history off
-// every time on a slow link, and a scan that is cut off keeps nothing, so such
-// a wallet never finished its first sync. What catches a hung server is the
-// bound on each request instead: reqwest's timeout natively, and in a webview
-// the shell's `fetch` (`packages/wallet-ui/src/net.ts`), because on wasm32
-// `esplora-client` does not pass its timeout on to reqwest.
+// The configured Esplora server is untrusted for resource usage. The patched
+// client limits each response before buffering, total scan bytes, pages and
+// transactions, and detects repeated pagination cursors. A separate scan
+// deadline caps endless but individually timely requests. Per-request timeouts
+// remain useful for individual hangs; neither limit replaces the other.
 
 /// Bound a single backend call in time.
 ///
@@ -101,6 +100,9 @@ impl EsploraBackend {
 /// depending on the target, since wasm has only the deadline above and always
 /// produced `Timeout`.
 fn map_err(e: EsploraError) -> Error {
+    if let EsploraError::ResourceLimit(reason) = &e {
+        return Error::ResourceLimit((*reason).to_owned());
+    }
     if let EsploraError::Reqwest(ref inner) = e
         && inner.is_timeout()
     {
@@ -117,17 +119,25 @@ impl ChainBackend for EsploraBackend {
         request: FullScanRequest<KeychainKind>,
         stop_gap: usize,
     ) -> Result<FullScanResponse<KeychainKind>> {
-        self.client
-            .full_scan(request, stop_gap, PARALLEL_REQUESTS)
-            .await
-            .map_err(|e| map_err(*e))
+        let client = self.client.for_scan();
+        deadline(SCAN_DEADLINE_SECS, async {
+            client
+                .full_scan(request, stop_gap, PARALLEL_REQUESTS)
+                .await
+                .map_err(|e| map_err(*e))
+        })
+        .await
     }
 
     async fn sync(&self, request: SyncRequest<(KeychainKind, u32)>) -> Result<SyncResponse> {
-        self.client
-            .sync(request, PARALLEL_REQUESTS)
-            .await
-            .map_err(|e| map_err(*e))
+        let client = self.client.for_scan();
+        deadline(SCAN_DEADLINE_SECS, async {
+            client
+                .sync(request, PARALLEL_REQUESTS)
+                .await
+                .map_err(|e| map_err(*e))
+        })
+        .await
     }
 
     async fn broadcast(&self, tx: &Transaction) -> Result<Txid> {
@@ -181,5 +191,43 @@ mod tests {
     async fn a_call_inside_the_budget_is_untouched() {
         let ok = async { Ok(7_u8) };
         assert_eq!(deadline(30, ok).await.unwrap(), 7);
+    }
+
+    #[test]
+    fn a_resource_limit_stays_distinct_from_backend_errors() {
+        let error = map_err(EsploraError::ResourceLimit("scan page budget exceeded"));
+        assert!(matches!(
+            &error,
+            Error::ResourceLimit(message) if message == "scan page budget exceeded"
+        ));
+        assert_eq!(error.code(), "resource_limit");
+    }
+
+    /// The server lies about the size and sends no body. The limit must
+    /// reject its headers without reading or allocating the advertised bytes.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn an_oversized_body_is_rejected_before_it_is_buffered() {
+        use std::io::Write;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/api", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 16777217\r\nConnection: close\r\n\r\n",
+                )
+                .unwrap();
+        });
+
+        let backend = EsploraBackend::new(&url).unwrap();
+        let error = backend.height().await.unwrap_err();
+        assert!(matches!(
+            &error,
+            Error::ResourceLimit(message) if message == "response body exceeds 16 MiB"
+        ));
+        server.join().unwrap();
     }
 }

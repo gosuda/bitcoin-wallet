@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/native/src-tauri"]
+exclude = ["vendor/esplora-client"]
 
 [workspace.package]
 # The one place the version is written. The crates inherit it; everything else
@@ -47,3 +48,8 @@ strip = true
 # Fee rates are multiplied by transaction weights; a wrap in a release build
 # would be a wrong amount, where a panic is only a refused send.
 overflow-checks = true
+
+# The locked Esplora client buffers unbounded HTTP bodies and repeats full pages.
+# Preserve the pinned 0.12.3 API while enforcing resource limits.
+[patch.crates-io]
+esplora-client = { path = "vendor/esplora-client" }

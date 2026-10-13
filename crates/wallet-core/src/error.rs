@@ -23,6 +23,9 @@ pub enum Error {
     Persist(String),
     #[error("backend error: {0}")]
     Backend(String),
+    /// A remote endpoint exceeded a response, pagination or scan budget.
+    #[error("backend resource limit: {0}")]
+    ResourceLimit(String),
     /// The backend did not answer within the deadline. Kept apart from
     /// [`Error::Backend`] because the right response is to retry or switch
     /// endpoint, not to read the message.
@@ -119,6 +122,7 @@ impl Error {
             Error::Descriptor(_) => "descriptor",
             Error::Persist(_) => "persist",
             Error::Backend(_) => "backend",
+            Error::ResourceLimit(_) => "resource_limit",
             Error::Timeout(_) => "timeout",
             Error::BuildTx(_) => "build_tx",
             Error::InsufficientFunds { .. } => "insufficient_funds",
@@ -159,6 +163,7 @@ impl Error {
             Error::NotReplaceable(_) => 16,
             Error::CorruptState { .. } => 17,
             Error::UnknownCoin(_) => 18,
+            Error::ResourceLimit(_) => 19,
         }
     }
 
@@ -275,6 +280,11 @@ mod tests {
             plain(Error::Descriptor, "descriptor", "descriptor error: x"),
             plain(Error::Persist, "persist", "persistence error: x"),
             plain(Error::Backend, "backend", "backend error: x"),
+            plain(
+                Error::ResourceLimit,
+                "resource_limit",
+                "backend resource limit: x",
+            ),
             (
                 Error::Timeout(30),
                 "timeout",
@@ -359,7 +369,7 @@ mod tests {
     /// Adding a variant fails to compile in [`Error::ordinal`] until it has
     /// one. Give it the next, raise `VARIANTS` here, and add its row to
     /// `samples` — `the_table_covers_every_variant` fails until all three agree.
-    const VARIANTS: u8 = 19;
+    const VARIANTS: u8 = 20;
 
     #[test]
     fn the_table_covers_every_variant() {
