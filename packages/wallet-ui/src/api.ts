@@ -115,9 +115,9 @@ function stillCurrent(attempt: number): boolean {
  * call to `fn` waits for every previously queued one to settle first,
  * whether that one resolved or threw, so no two attempts' keystore and
  * remembered-record writes ever interleave. `install`'s own commit needs no
- * queue - it has nothing left to await between its staleness check and the
- * write - but the writes here are each a separate round trip, and it is
- * exactly the gap between them a newer attempt could otherwise land in.
+ * queue: it has nothing to await between its staleness check and the write.
+ * The browser's save is atomic, but it still needs this queue so a stale
+ * attempt cannot delete a newer attempt's secret when it cleans up.
  */
 let rememberQueue: Promise<unknown> = Promise.resolve();
 function serializeRemember<T>(fn: () => Promise<T>): Promise<T> {
@@ -215,23 +215,30 @@ async function openWallet(
       if (!stillCurrent(attempt)) {
         throw new WalletError("superseded", "a newer wallet-open request replaced this one");
       }
-      await platform().rememberSecret(info.wallet_id, secret, passphrase, appPassword);
-      if (!stillCurrent(attempt)) {
-        // The entry just written above can only be this attempt's own -
-        // nothing else could have raced to write it while this turn held
-        // the queue - so it is safe to remove outright before conceding.
-        // Left alone, forgetWallet would never find it: it only follows
-        // whatever the remembered record already points to, and
-        // setRemembered below is exactly the call this path skips.
-        await platform().forgetSecret(info.wallet_id);
-        throw new WalletError("superseded", "a newer wallet-open request replaced this one");
-      }
       const record: RememberedWallet = {
         wallet_id: info.wallet_id,
         address: info.address,
         network: info.network,
         address_type: info.address_type,
       };
+      const atomic = platform().rememberedWalletStore;
+      if (atomic) {
+        // The browser replaces old keys and the discoverable pointer in one
+        // IndexedDB transaction. There is no committed-but-unfindable secret.
+        await atomic.save(record, secret, passphrase, appPassword);
+        if (!stillCurrent(attempt)) {
+          await atomic.forget();
+          throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+        }
+        return;
+      }
+
+      // Native shells keep the OS key store and its separate settings store.
+      await platform().rememberSecret(info.wallet_id, secret, passphrase, appPassword);
+      if (!stillCurrent(attempt)) {
+        await platform().forgetSecret(info.wallet_id);
+        throw new WalletError("superseded", "a newer wallet-open request replaced this one");
+      }
       await platform().setRemembered(record);
     });
   }
@@ -327,13 +334,26 @@ async function unlockWallet(resetHistory: boolean, appPassword?: string): Promis
 
 /** Removes the keystore entry, the local wallet state and the remembered record. */
 async function forgetWallet(): Promise<void> {
-  const record = await platform().getRemembered();
-  if (record) {
-    await platform().forgetSecret(record.wallet_id);
-    await deleteWalletState(record.wallet_id);
-  }
-  await platform().setRemembered(null);
-  releaseWallet();
+  // Cancel any outstanding open before entering the same queue as Remember.
+  // Otherwise a delayed save could recreate a key after Forget completed.
+  ++openAttempt;
+  await serializeRemember(async () => {
+    const current = platform();
+    const record = await current.getRemembered();
+    if (current.rememberedWalletStore) {
+      // The browser clears ALL keys, not just the id in a possibly corrupt
+      // or stale pointer. The IndexedDB transaction must commit first.
+      await current.rememberedWalletStore.forget();
+      if (record) await deleteWalletState(record.wallet_id);
+    } else {
+      if (record) {
+        await current.forgetSecret(record.wallet_id);
+        await deleteWalletState(record.wallet_id);
+      }
+      await current.setRemembered(null);
+    }
+    releaseWallet();
+  });
 }
 
 /**
