@@ -15,8 +15,8 @@
     "@bitcoin-wallet/ui": "workspace:*"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
+    "@biomejs/biome": "^2.5.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1"
+    "vite": "^8.3.4"
   }
 }
