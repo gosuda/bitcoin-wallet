@@ -1,10 +1,10 @@
 import { api } from "../../api";
-import { navigate } from "../../router";
 import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
+import { openAndEnter } from "../../ui/open";
 import { rememberCheckbox } from "../../ui/remember";
 import {
   MISSING_WORDS,
@@ -79,26 +79,12 @@ export function renderCreate(): HTMLElement {
       const confirmed = (): boolean =>
         [...answers.entries()].every(([i, input]) => input.value.trim().toLowerCase() === words[i]);
 
+      const door = { cfg, alert, offer, onScreen, remember, fields: () => [passphrase] };
       const createWallet = async (reset = false): Promise<void> => {
-        alert.hide();
         if (!confirmed()) return alert.show("error", WORDS_MISMATCH);
-        if (!remember.ready()) return;
-        const willRemember = remember.checked();
-        try {
-          const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-          const info = await open(
-            generated.words,
-            cfg.address_type,
-            willRemember,
-            passphrase.value || undefined,
-            remember.appPassword(),
-          );
-          passphrase.value = "";
-          if (willRemember) session.remembered = info;
-          if (onScreen()) navigate("dashboard");
-        } catch (e) {
-          if (onScreen()) offer.report(e, () => createWallet(true));
-        }
+        await openAndEnter(generated.words, passphrase.value || undefined, door, reset, () =>
+          createWallet(true),
+        );
       };
       const create = button(
         "Create wallet",

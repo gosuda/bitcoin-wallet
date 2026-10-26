@@ -1,11 +1,10 @@
 import { api } from "../../api";
-import { navigate } from "../../router";
 import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
 import { type AppConfig, errorMessage, type WordCount } from "../../types";
-import { type Banner, banner, el, textInput } from "../../ui/dom";
-import { type RememberControl, rememberCheckbox } from "../../ui/remember";
-import type { HistoryReset } from "../../ui/reset";
+import { banner, el, textInput } from "../../ui/dom";
+import { openAndEnter } from "../../ui/open";
+import { rememberCheckbox } from "../../ui/remember";
 import {
   KEY_SHOWN_ONCE,
   MISSING_WORDS,
@@ -17,7 +16,7 @@ import {
   phraseError,
   watchPlaceholder,
 } from "../../ui/text";
-import { type Wipeable, wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
+import { wipeOnLeave, wordCell, wordGrid, wordInput } from "../../ui/words";
 import {
   body,
   button,
@@ -49,52 +48,6 @@ export function renderRestore(): HTMLElement {
   if (mode === "key") return singleKey(cfg);
   if (mode === "watch") return watchOnly(cfg);
   return phrase(cfg);
-}
-
-/** What a door's open uses of its screen; `fields` hold the secret. */
-interface Door {
-  cfg: AppConfig;
-  alert: Banner;
-  offer: HistoryReset;
-  onScreen: () => boolean;
-  remember: RememberControl;
-  fields: () => Iterable<Wipeable>;
-}
-
-/**
- * The open behind each door's button, as the desktop's; `reset` goes through
- * the api's history reset. The wallet is open once it returns, whatever screen
- * is up by then, but only the door still on screen moves on to it, or offers a
- * reset for a failure, which runs `again`.
- */
-async function openWith(
-  secret: string,
-  passphrase: string | undefined,
-  { cfg, alert, offer, onScreen, remember, fields }: Door,
-  reset: boolean,
-  again: () => Promise<void>,
-): Promise<void> {
-  alert.hide();
-  // Nothing is remembered without a confirmed app password.
-  if (!remember.ready()) return;
-  // Read once: the box stays live across the await.
-  const willRemember = remember.checked();
-  try {
-    const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-    const info = await open(
-      secret,
-      cfg.address_type,
-      willRemember,
-      passphrase,
-      remember.appPassword(),
-    );
-    for (const field of fields()) field.value = "";
-    // Not read back: a failed read would put an error over a wallet that opened.
-    if (willRemember) session.remembered = info;
-    if (onScreen()) navigate("dashboard");
-  } catch (e) {
-    if (onScreen()) offer.report(e, again);
-  }
 }
 
 function phrase(cfg: AppConfig): HTMLElement {
@@ -189,7 +142,7 @@ function phrase(cfg: AppConfig): HTMLElement {
       if (onScreen()) alert.show("error", phraseError(errorMessage(e), typed));
       return;
     }
-    await openWith(words, passphrase.value || undefined, door, reset, () => restore(true));
+    await openAndEnter(words, passphrase.value || undefined, door, reset, () => restore(true));
   };
   // Off while a ticked Remember waits for its app password.
   const gate = () => {
@@ -238,7 +191,7 @@ function singleKey(cfg: AppConfig): HTMLElement {
   const open = async (reset = false): Promise<void> => {
     const value = secret.value.trim();
     if (!value) return alert.show("error", NO_PRIVATE_KEY);
-    await openWith(value, undefined, door, reset, () => open(true));
+    await openAndEnter(value, undefined, door, reset, () => open(true));
   };
   const gate = () => {
     go.disabled = !remember.ready();
@@ -303,7 +256,7 @@ function watchOnly(cfg: AppConfig): HTMLElement {
   const follow = async (reset = false): Promise<void> => {
     const value = source.value.trim();
     if (!value) return alert.show("error", NO_WATCH_SOURCE);
-    await openWith(value, undefined, door, reset, () => follow(true));
+    await openAndEnter(value, undefined, door, reset, () => follow(true));
   };
   const gate = () => {
     go.disabled = !remember.ready();

@@ -10,6 +10,24 @@ export function screenHead(title: string, line?: string): HTMLElement {
   ]);
 }
 
+/** How often a Wallet screen syncs on its own. */
+const AUTO_SYNC_MS = 60_000;
+
+/**
+ * Runs `sync` every minute while `screen` is on the page and the app is in the
+ * foreground. Screens are swapped without a teardown hook, so the timer stops
+ * itself once `screen` has left the document.
+ */
+export function autoSync(screen: HTMLElement, sync: () => void): void {
+  const timer = window.setInterval(() => {
+    if (!screen.isConnected) {
+      window.clearInterval(timer);
+      return;
+    }
+    if (!document.hidden) sync();
+  }, AUTO_SYNC_MS);
+}
+
 /**
  * For a screen rendered without what it shows — no wallet, no settings, no
  * result: sends the user on to `route`, and hands back an empty `<main>` to

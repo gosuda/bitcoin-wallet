@@ -6,6 +6,7 @@ import { session } from "../session";
 import { backendHost, errorMessage, type GeneratedKey, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, kv, mono, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { openAndEnter } from "../ui/open";
 import { NO_KEYSTORE_HINT, rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
 import {
@@ -90,37 +91,13 @@ export function renderKey(): HTMLElement {
     }),
   );
 
+  const keyDoor = { cfg, alert, offer, onScreen, remember, fields: () => [secret] };
   const openKey = async (reset = false): Promise<void> => {
-    alert.hide();
     const value = secret.value.trim();
-    if (!value) {
-      alert.show("error", NO_PRIVATE_KEY);
-      return;
-    }
-    // Nothing is remembered without a confirmed app password. The button waits
-    // for one, and so does a reset offered before the fields changed.
-    if (!remember.ready()) return;
-    // Read once: the checkbox stays live across the await, and asking it
-    // again afterwards can disagree with what was actually stored.
-    const willRemember = remember.checked();
-    try {
-      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-      const info = await open(
-        value,
-        cfg.address_type,
-        willRemember,
-        undefined,
-        remember.appPassword(),
-      );
-      secret.value = "";
-      hideGenerated();
-      if (willRemember) session.remembered = info;
-      // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-      // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
-      if (onScreen()) navigate("dashboard");
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => openKey(true));
-    }
+    if (!value) return alert.show("error", NO_PRIVATE_KEY);
+    await openAndEnter(value, undefined, { ...keyDoor, also: hideGenerated }, reset, () =>
+      openKey(true),
+    );
   };
   // Open wallet waits for a ticked box's app password.
   const gateOpen = () => {
@@ -181,35 +158,18 @@ export function renderKey(): HTMLElement {
     },
   });
   const watchRemember = rememberCheckbox(() => gateFollow());
+  const watchDoor = {
+    cfg,
+    alert,
+    offer,
+    onScreen,
+    remember: watchRemember,
+    fields: () => [watchSource],
+  };
   const follow = async (reset = false): Promise<void> => {
-    alert.hide();
     const value = watchSource.value.trim();
-    if (!value) {
-      alert.show("error", NO_WATCH_SOURCE);
-      return;
-    }
-    if (!watchRemember.ready()) return;
-    const willRemember = watchRemember.checked();
-    try {
-      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-      const info = await open(
-        value,
-        cfg.address_type,
-        willRemember,
-        undefined,
-        watchRemember.appPassword(),
-      );
-      watchSource.value = "";
-      // The wallet is already open here. Reading the record back could
-      // fail and put an error over a wallet that opened fine, so take what
-      // we know — the same shape the private-key path above uses.
-      if (willRemember) session.remembered = info;
-      // `onScreen` is `routeGuard`, not `screenGuard`: it has no
-      // wallet-id check to misfire against the `session.wallet` that `api.openWallet` set.
-      if (onScreen()) navigate("dashboard");
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => follow(true));
-    }
+    if (!value) return alert.show("error", NO_WATCH_SOURCE);
+    await openAndEnter(value, undefined, watchDoor, reset, () => follow(true));
   };
   const gateFollow = () => {
     followBtn.disabled = !watchRemember.ready();

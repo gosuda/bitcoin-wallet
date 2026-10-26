@@ -5,6 +5,7 @@ import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { openAndEnter } from "../ui/open";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
 import {
@@ -106,37 +107,22 @@ export function renderCreate(): HTMLElement {
     createBtn.disabled = phrase === null || !confirmed() || !remember.ready();
   };
 
-  const submit = async (reset = false): Promise<void> => {
-    alert.hide();
-    const secret = phrase;
-    if (!secret) {
-      alert.show("error", "No recovery phrase yet — go back and try again.");
-      return;
-    }
-    if (!confirmed()) {
-      alert.show("error", WORDS_MISMATCH);
-      return;
-    }
-    if (!remember.ready()) return;
-    const willRemember = remember.checked();
-    try {
-      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-      const info = await open(
-        secret,
-        cfg.address_type,
-        willRemember,
-        passphrase.value || undefined,
-        remember.appPassword(),
-      );
+  const door = {
+    cfg,
+    alert,
+    offer,
+    onScreen,
+    remember,
+    fields: () => [passphrase],
+    also: () => {
       phrase = null;
-      passphrase.value = "";
-      if (willRemember) session.remembered = info;
-      // `onScreen` is `routeGuard`, not `screenGuard`: it has no wallet-id
-      // check to misfire against the `session.wallet` that `api.openWallet` set.
-      if (onScreen()) navigate("dashboard");
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => submit(true));
-    }
+    },
+  };
+  const submit = async (reset = false): Promise<void> => {
+    const secret = phrase;
+    if (!secret) return alert.show("error", "No recovery phrase yet — go back and try again.");
+    if (!confirmed()) return alert.show("error", WORDS_MISMATCH);
+    await openAndEnter(secret, passphrase.value || undefined, door, reset, () => submit(true));
   };
 
   const createBtn = button(

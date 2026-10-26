@@ -1,5 +1,5 @@
 import { api } from "../../api";
-import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../../feebump";
+import { suggestBumpRate, suggestPackageRate } from "../../feebump";
 import { navigate } from "../../router";
 import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
@@ -26,7 +26,7 @@ import {
   typeableRate,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
-import { heldPreview } from "../../ui/preview";
+import { heldPreview, type OfferKind, offerKind, recordSent } from "../../ui/preview";
 import { estimateUnavailable, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
 import {
   body,
@@ -58,12 +58,6 @@ export function showTransaction(txid: string): void {
 export function currentTxid(): string | null {
   return current;
 }
-
-/**
- * What the screen offers besides copy and link: replace our own unconfirmed
- * send (Bump fee or Cancel), give a payment a child (Speed up), or nothing.
- */
-type Offer = "replace" | "child" | "none";
 
 type SpeedChoice = `${FeeTarget}` | "custom";
 
@@ -97,19 +91,9 @@ export function renderTransaction(): HTMLElement {
   // the screen goes. What it builds counts only while this screen is shown.
   const preview = heldPreview(alert);
 
-  /**
-   * After a broadcast from this screen. It went out, so it is recorded for
-   * this wallet whichever screen is on top by now — never for another wallet,
-   * whose Result screen would read it as its own — and shown only while this
-   * screen is still the one open.
-   */
-  const broadcastDone = (result: BroadcastResult): void => {
-    if (!sameWallet()) return;
-    session.lastResult = result;
-    if (onScreen()) navigate("result");
-  };
+  const broadcastDone = (result: BroadcastResult): void => recordSent(result, sameWallet, onScreen);
 
-  const paint = (d: TxDetail, explorerUrl: string | null, offer: Offer): void => {
+  const paint = (d: TxDetail, explorerUrl: string | null, offer: OfferKind): void => {
     const incoming = d.net_sat >= 0;
     const dot = el("span", { className: "m-dirdot" }, [icon(incoming ? "down" : "up", 22)]);
     dot.classList.add(incoming ? "m-tx-in" : "m-tx-out");
@@ -467,18 +451,6 @@ export function renderTransaction(): HTMLElement {
     return sheet;
   };
 
-  /**
-   * Nothing can be signed without a key, and nothing confirmed needs speeding
-   * up. Our own unconfirmed send is sped up by replacing it, or taken back; a
-   * child is for what replacement cannot reach, a payment someone else sent
-   * above all.
-   */
-  const offerFor = async (d: TxDetail): Promise<Offer> => {
-    if (info.is_watch_only || d.confirmations !== null) return "none";
-    if (isBumpable(d)) return "replace";
-    return canPayForParent(d, await api.listUtxos()) ? "child" : "none";
-  };
-
   void (async () => {
     try {
       const detail = await api.transaction(txid);
@@ -490,7 +462,7 @@ export function renderTransaction(): HTMLElement {
       // Asked for once, here, so the button below is only built when there is
       // somewhere for it to go.
       const explorerUrl = await api.explorerUrl(detail.txid).catch(() => null);
-      const offer = await offerFor(detail);
+      const offer = await offerKind(detail, info.is_watch_only);
       if (!onScreen()) return;
       paint(detail, explorerUrl, offer);
     } catch (e) {

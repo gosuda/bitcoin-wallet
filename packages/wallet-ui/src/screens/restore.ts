@@ -4,6 +4,7 @@ import { redirect, routeGuard, screenHead } from "../screen";
 import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS, WORD_COUNTS, type WordCount } from "../types";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { openAndEnter } from "../ui/open";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
 import { PASSPHRASE_HINT, phraseError } from "../ui/text";
@@ -154,33 +155,13 @@ export function renderRestore(): HTMLElement {
     return el("label", { className: "radio" }, [input, `${value} words`]);
   };
 
+  // Typed words are secret, and so is the passphrase.
+  const fields = () => [...boxes, passphrase];
+  const door = { cfg, alert, offer, onScreen, remember, fields };
   const submit = async (reset = false): Promise<void> => {
-    alert.hide();
-    if (!valid) {
-      alert.show("error", "Enter a valid recovery phrase first.");
-      return;
-    }
-    if (!remember.ready()) return;
+    if (!valid) return alert.show("error", "Enter a valid recovery phrase first.");
     const secret = words().join(" ");
-    const willRemember = remember.checked();
-    try {
-      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-      const info = await open(
-        secret,
-        cfg.address_type,
-        willRemember,
-        passphrase.value || undefined,
-        remember.appPassword(),
-      );
-      for (const box of boxes) box.value = "";
-      passphrase.value = "";
-      if (willRemember) session.remembered = info;
-      // `onScreen` is `routeGuard`, not `screenGuard`: it has no wallet-id
-      // check to misfire against the `session.wallet` that `api.openWallet` set.
-      if (onScreen()) navigate("dashboard");
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => submit(true));
-    }
+    await openAndEnter(secret, passphrase.value || undefined, door, reset, () => submit(true));
   };
 
   const restoreBtn = button(
@@ -194,12 +175,7 @@ export function renderRestore(): HTMLElement {
 
   buildGrid();
 
-  // Typed words are secret, and so is the passphrase: drop both from the DOM
-  // the moment the route changes.
-  wipeOnLeave(
-    () => [...boxes, passphrase],
-    () => window.clearTimeout(timer),
-  );
+  wipeOnLeave(fields, () => window.clearTimeout(timer));
 
   return el("main", { className: "screen" }, [
     screenHead("Restore wallet", `${NETWORK_LABELS[cfg.network]} · ${backendHost(cfg.backend)}`),

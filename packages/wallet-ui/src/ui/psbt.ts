@@ -7,12 +7,11 @@
  */
 
 import { api } from "../api";
-import { navigate } from "../router";
 import { sameWalletGuard, screenGuard } from "../screen";
-import { session } from "../session";
 import { errorMessage, isAppError, type PsbtReview } from "../types";
 import { readClipboard } from "./clipboard";
 import { type Banner, type BannerKind, formatNumber, setFieldError } from "./dom";
+import { recordSent } from "./preview";
 import { sentence } from "./text";
 
 /** "psbt" and 0xff: the five bytes every PSBT starts with (BIP 174). */
@@ -262,12 +261,7 @@ export function psbtFlow(view: PsbtView): PsbtFlow {
       if (review === null || !review.finalized) return;
       alert.hide();
       try {
-        const result = await api.broadcastPsbt(review.psbt_base64);
-        // It went out, so it is recorded for this wallet whichever screen is on
-        // top by now, never for another, and shown only while this one is open.
-        if (!sameWallet()) return;
-        session.lastResult = result;
-        if (onScreen()) navigate("result");
+        recordSent(await api.broadcastPsbt(review.psbt_base64), sameWallet, onScreen);
       } catch (e) {
         if (onScreen()) alert.show("error", errorMessage(e));
       }

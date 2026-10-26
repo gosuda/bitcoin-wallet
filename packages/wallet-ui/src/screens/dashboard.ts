@@ -1,9 +1,9 @@
 import type { Unit } from "../amount";
 import { api } from "../api";
 import { headlineSat, pendingSat } from "../balance";
-import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../feebump";
+import { suggestBumpRate, suggestPackageRate } from "../feebump";
 import { navigate } from "../router";
-import { redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
+import { autoSync, redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -61,7 +61,7 @@ import {
   shortOutpoint,
 } from "../ui/format";
 import { icon } from "../ui/icons";
-import { heldPreview } from "../ui/preview";
+import { heldPreview, offerKind, recordSent } from "../ui/preview";
 import { drawReceiveQr, receivePayload } from "../ui/qr";
 import { FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, SENT_TITLE, whoseInputs } from "../ui/text";
 import { closeThisWallet } from "./settings";
@@ -139,9 +139,6 @@ function utxoTable(
   }
   return el("div", { className: "table-wrap" }, [el("table", {}, [el("thead", {}, [head]), body])]);
 }
-
-/** How often the dashboard re-syncs while it is on screen and visible. */
-const AUTO_SYNC_MS = 60_000;
 
 /** What a row says about an output, by its `outputRole`. */
 const OUTPUT_LABELS = { recipient: "To", change: "Change", ours: "Received" } as const;
@@ -336,31 +333,19 @@ export function renderDashboard(): HTMLElement {
   };
 
   /**
-   * After a broadcast from an open row. It went out; what is left is who
-   * hears of it. If the session has since moved to a different wallet, this
-   * result is not that wallet's to show: recording it here would leave a
-   * stale txid sitting where the new wallet's Result screen would read it as
-   * its own, so only a still-current wallet gets it recorded at all. From
-   * there, steal the screen only if this row's detail is still the one open —
-   * the user may have opened a different transaction's detail on this same
-   * dashboard while the broadcast was in flight.
+   * After a broadcast from an open row: Result opens only while that row is
+   * still the one open. With another open, a banner says it landed, in the
+   * Sent screen's words, so a silent success does not invite a second send.
    */
-  const broadcastDone = (result: BroadcastResult, ownerDetail: HTMLTableRowElement): void => {
-    if (!sameWallet()) return;
-    session.lastResult = result;
-    if (!onScreen()) return;
-    if (open?.detail === ownerDetail) {
-      closeDetail();
-      navigate("result");
-    } else {
-      // The row that started it is no longer the open detail, and
-      // closeDetail/navigate would steal a screen the user has since moved on
-      // from. Confirm it landed some other way, or a silent success invites a
-      // retry that does it twice. In the Sent screen's words: the id says
-      // which it was.
-      alert.show("ok", `${SENT_TITLE}: ${shortId(result.txid)}.`);
-    }
-  };
+  const broadcastDone = (result: BroadcastResult, ownerDetail: HTMLTableRowElement): void =>
+    recordSent(result, sameWallet, onScreen, () => {
+      if (open?.detail === ownerDetail) {
+        closeDetail();
+        navigate("result");
+      } else {
+        alert.show("ok", `${SENT_TITLE}: ${shortId(result.txid)}.`);
+      }
+    });
 
   const bumpInline = (
     txid: string,
@@ -573,21 +558,15 @@ export function renderDashboard(): HTMLElement {
     return box;
   };
 
-  /**
-   * Nothing can be signed without a key, and nothing confirmed needs speeding
-   * up. Our own unconfirmed send is sped up by replacing it, or taken back; a
-   * child is for what replacement cannot reach, a payment someone else sent
-   * above all.
-   */
+  /** The offer, with the rate a replacement starts from or the estimate a child is priced from. */
   const offerFor = async (d: TxDetail): Promise<Offer> => {
-    if (wallet.is_watch_only || d.confirmations !== null) return { kind: "none" };
-    if (isBumpable(d)) {
-      // Without an estimate the original's own rate still sets the floor.
-      const estimate = await api.estimateFee().catch(() => null);
-      return { kind: "replace", rate: suggestBumpRate(estimate, d.fee_rate_sat_vb) };
-    }
-    if (!canPayForParent(d, await api.listUtxos())) return { kind: "none" };
-    return { kind: "child", estimate: await api.estimateFee().catch(() => null) };
+    const kind = await offerKind(d, wallet.is_watch_only);
+    if (kind === "none") return { kind };
+    // Without an estimate the original's own rate still sets a replacement's floor.
+    const estimate = await api.estimateFee().catch(() => null);
+    return kind === "replace"
+      ? { kind, rate: suggestBumpRate(estimate, d.fee_rate_sat_vb) }
+      : { kind, estimate };
   };
 
   const openDetail: OpenRow = (tx, row, chevron) => {
@@ -829,16 +808,7 @@ export function renderDashboard(): HTMLElement {
     el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);
 
-  // Keep the wallet fresh while this screen is open. The router swaps screens
-  // without a teardown hook, so the timer retires itself once the node is gone.
-  const timer = window.setInterval(() => {
-    if (!screen.isConnected) {
-      window.clearInterval(timer);
-      return;
-    }
-    if (document.hidden) return;
-    void withBusy(syncBtn, () => runSync(true));
-  }, AUTO_SYNC_MS);
+  autoSync(screen, () => void withBusy(syncBtn, () => runSync(true)));
 
   return screen;
 }

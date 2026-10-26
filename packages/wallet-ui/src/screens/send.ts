@@ -36,6 +36,7 @@ import {
   withBusy,
 } from "../ui/dom";
 import { feeLine, fieldRate, typeableRate } from "../ui/format";
+import { recordSent } from "../ui/preview";
 import { ESTIMATE_UNAVAILABLE_TYPE, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
 
 interface RecipientRow {
@@ -467,11 +468,7 @@ export function renderSend(): HTMLElement {
             const result = await api.signAndBroadcast(p.psbt_id);
             preview = null;
             drain = null;
-            // It went out, so it is recorded for this wallet whichever screen is
-            // on top by now, never for another, and shown only while this one is.
-            if (!sameWallet()) return;
-            session.lastResult = result;
-            if (onScreen()) navigate("result");
+            recordSent(result, sameWallet, onScreen);
           } catch (e) {
             preview = null;
             // The PSBT is spent either way: signing consumed it before it

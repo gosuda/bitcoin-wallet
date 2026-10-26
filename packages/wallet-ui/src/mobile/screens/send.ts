@@ -2,7 +2,6 @@ import { addressError, addressLooksValid } from "../../address";
 import { formatAmount, parseAmount, UNIT_CHOICES, type Unit } from "../../amount";
 import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
-import { navigate } from "../../router";
 import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
@@ -21,6 +20,7 @@ import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui
 import { banner, convertField, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
 import { feeLine, fieldRate, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { recordSent } from "../../ui/preview";
 import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
 import {
   body,
@@ -584,12 +584,7 @@ export function renderSend(): HTMLElement {
             // discarded again on the way out.
             drain = null;
             pendingPreview = null;
-            const result = await api.signAndBroadcast(preview.psbt_id);
-            // It went out, so it is recorded for this wallet whichever screen is
-            // on top by now, never for another, and shown only while this one is.
-            if (!sameWallet()) return;
-            session.lastResult = result;
-            if (onScreen()) navigate("result");
+            recordSent(await api.signAndBroadcast(preview.psbt_id), sameWallet, onScreen);
           } catch (e) {
             // Signing consumed the PSBT before it failed, so the mounted
             // Confirm would retry an id the core no longer has. Take the sheet

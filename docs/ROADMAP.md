@@ -1836,10 +1836,19 @@ but comments.
       fail tests on both shells where tests reach the code, and throwaway characterization
       tests (54 and 15 observations, identical on the old code and the new) pin the rest. Lines
       11,765 to 11,698; the states are byte-identical
-- [ ] **10.13 Both shells open a wallet, record a send, offer a fee bump and sync through one
+- [x] **10.13 Both shells open a wallet, record a send, offer a fee bump and sync through one
   helper each** · M · `screens/*`, `mobile/screens/*`, `ui/*`
       why: once 10.7, 10.10 and 10.11 make the behaviour alike, the logic is written once per
-      screen
+      screen · done: 2026-10-27 — `recordSent` records a send for both Sends, the phone's
+      transaction screen, Import PSBT and the Wallet page (which keeps its "another row is
+      open" banner); `openAndEnter` in `ui/open.ts` opens a wallet for the desktop's Create,
+      Restore and Key and the phone's Create and three Restores, each keeping its own checks
+      and markup; `offerKind` says which fee action a transaction offers, and `autoSync` with
+      one `AUTO_SYNC_MS` runs both shells' timer (the desktop's quiet failure and the phone's
+      banner kept). Not taken: the PSBT status line, the cancel summary, the CPFP hint and the
+      sync label, each longer shared. Mutations fail tests on all eight openers and on both
+      shells' send, Bump fee, PSBT, offer and watch-only tests; characterization tests (4, 57
+      and 15 observations) pin the rest. Lines 11,698 to 11,590; the states are byte-identical
 - [ ] **10.14 The UI's comments say what holds** · M · `packages/wallet-ui/src`, `apps/*/src`
       why: comments tell who found what, what a screen used to do, or repeat what a function's
       own doc says
