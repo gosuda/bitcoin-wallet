@@ -16,15 +16,25 @@
 unmaintained = "workspace"
 unsound = "workspace"
 ignore = [
-    # rustls-webpki 0.101.7: certificate-validation flaws. Reached only through
-    # `minreq`, a build dependency of `bitcoind`/`electrsd` in the regtest
-    # harness — `bdk_testenv`, a dev-dependency of regtest-tests — i.e. code that
-    # downloads test binaries at build time. The shipped wallet's TLS resolves
-    # rustls-webpki 0.103.x. Pinned by `minreq ^0.101`: nothing to bump until
-    # electrsd moves. Dependabot alerts #39-41 are dismissed for the same reason.
+    # The regtest harness's download chain: `bdk_testenv`, a dev-dependency of
+    # regtest-tests, builds `bitcoind`/`electrsd`, whose build scripts fetch test
+    # binaries over `minreq` (rustls 0.21, rustls-webpki 0.101, webpki-roots 0.25)
+    # and unpack them with `zip` 0.6 (zstd-safe 5). Only that build-time download
+    # reaches these; the shipped wallet's TLS resolves rustls 0.23, rustls-webpki
+    # 0.103 and webpki-roots 1.0, at patched versions. Pinned by `minreq` and
+    # `zip`'s ranges: nothing to bump until electrsd moves. Dependabot alerts
+    # #39-41 are dismissed for the same reason.
     { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7, dev-only (bdk_testenv via minreq); GHSA-82j2-j2ch-gfr8, alert #41" },
     { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101.7, dev-only (bdk_testenv via minreq); GHSA-xgp8-3hg3-c2mh, alert #40" },
     { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101.7, dev-only (bdk_testenv via minreq); GHSA-965h-392x-2mh5, alert #39" },
+    { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.101.7, dev-only (bdk_testenv via minreq); the shipped 0.103 is patched" },
+    { id = "RUSTSEC-2026-0346", reason = "rustls 0.21.12, dev-only (bdk_testenv via minreq); the shipped 0.23 is patched" },
+    { id = "RUSTSEC-2026-0349", reason = "rustls 0.21.12, dev-only (bdk_testenv via minreq); the shipped 0.23 is patched" },
+    { id = "RUSTSEC-2026-0381", reason = "webpki-roots 0.25.4, dev-only (bdk_testenv via minreq); the shipped 1.0 is patched" },
+    { id = "RUSTSEC-2026-0367", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads)" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads)" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads)" },
+    { id = "RUSTSEC-2026-0403", reason = "zstd-safe 5.0.2, dev-only (zip 0.6 in the regtest harness)" },
 
     # quick-xml 0.38.4: denial of service on hostile XML. `plist 1.8` (via
     # Tauri 2.11) requires ^0.38, so the patched release cannot be selected. The
