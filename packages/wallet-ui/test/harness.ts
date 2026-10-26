@@ -12,7 +12,7 @@ import { type Platform, platform, setPlatform } from "../src/platform";
 import type { Route } from "../src/router";
 import { session } from "../src/session";
 import { type AppConfig, DEFAULT_LOCK_AFTER } from "../src/types";
-import { fake } from "./fakes";
+import { deferred, fake } from "./fakes";
 
 export const CONFIG: AppConfig = {
   network: "testnet4",
@@ -80,6 +80,16 @@ export async function showPhoneTx(txid: string): Promise<HTMLElement> {
   const screen = mount(renderTransaction());
   await settle();
   return screen;
+}
+
+/** What the fake core's broadcast answers. */
+export const BROADCAST = { txid: "f".repeat(64), persist_error: null };
+
+/** Holds the next broadcast open until it is resolved. */
+export function holdBroadcast() {
+  const held = deferred<typeof BROADCAST>();
+  vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(() => held.promise);
+  return held;
 }
 
 /** A preview the screen dropped: the core holds nothing to sign under `psbtId`. */

@@ -1801,10 +1801,15 @@ but comments.
       imports and calls past 100 columns, 51 lines for the same change. Leaving the button
       disabled fails one desktop test for `withBusy` and one phone test for `withLock`; the 271
       states are byte-identical
-- [ ] **10.10 A send records its result only for its wallet, and opens Result only from Send**
+- [x] **10.10 A send records its result only for its wallet, and opens Result only from Send**
   · S · `screens/send.ts`, `mobile/screens/send.ts`
       why: the phone's Send recorded and moved unchecked, and the desktop's recorded for
-      whichever wallet was open, where every other broadcast checks both
+      whichever wallet was open, where every other broadcast checks both · done: 2026-10-27 —
+      both Sends record a broadcast only while the wallet that sent it is still open, and open
+      Result only from their own screen, as every other broadcast does; the phone also shows a
+      failed send's banner only on screen. Four new tests hold the broadcast, confirm, and
+      leave for Settings or open another wallet before releasing it: before, the phone failed
+      both and the desktop the second (a result recorded for another wallet); all pass after
 - [ ] **10.11 The phone checks what the desktop checks before it opens a wallet** · S ·
   `mobile/screens/*`
       why: the phone's single-key and watch-only Restore passed an empty field to the core, its

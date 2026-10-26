@@ -4,11 +4,13 @@ import { api } from "../src/api";
 import { renderDashboard } from "../src/screens/dashboard";
 import { session } from "../src/session";
 import type { FeeTarget, TxDetail } from "../src/types";
-import { deferred, fake, n } from "./fakes";
+import { fake, n } from "./fakes";
 import {
+  BROADCAST,
   buttonNamed,
   expectDropped,
   find,
+  holdBroadcast,
   leaveTo,
   settle,
   showAt,
@@ -64,15 +66,6 @@ function history(...txs: TxDetail[]): void {
       });
     });
   }
-}
-
-const BROADCAST = { txid: "f".repeat(64), persist_error: null };
-
-/** Holds the next broadcast open until it is resolved. */
-function holdBroadcast() {
-  const held = deferred<typeof BROADCAST>();
-  vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(() => held.promise);
-  return held;
 }
 
 /** The buttons named `name` exactly, or whose name matches it. */

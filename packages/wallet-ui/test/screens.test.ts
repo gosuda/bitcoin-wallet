@@ -19,11 +19,13 @@ import { session } from "../src/session";
 import { NETWORK_LABELS, type Network } from "../src/types";
 import { fake, n } from "./fakes";
 import {
+  BROADCAST,
   buttonNamed,
   CONFIG,
   camera,
   expectDropped,
   find,
+  holdBroadcast,
   leaveTo,
   mount,
   mountAt,
@@ -204,6 +206,48 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     // Where the shell goes next: Send, with the address filled in.
     const send = await showAt("send", renderPhoneSend);
     expect(find<HTMLInputElement>(send, "input[name=address]").value).toBe(fake.ADDRESS);
+  });
+});
+
+describe.each([
+  { shell: "desktop", render: renderSend },
+  { shell: "phone", render: renderPhoneSend },
+])("a send that lands after its moment, on the $shell (1.7)", ({ render }) => {
+  /** Send, filled in and reviewed, with Confirm pressed and its broadcast held. */
+  async function confirmHeld(): Promise<ReturnType<typeof holdBroadcast>> {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const screen = await showAt("send", render);
+    type(find(screen, 'input[placeholder$=" address"]'), fake.ADDRESS);
+    type(find(screen, 'input[placeholder="0"]'), "1000");
+    buttonNamed(screen, "Review").click();
+    await settle();
+    const broadcast = holdBroadcast();
+    buttonNamed(screen, "Confirm and send").click();
+    await settle();
+    return broadcast;
+  }
+
+  it("is recorded once Send is left, and opens nothing", async () => {
+    const broadcast = await confirmHeld();
+
+    leaveTo("settings");
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult?.txid).toBe(BROADCAST.txid);
+    expect(window.location.hash).toBe("#/settings");
+  });
+
+  it("is not recorded for another wallet opened meanwhile", async () => {
+    const broadcast = await confirmHeld();
+
+    vi.spyOn(fake.FakeWallet.prototype, "id", "get").mockReturnValue("testnet4-p2wpkh-other");
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult).toBeNull();
+    expect(window.location.hash).toBe("#/send");
   });
 });
 

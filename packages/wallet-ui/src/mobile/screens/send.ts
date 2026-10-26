@@ -3,7 +3,7 @@ import { formatAmount, parseAmount, type Unit } from "../../amount";
 import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
 import { navigate } from "../../router";
-import { redirect, screenGuard } from "../../screen";
+import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   DEFAULT_FEE_TARGET,
@@ -91,6 +91,7 @@ function recipientList(to: readonly Recipient[], fee: string, total: number): HT
 
 export function renderSend(): HTMLElement {
   const onScreen = screenGuard();
+  const sameWallet = sameWalletGuard();
   const info = session.wallet;
   if (!info) return redirect("setup");
   const host = el("main");
@@ -598,14 +599,18 @@ export function renderSend(): HTMLElement {
             // discarded again on the way out.
             drain = null;
             pendingPreview = null;
-            session.lastResult = await api.signAndBroadcast(preview.psbt_id);
-            navigate("result");
+            const result = await api.signAndBroadcast(preview.psbt_id);
+            // It went out, so it is recorded for this wallet whichever screen is
+            // on top by now, never for another, and shown only while this one is.
+            if (!sameWallet()) return;
+            session.lastResult = result;
+            if (onScreen()) navigate("result");
           } catch (e) {
             // Signing consumed the PSBT before it failed, so the mounted
             // Confirm would retry an id the core no longer has. Take the sheet
             // down and make them review the current form again.
             clearPreview();
-            alert.show("error", errorMessage(e));
+            if (onScreen()) alert.show("error", errorMessage(e));
           }
         }),
       { variant: "primary", block: true },

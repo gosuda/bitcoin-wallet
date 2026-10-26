@@ -2,7 +2,7 @@ import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
-import { redirect, screenGuard, screenHead } from "../screen";
+import { redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   backendHost,
@@ -66,6 +66,7 @@ export function renderSend(): HTMLElement {
   const cfg = session.config;
   if (!wallet || !cfg) return redirect("setup");
   const onScreen = screenGuard();
+  const sameWallet = sameWalletGuard();
   const host = backendHost(cfg.backend);
   const networkName = NETWORK_LABELS[wallet.network];
   /**
@@ -478,8 +479,9 @@ export function renderSend(): HTMLElement {
             const result = await api.signAndBroadcast(p.psbt_id);
             preview = null;
             drain = null;
-            // Broadcast either way: record it regardless, but only steal the
-            // screen away if this is still the one that asked for it.
+            // It went out, so it is recorded for this wallet whichever screen is
+            // on top by now, never for another, and shown only while this one is.
+            if (!sameWallet()) return;
             session.lastResult = result;
             if (onScreen()) navigate("result");
           } catch (e) {
