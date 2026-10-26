@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
+import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
 import { platform, setPlatform } from "../src/platform";
 import { renderDashboard } from "../src/screens/dashboard";
 import { renderSettings } from "../src/screens/settings";
@@ -129,6 +130,35 @@ describe("Settings on the desktop (6.8)", () => {
 
     expect(forgetSecret).toHaveBeenCalledWith(fake.SAVED.wallet_id);
     expect(session.remembered).toBeNull();
+    expect(session.wallet).toBeNull();
+    expect(window.location.hash).toBe("#/key");
+  });
+});
+
+describe.each([
+  { shell: "desktop", render: renderSettings },
+  { shell: "phone", render: renderPhoneSettings },
+])("Close wallet on the $shell's Settings (6.8)", ({ render }) => {
+  /** Settings for the open wallet, with Close wallet pressed. */
+  async function closeFromSettings(): Promise<void> {
+    const screen = mountAt("settings", render);
+    buttonNamed(screen, "Close wallet").click();
+    await settle();
+  }
+
+  it("opens Unlock for a remembered wallet", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    rememberSaved();
+    await closeFromSettings();
+
+    expect(session.wallet).toBeNull();
+    expect(window.location.hash).toBe("#/unlock");
+  });
+
+  it("opens Key for one not remembered", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    await closeFromSettings();
+
     expect(session.wallet).toBeNull();
     expect(window.location.hash).toBe("#/key");
   });

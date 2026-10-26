@@ -63,8 +63,8 @@ import {
 import { icon } from "../ui/icons";
 import { heldPreview, offerKind, recordSent } from "../ui/preview";
 import { drawReceiveQr, receivePayload } from "../ui/qr";
+import { closeThisWallet } from "../ui/settings";
 import { FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, SENT_TITLE, whoseInputs } from "../ui/text";
-import { closeThisWallet } from "./settings";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [

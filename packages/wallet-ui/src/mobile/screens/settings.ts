@@ -16,7 +16,7 @@ import {
 } from "../../types";
 import { lockAfter } from "../../ui/autolock";
 import { banner, el, formatNumber } from "../../ui/dom";
-import { closeForSetup, rescanAt, saveLockAfter } from "../../ui/settings";
+import { closeForSetup, closeThisWallet, rescanAt, saveLockAfter } from "../../ui/settings";
 import { forgetWarning, RESCAN_HINT } from "../../ui/text";
 import {
   body,
@@ -158,12 +158,7 @@ export function renderSettings(): HTMLElement {
         ),
         lockBlock,
       ),
-      listCard(
-        item("Close wallet", null, async () => {
-          await api.closeWallet();
-          navigate("setup");
-        }),
-      ),
+      listCard(item("Close wallet", null, closeThisWallet)),
       spacer(),
       // Without a working keystore there is no saved key to delete and
       // `forgetWallet` cannot finish, so offering it only produces an error.

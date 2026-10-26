@@ -1857,10 +1857,15 @@ but comments.
       ones are plain; board, BIP and safety reasoning stay. Comment lines 2,288 to 2,131 in the
       UI package and 113 to 99 in apps/native; code lines unchanged at 8,400, and no changed
       line is anything but a comment
-- [ ] **10.15 Close wallet on the phone goes where the desktop's goes** · S ·
+- [x] **10.15 Close wallet on the phone goes where the desktop's goes** · S ·
   `mobile/screens/settings.ts`, `ui/settings.ts`
       why: the phone's opened Setup, and only if the close did not throw; the desktop's opens
-      Unlock for a remembered wallet, else Key, either way
+      Unlock for a remembered wallet, else Key, either way · done: 2026-10-27 —
+      `closeThisWallet` moves to the shared `ui/settings.ts`, and the phone's Settings closes
+      through it, so Close wallet opens Unlock for a remembered wallet, else Key, on both
+      shells. Two new tests on both shells' Settings, with the wallet remembered and not:
+      before, the phone failed both ("expected '#/setup' to be '#/unlock'", and '#/key') and
+      the desktop passed; all pass after
 - [ ] **10.16 The phone guards work that lands after it is left, as the desktop does** · S ·
   `mobile/screens/restore.ts`, `mobile/screens/send.ts`
       why: a key generated on the phone's single-key Restore after the user left was written

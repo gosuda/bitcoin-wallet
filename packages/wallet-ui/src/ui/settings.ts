@@ -1,8 +1,8 @@
 /**
  * What Setup, Settings and Unlock do the same way on both shells: save the
- * chain settings, close the wallet to change them, rescan, save a lock time,
- * and forget the wallet remembered on this device. Each shell draws its own
- * controls around them.
+ * chain settings, close the wallet, or close it to change them, rescan, save
+ * a lock time, and forget the wallet remembered on this device. Each shell
+ * draws its own controls around them.
  */
 
 import { api, canUnlockHere } from "../api";
@@ -47,6 +47,19 @@ export async function saveSetup(
     navigate(canUnlockHere() ? "unlock" : "key");
   } catch (e) {
     alert.show("error", errorMessage(e));
+  }
+}
+
+/**
+ * Close wallet, in Settings and on the desktop's Wallet page: closes this
+ * wallet, then opens Unlock for a remembered wallet, else Key, whether or not
+ * the close went through.
+ */
+export async function closeThisWallet(): Promise<void> {
+  try {
+    await api.closeWallet();
+  } finally {
+    navigate(session.remembered ? "unlock" : "key");
   }
 }
 

@@ -1,6 +1,5 @@
 import { api } from "../api";
 import { platform } from "../platform";
-import { navigate } from "../router";
 import { redirect, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
@@ -17,7 +16,7 @@ import { copyButton } from "../ui/clipboard";
 import { banner, button, el, kv, mono, radioGroup, sectionLabel, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
-import { askForget, closeForSetup, rescanAt, saveLockAfter } from "../ui/settings";
+import { askForget, closeForSetup, closeThisWallet, rescanAt, saveLockAfter } from "../ui/settings";
 import {
   copyDescriptorsLabel,
   forgetWarning,
@@ -52,15 +51,6 @@ function lockSelect(save: (choice: string) => void): HTMLElement {
   }
   select.addEventListener("change", () => save(select.value));
   return el("span", { className: "select-box" }, [select, icon("chevron", 14)]);
-}
-
-/** Close wallet, here and on the Wallet page; then Unlock for a remembered wallet, else Key. */
-export async function closeThisWallet(): Promise<void> {
-  try {
-    await api.closeWallet();
-  } finally {
-    navigate(session.remembered ? "unlock" : "key");
-  }
 }
 
 /**
