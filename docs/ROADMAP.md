@@ -1791,10 +1791,16 @@ but comments.
       strings over five networks (and catches a reordered claim); mutations of each shared
       piece fail tests where it is used. Code lines in the UI's TypeScript 8,753 to 8,715; the
       271 states are byte-identical
-- [ ] **10.9 The phone's busy helper is named apart from the desktop's** · S · `ui/dom.ts`,
+- [x] **10.9 The phone's busy helper is named apart from the desktop's** · S · `ui/dom.ts`,
   `mobile/ui.ts`
       why: both were `withBusy`, but the desktop's shows a spinner and always enables the
-      button again, and the phone's restores the state the button had
+      button again, and the phone's restores the state the button had · done: 2026-10-27 — the
+      desktop's helper keeps `withBusy`, which says it shows the busy spinner, and the phone's
+      is `withLock`; each doc says how it puts the button back, so four comments at the
+      desktop's Unlock, Create, Restore and Key that said it go. A longer pair of names wrapped
+      imports and calls past 100 columns, 51 lines for the same change. Leaving the button
+      disabled fails one desktop test for `withBusy` and one phone test for `withLock`; the 271
+      states are byte-identical
 - [ ] **10.10 A send records its result only for its wallet, and opens Result only from Send**
   · S · `screens/send.ts`, `mobile/screens/send.ts`
       why: the phone's Send recorded and moved unchecked, and the desktop's recorded for

@@ -9,7 +9,7 @@ import { shortId } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { forgetThisWallet } from "../../ui/settings";
 import { forgetWarning } from "../../ui/text";
-import { body, button, confirmDanger, header, historyReset, spacer, withBusy } from "../ui";
+import { body, button, confirmDanger, header, historyReset, spacer, withLock } from "../ui";
 
 export function renderUnlock(): HTMLElement {
   const record = session.remembered;
@@ -39,7 +39,7 @@ export function renderUnlock(): HTMLElement {
     }
   };
   // "Unlock" with or without biometrics, as on the desktop.
-  const unlock = button("Unlock", () => withBusy(unlock, attempt), {
+  const unlock = button("Unlock", () => withLock(unlock, attempt), {
     variant: "primary",
     block: true,
     icon: auth ? "faceid" : "key",

@@ -117,8 +117,7 @@ export function renderKey(): HTMLElement {
       if (onScreen()) offer.report(e, () => openKey(true));
     }
   };
-  // Open wallet waits for a ticked box's app password; `withBusy` enables the
-  // button again, so that gate is put back once an attempt settles.
+  // Open wallet waits for a ticked box's app password.
   const gateOpen = () => {
     openBtn.disabled = !remember.ready();
   };

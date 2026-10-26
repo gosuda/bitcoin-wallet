@@ -41,7 +41,7 @@ import {
   lede,
   listCard,
   outputNote,
-  withBusy,
+  withLock,
 } from "../ui";
 
 /**
@@ -201,7 +201,7 @@ export function renderTransaction(): HTMLElement {
     const bump = button(
       "Bump fee",
       () =>
-        withBusy(bump, async () => {
+        withLock(bump, async () => {
           alert.hide();
           const value = Number(rate.value);
           const rateErr = feeRateError(value);
@@ -302,7 +302,7 @@ export function renderTransaction(): HTMLElement {
           onScreen,
         );
         if (!built) return;
-        const go = button("Cancel transaction", () => withBusy(go, confirm), {
+        const go = button("Cancel transaction", () => withLock(go, confirm), {
           variant: "danger",
           block: true,
         });
@@ -322,7 +322,7 @@ export function renderTransaction(): HTMLElement {
       }
     };
 
-    const trigger = button("Cancel", () => withBusy(trigger, ask), {
+    const trigger = button("Cancel", () => withLock(trigger, ask), {
       variant: "danger",
       block: true,
     });
@@ -456,7 +456,7 @@ export function renderTransaction(): HTMLElement {
     // signing used it up: build another, so what the button would send is on
     // screen again.
     const send = () => preview.send(onScreen, broadcastDone, refresh);
-    const go = button("Speed up", () => withBusy(go, send), { variant: "primary", block: true });
+    const go = button("Speed up", () => withLock(go, send), { variant: "primary", block: true });
 
     void refresh();
     void (async () => {

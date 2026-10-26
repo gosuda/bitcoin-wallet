@@ -34,7 +34,7 @@ import {
   row,
   scanInPlace,
   spacer,
-  withBusy,
+  withLock,
 } from "../ui";
 
 interface Prefill {
@@ -202,7 +202,7 @@ export function renderSend(): HTMLElement {
       alert.show("error", errorMessage(e));
     }
   };
-  max.addEventListener("click", () => void withBusy(max, fillMax));
+  max.addEventListener("click", () => void withLock(max, fillMax));
 
   // --- fee -----------------------------------------------------------------
   const rateInput = textInput({ value: "1", type: "number", mono: true, name: "rate" });
@@ -552,7 +552,7 @@ export function renderSend(): HTMLElement {
   const review = button(
     "Review",
     () =>
-      withBusy(review, async () => {
+      withLock(review, async () => {
         alert.hide();
         for (const r of rows) {
           r.touched.address = true;
@@ -592,7 +592,7 @@ export function renderSend(): HTMLElement {
     const confirm = button(
       "Confirm and send",
       () =>
-        withBusy(confirm, async () => {
+        withLock(confirm, async () => {
           try {
             // Consumed by the broadcast either way, so neither may be
             // discarded again on the way out.

@@ -79,7 +79,7 @@ export function sameWalletGuard(): () => boolean {
  * top, covering a swap that somehow arrives without a route change.
  *
  * This is not a substitute for disabling a button while its own work runs;
- * that is `withBusy`, and it answers a different question.
+ * that is `withBusy` or `withLock`, and it answers a different question.
  *
  * Call this, like `routeGuard` and `sameWalletGuard`, once while the screen is
  * being built: a guard created later belongs to a later moment and cannot

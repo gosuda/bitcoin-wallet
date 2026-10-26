@@ -183,8 +183,6 @@ export function renderRestore(): HTMLElement {
     }
   };
 
-  // `withBusy` restores the button it disabled, so the phrase gate is re-applied
-  // once the attempt settles.
   const restoreBtn = button(
     "Restore wallet",
     () => void withBusy(restoreBtn, submit).finally(update),

@@ -261,7 +261,7 @@ export function confirmDanger(opts: {
   const arm = button(
     opts.trigger,
     () => {
-      const go = button(opts.confirm, () => withBusy(go, opts.onConfirm), {
+      const go = button(opts.confirm, () => withLock(go, opts.onConfirm), {
         variant: "danger",
         block: true,
       });
@@ -311,7 +311,7 @@ export function historyReset(alert: Banner): HistoryReset {
       const trigger = button(
         RESET_TRIGGER,
         () => {
-          const go = button(RESET_CONFIRM, () => withBusy(go, reset), {
+          const go = button(RESET_CONFIRM, () => withLock(go, reset), {
             variant: "primary",
             block: true,
           });
@@ -444,10 +444,11 @@ export function lede(text: string): HTMLElement {
 }
 
 /**
- * Runs an async action with the button disabled, so a slow sync or broadcast
- * cannot be fired twice by an impatient tap.
+ * Runs `work` with the button disabled and `aria-busy` set, no spinner, so a
+ * slow sync or broadcast cannot be fired twice by an impatient tap. Then the
+ * button is disabled again only if it was before.
  */
-export async function withBusy(btn: HTMLButtonElement, work: () => Promise<void>): Promise<void> {
+export async function withLock(btn: HTMLButtonElement, work: () => Promise<void>): Promise<void> {
   const wasDisabled = btn.disabled;
   btn.disabled = true;
   btn.setAttribute("aria-busy", "true");

@@ -100,7 +100,12 @@ export function setButtonLabel(btn: HTMLButtonElement, label: string): void {
   else btn.textContent = label;
 }
 
-/** Run `work` with the button disabled and a spinner; restores state afterwards. */
+/**
+ * Runs `work` with the button disabled, a spinner on it and `aria-busy` set,
+ * and returns what `work` returns. Then the button is enabled again, whatever
+ * it was before: a screen that keeps it off until a form is ready applies that
+ * gate again once this settles (`.finally(gate)`).
+ */
 export async function withBusy<T>(btn: HTMLButtonElement, work: () => Promise<T>): Promise<T> {
   btn.disabled = true;
   btn.classList.add("btn-busy");

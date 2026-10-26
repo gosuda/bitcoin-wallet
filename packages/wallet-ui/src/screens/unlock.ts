@@ -59,7 +59,6 @@ export function renderUnlock(): HTMLElement {
   const gate = () => {
     unlockBtn.disabled = password !== null && password.input.value === "";
   };
-  // `withBusy` enables the button again, so the gate is put back once it settles.
   const unlockBtn = button(
     "Unlock",
     () => void withBusy(unlockBtn, unlock).finally(gate),

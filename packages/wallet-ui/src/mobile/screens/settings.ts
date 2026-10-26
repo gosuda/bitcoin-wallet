@@ -30,7 +30,7 @@ import {
   lede,
   listCard,
   spacer,
-  withBusy,
+  withLock,
 } from "../ui";
 
 type Gap = `${RescanGap}`;
@@ -53,7 +53,7 @@ export function renderSettings(): HTMLElement {
     const go = button(
       "Continue",
       () =>
-        withBusy(go, async () => {
+        withLock(go, async () => {
           await api.closeWallet();
           navigate("setup");
         }),
@@ -78,7 +78,7 @@ export function renderSettings(): HTMLElement {
   );
   const rescan = button(
     "Rescan",
-    () => withBusy(rescan, () => rescanAt(gap.value(), alert, onScreen)),
+    () => withLock(rescan, () => rescanAt(gap.value(), alert, onScreen)),
     { icon: "refresh" },
   );
   const rescanBlock = el("div", { className: "m-block" }, [

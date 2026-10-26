@@ -133,8 +133,6 @@ export function renderCreate(): HTMLElement {
     }
   };
 
-  // `withBusy` restores the button it disabled, so the confirm gate is re-applied
-  // once the attempt settles.
   const createBtn = button(
     "Create wallet",
     () => void withBusy(createBtn, submit).finally(refresh),

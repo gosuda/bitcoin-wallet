@@ -8,7 +8,7 @@ import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
 import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
-import { body, button, card, header, historyReset, labelled, lede, spacer, withBusy } from "../ui";
+import { body, button, card, header, historyReset, labelled, lede, spacer, withLock } from "../ui";
 
 /** How many words the user has to type back before the wallet is created. */
 const CHECKS = 3;
@@ -90,7 +90,7 @@ export function renderCreate(): HTMLElement {
           if (onScreen()) offer.report(e, () => createWallet(true));
         }
       };
-      const create = button("Create wallet", () => withBusy(create, createWallet), {
+      const create = button("Create wallet", () => withLock(create, createWallet), {
         variant: "primary",
         block: true,
         disabled: true,

@@ -9,7 +9,7 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, textInput } from "../../ui/dom";
 import { RECEIVE_QR_NOTE } from "../../ui/text";
-import { body, button, card, chips, header, labelled, lede, row, withBusy } from "../ui";
+import { body, button, card, chips, header, labelled, lede, row, withLock } from "../ui";
 
 export function renderReceive(): HTMLElement {
   const info = session.wallet;
@@ -79,9 +79,8 @@ export function renderReceive(): HTMLElement {
   const fresh: HTMLButtonElement = button(
     "New address",
     () =>
-      // Two taps used to reveal two addresses and show the second, quietly
-      // burning the first. `withBusy` exists for exactly this.
-      withBusy(fresh, async () => {
+      // A second tap while this runs would reveal another address, leaving the first unused.
+      withLock(fresh, async () => {
         alert.hide();
         try {
           address = await api.newAddress();

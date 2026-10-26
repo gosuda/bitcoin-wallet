@@ -26,7 +26,7 @@ import {
   labelled,
   lede,
   spacer,
-  withBusy,
+  withLock,
 } from "../ui";
 
 type Mode = "phrase" | "key" | "watch";
@@ -189,7 +189,7 @@ function phrase(cfg: AppConfig): HTMLElement {
     }
     await openWith(words, passphrase.value || undefined, door, reset, () => restore(true));
   };
-  const go = button("Restore wallet", () => withBusy(go, restore), {
+  const go = button("Restore wallet", () => withLock(go, restore), {
     variant: "primary",
     block: true,
   });
@@ -231,7 +231,7 @@ function singleKey(cfg: AppConfig): HTMLElement {
   const door = { cfg, alert, offer, onScreen, remember, fields };
   const open = (reset = false): Promise<void> =>
     openWith(secret.value.trim(), undefined, door, reset, () => open(true));
-  const go = button("Open wallet", () => withBusy(go, open), { variant: "primary", block: true });
+  const go = button("Open wallet", () => withLock(go, open), { variant: "primary", block: true });
 
   const generate = button("Generate new key", async () => {
     alert.hide();
@@ -287,7 +287,7 @@ function watchOnly(cfg: AppConfig): HTMLElement {
   const door = { cfg, alert, offer, onScreen, remember, fields };
   const follow = (reset = false): Promise<void> =>
     openWith(source.value.trim(), undefined, door, reset, () => follow(true));
-  const go = button("Follow this wallet", () => withBusy(go, follow), {
+  const go = button("Follow this wallet", () => withLock(go, follow), {
     variant: "primary",
     block: true,
     icon: "eye",
