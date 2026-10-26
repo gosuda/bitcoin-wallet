@@ -91,8 +91,8 @@ function step(route: Route, s: GuardState, shell: Shell): Route {
   if (KEY_ROUTES.has(route) && (s.configType === null || !isOpenable(s.configType))) {
     return "setup";
   }
-  // Unlock exists only where a key can outlive the session; in a browser there
-  // is nothing to unlock, so the route is unreachable rather than empty.
+  // Unlock exists only where a remembered wallet can open here (`unlockable`);
+  // elsewhere the route is unreachable rather than empty.
   if (route === "unlock" && !s.unlockable) return "key";
   return route;
 }

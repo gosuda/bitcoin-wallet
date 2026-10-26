@@ -38,7 +38,7 @@ export function renderUnlock(): HTMLElement {
       else offer.node.replaceWith(unlock);
     }
   };
-  // Unlock with or without biometrics, as the desktop's says.
+  // "Unlock" with or without biometrics, as on the desktop.
   const unlock = button("Unlock", () => withBusy(unlock, attempt), {
     variant: "primary",
     block: true,

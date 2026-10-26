@@ -279,11 +279,6 @@ export function renderSend(): HTMLElement {
 
   // --- validation -----------------------------------------------------------
   /**
-   * `touched` decides only whether a field may show its message. Review
-   * follows the values: a form filled in correctly is ready whether or not
-   * focus has left the last field.
-   */
-  /**
    * Custom validates what was typed, so a bad keystroke is flagged before
    * `rate` ever changes. A preset has no typed value to check — but its
    * estimate still becomes `rate`, and a backend that returns something
@@ -305,6 +300,11 @@ export function renderSend(): HTMLElement {
     return out;
   };
 
+  /**
+   * `touched` decides only whether a field may show its message. Review
+   * follows the values: a form filled in correctly is ready whether or not
+   * focus has left the last field.
+   */
   const refresh = (): void => {
     for (const r of rows) {
       setFieldError(

@@ -78,7 +78,7 @@ export function renderUnlock(): HTMLElement {
     gate();
   }
 
-  // Two-step inline confirm: the slot swaps between the trigger and the prompt.
+  // Two-step inline confirm: the trigger stays in the actions row, and the prompt opens below it.
   const forgetSlot = el("span", { className: "push-end" });
   const showTrigger = () => {
     forgetSlot.replaceChildren(forgetBtn);

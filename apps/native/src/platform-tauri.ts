@@ -1,10 +1,11 @@
 /**
  * The Tauri shell's half of the platform seam.
  *
- * The native side owns exactly two things: the config store (`get_config` /
- * `set_config`, plus the plugin store that holds the remembered-wallet record
- * and the lock time) and the OS keystore (`remember_secret` / `load_secret` /
- * `forget_secret`).
+ * The native side keeps the config store (`get_config` / `set_config`, plus
+ * the plugin store that holds the remembered-wallet record and the lock time)
+ * and the OS keystore (`remember_secret` / `load_secret` / `forget_secret`);
+ * its plugins also read and write the clipboard, open links, carry chain
+ * requests and, on the phone, scan and ask for biometrics.
  * Nothing wallet-shaped crosses the IPC boundary.
  */
 

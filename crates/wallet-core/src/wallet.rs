@@ -1401,7 +1401,7 @@ impl WalletHandle {
         Ok(())
     }
 
-    /// Sign and finalize a PSBT produced by [`Self::build_transfer`].
+    /// Sign and finalize a PSBT built by any of this wallet's `build_*` methods.
     pub async fn sign(&self, psbt_base64: &str) -> Result<String> {
         self.require_keys()?;
         let mut psbt = parse_psbt(psbt_base64)?;

@@ -1,7 +1,7 @@
 //! Key material handling: hex / WIF / BIP39 mnemonic parsing, address
 //! derivation and descriptor construction.
 //!
-//! Two shapes of wallet live here:
+//! Three shapes of wallet live here:
 //!
 //! - **single-key** ([`KeyMaterial::PrivHex`], [`KeyMaterial::Wif`]): one
 //!   secret, one address, one keychain. Change comes back to that same address.
@@ -34,7 +34,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 use crate::network::Network;
 use crate::{Error, Result};
 
-/// Output script types supported for a single-key wallet.
+/// The output script type of a wallet's addresses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AddressType {

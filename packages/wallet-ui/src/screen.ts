@@ -32,10 +32,6 @@ export function redirect(route: Route): HTMLElement {
  * wallet-identity check taken at render start would read as a swap on every
  * single success, not just a real navigation away. This is the guard those
  * screens use instead.
- *
- * Call this once, while the screen is being built — see `screenGuard`'s own
- * doc comment for why: a guard created later belongs to a later moment and
- * cannot speak for work already in flight.
  */
 export function routeGuard(): () => boolean {
   const route = currentRoute();
@@ -61,9 +57,6 @@ export function routeGuard(): () => boolean {
  * session has moved on to a different wallet, and `screenGuard`'s combined
  * check would also suppress it on a plain navigation that never touched the
  * wallet at all.
- *
- * Call this once, while the screen is being built — see `screenGuard`'s own
- * doc comment for why.
  */
 export function sameWalletGuard(): () => boolean {
   const openedFor = session.wallet?.wallet_id ?? "";
@@ -87,6 +80,10 @@ export function sameWalletGuard(): () => boolean {
  *
  * This is not a substitute for disabling a button while its own work runs;
  * that is `withBusy`, and it answers a different question.
+ *
+ * Call this, like `routeGuard` and `sameWalletGuard`, once while the screen is
+ * being built: a guard created later belongs to a later moment and cannot
+ * speak for work already in flight.
  */
 export function screenGuard(): () => boolean {
   const onRoute = routeGuard();

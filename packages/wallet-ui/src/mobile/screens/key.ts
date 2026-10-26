@@ -6,8 +6,6 @@ import { body, button, card, header, lede, spacer } from "../ui";
 import { setRestoreMode } from "./restore";
 
 export function renderKey(): HTMLElement {
-  // Every type this screen can be reached with has an account layout: a config
-  // naming P2PK, which has none, is sent back to Setup by the route guard.
   const open = (mode: "phrase" | "key" | "watch") => () => {
     setRestoreMode(mode);
     navigate("restore");
@@ -16,6 +14,8 @@ export function renderKey(): HTMLElement {
   return el("main", {}, [
     header("Start a wallet", { back: "setup" }),
     body(
+      // Every type this screen can be reached with has an account layout: a
+      // config naming P2PK, which has none, is sent back to Setup by the route guard.
       card(
         el("span", { className: "m-card-title", text: "New wallet" }),
         lede("Generates a 12-word recovery phrase. Write it down — it is the only way back in."),

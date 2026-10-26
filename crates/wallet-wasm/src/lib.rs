@@ -354,10 +354,11 @@ impl Wallet {
         to_js(&self.inner.list_transactions().await)
     }
 
-    /// `{ sat_per_vb_by_target: { "1": 12.3, ... } }`.
+    /// `Map { sat_per_vb_by_target: Map { "1" => 12.3, ... } }`, which
+    /// `normalize.ts` flattens into a plain object.
     pub async fn estimate_fee(&self) -> Result<JsValue, JsValue> {
         let fee = self.inner.estimate_fee().await.map_err(core_err)?;
-        // BTreeMap<u16, f64> keys become strings in JS objects.
+        // String keys ("1", not 1), as a JSON object has them.
         let obj: std::collections::BTreeMap<String, f64> = fee
             .sat_per_vb_by_target
             .iter()

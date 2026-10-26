@@ -243,13 +243,13 @@ export function labelled(text: string, control: HTMLElement, note?: string): HTM
   return label;
 }
 
-/**
- * A destructive action in two taps: the trigger replaces itself with what
- * will happen and a Delete / Keep pair. Every place a wallet can be forgotten
- * goes through this, so the phone never destroys anything on one tap.
- */
 let confirmSeq = 0;
 
+/**
+ * A destructive action in two taps: the trigger replaces itself with what will
+ * happen and a Delete / Keep pair. Every place a wallet can be forgotten goes
+ * through this, so the phone never destroys anything on one tap.
+ */
 export function confirmDanger(opts: {
   trigger: string;
   triggerVariant?: "danger" | "quiet";

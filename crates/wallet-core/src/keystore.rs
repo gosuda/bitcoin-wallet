@@ -4,7 +4,7 @@
 //! (feature `keystore-native`) stores it in the OS credential store — macOS
 //! Keychain, Windows Credential Manager, Secret Service on Linux, iOS Keychain,
 //! Android Keystore — so a wallet can be unlocked on later launches without
-//! re-entering the key. Browser builds get their own implementation later.
+//! re-entering the key.
 //!
 //! Mobile takes a different route to the same place. `keyring`'s `v1` wrapper
 //! finds and installs the platform store itself on desktop, but on iOS and

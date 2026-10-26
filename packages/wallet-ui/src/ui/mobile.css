@@ -661,7 +661,7 @@ button.m-txrow:active {
   background: var(--subtle);
 }
 
-/* The Transaction screen's larger badge; after the base rule on purpose. */
+/* The Transaction screen's larger badge. */
 .m-tx-hero .m-dirdot {
   width: 44px;
   height: 44px;

@@ -90,12 +90,12 @@ describe("whoseInputs", () => {
     expect(whoseInputs([theirs, theirs])).toBe("none from this wallet");
   });
 
-  // Found in review: a mining payout read "from another wallet".
   // No transaction has none; said anyway rather than "all from this wallet".
   it("says no wallet for no inputs", () => {
     expect(whoseInputs([])).toBe("from no wallet");
   });
 
+  // Found in review: a mining payout read "from another wallet".
   it("says a coinbase's coins are newly mined", () => {
     const coinbase = { txid: "0".repeat(64), vout: 0xffff_ffff, ours: false };
     expect(whoseInputs([coinbase])).toBe("newly mined");

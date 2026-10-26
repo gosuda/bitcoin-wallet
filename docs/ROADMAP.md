@@ -1672,11 +1672,22 @@ but comments.
 
 **Comments that are wrong**
 
-- [ ] **10.1 Comments that say something false, or sit on the wrong item, are corrected** · S ·
+- [x] **10.1 Comments that say something false, or sit on the wrong item, are corrected** · S ·
   all areas
       why: the browser has something to unlock since app passwords, the Tauri platform does
       more than two things, "two shapes" lists three, a doc promises a plain object where a
-      `Map` arrives, and several comments describe the test or function above or below them
+      `Map` arrives, and several comments describe the test or function above or below them ·
+      done: 2026-10-27 — in the UI: Unlock's guard no longer says the browser has nothing to
+      unlock, the route list says the desktop's guard sends the phone's routes to the wallet,
+      the Tauri platform's header names its plugins as well as the config store and the
+      keystore, and a display and a text test's comments, the phone Send's `refresh` doc and
+      `confirmDanger`'s doc sit on what they describe; `screenGuard`'s doc now says it is made
+      once while the screen is built, where two pointers sent the reader. In the core: "three
+      shapes" of wallet, `AddressType` for every wallet, no promise of a browser keystore,
+      `sign` for any of the `build_*` methods, and `estimate_fee` returning a nested `Map` that
+      `normalize.ts` flattens. In mobile.css, the badge rule's specificity, not its place,
+      makes it win. `git diff -U0` shows only comments; the gates pass, the 251 states are
+      byte-identical, and the rebuilt wasm package differs only in that doc's text
 
 **Stylesheets**
 

@@ -9,8 +9,8 @@ export const ROUTES = [
   "result",
   "settings",
   "psbt",
-  // Mobile-only destinations. Harmless on desktop, which simply never links
-  // to them; the shell decides which routes it can render.
+  // Phone-only destinations; the desktop's guard sends them to the wallet
+  // (`PHONE_ONLY` in guards.ts).
   "receive",
   "scan",
   "tx",

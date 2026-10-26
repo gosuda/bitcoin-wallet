@@ -16,10 +16,6 @@ installNativeFetch();
 const PLATFORM = import.meta.env.TAURI_ENV_PLATFORM as string | undefined;
 const MOBILE = PLATFORM === "ios" || PLATFORM === "android";
 
-// Whether a key can outlive the session is a runtime fact here, not a build-time
-// one: the same binary has a working keychain on desktop and none on an unsigned
-// iOS build. Ask before anything renders, so the UI never offers to remember a
-// key it would then drop.
 /**
  * Routes a `bitcoin:` URI to the Send screen with the payment filled in.
  *
