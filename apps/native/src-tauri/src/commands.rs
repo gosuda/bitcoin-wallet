@@ -36,20 +36,16 @@ pub async fn get_config(app: AppHandle) -> AppResult<AppConfig> {
 
 #[tauri::command]
 pub async fn set_config(app: AppHandle, config: AppConfig) -> AppResult<()> {
-    // Both checked before anything is persisted: a saved config the webview's
-    // HTTP proxy can never reach — an unparseable URL, or a scope grant that
-    // fails — is worse than refusing the save outright, since the UI would
-    // report success and then every sync would fail against a backend the
-    // app can never actually get scope for.
+    // A config the webview's proxy can never reach (an unparseable URL, or a
+    // scope grant that fails) is refused, not saved: the UI would report
+    // success and every sync then fail. So the URL is checked first, and the
+    // scope granted before the write, once nothing else here can fail.
     let pattern = backend_origin_pattern(&config.backend).ok_or_else(|| {
         AppError::new("config", "the Esplora URL must be a plain http(s) address")
     })?;
     let store = app.store(STORE_FILE)?;
     let value =
         serde_json::to_value(&config).map_err(|e| AppError::new("config", e.to_string()))?;
-    // Grant scope only once nothing left here can fail but the disk write
-    // itself: the alternative order — grant last — is what could leave a
-    // config the proxy could never reach persisted as if it had saved clean.
     grant_backend_scope(&app, &pattern)?;
     store.set(STORE_KEY, value);
     store.save()?;
@@ -67,26 +63,17 @@ fn backend_origin_pattern(backend: &BackendConfig) -> Option<String> {
 }
 
 /// Grants the webview's HTTP proxy exactly `pattern`. `capabilities/*.json`
-/// grant `http:default` no scope at all, so without this call every chain
-/// request the webview makes is refused — this is the only thing that ever
-/// opens it up, and only to the one origin the user actually chose, in
-/// place of the `https://*:*` / `http://*:*` wildcard that used to sit in
-/// those files.
+/// grant `http:default` no scope at all, so this is the only thing that lets
+/// a chain request out, and only to an origin the user chose.
 ///
-/// The capability identifier is derived from `pattern` itself, not a fixed
-/// string: Tauri's dynamic ACL has no matching "revoke", only ever-extending
-/// grants, so a fixed identifier across calls would still work (each call
-/// independently resolves and merges its own scope) but would make every
-/// grant after the first look like a suspicious no-op to the next reader.
-/// One identifier per origin makes the accumulation explicit instead.
+/// The capability identifier is derived from `pattern`: Tauri's dynamic ACL
+/// only ever extends grants and has no "revoke", so one identifier per origin
+/// makes the accumulation explicit.
 ///
-/// Called once at startup for whatever was last saved (a remembered wallet
-/// syncs immediately on launch, without `set_config` ever running again
-/// this process) and again every time `set_config` saves a new one — so an
-/// origin granted earlier in the run stays reachable even after the backend
-/// is pointed elsewhere. Still a large narrowing — from any host on the
-/// internet to only origins this app was, at some point in this run,
-/// actually configured to talk to.
+/// Called at startup for whatever was last saved (a remembered wallet syncs
+/// on launch, before `set_config` runs) and on every `set_config`, so an
+/// origin granted earlier in the run stays reachable after the backend is
+/// pointed elsewhere.
 pub(crate) fn grant_backend_scope(app: &AppHandle, pattern: &str) -> AppResult<()> {
     let capability = CapabilityBuilder::new(format!("dynamic-backend-scope:{pattern}"))
         .window("main")
@@ -120,7 +107,7 @@ pub(crate) fn grant_stored_backend_scope(app: &AppHandle) {
 
 /// Whether the OS credential store can actually be used in this process.
 ///
-/// This is not a formality. On iOS the store is the data-protection keychain,
+/// On iOS the store is the data-protection keychain,
 /// which needs the app's `application-identifier` entitlement — an unsigned
 /// build has empty entitlements and every keychain call fails with `-34018`.
 /// The frontend asks once at startup so it can decline to offer "Remember on
@@ -133,10 +120,8 @@ pub async fn keystore_available(state: State<'_, AppState>) -> AppResult<bool> {
 /// Saves the unlock key for `wallet_id` in the OS credential store.
 ///
 /// `passphrase` is the optional BIP39 passphrase and is stored *with* the
-/// words: it is part of this wallet's identity — the same words under another
-/// passphrase are another wallet, with another `wallet_id` — and the credential
-/// store is already the security boundary for the words themselves. It applies
-/// only to a mnemonic; with a hex or WIF secret it is an error, not a no-op.
+/// words: it is part of this wallet's identity, and the credential store is
+/// already the security boundary for the words themselves.
 #[tauri::command]
 pub async fn remember_secret(
     state: State<'_, AppState>,

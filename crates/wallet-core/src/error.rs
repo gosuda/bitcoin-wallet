@@ -77,9 +77,7 @@ pub enum Error {
         required_sat_vb: Option<f64>,
         required_sat: Option<u64>,
     },
-    /// A send held to chosen coins was given none. Kept apart from
-    /// [`Error::BuildTx`] for the same reason every other build failure this
-    /// module can name precisely is.
+    /// A send held to chosen coins was given none.
     #[error("no coins were selected to fund this transaction")]
     NoUtxos,
     /// A coin the caller named is not an unspent output of this wallet: spent
@@ -225,10 +223,8 @@ fn frozen_note(frozen_sat: u64) -> String {
     }
 }
 
-/// The shape [`Error`] takes crossing the wasm and Tauri IPC boundaries.
-/// `Error` itself is not [`Serialize`] — nothing about the error domain
-/// forces every future variant to also be a wire format — this is that
-/// wire format, built once from whichever error actually occurred.
+/// The shape [`Error`] takes crossing the wasm and Tauri IPC boundaries. Both
+/// build it here, so they cannot drift; `Error` itself is not [`Serialize`].
 #[derive(Debug, Clone, Serialize)]
 pub struct ErrorPayload {
     pub code: &'static str,

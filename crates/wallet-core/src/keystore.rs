@@ -14,11 +14,6 @@
 //! themselves — Keychain Services in `protected` mode on iOS, and on Android
 //! SharedPreferences encrypted under an AES/GCM key held in the Android
 //! Keystore.
-//!
-//! That difference is invisible to the compiler: a missing store is a runtime
-//! failure on a device that builds perfectly well on CI. [`NativeKeystore::
-//! self_check`] exists so the app can find out at startup instead of when a
-//! user first presses "Remember".
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -150,17 +145,15 @@ mod backend {
     }
 }
 
-/// The wire shape [`KeyMaterial`] used to serialize as, kept private to this
+/// The wire form of [`KeyMaterial`] in the credential store, private to this
 /// module.
 ///
 /// `KeyMaterial` itself does not derive `Serialize`/`Deserialize`: every
 /// variant is either a secret or, for `WatchOnly`, material meant to move
 /// only through this module's own API, and a derive would make
 /// `serde_json::to_string(&key)` compile anywhere in the crate with nothing
-/// marking it as reading out spending material. This mirrors the exact enum
-/// shape the derive used to produce — same variant names, same
-/// `rename_all = "snake_case"`, same fields — so an entry a previous build
-/// wrote to the credential store still loads.
+/// marking it as reading out spending material. Its variant names, casing
+/// and fields are those of the entries already stored, so they keep loading.
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 #[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 #[serde(rename_all = "snake_case")]
@@ -192,10 +185,9 @@ impl From<&KeyMaterial> for StoredKey {
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 impl From<StoredKey> for KeyMaterial {
     fn from(stored: StoredKey) -> Self {
-        // `ref` bindings, not a move: `StoredKey` now zeroizes on drop, and
-        // Rust refuses to move a field out of a type that does. `stored`
-        // stays fully intact and gets wiped when it drops at the end of this
-        // call, after these clones have handed the data to the new value.
+        // `ref` bindings, not a move: `StoredKey` zeroizes on drop, and Rust
+        // refuses to move a field out of a type that does. `stored` is wiped
+        // when it drops at the end of this call, after the clones.
         match stored {
             StoredKey::PrivHex(ref s) => KeyMaterial::PrivHex(s.clone()),
             StoredKey::Wif(ref s) => KeyMaterial::Wif(s.clone()),
@@ -241,10 +233,6 @@ impl NativeKeystore {
     /// user has asked for anything, and there a failed store install already
     /// surfaces as `NoDefaultStore`.
     pub fn self_check(&self) -> Result<()> {
-        // A name of its own per call. The probe writes, reads back and deletes,
-        // so two checks running at once on one name race: the first deletes the
-        // credential the second is about to read, and a working credential
-        // store is reported broken.
         let entry = self.entry(&probe_entry_name())?;
 
         #[cfg(any(target_os = "ios", target_os = "android"))]
@@ -316,12 +304,8 @@ mod tests {
         assert_ne!(probe_entry_name(), probe_entry_name());
     }
 
-    /// The OS credential store holds JSON built from `StoredKey`, not
-    /// `KeyMaterial` directly, precisely so this shape can be pinned without
-    /// giving every caller of `serde_json::to_string` a `KeyMaterial` it can
-    /// accidentally serialize: entries written before HD support, or by an
-    /// older build, must keep loading, and every current variant must
-    /// round-trip through it.
+    /// The JSON shape of `StoredKey` is pinned: entries already stored keep
+    /// loading, and every variant round-trips.
     #[test]
     #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
     fn stored_key_json_shape_is_stable() {

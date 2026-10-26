@@ -453,11 +453,8 @@ mod tests {
 
     use super::*;
 
-    /// clap only checks an argument definition — like two arguments both
-    /// claiming the same short flag — the first time that subcommand is
-    /// actually parsed, so a broken one can sit unnoticed until someone
-    /// finally runs it for real. `debug_assert` forces every subcommand's
-    /// definition to be checked right here instead.
+    /// clap checks a subcommand's arguments (two claiming one short flag, say)
+    /// only when that subcommand is parsed; `debug_assert` checks them all.
     #[test]
     fn every_subcommand_has_a_well_formed_arg_definition() {
         Cli::command().debug_assert();

@@ -95,8 +95,7 @@ impl AddressType {
 
 /// Secret key material as supplied by the user. Zeroized on drop; `Debug` is
 /// redacted; not `Serialize`/`Deserialize` — see `keystore::StoredKey` for
-/// the one place this needs a wire form. That absence is load-bearing, not
-/// incidental:
+/// the one place this needs a wire form. This must not compile:
 ///
 /// ```compile_fail
 /// # let key = wallet_core::KeyMaterial::PrivHex(String::new());
@@ -198,10 +197,7 @@ impl KeyMaterial {
     /// so a caller that stored [`KeyMaterial`] can hand the string back and
     /// have [`Self::parse`] read it the same way again.
     ///
-    /// A mnemonic passphrase is not part of this string — it is the separate
-    /// [`Self::passphrase`] — so material round-trips exactly through
-    /// [`Self::parse`] alone, or through [`Self::parse_with_passphrase`] when
-    /// it carries one.
+    /// A mnemonic's passphrase is not part of it: see [`Self::passphrase`].
     pub fn secret(&self) -> String {
         match self {
             KeyMaterial::PrivHex(s) | KeyMaterial::Wif(s) | KeyMaterial::WatchOnly(s) => s.clone(),
@@ -764,8 +760,8 @@ mod tests {
         );
     }
 
-    /// Adding HD support must not move a single-key wallet: same addresses,
-    /// same id, same descriptors.
+    /// A single key's id and descriptor are pinned: a stored wallet must not
+    /// move.
     #[test]
     fn single_key_wallet_is_unchanged() {
         let key = KeyMaterial::PrivHex(SK1_HEX.into());
@@ -787,8 +783,8 @@ mod tests {
         ));
     }
 
-    /// The UI speaks serde names and the core used to parse only `id()`, so
-    /// the nested type needed a translation table on the TS side.
+    /// Both the serde name the UI speaks and `id()` parse; the id keeps
+    /// `id()`'s spelling.
     #[test]
     fn both_spellings_parse_and_ids_keep_the_old_one() {
         for t in AddressType::ALL {
@@ -985,9 +981,8 @@ mod tests {
                 let key = KeyMaterial::parse_with_passphrase(secret, passphrase).unwrap();
                 let plain = KeyMaterial::parse(secret);
                 assert_eq!(key.passphrase(), None);
-                // `secret()` and `passphrase()` are the two halves `Self`'s
-                // own doc comment says round-trip a stored key unchanged —
-                // the property the JSON equality used to stand in for.
+                // `secret()` and `passphrase()`: the two halves a stored key
+                // round-trips through.
                 assert_eq!(key.passphrase(), plain.passphrase());
                 assert_eq!(key.secret(), plain.secret());
             }
@@ -1193,10 +1188,8 @@ mod tests {
         }
     }
 
-    /// A multisig descriptor carries one `/0/*` per cosigner. Moving only the
-    /// first built an internal keychain that mixed one change key with the
-    /// other cosigners' receive keys, so the wallet watched and generated
-    /// change at scripts the real wallet never uses.
+    /// A multisig descriptor carries one `/0/*` per cosigner, and every one
+    /// moves to the change branch.
     #[test]
     fn every_cosigner_moves_to_the_change_branch() {
         let xpub = abandon_xpub();
@@ -1214,8 +1207,6 @@ mod tests {
         );
     }
 
-    /// Opening one of these as watch-only produced a wallet that looked
-    /// complete and refused every spend, with nothing explaining why.
     #[test]
     fn a_descriptor_with_private_keys_is_refused() {
         let xprv = "tprv8ZgxMBicQKsPeDgjzdC36fs6bMjGApWDNLR9erAXMs5skhMv36j9MV5ecvfavji5khqjWaWSFhN3YcCUUdiKH6isR4Pwy3U5y5egddBr16m";

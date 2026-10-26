@@ -7,8 +7,6 @@
 //! fund two different receive addresses, spend, and check where the change
 //! landed.
 
-// Only ever compiled as a test. Saying so lets clippy's test exemption
-// reach the helpers here, not just the #[test] functions.
 #![cfg(test)]
 
 mod common;

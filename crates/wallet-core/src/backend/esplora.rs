@@ -18,19 +18,17 @@ const PARALLEL_REQUESTS: usize = 4;
 /// each request of a scan.
 const CALL_DEADLINE_SECS: u64 = 30;
 
-// A scan has no budget of its own. It is many round trips, as many as the
-// wallet's history needs: after the scripts, BDK fetches one block hash per
-// confirmation height, one after another. A fixed budget cut a long history off
-// every time on a slow link, and a scan that is cut off keeps nothing, so such
-// a wallet never finished its first sync. What catches a hung server is the
-// bound on each request instead: reqwest's timeout natively, and in a webview
-// the shell's `fetch` (`packages/wallet-ui/src/net.ts`), because on wasm32
-// `esplora-client` does not pass its timeout on to reqwest.
+// A scan has no budget of its own: it is as many round trips as the history
+// needs (BDK fetches one block hash per confirmation height, in turn), and a
+// scan cut off keeps nothing. Each request is bounded instead: by reqwest's
+// timeout natively, and in a webview by the shell's `fetch`
+// (`packages/wallet-ui/src/net.ts`), since on wasm32 `esplora-client` does
+// not pass its timeout on to reqwest.
 
 /// Bound a single backend call in time.
 ///
 /// On wasm32 `esplora-client` drops the timeout it is given, so without this a
-/// hung endpoint hung the wallet wherever the shell had not bounded the request
+/// hung endpoint hangs the wallet wherever the shell does not bound the request
 /// itself. Natively it also bounds the client's retries, each of which gets
 /// reqwest's per-request timeout afresh, and a caller sees the same
 /// [`Error::Timeout`] on every target.
@@ -96,10 +94,8 @@ impl EsploraBackend {
 
 /// Map a backend error, keeping "it did not answer in time" distinguishable.
 ///
-/// reqwest reports its own per-request timeout natively. Folding that into a
-/// generic `Backend` error gave the same situation two different codes
-/// depending on the target, since wasm has only the deadline above and always
-/// produced `Timeout`.
+/// reqwest reports its own per-request timeout natively; it is a `Timeout`
+/// too, as the deadline gives on wasm32, so one situation has one code.
 fn map_err(e: EsploraError) -> Error {
     if let EsploraError::Reqwest(ref inner) = e
         && inner.is_timeout()
@@ -162,9 +158,8 @@ impl ChainBackend for EsploraBackend {
 mod tests {
     use super::*;
 
-    /// The native branch used to be a no-op that returned the future untouched,
-    /// so a single call was bounded nowhere but the browser. There, this race
-    /// is the only bound a hung endpoint meets unless the shell sets one.
+    /// In the browser this race is the only bound a hung endpoint meets unless
+    /// the shell sets one.
     #[cfg_attr(not(target_arch = "wasm32"), tokio::test)]
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     async fn the_deadline_actually_fires() {

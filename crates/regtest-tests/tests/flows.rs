@@ -5,8 +5,6 @@
 //! bump and reopen; `hd.rs` the account layout and a passphrase's separate
 //! wallet.
 
-// Only ever compiled as a test. Saying so lets clippy's test exemption
-// reach the helpers here, not just the #[test] functions.
 #![cfg(test)]
 
 use std::str::FromStr;

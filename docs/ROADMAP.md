@@ -1917,9 +1917,13 @@ but comments.
       CLI helper for sign and broadcast (it returns four values to callers that build their own
       JSON) and a test-vector module (it saves no line). The regtest crate builds and lists the
       same 12 tests; they run in CI
-- [ ] **10.20 The Rust comments say what holds** · M · `crates/*`, `src-tauri/src`
+- [x] **10.20 The Rust comments say what holds** · M · `crates/*`, `src-tauri/src`
       why: comments tell what the code used to do, a fact is explained in up to five files, and
-      a few restate the line below
+      a few restate the line below · done: 2026-10-27 — 33 history comments, the long and
+      flowery ones, eleven facts said in several files (said once where they are defined), and
+      the restating ones; the rescan test's assert message now says what it checks. BIP, BDK,
+      CVE and platform reasons, safety notes and every clap doc stay. Only comments and that
+      one string change; the wasm `.d.ts` is unchanged
 
 **CI and the generator**
 

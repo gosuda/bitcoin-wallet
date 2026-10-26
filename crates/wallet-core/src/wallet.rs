@@ -177,8 +177,7 @@ pub struct TxSummary {
     pub confirmations: Option<u32>,
     /// Block time when confirmed, else when the transaction was first seen in
     /// the mempool; seconds since the epoch, `None` if never seen. Not last
-    /// seen: every sync sees a pending transaction again, and a payment stuck
-    /// for hours read "just now".
+    /// seen: every sync sees a pending transaction again.
     pub timestamp: Option<u64>,
 }
 
@@ -431,13 +430,10 @@ fn bump_error(e: bdk_wallet::error::BuildFeeBumpError) -> Error {
     }
 }
 
-/// Every [`bdk_wallet::error::LoadError`] variant means the same thing at
-/// this boundary: the persisted record does not correspond to the wallet
-/// being opened — wrong network, wrong genesis, wrong descriptor, or a
-/// required field missing outright. None of that is actionable detail for
-/// a caller; what matters is that it is [`Error::CorruptState`], not
-/// [`Error::Persist`] (an I/O failure), so the UI can offer to reset rather
-/// than retry.
+/// Every [`bdk_wallet::error::LoadError`] means the persisted record is not
+/// this wallet's (network, genesis, descriptor, or a missing field): it is
+/// [`Error::CorruptState`], not [`Error::Persist`], so the UI offers a reset
+/// rather than a retry.
 fn load_error(_: bdk_wallet::error::LoadError) -> Error {
     Error::CorruptState {
         reason: "mismatch",
@@ -476,12 +472,8 @@ pub struct WalletHandle {
     address_type: AddressType,
     id: String,
     is_hd: bool,
-    /// Whether the external descriptor derives a range of addresses.
-    ///
-    /// Not the same question as `is_hd`, which says whether there is a separate
-    /// *change* keychain. An imported `wpkh(xpub/*)` has one keychain and no
-    /// change branch, yet still derives successive addresses — deciding address
-    /// rotation from `is_hd` pinned such a wallet to index zero forever.
+    /// Whether the external descriptor derives a range of addresses; see
+    /// [`Self::is_ranged`].
     ranged: bool,
     watch_only: bool,
 }
@@ -536,13 +528,9 @@ impl WalletHandle {
         backend: Box<dyn ChainBackend>,
         mut persister: Box<dyn Persister>,
     ) -> Result<Self> {
-        // P2PK is a script the wallet can derive and print — `address_for_key`
-        // reports its public key, and the CLI generates one — but not a wallet
-        // it can run. The descriptor is a bare script, and BDK reaches
-        // `unimplemented!("Unknown ScriptContext type")` while working out how
-        // to sign it, so the first send would end the process rather than fail.
-        // HD and watch-only already turn P2PK away for their own reasons; this
-        // is the third door.
+        // P2PK derives and prints (`address_for_key`) but cannot run as a
+        // wallet: BDK reaches `unimplemented!("Unknown ScriptContext type")`
+        // signing a bare script, so the first send would end the process.
         if config.address_type == AddressType::P2pk {
             return Err(Error::Unsupported(
                 "a p2pk wallet cannot spend: the bare script has no signing context; use p2pkh, np2wpkh, p2wpkh or p2tr"
@@ -785,11 +773,9 @@ impl WalletHandle {
     /// Walk every keychain from the start again, looking `stop_gap` unused
     /// scripts past the last used one.
     ///
-    /// [`Self::sync`] full-scans only a wallet with no history yet; after that
-    /// it re-checks revealed scripts and nothing more. A wallet restored from
-    /// a phrase that had spread its funds further than the default gap would
-    /// therefore show too little, and keep showing it — this is the way out.
-    /// Nothing is discarded: the result merges into what is already known.
+    /// [`Self::sync`] full-scans only a wallet with no history yet, so funds
+    /// spread further than the default gap stay unseen until this runs. The
+    /// result merges into what is already known.
     pub async fn rescan(&self, stop_gap: u32) -> Result<()> {
         if stop_gap == 0 || stop_gap > MAX_STOP_GAP {
             return Err(Error::Unsupported(format!(
@@ -895,11 +881,8 @@ impl WalletHandle {
             .sum()
     }
 
-    /// A build's result, with a shortfall told what the frozen coins it could
-    /// otherwise have drawn on hold, and whether every coin of this wallet is
-    /// frozen: the screens say exactly that, so for a fee bump too it is not
-    /// limited to the confirmed coins a bump could add. A send held to chosen
-    /// coins names its coins itself, so frozen ones were never its to use.
+    /// A build's result, a shortfall's frozen coins filled in as
+    /// [`Error::InsufficientFunds`] describes them.
     fn short_of_frozen<T>(built: Result<T>, wallet: &Wallet, draw: Draw) -> Result<T> {
         built.map_err(|e| {
             let confirmed_only = match draw {
@@ -1324,7 +1307,6 @@ impl WalletHandle {
             };
             builder.finish().map_err(build_error)
         };
-        // Built once at the rate to learn its size, then again at the fee.
         let probe = build(&mut inner.wallet, None)?;
         let child_vsize = Self::signed_vsize(&inner, &probe.unsigned_tx)?;
         let package_fee = fee_at(rate, parent.vsize() as u64 + child_vsize);
@@ -1336,13 +1318,8 @@ impl WalletHandle {
         Self::summarize(&inner, psbt, Paid::Rebuilt)
     }
 
-    /// Describe a built PSBT.
-    ///
-    /// Ownership alone cannot separate a payment from change when the
-    /// destination belongs to this wallet: a Max to one of our own addresses
-    /// reported the entire amount as change and nothing paid out, so Review
-    /// showed a transaction that sent nowhere. [`Paid`] carries what the build
-    /// aimed at, which settles it.
+    /// Describe a built PSBT, telling payment from change by what the build
+    /// aimed at ([`Paid`]).
     fn summarize(inner: &Inner, psbt: Psbt, paid: Paid<'_>) -> Result<BuiltTx> {
         let fee_sat = psbt.fee().map_err(|e| Error::Psbt(e.to_string()))?.to_sat();
         let tx = &psbt.unsigned_tx;
@@ -1621,9 +1598,8 @@ mod tests {
     }
 
     /// An imported `wpkh(xpub/*)` has a wildcard but no `/0/*` change branch,
-    /// so it opens as a single keychain and `is_hd` is false. Rotation used to
-    /// follow `is_hd`, which pinned such a wallet to index zero: every "new
-    /// address" handed back the one already given out.
+    /// so it opens as a single keychain and `is_hd` is false. It still hands
+    /// out a new address each time.
     #[tokio::test]
     async fn a_ranged_single_keychain_still_rotates_addresses() {
         // Take the xpub from a real HD wallet through the public API rather
@@ -1801,12 +1777,9 @@ mod tests {
         dest(AddressType::P2wpkh)
     }
 
-    /// A recipient that does not change between runs.
-    ///
-    /// `dest` makes a fresh key each call, so the transaction paying it has a
-    /// different sighash every run and its signatures come out at whatever
-    /// length that draw produces. Any test that measures a signed size needs
-    /// this one instead, or it is measuring the dice.
+    /// A recipient that does not change between runs. `dest` makes a fresh
+    /// key each call, so the signatures paying it vary in length: a test that
+    /// measures a signed size needs this one.
     fn fixed_dest(t: AddressType) -> String {
         let key = KeyMaterial::PrivHex(
             "0000000000000000000000000000000000000000000000000000000000000002".into(),
@@ -1869,10 +1842,8 @@ mod tests {
         }
     }
 
-    /// A review prints the fee next to the size that fee buys, so the size has
-    /// to be the signed one: it was the unsigned template's, a fifth short for
-    /// a segwit spend, and the rate a reader divides out of the two was wrong
-    /// by that fifth.
+    /// A review prints the fee next to the size that fee buys, so the size is
+    /// the signed one (`signed_vsize`).
     #[tokio::test]
     async fn a_built_transaction_reports_the_size_its_fee_pays_for() {
         for t in [
@@ -2381,10 +2352,9 @@ mod tests {
     }
 
     /// A send the wallet chose coins for says, when it falls short, what the
-    /// frozen coins it left out hold, and whether they were all it had; "need
-    /// 11 more" from a wallet with every coin frozen reads as an empty wallet
-    /// otherwise. A send held to chosen coins names its coins itself, and
-    /// says nothing of frozen ones.
+    /// frozen coins it left out hold, and whether they were all it had. A
+    /// send held to chosen coins names its coins itself, and says nothing of
+    /// frozen ones.
     #[tokio::test]
     async fn a_shortfall_says_what_frozen_coins_hold() {
         let (handle, _) = open(AddressType::P2wpkh).await;
@@ -2441,8 +2411,8 @@ mod tests {
     }
 
     /// "Every coin is frozen" only when it is. A coin worth less than what
-    /// its own input costs in fee leaves nothing available either, found in
-    /// review: the UI took that for every coin frozen, with this one not.
+    /// its own input costs in fee leaves nothing available either, and it is
+    /// not frozen.
     #[tokio::test]
     async fn a_coin_too_small_to_spend_is_not_a_frozen_one() {
         let (handle, _) = open(AddressType::P2wpkh).await;
@@ -2469,7 +2439,7 @@ mod tests {
     }
 
     /// A fee bump that needs another coin says what the frozen ones hold, as
-    /// a send does; found in review. BDK adds confirmed coins only to a bump,
+    /// a send does. BDK adds confirmed coins only to a bump,
     /// so a frozen coin still unconfirmed is not counted.
     #[tokio::test]
     async fn a_short_fee_bump_says_what_frozen_coins_hold() {
@@ -2486,7 +2456,7 @@ mod tests {
         let sent = handle.broadcast(&signed).await.unwrap();
 
         // The send's change is unconfirmed and unfrozen: frozen coins hold
-        // what a bump could add, but not every coin is frozen. Found in review.
+        // what a bump could add, but not every coin is frozen.
         let short = handle.build_fee_bump(&sent.txid, 100.0).await.unwrap_err();
         assert!(
             matches!(
@@ -2507,7 +2477,7 @@ mod tests {
     }
 
     /// A pending transaction is dated by when it was first seen, in the list
-    /// and in its detail: every sync sees it again. Found in review.
+    /// and in its detail: every sync sees it again.
     #[tokio::test]
     async fn a_pending_transaction_is_dated_by_when_it_was_first_seen() {
         let (handle, _) = open(AddressType::P2wpkh).await;
@@ -3032,10 +3002,8 @@ mod tests {
         handle.sign(&built.psbt_base64).await.unwrap();
     }
 
-    /// BDK signals replaceability by default when nothing overrides it, so
-    /// this held before `set_exact_sequence` too — but it held as a property
-    /// of a default that a future BDK release is free to change, not of this
-    /// code. This pins the promise the fee-bump doc comment makes.
+    /// Pins the replaceability the fee-bump doc promises, which the builds set
+    /// themselves rather than leave to BDK's default.
     #[tokio::test]
     async fn transfer_and_drain_signal_replaceability() {
         let (handle, _) = funded(AddressType::P2wpkh, 200_000).await;
@@ -3056,9 +3024,7 @@ mod tests {
     }
 
     /// Sending to yourself is legitimate — consolidating, or moving to a
-    /// fresh address — and the summary has to describe it truthfully. Judging
-    /// by ownership alone called the whole payment change and reported nothing
-    /// sent, so Review showed a transaction that went nowhere.
+    /// fresh address — and the summary counts it as sent, not as change.
     #[tokio::test]
     async fn a_drain_to_our_own_address_still_reports_what_it_sends() {
         let (handle, _) = open_hd(AddressType::P2wpkh).await;
@@ -3089,9 +3055,8 @@ mod tests {
     }
 
     /// A single key receives and returns change on one address, so a payment
-    /// to yourself and the change it leaves are the same script. Recognising
-    /// the payment by its script alone claimed both outputs, and Review said
-    /// the wallet was spending its whole balance on a 40,000 sat transfer.
+    /// to yourself and the change it leaves are the same script: one output
+    /// is the payment, the other the change.
     #[tokio::test]
     async fn a_single_key_paying_itself_still_keeps_its_change() {
         let (handle, _) = funded(AddressType::P2wpkh, 100_000).await;
@@ -3104,11 +3069,8 @@ mod tests {
         assert_eq!(built.change_sat, 100_000 - 40_000 - built.fee_sat);
     }
 
-    /// The same rule with several inputs, where legacy is the worst case: a
-    /// signature can grind one byte under the maximum the descriptor promises,
-    /// so the reviewed size runs up to a byte per input above what the network
-    /// finally sees — and never under it, and never at a rate other than the
-    /// one that was asked for.
+    /// The same with several inputs, where legacy is the worst case: the
+    /// review stays an upper bound, at the rate asked for.
     #[tokio::test]
     async fn a_multi_input_review_keeps_the_rate_and_stays_an_upper_bound() {
         for t in [AddressType::P2pkh, AddressType::P2wpkh] {
@@ -3116,10 +3078,6 @@ mod tests {
         }
     }
 
-    /// P2PK is a key this crate can derive and print, not a wallet it can run:
-    /// BDK reaches `unimplemented!` working out how to sign a bare script, so
-    /// a send would end the process. Opening one is refused, and the two
-    /// screens before it — HD and watch-only — already refuse it too.
     #[tokio::test]
     async fn a_p2pk_wallet_is_refused_rather_than_left_to_panic() {
         let key = crate::keys::generate_key(Network::Regtest, AddressType::P2pk).unwrap();
@@ -3165,8 +3123,7 @@ mod tests {
     /// What is persisted is chain state, not a key. BDK's changeset holds
     /// `DescriptorPublicKey`s and the secrets are re-attached from the
     /// descriptor handed to `load`, so the store a browser or a desktop keeps
-    /// in IndexedDB carries nothing that could spend. SECURITY.md says so;
-    /// this is what makes that true rather than hoped.
+    /// in IndexedDB carries nothing that could spend, as SECURITY.md says.
     #[tokio::test]
     async fn persisted_state_carries_no_spending_material() {
         for material in [

@@ -36,10 +36,6 @@ fn js_error(code: &str, message: &str) -> JsValue {
 }
 
 fn core_err(e: wallet_core::Error) -> JsValue {
-    // `ErrorPayload` is the one place that decides this shape; building it
-    // here instead of calling `e.code()`/`e.to_string()`/`e.details()`
-    // separately means the wasm and Tauri boundaries cannot drift apart on
-    // what a wire error looks like.
     let payload = wallet_core::ErrorPayload::from(&e);
     let err = js_error(payload.code, &payload.message);
     // JSON-compatible, so `details` is the value `JSON.parse` gives the Tauri
@@ -63,8 +59,6 @@ fn to_js<T: serde::Serialize>(v: &T) -> Result<JsValue, JsValue> {
     serde_wasm_bindgen::to_value(v).map_err(other_err)
 }
 
-/// What a wallet-core call returned, as JS: the value through [`to_js`], or
-/// the error through [`core_err`].
 fn core_to_js<T: serde::Serialize>(result: wallet_core::Result<T>) -> Result<JsValue, JsValue> {
     to_js(&result.map_err(core_err)?)
 }
@@ -168,10 +162,6 @@ pub fn validate_mnemonic(words: &str) -> Result<(), JsValue> {
 }
 
 /// Key material for a secret plus an optional BIP39 passphrase.
-///
-/// The passphrase is part of the wallet's identity, so every entry point whose
-/// answer depends on the seed takes it. It only applies to a mnemonic: handing
-/// one in with a hex or WIF secret is an error rather than a silent no-op.
 fn parse_key(secret: &str, passphrase: Option<String>) -> Result<KeyMaterial, JsValue> {
     KeyMaterial::parse_with_passphrase(secret, passphrase.as_deref()).map_err(core_err)
 }

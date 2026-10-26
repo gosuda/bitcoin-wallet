@@ -74,13 +74,11 @@ impl Network {
             .next()
             .unwrap_or("");
         // Drop any userinfo and port: blockstream.info:443 is the same explorer
-        // as blockstream.info, and comparing the raw authority sent a user with
-        // an explicit port to mempool.space instead of their own backend.
+        // as blockstream.info.
         let host = authority.rsplit('@').next().unwrap_or(authority);
         let host = host.split(':').next().unwrap_or(host);
         // blockstream.info does not serve testnet4. Hostnames are
-        // case-insensitive, and a backend typed with any capitals matched
-        // nothing and sent its own transactions to mempool.space.
+        // case-insensitive.
         let base = if host.eq_ignore_ascii_case("blockstream.info") && self != Network::Testnet4 {
             "https://blockstream.info"
         } else {
@@ -158,9 +156,8 @@ mod tests {
                 .as_deref(),
             Some("https://blockstream.info/signet/tx/ab")
         );
-        // An explicit port names the same explorer. Comparing the whole
-        // authority sent these users to a different one than they configured.
-        // …and so does any capitalisation: hostnames are case-insensitive.
+        // Userinfo, an explicit port and any capitalisation name the same
+        // explorer.
         for url in [
             "https://blockstream.info:443/signet/api",
             "https://user@blockstream.info:443/signet/api",
