@@ -1,6 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from "vitest";
-import { platform, setPlatform } from "../src/platform";
+import { describe, expect, it, vi } from "vitest";
 import { session } from "../src/session";
 import { deferred, fake } from "./fakes";
 import { buttonNamed, leaveTo, rememberSaved, settle, useScreenHarness } from "./harness";
@@ -18,14 +17,12 @@ function unlocking(gate: Promise<void>): void {
   });
 }
 
-/** The phone's openers read the remembered record back once the wallet is open. */
-function readingBack(gate: Promise<void>): void {
-  setPlatform({
-    ...platform(),
-    getRemembered: async () => {
-      await gate;
-      return null;
-    },
+/** The other openers hand the key to the core; its open is what waits. */
+function opening(gate: Promise<void>): void {
+  const open = fake.FakeWallet.open;
+  vi.spyOn(fake.FakeWallet, "open").mockImplementation(async () => {
+    await gate;
+    return open();
   });
 }
 
@@ -41,7 +38,7 @@ const LATE_OPENERS = [
 describe.each(LATE_OPENERS)("an open that finishes after $name was left", (opener) => {
   it("opens the wallet, and leaves the screen the user went to alone", async () => {
     const { promise, resolve: release } = deferred<void>();
-    const hold = opener.remembered ? unlocking : readingBack;
+    const hold = opener.remembered ? unlocking : opening;
     hold(promise);
     const screen = await opener.render();
 

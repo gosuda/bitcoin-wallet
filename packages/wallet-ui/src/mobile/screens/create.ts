@@ -72,15 +72,19 @@ export function renderCreate(): HTMLElement {
 
       const createWallet = async (reset = false): Promise<void> => {
         alert.hide();
+        if (!remember.ready()) return;
+        const willRemember = remember.checked();
         try {
           const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-          await open(
+          const info = await open(
             generated.words,
             cfg.address_type,
-            remember.checked(),
+            willRemember,
             passphrase.value || undefined,
+            remember.appPassword(),
           );
-          session.remembered = await api.getRemembered();
+          passphrase.value = "";
+          if (willRemember) session.remembered = info;
           if (onScreen()) navigate("dashboard");
         } catch (e) {
           if (onScreen()) offer.report(e, () => createWallet(true));

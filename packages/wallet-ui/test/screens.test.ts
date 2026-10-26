@@ -35,6 +35,7 @@ import {
   useScreenHarness,
   withClipboard,
 } from "./harness";
+import { OPENERS } from "./openers";
 
 useScreenHarness();
 
@@ -338,6 +339,43 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
     expect(session.wallet?.network).toBe("testnet4");
   });
 });
+
+// The record is read at start and written by Remember; an open does not read it back.
+describe.each(OPENERS.filter((o) => !o.remembered))(
+  "$name, on a device that keeps keys (6.2)",
+  (opener) => {
+    it("remembers what it opened with Remember ticked, though the record cannot be read back", async () => {
+      setPlatform({
+        ...platform(),
+        canRememberWallet: true,
+        getRemembered: async () => {
+          throw new Error("the record cannot be read");
+        },
+      });
+      const screen = await opener.render();
+      for (const box of screen.querySelectorAll<HTMLInputElement>("input[name=remember]")) {
+        box.click();
+      }
+
+      buttonNamed(screen, opener.press).click();
+      await settle();
+
+      expect(window.location.hash).toBe("#/dashboard");
+      expect(session.remembered).toMatchObject(fake.SAVED);
+    });
+
+    it("leaves the remembered record as it was with Remember unticked", async () => {
+      rememberSaved({ inSession: false });
+      const screen = await opener.render();
+
+      buttonNamed(screen, opener.press).click();
+      await settle();
+
+      expect(window.location.hash).toBe("#/dashboard");
+      expect(session.remembered).toBeNull();
+    });
+  },
+);
 
 describe("coin control reaches the core (6.3)", () => {
   it("a build with chosen coins takes the coin-control path, and one without does not", async () => {

@@ -1762,10 +1762,20 @@ but comments.
       another wallet opened: on the code before, the phone failed both ("expected '#/result' to
       be '#/settings'", and a result recorded where null was expected) and the desktop passed;
       both pass on both shells after
-- [ ] **10.7 The phone opens a wallet the way the desktop does** · M · `mobile/screens/*`
+- [x] **10.7 The phone opens a wallet the way the desktop does** · M · `mobile/screens/*`
       why: the phone's Create and Restore read the remembered record back after every open, so
       a failed read put an error over a wallet that opened, and an open without Remember
-      overwrote the session's record
+      overwrote the session's record · done: 2026-10-27 — the phone's Create and its three
+      Restores return unless Remember is ready, read the box once, pass its app password on,
+      empty their secret fields once the wallet is open, set the session's record from the open
+      only when they remembered, and move on only while on screen, as the desktop's Create,
+      Restore and Key do; Restore reads the settings when drawn. late-open's hold moved from
+      the read-back this removes to the core's open, so it still fails when a phone opener
+      moves on after it was left. Sixteen new tests run every way in but Unlock with Remember
+      ticked over a store that cannot be read, and unticked: before, the eight phone ones
+      failed (the phone stayed on its screen, or set the store's record) and the eight desktop
+      ones passed; all pass after. On a phone the key store takes no app password, so what
+      changes there is that an open no longer reads the store
 - [ ] **10.8 What the UI modules write twice is written once, and unused exports go** · S ·
   `src/*.ts`, `wasm/`, `apps/native/src`
       why: the fee-rate check, the phone's routes, the address prefixes, a normalizer and the
