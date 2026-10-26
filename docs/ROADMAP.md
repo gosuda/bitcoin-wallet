@@ -1739,8 +1739,15 @@ but comments.
       after it was left, and others) fail the same tests before and after. Code lines in test/
       5,369 to 5,296. The same 444 names pass with the same assertion count each, and the 251
       states are byte-identical
-- [ ] **10.5 The UI tests' comments say what holds** · S · `test/*`
-      why: 35 comments tell who found a bug in review, or what a screen used to say
+- [x] **10.5 The UI tests' comments say what holds** · S · `test/*`
+      why: 35 comments tell who found a bug in review, or what a screen used to say · done:
+      2026-10-27 — the tagged history (found in review, by cubic, in Round 9, "the defect this
+      guards", a dated bug, "this test asserted the opposite") and the "used to say" comments
+      are gone where the test's name or code says the rest, and rewritten in the present tense
+      where they say more; the narrating and flowery ones are cut to their point, and "the
+      fakes stand in for every file" is said once, in setup-fakes.ts. Board, BIP and decision
+      references stay. Comment lines in test/ 482 to 421; `git diff -U0` shows only comments,
+      and the same 444 tests pass
 
 **The UI: behaviour made alike, modules and screens**
 

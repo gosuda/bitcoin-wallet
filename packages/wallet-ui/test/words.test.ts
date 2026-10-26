@@ -4,9 +4,7 @@ import { wipeOnLeave } from "../src/ui/words";
 import { leaveTo } from "./harness";
 
 describe("wipeOnLeave", () => {
-  // The defect this guards: a typed private key, passphrase or pasted
-  // descriptor survived a route change because nothing zeroed it before the
-  // node was detached — only removal from view, not from memory.
+  // Detaching a field takes it from view, not from memory.
   it("clears every field's value on the next route change", () => {
     const key = document.createElement("input");
     const descriptor = document.createElement("textarea");
@@ -38,8 +36,6 @@ describe("wipeOnLeave", () => {
     expect(detached).toBe(true);
   });
 
-  // `inputs` is a function, not a snapshot, so a screen that rebuilds its
-  // grid (e.g. 12 words become 24) after arming this is still covered.
   it("reads the field list lazily, so a field added after arming is still wiped", () => {
     let fields: HTMLInputElement[] = [];
     wipeOnLeave(() => fields);

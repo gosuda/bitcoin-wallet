@@ -31,9 +31,8 @@ describe("screenGuard", () => {
     expect(onScreen()).toBe(false);
   });
 
-  // The defect this guard was rewritten for. Route and wallet alone are equal
-  // across the two visits, so a promise from the abandoned render read as
-  // current and drove the freshly built one.
+  // Route and wallet alone are equal across the two visits: a promise from the
+  // abandoned render must not read as current.
   it("does not revive when the user returns to the same screen", () => {
     const firstVisit = screenGuard();
     leaveTo("settings");
@@ -78,9 +77,7 @@ describe("screenGuard", () => {
 });
 
 describe("sameWalletGuard", () => {
-  // The property screenGuard's own tests can't isolate: a plain navigation
-  // must not trip this half, or a still-current wallet's own broadcast
-  // result would go unrecorded just because the user changed screens.
+  // A broadcast's result is still the wallet's after the user changes screens.
   it("holds across a route change", () => {
     const sameWallet = sameWalletGuard();
     leaveTo("settings");

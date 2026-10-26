@@ -41,7 +41,6 @@ const LATE_OPENERS = [
 describe.each(LATE_OPENERS)("an open that finishes after $name was left", (opener) => {
   it("opens the wallet, and leaves the screen the user went to alone", async () => {
     const { promise, resolve: release } = deferred<void>();
-    // Installs a platform whose step after the press waits on `promise`.
     const hold = opener.remembered ? unlocking : readingBack;
     hold(promise);
     const screen = await opener.render();
@@ -52,9 +51,7 @@ describe.each(LATE_OPENERS)("an open that finishes after $name was left", (opene
     release();
     await settle();
 
-    // It went through, so the wallet is open wherever the user is now…
     expect(session.wallet?.wallet_id).toBe(fake.SAVED.wallet_id);
-    // …but the screen they went to is theirs.
     expect(window.location.hash).toBe("#/setup");
   });
 });

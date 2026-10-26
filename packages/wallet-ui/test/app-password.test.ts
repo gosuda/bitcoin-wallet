@@ -262,7 +262,6 @@ describe("Unlock in the browser asks for the app password (6.12)", () => {
     expect(window.location.hash).toBe("#/unlock");
     expect(browser.records.has(WALLET_ID)).toBe(true);
 
-    // Typing again takes the error away; the right password then opens it.
     type(password, PASSWORD);
     expect(errorUnder(password)).toBe("");
     buttonNamed(screen, "Unlock").click();
@@ -372,7 +371,7 @@ describe("where the OS keystore keeps the key, nothing asks for an app password 
 
     buttonNamed(screen, "Unlock").click();
     await landsOn("dashboard");
-    // Asked by wallet id alone, as it always was.
+    // By wallet id alone: an OS keystore takes no password.
     expect(loadSecret).toHaveBeenCalledWith(WALLET_ID);
   });
 });

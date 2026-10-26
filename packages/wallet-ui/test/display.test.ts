@@ -74,8 +74,7 @@ describe("ids and addresses (7.3)", () => {
     expect(texts(screen, ".m-io-note")).toEqual(["change, back to this wallet"]);
   });
 
-  // In the desktop detail's word, "Received": the two details matched until
-  // the phone's outputs moved into a card.
+  // In the desktop detail's word, "Received".
   it("notes an incoming output of this wallet's as received on the phone", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const RECEIVED = "ab".repeat(32);
@@ -129,8 +128,7 @@ describe("ids and addresses (7.3)", () => {
 });
 
 describe("amounts and rates (7.4)", () => {
-  // Below the relay minimum the core builds at 1 sat/vB anyway; the note used
-  // to name the raw estimate, "0.10 sat/vB", a rate the send would not pay.
+  // Below the relay minimum the core builds at 1 sat/vB anyway.
   it("names the rate the phone's Send will pay, never one under the floor", async () => {
     fake.state.estimate = { "6": 0.1 };
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
@@ -139,7 +137,6 @@ describe("amounts and rates (7.4)", () => {
     expect(texts(screen, ".m-txmeta")).toContain("1.0 sat/vB");
   });
 
-  // Found in review: the "—" was painted over with zeros as the page was built.
   it("shows no desktop balance until one is read", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = mountAt("dashboard", renderDashboard);
@@ -150,8 +147,7 @@ describe("amounts and rates (7.4)", () => {
     expect(find(screen, ".stat-hero").textContent).not.toBe("—");
   });
 
-  // Found in review: the desktop's Send said "From" and the wallet's address,
-  // which for a recovery phrase is only the next receiving address.
+  // Not the wallet's address: for a recovery phrase that is only the next receiving address.
   it("heads the desktop's Send with the network and server, as its other screens", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = mountAt("send", renderSend);
@@ -159,8 +155,6 @@ describe("amounts and rates (7.4)", () => {
     expect(find(screen, ".screen-head .muted").textContent).toContain(" · ");
   });
 
-  // Found in review: with no rate in the estimate, the desktop said "No
-  // estimate available" and the phone named 1.0 sat/vB as if estimated.
   it("says an estimate with no rate is unavailable, alike on both Send screens", async () => {
     fake.state.estimate = {};
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
@@ -173,8 +167,7 @@ describe("amounts and rates (7.4)", () => {
     expect(texts(phone, ".m-txmeta")).toContain("Estimate unavailable — starting at 1.0 sat/vB");
   });
 
-  // Found by cubic: a rate under the floor was named as typed while the core
-  // paid its 1 sat/vB, and 7.55 was named 7.5 and built at 7.55.
+  // A rate under the floor is paid, and named, at the floor.
   it("builds and names a typed rate rounded up to a tenth on the desktop's Send", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     for (const [typed, paid] of [
@@ -211,9 +204,8 @@ describe("amounts and rates (7.4)", () => {
     expect(screen.textContent).toContain("7.6\u00a0sat/vB");
   });
 
-  // Found by cubic: the banner asked for whole sat in BTC too. Review waits
-  // for a valid amount, so that banner is a fallback, now unit-neutral; what
-  // the screen says is the field's own reason, in the unit typed.
+  // Review waits for a valid amount, so the banner, which names no unit, is
+  // only a fallback: the field says why.
   it("says why an amount is not valid in the unit it is typed in", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = await showAt("send", renderSend);
@@ -253,7 +245,6 @@ describe("pending, confirmations and time (7.5)", () => {
     expect(texts(phone, ".m-txmeta .m-pending")).toEqual(["Pending"]);
   });
 
-  // The phone's detail said "0 — in the mempool" under a "Pending" pill.
   it("says Pending in the phone's detail, never a count of 0", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     fake.state.details[SENT] = { ...sent, confirmations: null, block_height: null };
@@ -279,8 +270,6 @@ describe("pending, confirmations and time (7.5)", () => {
 });
 
 describe("one word for each action (7.6)", () => {
-  // The desktop's Unlock asked "Really forget?" with no warning, and its way
-  // out said "key" where the phone's said "wallet".
   it("offers the same way out and the same Forget on both Unlock screens", () => {
     rememberSaved();
 
@@ -289,11 +278,10 @@ describe("one word for each action (7.6)", () => {
       expect(buttonNamed(screen, "Use a different wallet")).toBeTruthy();
       buttonNamed(screen, "Forget this wallet").click();
       expect(screen.textContent).toContain(forgetWarning(null));
-      // Found in review: the button alone said only "Delete it".
+      // Read out with the button, which alone says only "Delete it".
       const yes = buttonNamed(screen, "Delete it");
       const described = document.getElementById(yes.getAttribute("aria-describedby") ?? "");
       expect(described?.textContent).toBe(forgetWarning(null));
-      // Found by cubic: Keep it took the focus with it.
       buttonNamed(screen, "Keep it").click();
       expect(document.activeElement).toBe(buttonNamed(screen, "Forget this wallet"));
       buttonNamed(screen, "Forget this wallet").click();
@@ -301,9 +289,6 @@ describe("one word for each action (7.6)", () => {
     }
   });
 
-  // Found in review: the desktop said "this transaction is not in the
-  // wallet's history" where the phone wrote a sentence, and every message
-  // the core wrote reached a banner in lower case.
   it("says every banner as a sentence", () => {
     const alert = banner();
     alert.show("error", "this transaction is not in the wallet's history");
@@ -336,8 +321,7 @@ describe("one name for each thing (7.7)", () => {
     }
   });
 
-  // Found in review: the phone showed the core's words, "(word 3)" for the
-  // fourth word, where the desktop names the word by its place.
+  // The core says "(word 3)" for the fourth word; the screen names it by its place.
   it("names an unknown word by its place on the phone's Restore too", async () => {
     setRestoreMode("phrase");
     const screen = mountAt("restore", renderPhoneRestore);
@@ -358,7 +342,6 @@ describe("one name for each thing (7.7)", () => {
     expect(find(screen, ".banner").textContent).toBe('Word 4 "xyz" is not in the word list.');
   });
 
-  // Found in review: "your history" on one shell, "Copy both" on the other.
   it("says what public keys give away, and copies them, alike on both shells", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const desktop = mountAt("settings", renderSettings);
@@ -380,15 +363,13 @@ describe("one name for each thing (7.7)", () => {
     expect(phone.textContent).toContain(RECEIVE_QR_NOTE);
   });
 
-  // Found in review: "Esplora endpoint" on one shell, where the other asked
-  // which chain and where to read it from.
   it("says what Setup chooses alike on both shells", () => {
     for (const render of [renderSetup, renderPhoneSetup]) {
       expect(mountAt("setup", render).textContent).toContain(SETUP_LEDE);
     }
   });
 
-  // Found by cubic: a blank cell before an unknown word shifted its number.
+  // A blank before an unknown word would shift the number the core gives it.
   it("asks for every word on the phone's Restore before it checks one", async () => {
     setRestoreMode("phrase");
     const screen = mountAt("restore", renderPhoneRestore);
@@ -412,7 +393,6 @@ describe("one name for each thing (7.7)", () => {
     }
   });
 
-  // The phone's Create had no warning that the passphrase is half the backup.
   it("warns about the passphrase in the same words wherever one is set", async () => {
     for (const render of [renderCreate, renderPhoneCreate]) {
       const screen = await showAt("create", render);

@@ -83,8 +83,7 @@ describe("Settings on the desktop (6.8)", () => {
     expect(find(screen, ".banner").textContent).toContain("Rescanned with a gap of 100");
   });
 
-  // Found in review: the gap chips stay live while a rescan runs, and the
-  // banner read the gap again once it answered.
+  // The gap chips stay live while a rescan runs.
   it("names the gap the rescan ran with, though another is chosen meanwhile", async () => {
     const screen = await openSettings();
     const rescan = deferred<Balance>();

@@ -1,11 +1,8 @@
 /*
  * Helpers for screen tests: real screens, rendered in jsdom over the real
- * `api`, `session` and route guards, with only the WebAssembly wrapper and
- * the IndexedDB persister replaced (`fakes.ts`). So what fails is a screen's
- * own handling of secrets, errors and work that outlives it.
- *
- * The fakes are in place for every file (`setup-fakes.ts`); a test file
- * calls `useScreenHarness()` once in its body.
+ * `api`, `session` and route guards, so what fails is a screen's own handling
+ * of secrets, errors and work that outlives it. A test file calls
+ * `useScreenHarness()` once in its body.
  */
 
 import { afterEach, beforeEach, expect, vi } from "vitest";
@@ -177,7 +174,6 @@ export function useScreenHarness(): void {
   afterEach(async () => {
     await api.closeWallet();
     // A test that sets it and then fails must not leave it to the next one.
-    // Found by cubic.
     session.remembered = null;
     vi.restoreAllMocks();
     document.body.replaceChildren();

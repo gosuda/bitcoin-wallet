@@ -1,7 +1,5 @@
 /*
- * What jsdom cannot provide to the screens: the WebAssembly wrapper and the
- * IndexedDB persister. `setup-fakes.ts` puts these in their place for every
- * test file.
+ * Stand-ins for the WebAssembly wrapper and the IndexedDB persister.
  *
  * This module imports nothing that imports the wasm wrapper, so a mock
  * factory can load it. The helpers that drive screens are in `harness.ts`.

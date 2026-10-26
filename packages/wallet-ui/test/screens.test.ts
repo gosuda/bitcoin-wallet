@@ -188,8 +188,6 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(root.dataset.scanning).toBeUndefined();
   });
 
-  // Found in Round 9: Scan read the clipboard itself, which a Tauri webview
-  // refuses with nothing the user could allow, so its Paste failed in the apps.
   it("Scan's Paste reads through the platform where the page's own clipboard is refused", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = await showAt("scan", renderPhoneScan);

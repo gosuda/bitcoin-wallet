@@ -18,13 +18,12 @@ describe("isBumpable", () => {
     expect(isBumpable(tx({ confirmations: null, net_sat: -1000 }))).toBe(true);
   });
 
-  // Replacing a confirmed transaction is impossible; offering it is a lie.
   it("refuses anything already mined, however shallowly", () => {
     expect(isBumpable(tx({ confirmations: 1 }))).toBe(false);
     expect(isBumpable(tx({ confirmations: 0 }))).toBe(false);
   });
 
-  // We cannot replace what we did not author.
+  // Only this wallet's own send can be replaced.
   it("refuses an incoming payment even while unconfirmed", () => {
     expect(isBumpable(tx({ confirmations: null, net_sat: 1000 }))).toBe(false);
     expect(isBumpable(tx({ confirmations: null, net_sat: 0 }))).toBe(false);
@@ -114,8 +113,8 @@ describe("suggestBumpRate", () => {
 
   // A real backend (bitcoin-rs, gosuda/bitcoin-rs#669) serves the relay
   // minimum as 1.0000000000000002 because it converts BTC/kvB in two steps.
-  // Rounding that ULP up made a 10% overpay; the noise is rounded away first
-  // now, and a real fraction is still rounded up (typeableRate's tests).
+  // Rounding that ULP up would overpay by 10%, so the noise is rounded away
+  // first; a real fraction is still rounded up (typeableRate's tests).
   it("costs nothing for a backend's float noise at the floor", () => {
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1.0000000000000002 } })).toBe(1);
     expect(suggestBumpRate({ sat_per_vb_by_target: { "1": 1 } })).toBe(1);

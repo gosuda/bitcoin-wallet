@@ -47,8 +47,6 @@ const ALL_CODES = [
 ] as const;
 
 describe("errorMessage", () => {
-  // The defect this whole table exists to fix: every message, however
-  // clear on its own, arrived with its machine-readable code stapled on.
   it("never appends the raw code to a message, for any known code", () => {
     for (const code of ALL_CODES) {
       const msg = errorMessage(new WalletError(code, `${code} message`));
@@ -110,7 +108,7 @@ describe("errorMessage", () => {
     expect(errorMessage(byRate)).toContain("4.5 sat/vB");
 
     // BDK's floor for a 141 vB send paid at 1 sat/vB: 501 sat/kwu. Rounded
-    // to the nearest tenth it read "2.0", which the core refuses again.
+    // to the nearest tenth it would read "2.0", which the core refuses again.
     const byKwu = new WalletError("fee_too_low", "x", {
       required_sat_vb: 501 / 250,
       required_sat: null,
@@ -124,7 +122,7 @@ describe("errorMessage", () => {
     expect(errorMessage(byAmount)).toContain(`${(2000).toLocaleString()} sat`);
   });
 
-  // Named as Setup and Settings name it, not "the backend". Found in review.
+  // Named as Setup and Settings name it, not "the backend".
   it("names the Esplora server when it does not answer", () => {
     const err = new WalletError("timeout", "x", { secs: 30 });
     expect(errorMessage(err)).toBe("The Esplora server did not answer within 30 s.");
@@ -159,8 +157,7 @@ describe("errorMessage", () => {
     expect(
       errorMessage(new WalletError("insufficient_funds", "x", { needed_sat: "not a number" })),
     ).toBe("x");
-    // A code this table has no special copy for is untouched, code and all
-    // gone from the *output* but the message itself passed through as-is.
+    // A code with no copy of its own shows its message as it is, without the code.
     expect(errorMessage(new WalletError("descriptor", "bad descriptor: x"))).toBe(
       "bad descriptor: x",
     );
@@ -199,9 +196,8 @@ describe("WalletError", () => {
     expect(isAppError(err)).toBe(true);
   });
 
-  // Guards the `exactOptionalPropertyTypes` fix: a `WalletError` built with
-  // no details must leave the property absent, not present-and-undefined —
-  // `AppError.details` only promises a value when the key exists at all.
+  // Under `exactOptionalPropertyTypes`, `AppError.details` promises a value
+  // wherever the key exists, so with none given the key is left out.
   it("has no details property at all when none is given", () => {
     const err = new WalletError("no_wallet", "no wallet is open");
     expect(Object.hasOwn(err, "details")).toBe(false);

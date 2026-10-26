@@ -248,8 +248,8 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
         cards.findIndex((c) => c.querySelector(".section-label")?.textContent === label);
       expect(place(action), action).toBeGreaterThan(0);
       expect(place(action), action).toBeLessThan(place("Transaction id"));
-      // Found in review: with every address whole, the outputs pushed Bump
-      // fee below the fold of a 375×667 phone.
+      // With every address whole, the outputs would push Bump fee below the
+      // fold of a 375×667 phone.
       const outputs = cards.findIndex((c) =>
         c.querySelector(".section-label")?.textContent?.startsWith("Outputs"),
       );
@@ -257,7 +257,6 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     }
   });
 
-  // Found in review: the field had no name once the button stopped naming the rate.
   it("names Bump fee's rate field for a screen reader", async () => {
     history(sent());
     const screen = await PHONE.show(OUTGOING);
@@ -307,8 +306,7 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.5]);
     expect(screen.textContent).toContain("7.5 sat/vB for the two together");
 
-    // Found by cubic: 7.55 read "7.5 sat/vB" and was built at 7.55. It is
-    // rounded up to a tenth, and built at what it says.
+    // Rounded up to a tenth, and built at what it says.
     type(rate, "7.55");
     await settle();
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.6]);
