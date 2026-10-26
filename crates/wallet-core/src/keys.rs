@@ -185,8 +185,8 @@ impl KeyMaterial {
         })
     }
 
-    /// Whether this material expands into a BIP32 account (receive + change
-    /// keychains) rather than a single key.
+    /// Whether this is a recovery phrase. An account xpub opens with a receive
+    /// and a change keychain too; [`wallet_is_hd`] says what a wallet reports.
     pub fn is_hd(&self) -> bool {
         matches!(self, KeyMaterial::Mnemonic { .. })
     }
@@ -457,6 +457,14 @@ pub(crate) enum Descriptors {
     },
 }
 
+impl Descriptors {
+    /// A receive and a change keychain: what [`crate::WalletHandle::is_hd`]
+    /// reports of a wallet opened with these.
+    pub(crate) fn is_hd(&self) -> bool {
+        matches!(self, Descriptors::Hd { .. })
+    }
+}
+
 /// Descriptors for the given key material — one for a single key, a pair for
 /// an HD account.
 pub(crate) fn descriptors_for(
@@ -478,6 +486,16 @@ pub(crate) fn descriptors_for(
         network,
         address_type,
     )?))
+}
+
+/// Whether a wallet opened from `key` is HD, as [`crate::WalletHandle::is_hd`]
+/// would report it, without opening one.
+pub fn wallet_is_hd(
+    key: &KeyMaterial,
+    network: Network,
+    address_type: AddressType,
+) -> Result<bool> {
+    Ok(descriptors_for(key, network, address_type)?.is_hd())
 }
 
 /// Extended private keys, across the version-byte variants wallets emit.

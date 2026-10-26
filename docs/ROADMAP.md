@@ -1881,10 +1881,15 @@ but comments.
 
 **The core, the CLI and the regtest tests**
 
-- [ ] **10.17 The CLI reports one `hd` for an address, new or not** · S · `wallet-cli`,
+- [x] **10.17 The CLI reports one `hd` for an address, new or not** · S · `wallet-cli`,
   `keys.rs`
       why: `address` reported the key's `is_hd()` and `address --new` the wallet's, which
-      differ for an xpub; the wallet's is the one the UI shows
+      differ for an xpub; the wallet's is the one the UI shows · done: 2026-10-27 — `address`
+      reports the wallet's `hd`, as `address --new` does, through the core's new
+      `keys::wallet_is_hd`, which asks the same `Descriptors::is_hd` the handle's `is_hd` now
+      uses; `KeyMaterial::is_hd`'s doc says it is about a recovery phrase. A new test runs
+      `address` for the test phrase, its account xpub and a hex key against each opened
+      wallet's `is_hd()`: it failed before (the xpub false, its wallet true) and passes
 - [ ] **10.18 The core reads a fee rate, a default rate and a name one way each** · M ·
   `wallet-core`, `wallet-wasm`, `wallet-cli`
       why: sat/kwu becomes sat/vB two ways, network and address-type names are parsed with

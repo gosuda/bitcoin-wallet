@@ -300,7 +300,8 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
             }
             let key = read_key(backend.key, backend.passphrase.as_ref().map(|p| p.as_str()))?;
             let address = wallet_core::address_for_key(&key, network, address_type)?;
-            Ok(serde_json::json!({ "address": address, "hd": key.is_hd() }))
+            let hd = wallet_core::keys::wallet_is_hd(&key, network, address_type)?;
+            Ok(serde_json::json!({ "address": address, "hd": hd }))
         }
         Cmd::Balance(a) => {
             let w = open(network, address_type, &a).await?;
@@ -605,6 +606,27 @@ mod tests {
             Cli::try_parse_from(["btcw", "send", "--max"]).is_err(),
             "--max still needs its --to"
         );
+    }
+
+    /// `address` reports `hd` as the wallet does, as `address --new` does: an
+    /// account xpub opens with a change keychain, though it is not a phrase.
+    #[tokio::test]
+    async fn address_reports_hd_as_the_wallet_does() {
+        let export = Cli::try_parse_from(["btcw", "-n", "regtest", "export", "--key", TEST_WORDS]);
+        let exported = run(export.unwrap()).await.unwrap();
+        let xpub = exported["account_xpub"].as_str().unwrap();
+        let hex = "0000000000000000000000000000000000000000000000000000000000000001";
+        for key in [TEST_WORDS, xpub, hex] {
+            let cli = Cli::try_parse_from(["btcw", "-n", "regtest", "address", "--key", key]);
+            let reported = run(cli.unwrap()).await.unwrap()["hd"].as_bool();
+            let args = BackendArgs {
+                url: None,
+                key: Some(Zeroizing::new(key.to_owned())),
+                passphrase: None,
+            };
+            let wallet = open(Network::Regtest, AddressType::P2wpkh, &args);
+            assert_eq!(reported, Some(wallet.await.unwrap().is_hd()), "{key}");
+        }
     }
 
     /// Opening the wallet needs no network, and the gap is checked before the

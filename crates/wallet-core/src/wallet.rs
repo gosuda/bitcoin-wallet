@@ -552,7 +552,7 @@ impl WalletHandle {
         let net = bdk_wallet::bitcoin::Network::from(config.network);
         let descriptors = descriptors_for(key, config.network, config.address_type)?;
         let id = wallet_id(key, config.network, config.address_type)?;
-        let is_hd = matches!(descriptors, Descriptors::Hd { .. });
+        let is_hd = descriptors.is_hd();
         let watch_only = key.is_watch_only();
 
         let stored = persister.initialize().await?;
