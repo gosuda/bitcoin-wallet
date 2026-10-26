@@ -185,7 +185,7 @@ export function renderSend(): HTMLElement {
       leaveDrain();
       const seq = drainSeq;
       const preview = await api.buildDrain(to, rate, heldTo(coins));
-      if (seq !== drainSeq) {
+      if (seq !== drainSeq || !onScreen()) {
         void api.discardTx(preview.psbt_id);
         return;
       }
@@ -196,7 +196,7 @@ export function renderSend(): HTMLElement {
       maxNote.textContent = maxModeNote(preview.total_out_sat + preview.fee_sat, preview.fee_sat);
       refresh();
     } catch (e) {
-      alert.show("error", errorMessage(e));
+      if (onScreen()) alert.show("error", errorMessage(e));
     }
   };
   max.addEventListener("click", () => void withLock(max, fillMax));

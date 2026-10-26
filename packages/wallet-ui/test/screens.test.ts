@@ -16,8 +16,8 @@ import { renderSend } from "../src/screens/send";
 import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
-import { NETWORK_LABELS, type Network } from "../src/types";
-import { fake, n } from "./fakes";
+import { type GeneratedKey, NETWORK_LABELS, type Network, type TxPreview } from "../src/types";
+import { deferred, fake, n } from "./fakes";
 import {
   BROADCAST,
   buttonNamed,
@@ -101,6 +101,58 @@ describe("secrets do not outlive their screen (1.3)", () => {
       expect(fields.map((f) => f.value)).toEqual(fields.map(() => ""));
     },
   );
+});
+
+/** What the core hands back for Generate new key. */
+const NEW_KEY: GeneratedKey = {
+  priv_hex: "22".repeat(32),
+  wif: "cNewKeyInWifForm",
+  pub_hex: `02${"33".repeat(32)}`,
+  address: fake.ADDRESS,
+};
+
+describe.each([
+  { shell: "desktop", screen: "Key", show: () => mountAt("key", renderKey) },
+  {
+    shell: "phone",
+    screen: "Restore, single key",
+    show: () => {
+      setRestoreMode("key");
+      return mountAt("restore", renderPhoneRestore);
+    },
+  },
+])("Generate new key on the $shell's $screen (1.3)", ({ show }) => {
+  /** The screen, with Generate new key pressed and the key it asked for held. */
+  async function generateHeld() {
+    const key = deferred<GeneratedKey>();
+    vi.spyOn(api, "generateKey").mockImplementationOnce(() => key.promise);
+    const screen = show();
+    const generate = buttonNamed(screen, "Generate new key");
+    generate.click();
+    await settle();
+    return { screen, generate, release: () => key.resolve(NEW_KEY) };
+  }
+
+  it("is off until its key lands", async () => {
+    const { generate, release } = await generateHeld();
+    expect(generate.disabled).toBe(true);
+
+    release();
+    await settle();
+
+    expect(generate.disabled).toBe(false);
+  });
+
+  it("puts a key that lands after the screen is left nowhere", async () => {
+    const { screen, release } = await generateHeld();
+
+    leaveTo("setup");
+    release();
+    await settle();
+
+    expect(find<HTMLInputElement>(screen, "input[name=secret]").value).toBe("");
+    expect(screen.textContent).not.toContain(NEW_KEY.wif);
+  });
 });
 
 describe("work that outlives its screen changes nothing (1.7)", () => {
@@ -248,6 +300,57 @@ describe.each([
 
     expect(session.lastResult).toBeNull();
     expect(window.location.hash).toBe("#/send");
+  });
+});
+
+describe.each([
+  { shell: "desktop", render: renderSend },
+  { shell: "phone", render: renderPhoneSend },
+])("a Max that lands once another wallet is open, on the $shell (1.7)", ({ render }) => {
+  /** Builds the drain Max asks for with `args`, and holds it until `gate` opens. */
+  type Build = (
+    gate: Promise<void>,
+    ...args: Parameters<typeof api.buildDrain>
+  ) => Promise<TxPreview>;
+
+  /** Send with an address typed and Max pressed, its drain held until another wallet is open. */
+  async function maxHeldPastAnotherOpen(build: Build) {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const screen = await showAt("send", render);
+    type(find(screen, 'input[placeholder$=" address"]'), fake.ADDRESS);
+    const gate = deferred<void>();
+    vi.spyOn(api, "buildDrain").mockImplementationOnce((...args) => build(gate.promise, ...args));
+    buttonNamed(screen, "Max").click();
+    await settle();
+
+    vi.spyOn(fake.FakeWallet.prototype, "id", "get").mockReturnValue("testnet4-p2wpkh-other");
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    gate.resolve();
+    await settle();
+    return screen;
+  }
+
+  it("fills nothing in, and discards the drain", async () => {
+    const drain = api.buildDrain;
+    const discardTx = vi.spyOn(api, "discardTx");
+    let built: TxPreview | undefined;
+    const screen = await maxHeldPastAnotherOpen(async (gate, ...args) => {
+      built = await drain(...args);
+      await gate;
+      return built;
+    });
+
+    expect(find<HTMLInputElement>(screen, 'input[placeholder="0"]').value).toBe("");
+    expect(discardTx).toHaveBeenCalledWith(built?.psbt_id);
+  });
+
+  it("says nothing of a drain that fails", async () => {
+    const screen = await maxHeldPastAnotherOpen(async (gate) => {
+      await gate;
+      throw new Error("the drain could not be built");
+    });
+
+    expect(screen.querySelector(".banner-visible")).toBeNull();
   });
 });
 

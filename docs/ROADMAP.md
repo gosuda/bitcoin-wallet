@@ -1866,10 +1866,18 @@ but comments.
       shells. Two new tests on both shells' Settings, with the wallet remembered and not:
       before, the phone failed both ("expected '#/setup' to be '#/unlock'", and '#/key') and
       the desktop passed; all pass after
-- [ ] **10.16 The phone guards work that lands after it is left, as the desktop does** · S ·
+- [x] **10.16 The phone guards work that lands after it is left, as the desktop does** · S ·
   `mobile/screens/restore.ts`, `mobile/screens/send.ts`
       why: a key generated on the phone's single-key Restore after the user left was written
-      into the field the leave had wiped, and Max kept less of the desktop's checks
+      into the field the leave had wiped, and Max kept less of the desktop's checks · done:
+      2026-10-27 — the phone's Generate new key runs under `withLock`, writes the key only
+      while its screen is shown and says a failure only there, and the phone's Max keeps a
+      drain only if the form and the screen are still the ones that asked, as the desktop's Key
+      and Max do. Four new tests on both shells: before, the phone's button stayed enabled
+      while the key was held, the key landed in the wiped field ("expected 'cNewKeyInWifForm'
+      to be ''"), and a Max that landed once another wallet was open filled the amount in and
+      showed its error; the desktop passed all four, and all pass after. Leaving Send already
+      moved the Max's sequence, so for a user the Max half changes nothing
 
 **The core, the CLI and the regtest tests**
 

@@ -193,17 +193,20 @@ function singleKey(cfg: AppConfig): HTMLElement {
     block: true,
   });
 
-  const generate = button("Generate new key", async () => {
-    alert.hide();
-    try {
-      const key = await api.generateKey(cfg.network, cfg.address_type);
-      secret.value = key.wif;
-      secret.type = "text";
-      alert.show("warn", KEY_SHOWN_ONCE);
-    } catch (e) {
-      alert.show("error", errorMessage(e));
-    }
-  });
+  const generate = button("Generate new key", () =>
+    withLock(generate, async () => {
+      alert.hide();
+      try {
+        const key = await api.generateKey(cfg.network, cfg.address_type);
+        if (!onScreen()) return;
+        secret.value = key.wif;
+        secret.type = "text";
+        alert.show("warn", KEY_SHOWN_ONCE);
+      } catch (e) {
+        if (onScreen()) alert.show("error", errorMessage(e));
+      }
+    }),
+  );
 
   return el("main", {}, [
     header("Single key", { back: "key" }),
