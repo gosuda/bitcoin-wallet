@@ -9,14 +9,10 @@ import { renderPsbt } from "../src/screens/psbt";
 import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
 import { type PsbtInput, type PsbtReview, WalletError } from "../src/types";
-import { fake } from "./fakes";
+import { fake, n, txid } from "./fakes";
 import { buttonNamed, find, mountAt, settle, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
-
-const txid = (head: string, tail: string): string => `${head}${"0".repeat(46)}${tail}`;
-
-const n = (sats: number): string => sats.toLocaleString();
 
 /** The addresses 7 and M14 are drawn with: a taproot recipient, and change of ours. */
 const RECIPIENT = "tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32";

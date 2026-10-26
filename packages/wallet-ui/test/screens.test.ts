@@ -17,7 +17,7 @@ import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
 import { NETWORK_LABELS, type Network } from "../src/types";
-import { fake } from "./fakes";
+import { fake, n } from "./fakes";
 import {
   buttonNamed,
   CONFIG,
@@ -142,7 +142,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(buildDrain).toHaveBeenCalledTimes(1);
     expect(screen.querySelector(".banner-visible")).toBeNull();
     expect(buttonNamed(screen, "Confirm and send")).toBeTruthy();
-    expect(screen.textContent).toContain((1000).toLocaleString());
+    expect(screen.textContent).toContain(n(1000));
   });
 
   it("leaving Scan stops the camera it opened, and the page is solid again", async () => {

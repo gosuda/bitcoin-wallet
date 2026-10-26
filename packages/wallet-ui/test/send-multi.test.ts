@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
 import { prefillSend, renderSend } from "../src/mobile/screens/send";
 import { platform, setPlatform } from "../src/platform";
-import { fake } from "./fakes";
+import { fake, n, nth } from "./fakes";
 import { buttonNamed, find, leaveTo, settle, showAt, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
@@ -19,12 +19,6 @@ async function openSend(): Promise<HTMLElement> {
 
 function all<T extends Element>(root: ParentNode, selector: string): T[] {
   return [...root.querySelectorAll<T>(selector)];
-}
-
-function nth<T>(items: readonly T[], i: number): T {
-  const item = items[i];
-  if (item === undefined) throw new Error(`nothing at ${i}`);
-  return item;
 }
 
 const addresses = (root: ParentNode) => all<HTMLInputElement>(root, "input[name=address]");
@@ -141,11 +135,11 @@ describe("several recipients on the phone (6.9)", () => {
     // Each payee whole: the review is where it is checked before it is signed.
     expect(all(review, "dt").map((t) => t.textContent)).toEqual([FIRST, SECOND, "Fee", "Total"]);
     expect(all(review, "dd").map((d) => d.textContent?.replace(/\u00a0/g, " "))).toEqual([
-      `${(30_000).toLocaleString()} sat`,
-      `${(18_000).toLocaleString()} sat`,
+      `${n(30_000)} sat`,
+      `${n(18_000)} sat`,
       // The rate it was built at (2, above), not the fee over the size.
       "141 sat · 2.0 sat/vB · 141 vB",
-      `${(48_141).toLocaleString()} sat`,
+      `${n(48_141)} sat`,
     ]);
 
     buttonNamed(screen, "Confirm and send").click();

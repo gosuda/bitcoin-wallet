@@ -4,22 +4,17 @@ import { api } from "../src/api";
 import { platform, setPlatform } from "../src/platform";
 import { session } from "../src/session";
 import { historyResetFixes, WalletError } from "../src/types";
-import { fake } from "./fakes";
+import { type FakeState, fake } from "./fakes";
 import { buttonNamed, find, settle, useScreenHarness } from "./harness";
 import { OPENERS, type Opener } from "./openers";
 
 useScreenHarness();
-
-/** The fake core gives every wallet this id, whatever opened it. */
-const WALLET_ID = "testnet4-p2wpkh-fake";
 
 // The canvas's words (MUnlockReset and its note), and that freezing goes with the history.
 const UNREADABLE = "The saved wallet data on this device cannot be read.";
 const TRIGGER = "Reset this device's history";
 const SECOND_STEP =
   "The key stays on this device. The history saved here is deleted and downloaded again on the next sync, and any coin you froze is unfrozen.";
-
-type Reason = "malformed" | "mismatch" | "future_version";
 
 function hasButton(root: ParentNode, name: string): boolean {
   return [...root.querySelectorAll("button")].some((b) => b.textContent?.trim() === name);
@@ -30,7 +25,7 @@ function hasButton(root: ParentNode, name: string): boolean {
  * store and the settings watched, and presses its button while the saved
  * record fails to read for `reason`.
  */
-async function failToOpen(opener: Opener, reason: Reason) {
+async function failToOpen(opener: Opener, reason: NonNullable<FakeState["corrupt"]>) {
   const watched = {
     forgetSecret: vi.fn(async () => undefined),
     setRemembered: vi.fn(async () => undefined),
@@ -85,12 +80,12 @@ describe("a wallet whose saved history cannot be read offers a reset (6.7)", () 
       await settle();
 
       expect(fake.calls.filter((c) => c[0] === "deleteWalletState")).toEqual([
-        ["deleteWalletState", WALLET_ID],
+        ["deleteWalletState", fake.SAVED.wallet_id],
       ]);
       expect(forgetSecret).not.toHaveBeenCalled();
       expect(setRemembered).not.toHaveBeenCalled();
       expect(setConfig).not.toHaveBeenCalled();
-      expect(session.wallet?.wallet_id).toBe(WALLET_ID);
+      expect(session.wallet?.wallet_id).toBe(fake.SAVED.wallet_id);
       expect(window.location.hash).toBe("#/dashboard");
     },
   );
@@ -154,7 +149,7 @@ describe("the reset deletes only a record that has just failed to read (6.7)", (
     await api.resetHistoryAndOpen(fake.PHRASE, "p2wpkh", false);
 
     expect(fake.callNames()).toEqual(["open"]);
-    expect(session.wallet?.wallet_id).toBe(WALLET_ID);
+    expect(session.wallet?.wallet_id).toBe(fake.SAVED.wallet_id);
   });
 
   it("leaves a record from a newer version alone", async () => {
@@ -181,6 +176,6 @@ describe("the reset deletes only a record that has just failed to read (6.7)", (
 
     expect(loadSecret).toHaveBeenCalledTimes(1);
     expect(fake.callNames()).toEqual(["open", "deleteWalletState", "open"]);
-    expect(session.wallet?.wallet_id).toBe(WALLET_ID);
+    expect(session.wallet?.wallet_id).toBe(fake.SAVED.wallet_id);
   });
 });

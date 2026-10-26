@@ -1,11 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from "vitest";
 import { wipeOnLeave } from "../src/ui/words";
-
-const navigateTo = (hash: string): void => {
-  window.location.hash = hash;
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
-};
+import { leaveTo } from "./harness";
 
 describe("wipeOnLeave", () => {
   // The defect this guards: a typed private key, passphrase or pasted
@@ -20,7 +16,7 @@ describe("wipeOnLeave", () => {
     wipeOnLeave(() => [key, descriptor]);
     expect(key.value).not.toBe("");
 
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
     expect(key.value).toBe("");
     expect(descriptor.value).toBe("");
   });
@@ -36,7 +32,7 @@ describe("wipeOnLeave", () => {
         detached = true;
       },
     );
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
 
     expect(input.value).toBe("");
     expect(detached).toBe(true);
@@ -52,7 +48,7 @@ describe("wipeOnLeave", () => {
     addedLater.value = "typed after the wipe was armed";
     fields = [addedLater];
 
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
     expect(addedLater.value).toBe("");
   });
 
@@ -60,9 +56,9 @@ describe("wipeOnLeave", () => {
     const input = document.createElement("input");
     wipeOnLeave(() => [input]);
 
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
     input.value = "typed on the next screen";
-    navigateTo("#/settings");
+    leaveTo("settings");
 
     expect(input.value).toBe("typed on the next screen");
   });

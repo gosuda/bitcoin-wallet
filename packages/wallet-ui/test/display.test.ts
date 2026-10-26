@@ -27,7 +27,7 @@ import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
-import { type TxDetail, WalletError } from "../src/types";
+import { WalletError } from "../src/types";
 import { banner } from "../src/ui/dom";
 import { formatTime, shortId } from "../src/ui/format";
 import {
@@ -42,7 +42,7 @@ import {
   SENT_TITLE,
   SETUP_LEDE,
 } from "../src/ui/text";
-import { fake } from "./fakes";
+import { fake, n } from "./fakes";
 import {
   buttonNamed,
   find,
@@ -57,26 +57,8 @@ import {
 useScreenHarness();
 
 const PAYEE = "tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32";
-const SENT = "772eeeec07e1338eb286f2cfc3455011a5fd69335c5b7d07bbcac8eb810de03a";
-
-/** 40,000 sat paid out of this wallet, its change back to it. */
-const sent: TxDetail = {
-  txid: SENT,
-  net_sat: -40_153,
-  sent_sat: 49_580,
-  received_sat: 9_427,
-  fee_sat: 153,
-  fee_rate_sat_vb: 1,
-  confirmations: 3,
-  block_height: 324_051,
-  timestamp: 1_790_000_000,
-  vsize: 153,
-  inputs: [{ txid: "cd".repeat(32), vout: 1, value_sat: 49_580, ours: true }],
-  outputs: [
-    { address: PAYEE, value_sat: 40_000, ours: false },
-    { address: fake.ADDRESS, value_sat: 9_427, ours: true },
-  ],
-};
+const sent = fake.sentTx(PAYEE, 3);
+const SENT = sent.txid;
 
 const texts = (root: ParentNode, selector: string): (string | null)[] =>
   [...root.querySelectorAll(selector)].map((e) => e.textContent);
@@ -257,7 +239,7 @@ describe("amounts and rates (7.4)", () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = await showAt("dashboard", renderPhoneWallet);
 
-    expect(texts(screen, ".m-amt")).toEqual([`−${(40_153).toLocaleString()} sat`]);
+    expect(texts(screen, ".m-amt")).toEqual([`−${n(40_153)} sat`]);
   });
 });
 

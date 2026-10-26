@@ -5,14 +5,13 @@ import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderDashboard } from "../src/screens/dashboard";
 import { session } from "../src/session";
 import type { FeeTarget, TxDetail } from "../src/types";
-import { fake } from "./fakes";
+import { fake, n } from "./fakes";
 import { at, buttonNamed, find, leaveTo, mount, settle, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
 
 // The two unconfirmed rows board 3c draws open, with its numbers.
 const INCOMING = "d0ff3c6274ec32caad0106af2f8e7b89e266655a59c71e6ce20890e9679c6d46";
-const OUTGOING = "772eeeec07e1338eb286f2cfc3455011a5fd69335c5b7d07bbcac8eb810de03a";
 
 /** 30,000 sat paid to this wallet by someone else, at 1 sat/vB. */
 const payment = (confirmations: number | null = null): TxDetail => ({
@@ -34,23 +33,9 @@ const payment = (confirmations: number | null = null): TxDetail => ({
 });
 
 /** 40,000 sat sent from this wallet at 1 sat/vB, with its change back. */
-const sent = (confirmations: number | null = null): TxDetail => ({
-  txid: OUTGOING,
-  net_sat: -40_153,
-  sent_sat: 49_580,
-  received_sat: 9_427,
-  fee_sat: 153,
-  fee_rate_sat_vb: 1,
-  confirmations,
-  block_height: confirmations === null ? null : 324_051,
-  timestamp: 1_790_000_000,
-  vsize: 153,
-  inputs: [{ txid: "cd".repeat(32), vout: 1, value_sat: 49_580, ours: true }],
-  outputs: [
-    { address: "tb1p5n82a6xmp47yhkkc007dzr4k32", value_sat: 40_000, ours: false },
-    { address: fake.ADDRESS, value_sat: 9_427, ours: true },
-  ],
-});
+const sent = (confirmations: number | null = null): TxDetail =>
+  fake.sentTx("tb1p5n82a6xmp47yhkkc007dzr4k32", confirmations);
+const OUTGOING = sent().txid;
 
 /** Puts `txs` in the wallet's history, each with the unspent coin it left this wallet. */
 function history(...txs: TxDetail[]): void {
@@ -71,8 +56,6 @@ function history(...txs: TxDetail[]): void {
     });
   }
 }
-
-const n = (sats: number): string => sats.toLocaleString();
 
 /** The buttons named `name` exactly, or whose name matches it. */
 function buttons(root: ParentNode, name: string | RegExp): HTMLButtonElement[] {

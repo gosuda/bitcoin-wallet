@@ -1713,9 +1713,18 @@ but comments.
 
 **The UI tests**
 
-- [ ] **10.3 The UI tests share their pure helpers and the send board 3c draws** · S · `test/*`
+- [x] **10.3 The UI tests share their pure helpers and the send board 3c draws** · S · `test/*`
       why: `n`, `nth` and `txid` are written in several files, the same 40,000-sat send in two,
-      and two files navigate by hand where the harness has `leaveTo`
+      and two files navigate by hand where the harness has `leaveTo` · done: 2026-10-27 — `n`,
+      `nth` and `txid` come from fakes.ts (a11y's four unchecked casts become `nth`), the
+      40,000-sat send is `fake.sentTx(payee, confirmations)` with each file keeping its payee,
+      reset and app-password read the wallet id from `fake.SAVED`, and the screen and words
+      tests use the harness's `leaveTo`. A throwaway test showed `sentTx` gives each file's old
+      fixture exactly; four mutations of `routeGuard` and `wipeOnLeave` fail the same tests
+      under the old navigation and the new. `buttonsNamed`, `texts`, `wordBoxes` and the key
+      and descriptor constants were measured and not taken: each makes imports wrap and costs
+      more lines than it saves. Code lines in test/ 5,396 to 5,369. The same 444 test names
+      pass with the same assertion count each, and the 251 states are byte-identical
 - [ ] **10.4 The UI tests remember, hold, paste, scan and open a detail through shared
   helpers** · M · `test/*`
       why: seven tests set up a device that remembers the wallet, eight build a promise to

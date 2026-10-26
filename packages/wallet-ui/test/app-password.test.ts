@@ -17,8 +17,7 @@ import { typeWords } from "./openers";
 
 useScreenHarness();
 
-/** The fake core gives every wallet this id, whatever opened it. */
-const WALLET_ID = "testnet4-p2wpkh-fake";
+const WALLET_ID = fake.SAVED.wallet_id;
 const KEY = "11".repeat(32);
 const PASSWORD = "correct horse battery staple";
 /** Few rounds, so a test does not wait on the real count; a record carries its own. */
