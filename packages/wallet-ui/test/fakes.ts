@@ -46,6 +46,15 @@ export function nth<T>(items: readonly T[], i: number): T {
   return item;
 }
 
+/** A promise held open, and what settles it. */
+export function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 /** A txid that reads as `head…tail` once shortened. */
 export const txid = (head: string, tail: string): string => `${head}${"0".repeat(46)}${tail}`;
 
@@ -242,11 +251,9 @@ export const fake = {
   },
   /** Holds every `sync` open until `release` is called. */
   holdSync(): () => void {
-    let release = (): void => {};
-    syncGate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    return release;
+    const gate = deferred<void>();
+    syncGate = gate.promise;
+    return gate.resolve;
   },
   /**
    * Holds the next `import_psbt` or `sign_psbt` open until `release` is
@@ -254,11 +261,9 @@ export const fake = {
    * when it was asked, so a later call can be given another answer meanwhile.
    */
   holdPsbt(): () => void {
-    let release = (): void => {};
-    psbtGate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    return release;
+    const gate = deferred<void>();
+    psbtGate = gate.promise;
+    return gate.resolve;
   },
   /** Back to an empty wallet with no call recorded; every test starts here. */
   reset(): void {

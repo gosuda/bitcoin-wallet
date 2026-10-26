@@ -5,8 +5,8 @@ import { platform, setPlatform } from "../src/platform";
 import { session } from "../src/session";
 import { historyResetFixes, WalletError } from "../src/types";
 import { type FakeState, fake } from "./fakes";
-import { buttonNamed, find, settle, useScreenHarness } from "./harness";
-import { OPENERS, type Opener } from "./openers";
+import { buttonNamed, find, rememberSaved, settle, useScreenHarness } from "./harness";
+import { OPENERS, type Opener, openerNamed } from "./openers";
 
 useScreenHarness();
 
@@ -31,18 +31,8 @@ async function failToOpen(opener: Opener, reason: NonNullable<FakeState["corrupt
     setRemembered: vi.fn(async () => undefined),
     setConfig: vi.fn(async () => undefined),
   };
-  setPlatform({
-    ...platform(),
-    ...watched,
-    ...(opener.remembered
-      ? {
-          canRememberWallet: true,
-          getRemembered: async () => fake.SAVED,
-          loadSecret: async () => ({ secret: fake.PHRASE, passphrase: null }),
-        }
-      : {}),
-  });
-  session.remembered = opener.remembered ? fake.SAVED : null;
+  if (opener.remembered) rememberSaved();
+  setPlatform({ ...platform(), ...watched });
   const screen = await opener.render();
 
   fake.state.corrupt = reason;
@@ -105,9 +95,7 @@ describe("a wallet whose saved history cannot be read offers a reset (6.7)", () 
   );
 
   it("the phone's Unlock gives its place to the reset, and takes it back for any other error", async () => {
-    const phoneUnlock = OPENERS.find((o) => o.name === "phone Unlock");
-    if (!phoneUnlock) throw new Error("no phone Unlock case");
-    const { screen } = await failToOpen(phoneUnlock, "malformed");
+    const { screen } = await failToOpen(openerNamed("phone Unlock"), "malformed");
     expect(hasButton(screen, "Unlock")).toBe(false);
     expect(hasButton(screen, "Use a different wallet")).toBe(true);
 
@@ -163,13 +151,7 @@ describe("the reset deletes only a record that has just failed to read (6.7)", (
   });
 
   it("reads a remembered key from the key store once", async () => {
-    const loadSecret = vi.fn(async () => ({ secret: fake.PHRASE, passphrase: null }));
-    setPlatform({
-      ...platform(),
-      canRememberWallet: true,
-      getRemembered: async () => fake.SAVED,
-      loadSecret,
-    });
+    const loadSecret = rememberSaved({ inSession: false });
     fake.state.corrupt = "malformed";
 
     await api.resetHistoryAndUnlock();

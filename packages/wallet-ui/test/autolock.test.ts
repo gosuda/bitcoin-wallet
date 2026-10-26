@@ -9,7 +9,7 @@ import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
 import { DEFAULT_LOCK_AFTER, lockAfterFrom } from "../src/types";
 import { chooseLockAfter, lockAfter, startAutolock } from "../src/ui/autolock";
-import { fake } from "./fakes";
+import { deferred, fake } from "./fakes";
 import { at, buttonNamed, find, mountAt, useScreenHarness } from "./harness";
 
 useScreenHarness();
@@ -190,13 +190,8 @@ describe("a remembered wallet locks in the background (6.11)", () => {
 
   it("waits for a broadcast the same way, when the check comes on return", async () => {
     await openLocking();
-    let finish = (): void => undefined;
-    vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          finish = () => resolve({ txid: TXID, persist_error: null });
-        }),
-    );
+    const broadcast = deferred<{ txid: string; persist_error: null }>();
+    vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(() => broadcast.promise);
     const preview = await api.buildTransfer([{ address: fake.ADDRESS, amount_sat: 1_000 }], 2);
     const sending = api.signAndBroadcast(preview.psbt_id);
 
@@ -206,7 +201,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
     await flush();
     expect(session.wallet).not.toBeNull();
 
-    finish();
+    broadcast.resolve({ txid: TXID, persist_error: null });
     await expect(sending).resolves.toMatchObject({ txid: TXID });
     await flush();
 

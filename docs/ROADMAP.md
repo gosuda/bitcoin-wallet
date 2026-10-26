@@ -1725,11 +1725,20 @@ but comments.
       and descriptor constants were measured and not taken: each makes imports wrap and costs
       more lines than it saves. Code lines in test/ 5,396 to 5,369. The same 444 test names
       pass with the same assertion count each, and the 251 states are byte-identical
-- [ ] **10.4 The UI tests remember, hold, paste, scan and open a detail through shared
+- [x] **10.4 The UI tests remember, hold, paste, scan and open a detail through shared
   helpers** · M · `test/*`
       why: seven tests set up a device that remembers the wallet, eight build a promise to
       release by hand, and the clipboard, the camera and a dropped preview's check are each
-      written two to five times
+      written two to five times · done: 2026-10-27 — `rememberSaved`, `withClipboard` with
+      `refusedRead`, `camera`, `expectDropped` and `showPhoneTx` in the harness, `deferred` in
+      fakes (the fake's own sync and PSBT holds included), and `openerNamed`, through which
+      app-password's Create and Restore table reuses the openers' fill steps under its own
+      titles. Not taken: one `openWallet()` for the 41 identical calls, measured at 15 lines
+      more once the imports wrap. Eleven mutations of the source (a camera left running, Paste
+      reading the page's clipboard, a late read winning, a held preview kept, Unlock moving on
+      after it was left, and others) fail the same tests before and after. Code lines in test/
+      5,369 to 5,296. The same 444 names pass with the same assertion count each, and the 251
+      states are byte-identical
 - [ ] **10.5 The UI tests' comments say what holds** · S · `test/*`
       why: 35 comments tell who found a bug in review, or what a screen used to say
 

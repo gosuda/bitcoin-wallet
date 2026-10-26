@@ -13,7 +13,7 @@ import { session } from "../src/session";
 import type { RememberedWallet } from "../src/types";
 import { fake } from "./fakes";
 import { buttonNamed, find, leaveTo, mountAt, settle, type, useScreenHarness } from "./harness";
-import { typeWords } from "./openers";
+import { openerNamed } from "./openers";
 
 useScreenHarness();
 
@@ -183,58 +183,38 @@ describe("remembering in the browser takes an app password (6.12)", () => {
     expect(browser.remembered()).toBeNull();
   });
 
-  it.each([
-    {
-      name: "Create",
-      route: "create" as const,
-      render: renderCreate,
-      press: "Create wallet",
-      fill: async (screen: HTMLElement) => {
-        await settle();
-        typeWords(screen);
-      },
+  it.each([{ name: "Create" }, { name: "Restore" }])(
+    "$name asks the same, right below the BIP39 passphrase",
+    async ({ name }) => {
+      const browser = inTheBrowser();
+      const { render, press } = openerNamed(`desktop ${name}`);
+      const screen = await render();
+      type(find(screen, "input[name=passphrase]"), "TREZOR");
+      const go = buttonNamed(screen, press);
+      expect(go.disabled).toBe(false);
+
+      find<HTMLInputElement>(screen, "input[name=remember]").click();
+      expect(go.disabled).toBe(true);
+      const order = [
+        ...screen.querySelectorAll<HTMLInputElement>(
+          "input[name=passphrase], input[name=remember], input[name^=app_password]",
+        ),
+      ].map((f) => f.name);
+      expect(order).toEqual(["passphrase", "remember", "app_password", "app_password_confirm"]);
+
+      const [password, confirm] = passwordPair(screen);
+      type(password, PASSWORD);
+      type(confirm, PASSWORD);
+      expect(go.disabled).toBe(false);
+      go.click();
+      await landsOn("dashboard");
+
+      expect(await unseal(WALLET_ID, browser.records.get(WALLET_ID), PASSWORD)).toEqual({
+        secret: fake.PHRASE,
+        passphrase: "TREZOR",
+      });
     },
-    {
-      name: "Restore",
-      route: "restore" as const,
-      render: renderRestore,
-      press: "Restore wallet",
-      fill: async (screen: HTMLElement) => {
-        typeWords(screen);
-        // Leaving a box checks the phrase at once instead of after a pause in typing.
-        find(screen, 'input[aria-label="Word 12"]').dispatchEvent(new Event("blur"));
-        await settle();
-      },
-    },
-  ])("$name asks the same, right below the BIP39 passphrase", async (screenCase) => {
-    const browser = inTheBrowser();
-    const screen = mountAt(screenCase.route, screenCase.render);
-    await screenCase.fill(screen);
-    type(find(screen, "input[name=passphrase]"), "TREZOR");
-    const go = buttonNamed(screen, screenCase.press);
-    expect(go.disabled).toBe(false);
-
-    find<HTMLInputElement>(screen, "input[name=remember]").click();
-    expect(go.disabled).toBe(true);
-    const order = [
-      ...screen.querySelectorAll<HTMLInputElement>(
-        "input[name=passphrase], input[name=remember], input[name^=app_password]",
-      ),
-    ].map((f) => f.name);
-    expect(order).toEqual(["passphrase", "remember", "app_password", "app_password_confirm"]);
-
-    const [password, confirm] = passwordPair(screen);
-    type(password, PASSWORD);
-    type(confirm, PASSWORD);
-    expect(go.disabled).toBe(false);
-    go.click();
-    await landsOn("dashboard");
-
-    expect(await unseal(WALLET_ID, browser.records.get(WALLET_ID), PASSWORD)).toEqual({
-      secret: fake.PHRASE,
-      passphrase: "TREZOR",
-    });
-  });
+  );
 
   it("Settings says the key is kept in this browser", async () => {
     inTheBrowser();

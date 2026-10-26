@@ -1,12 +1,21 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
-import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderDashboard } from "../src/screens/dashboard";
 import { session } from "../src/session";
 import type { FeeTarget, TxDetail } from "../src/types";
 import { fake, n } from "./fakes";
-import { at, buttonNamed, find, leaveTo, mount, settle, type, useScreenHarness } from "./harness";
+import {
+  buttonNamed,
+  expectDropped,
+  find,
+  leaveTo,
+  settle,
+  showAt,
+  showPhoneTx,
+  type,
+  useScreenHarness,
+} from "./harness";
 
 useScreenHarness();
 
@@ -88,9 +97,7 @@ const DESKTOP: Shell = {
   shell: "desktop",
   async show(txid) {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const screen = mount(renderDashboard());
-    await settle();
+    const screen = await showAt("dashboard", renderDashboard);
     // The row opens from any of its cells.
     find<HTMLElement>(screen, `td[title="${txid}"]`).click();
     await settle();
@@ -109,13 +116,7 @@ const PHONE: Shell = {
   shell: "phone",
   async show(txid) {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    // Already on the route, so choosing the row starts no navigation that
-    // would retire the screen about to be built.
-    at("tx");
-    showTransaction(txid);
-    const screen = mount(renderTransaction());
-    await settle();
-    return screen;
+    return showPhoneTx(txid);
   },
   target(screen, blocks) {
     const group = find(screen, "[role=radiogroup][aria-label='Fee target']");
@@ -188,9 +189,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 2]);
     expect(screen.textContent).toMatch(/raised above the 1\.0 sat\/vB it pays alone/i);
     expect(discardTx).toHaveBeenCalledWith(first.psbt_id);
-    await expect(api.signAndBroadcast(first.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(first.psbt_id);
   });
 
   it("Cancel asks first: Keep it sends nothing, and Cancel transaction sends it", async () => {
@@ -208,9 +207,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     await settle();
     expect(screen.textContent).not.toContain(card);
     const kept = await buildCancel.mock.results[0]?.value;
-    await expect(api.signAndBroadcast(kept.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(kept.psbt_id);
     expect(fake.callNames()).not.toContain("sign");
     expect(fake.callNames()).not.toContain("broadcast");
 
@@ -234,9 +231,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     leaveTo("settings");
 
     expect(discardTx).toHaveBeenCalledWith(held.psbt_id);
-    await expect(api.signAndBroadcast(held.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(held.psbt_id);
   });
 });
 
@@ -289,9 +284,7 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     expect(buttons(screen, "Bump fee")).toHaveLength(1);
     expect(buttonNamed(screen, "Cancel")).toBeTruthy();
     const dropped = await buildCancel.mock.results[0]?.value;
-    await expect(api.signAndBroadcast(dropped.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(dropped.psbt_id);
   });
 
   it("builds a Custom rate only above what the transaction pays alone", async () => {

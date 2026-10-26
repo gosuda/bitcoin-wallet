@@ -21,14 +21,19 @@ import { fake, n } from "./fakes";
 import {
   buttonNamed,
   CONFIG,
+  camera,
+  expectDropped,
   find,
   leaveTo,
   mount,
   mountAt,
+  refusedRead,
+  rememberSaved,
   settle,
   showAt,
   type,
   useScreenHarness,
+  withClipboard,
 } from "./harness";
 
 useScreenHarness();
@@ -128,9 +133,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     leaveTo("dashboard");
 
     expect(discardTx).toHaveBeenCalledWith(drain.psbt_id);
-    await expect(api.signAndBroadcast(drain.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(drain.psbt_id);
 
     screen = await showAt("send", renderSend);
     type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
@@ -146,41 +149,24 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
   });
 
   it("leaving Scan stops the camera it opened, and the page is solid again", async () => {
-    // A camera that runs until it is told to stop, as the real one does.
-    let signal: AbortSignal | undefined;
-    const scanQr = vi.fn(
-      (given?: AbortSignal) =>
-        new Promise<string | null>((resolve) => {
-          signal = given;
-          given?.addEventListener("abort", () => resolve(null), { once: true });
-        }),
-    );
-    setPlatform({ ...platform(), scanQr });
+    const { scanQr } = camera();
     const root = document.documentElement;
 
     await showAt("scan", renderPhoneScan);
     expect(scanQr).toHaveBeenCalledTimes(1);
-    expect(signal?.aborted).toBe(false);
+    expect(scanQr.mock.calls[0]?.[0]?.aborted).toBe(false);
     expect(root.dataset.scanning).toBeDefined();
 
     leaveTo("dashboard");
 
-    expect(signal?.aborted).toBe(true);
+    expect(scanQr.mock.calls[0]?.[0]?.aborted).toBe(true);
     expect(root.dataset.scanning).toBeUndefined();
     await settle();
     expect(root.dataset.scanning).toBeUndefined();
   });
 
   it("a Scan screen replaced by another leaves the new one's camera showing", async () => {
-    const signals: (AbortSignal | undefined)[] = [];
-    const scanQr = vi.fn(
-      (given?: AbortSignal) =>
-        new Promise<string | null>((resolve) => {
-          signals.push(given);
-          given?.addEventListener("abort", () => resolve(null), { once: true });
-        }),
-    );
-    setPlatform({ ...platform(), scanQr });
+    const { scanQr } = camera();
     const root = document.documentElement;
     // The shell listens from before any screen, so on a hashchange it renders
     // the new screen first, and the old screen hears that it has left after.
@@ -194,8 +180,8 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     window.removeEventListener("hashchange", shell);
 
     expect(scanQr).toHaveBeenCalledTimes(2);
-    expect(signals[0]?.aborted).toBe(true);
-    expect(signals[1]?.aborted).toBe(false);
+    expect(scanQr.mock.calls[0]?.[0]?.aborted).toBe(true);
+    expect(scanQr.mock.calls[1]?.[0]?.aborted).toBe(false);
     expect(root.dataset.scanning).toBeDefined();
 
     leaveTo("dashboard");
@@ -207,22 +193,12 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
   it("Scan's Paste reads through the platform where the page's own clipboard is refused", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = await showAt("scan", renderPhoneScan);
-    Object.defineProperty(navigator, "clipboard", {
-      value: {
-        readText: async () => {
-          throw new DOMException("denied", "NotAllowedError");
-        },
-      },
-      configurable: true,
-    });
     setPlatform({ ...platform(), readClipboard: async () => fake.ADDRESS });
 
-    try {
+    await withClipboard(refusedRead, async () => {
       buttonNamed(screen, "Paste from clipboard").click();
       await settle();
-    } finally {
-      Reflect.deleteProperty(navigator, "clipboard");
-    }
+    });
 
     expect(screen.querySelector(".banner-visible")).toBeNull();
     expect(location.hash).toBe("#/send");
@@ -286,19 +262,6 @@ describe("every choice group has a name (3.9)", () => {
 });
 
 describe("a remembered wallet is reachable after Setup (6.2)", () => {
-  /** A device that keeps keys, with `fake.SAVED` remembered on it; returns the key loader. */
-  function rememberSaved() {
-    const loadSecret = vi.fn(async () => ({ secret: "abandon abandon abandon", passphrase: null }));
-    setPlatform({
-      ...platform(),
-      canRememberWallet: true,
-      getRemembered: async () => fake.SAVED,
-      loadSecret,
-    });
-    session.remembered = fake.SAVED;
-    return loadSecret;
-  }
-
   const SHELL_SETUPS = [
     {
       shell: "desktop",

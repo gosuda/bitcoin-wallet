@@ -14,10 +14,8 @@ import { renderResult as renderPhoneResult } from "../src/mobile/screens/result"
 import { renderSend as renderPhoneSend } from "../src/mobile/screens/send";
 import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
 import { renderSetup as renderPhoneSetup } from "../src/mobile/screens/setup";
-import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderUnlock as renderPhoneUnlock } from "../src/mobile/screens/unlock";
 import { renderWallet as renderPhoneWallet } from "../src/mobile/screens/wallet";
-import { platform, setPlatform } from "../src/platform";
 import { renderCreate } from "../src/screens/create";
 import { renderDashboard } from "../src/screens/dashboard";
 import { renderRestore } from "../src/screens/restore";
@@ -46,10 +44,11 @@ import { fake, n } from "./fakes";
 import {
   buttonNamed,
   find,
-  mount,
   mountAt,
+  rememberSaved,
   settle,
   showAt,
+  showPhoneTx,
   type,
   useScreenHarness,
 } from "./harness";
@@ -69,9 +68,7 @@ describe("ids and addresses (7.3)", () => {
   it("lists every output of a transaction whole on the phone", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     fake.state.details[SENT] = sent;
-    showTransaction(SENT);
-    const screen = mount(renderTransaction());
-    await settle();
+    const screen = await showPhoneTx(SENT);
 
     expect(texts(screen, ".m-io-addr")).toEqual([PAYEE, fake.ADDRESS]);
     expect(texts(screen, ".m-io-note")).toEqual(["change, back to this wallet"]);
@@ -94,9 +91,7 @@ describe("ids and addresses (7.3)", () => {
         { address: PAYEE, value_sat: 71_859, ours: false },
       ],
     };
-    showTransaction(RECEIVED);
-    const screen = mount(renderTransaction());
-    await settle();
+    const screen = await showPhoneTx(RECEIVED);
 
     expect(texts(screen, ".m-io-note")).toEqual(["received"]);
   });
@@ -122,8 +117,7 @@ describe("ids and addresses (7.3)", () => {
   });
 
   it("shortens the saved wallet's address the same way on both Unlock screens", async () => {
-    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => fake.SAVED });
-    session.remembered = fake.SAVED;
+    rememberSaved();
 
     const desktop = mountAt("unlock", renderUnlock);
     const shown = texts(desktop, ".mono");
@@ -263,9 +257,7 @@ describe("pending, confirmations and time (7.5)", () => {
   it("says Pending in the phone's detail, never a count of 0", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     fake.state.details[SENT] = { ...sent, confirmations: null, block_height: null };
-    showTransaction(SENT);
-    const screen = mount(renderTransaction());
-    await settle();
+    const screen = await showPhoneTx(SENT);
 
     const row = [...screen.querySelectorAll(".m-item")].find(
       (i) => i.firstElementChild?.textContent === "Confirmations",
@@ -290,8 +282,7 @@ describe("one word for each action (7.6)", () => {
   // The desktop's Unlock asked "Really forget?" with no warning, and its way
   // out said "key" where the phone's said "wallet".
   it("offers the same way out and the same Forget on both Unlock screens", () => {
-    setPlatform({ ...platform(), canRememberWallet: true, getRemembered: async () => fake.SAVED });
-    session.remembered = fake.SAVED;
+    rememberSaved();
 
     for (const render of [renderUnlock, renderPhoneUnlock]) {
       const screen = mountAt("unlock", render);

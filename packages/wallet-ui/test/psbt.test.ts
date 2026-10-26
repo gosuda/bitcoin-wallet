@@ -9,8 +9,17 @@ import { renderPsbt } from "../src/screens/psbt";
 import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
 import { type PsbtInput, type PsbtReview, WalletError } from "../src/types";
-import { fake, n, txid } from "./fakes";
-import { buttonNamed, find, mountAt, settle, type, useScreenHarness } from "./harness";
+import { deferred, fake, n, txid } from "./fakes";
+import {
+  buttonNamed,
+  find,
+  mountAt,
+  refusedRead,
+  settle,
+  type,
+  useScreenHarness,
+  withClipboard,
+} from "./harness";
 
 useScreenHarness();
 
@@ -101,19 +110,6 @@ const buttonsNamed = (root: ParentNode, name: string): HTMLButtonElement[] =>
 async function paste(screen: HTMLElement, text: string): Promise<void> {
   type(field(screen), text);
   await settle();
-}
-
-/** Runs `work` with a clipboard that holds `text`. */
-async function withClipboard(text: string, work: () => Promise<void>): Promise<void> {
-  Object.defineProperty(navigator, "clipboard", {
-    value: { readText: async () => text },
-    configurable: true,
-  });
-  try {
-    await work();
-  } finally {
-    Reflect.deleteProperty(navigator, "clipboard");
-  }
 }
 
 /** The line under the review, while there is a review to say it about. */
@@ -440,10 +436,13 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   it("Paste reads the clipboard into the field and describes it", async () => {
     const screen = await openAnswering(shell, UNSIGNED);
 
-    await withClipboard(`\n${UNSIGNED.psbt_base64}\n`, async () => {
-      buttonNamed(screen, "Paste").click();
-      await settle();
-    });
+    await withClipboard(
+      async () => `\n${UNSIGNED.psbt_base64}\n`,
+      async () => {
+        buttonNamed(screen, "Paste").click();
+        await settle();
+      },
+    );
 
     expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
     expect(fake.calls).toContainEqual(["import_psbt", UNSIGNED.psbt_base64]);
@@ -454,22 +453,12 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
   // allow, so the apps read through the shell, and Paste asks the platform.
   it("Paste reads through the platform where the page's own clipboard is refused", async () => {
     const screen = await openAnswering(shell, UNSIGNED);
-    Object.defineProperty(navigator, "clipboard", {
-      value: {
-        readText: async () => {
-          throw new DOMException("denied", "NotAllowedError");
-        },
-      },
-      configurable: true,
-    });
     setPlatform({ ...platform(), readClipboard: async () => UNSIGNED.psbt_base64 });
 
-    try {
+    await withClipboard(refusedRead, async () => {
       buttonNamed(screen, "Paste").click();
       await settle();
-    } finally {
-      Reflect.deleteProperty(navigator, "clipboard");
-    }
+    });
 
     expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
     expect(shell.said(screen)).toEqual(shell.drawnUnsigned);
@@ -477,18 +466,12 @@ describe.each([DESKTOP, PHONE])("Import PSBT on the $shell (6.15)", (shell) => {
 
   it("keeps what was typed while Paste was still reading the clipboard", async () => {
     const screen = await openAnswering(shell, UNSIGNED);
-    let answer = (_text: string): void => {};
-    setPlatform({
-      ...platform(),
-      readClipboard: () =>
-        new Promise<string>((resolve) => {
-          answer = resolve;
-        }),
-    });
+    const clipboard = deferred<string>();
+    setPlatform({ ...platform(), readClipboard: () => clipboard.promise });
 
     buttonNamed(screen, "Paste").click();
     await paste(screen, UNSIGNED.psbt_base64);
-    answer(SHARED.psbt_base64);
+    clipboard.resolve(SHARED.psbt_base64);
     await settle();
 
     expect(field(screen).value).toBe(UNSIGNED.psbt_base64);
@@ -560,18 +543,13 @@ describe("Import PSBT on the desktop (7)", () => {
 
   it("keeps what was typed while a chosen file was still being read", async () => {
     const screen = await openAnswering(DESKTOP, UNSIGNED);
-    let answer = (_bytes: ArrayBuffer): void => {};
+    const bytes = deferred<ArrayBuffer>();
     const slow = new File([SHARED.psbt_base64], "shared.txt");
-    Object.defineProperty(slow, "arrayBuffer", {
-      value: () =>
-        new Promise<ArrayBuffer>((resolve) => {
-          answer = resolve;
-        }),
-    });
+    Object.defineProperty(slow, "arrayBuffer", { value: () => bytes.promise });
 
     choose(screen, slow);
     await paste(screen, UNSIGNED.psbt_base64);
-    answer(new TextEncoder().encode(SHARED.psbt_base64).buffer as ArrayBuffer);
+    bytes.resolve(new TextEncoder().encode(SHARED.psbt_base64).buffer as ArrayBuffer);
     await settle();
 
     expect(field(screen).value).toBe(UNSIGNED.psbt_base64);

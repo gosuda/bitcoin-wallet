@@ -2,9 +2,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
 import { prefillSend, renderSend } from "../src/mobile/screens/send";
-import { platform, setPlatform } from "../src/platform";
 import { fake, n, nth } from "./fakes";
-import { buttonNamed, find, leaveTo, settle, showAt, type, useScreenHarness } from "./harness";
+import {
+  buttonNamed,
+  camera,
+  find,
+  leaveTo,
+  settle,
+  showAt,
+  type,
+  useScreenHarness,
+} from "./harness";
 
 useScreenHarness();
 
@@ -30,20 +38,6 @@ const scanners = (root: ParentNode) =>
 const labels = (root: ParentNode) => all(root, ".section-label").map((l) => l.textContent);
 const buttonsNamed = (root: ParentNode, name: string) =>
   all<HTMLButtonElement>(root, "button").filter((b) => b.textContent?.trim() === name);
-
-/** Installs a camera that runs until it reads a code or is told to stop, as the real one does. */
-function camera() {
-  let read: (text: string | null) => void = () => undefined;
-  const scanQr = vi.fn(
-    (signal?: AbortSignal) =>
-      new Promise<string | null>((resolve) => {
-        read = resolve;
-        signal?.addEventListener("abort", () => resolve(null), { once: true });
-      }),
-  );
-  setPlatform({ ...platform(), scanQr });
-  return { scanQr, read: (text: string) => read(text) };
-}
 
 /** Presses a row's scan button and lets the camera open. */
 async function pressScan(screen: HTMLElement, row: number): Promise<void> {
