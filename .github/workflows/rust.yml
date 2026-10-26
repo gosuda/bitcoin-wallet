@@ -12,6 +12,7 @@ on:
       - "apps/**"
       - "packages/**"
       - "package.json"
+      - ".nvmrc"
       - "biome.json"
       - "tsconfig.base.json"
       - "pnpm-*"
@@ -128,7 +129,7 @@ jobs:
       # default Node changing cannot change a result.
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
       - run: wasm-pack test --node crates/wallet-wasm
       - run: wasm-pack test --node crates/wallet-core --no-default-features --features backend-esplora
 
@@ -195,7 +196,6 @@ jobs:
       # Both apps import the wasm core through @bitcoin-wallet/ui, so build it
       # before anything typechecks.
       - uses: ./.github/actions/frontend
-      - run: pnpm install --frozen-lockfile
       # The Tauri CLI will not build when a crate and its npm half differ in
       # major.minor, and nothing here runs the CLI; Dependabot bumps the two
       # sides separately, so this is the CLI's own check, made on every change.

@@ -33,7 +33,6 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: ./.github/actions/frontend
-      - run: pnpm install --frozen-lockfile
       - name: Build the APK
         working-directory: apps/native
         # arm64 only: every phone and Apple-silicon emulator this is for runs it,
@@ -59,7 +58,6 @@ jobs:
           targets: aarch64-apple-ios-sim,wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/frontend
-      - run: pnpm install --frozen-lockfile
       - name: Build the Simulator app
         working-directory: apps/native
         run: pnpm tauri ios build --debug --target aarch64-sim --ci

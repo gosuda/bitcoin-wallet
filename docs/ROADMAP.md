@@ -1927,11 +1927,24 @@ but comments.
 
 **CI and the generator**
 
-- [ ] **10.21 One install, one Node version, one tag test and one list of version files** · S ·
+- [x] **10.21 One install, one Node version, one tag test and one list of version files** · S ·
   `.github`, `scripts`
       why: every job that uses the frontend action runs the same install after it, Node 22 is
       written in two places Dependabot does not update, release tests the tag eight times, and
-      the version files are listed in two scripts
+      the version files are listed in two scripts · done: 2026-10-27 — `pnpm install
+      --frozen-lockfile` is the frontend action's last step, so the six jobs that ran it
+      straight after the action run the same steps in the same order (release's Windows leg
+      installs under bash, a composite step naming its shell). Node comes from a root `.nvmrc`
+      saying 24, read by both setup-node uses; Dependabot has no ecosystem for it, so the next
+      major is one edit. release's eight tag tests read one `RELEASE_TAG`. The version files
+      both version scripts write out are named once, in `scripts/version-files.sh` (four lines
+      more, for one list to keep). The apt-get step stays in each job: a composite for it adds
+      lines. actionlint 1.7.12 is clean on all four workflows before and after; every job keeps
+      its id, name, runner, needs, condition, matrix and timeout, and its steps with both
+      composites expanded are the same apart from these changes. Under Node 24.21.0 the
+      install, Biome, tsc, vitest, the Tauri-pair check, the wasm bindings' tests and the wasm
+      build pass; the version scripts print and exit the same, and a bump changes the same 8
+      files byte for byte
 - [ ] **10.22 The boards' remaining repeated parts are drawn with helpers** · S · `gen.py`
       why: the phone Settings, Unlock and Send boards and two desktop cards repeat blocks line
       for line
