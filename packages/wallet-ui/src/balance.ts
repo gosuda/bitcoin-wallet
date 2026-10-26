@@ -1,9 +1,8 @@
 /**
  * The one balance rule.
  *
- * Both shells read it from here so the same wallet never shows two different
- * headline numbers — which it did, when one counted pending and immature sats
- * and the other did not.
+ * Both shells read it from here, so the same wallet never shows two different
+ * headline numbers.
  */
 
 import type { Balance } from "./types";

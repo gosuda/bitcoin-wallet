@@ -21,9 +21,9 @@ const MOBILE = PLATFORM === "ios" || PLATFORM === "android";
  *
  * Both entries matter: `getCurrent` covers a link that launched the app, and
  * `onOpenUrl` covers one that arrives while it is already running. A link that
- * lands before a wallet is open is deliberately dropped rather than queued —
- * the route guard would bounce it to Unlock or Setup anyway, and a payment silently
- * reappearing several screens later is worse than nothing.
+ * lands before a wallet is open is dropped, not queued: the route guard would
+ * send it to Unlock or Setup, and a payment that reappears screens later is
+ * worse than none.
  */
 async function wireDeepLinks(): Promise<void> {
   const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
@@ -34,9 +34,6 @@ async function wireDeepLinks(): Promise<void> {
   const handle = (urls: readonly string[] | null): void => {
     const payment = urls?.map(parsePaymentUri).find((p) => p !== null);
     if (!payment) return;
-    // Dropping it means dropping it. Prefilling first and letting the route
-    // guard bounce it leaves the payment in a module-global that the
-    // next Send screen picks up — the recipient reappearing later, unasked.
     if (!session.wallet) return;
     prefillSend(payment);
     window.location.hash = "#/send";
@@ -49,8 +46,6 @@ async function wireDeepLinks(): Promise<void> {
 async function main(): Promise<void> {
   setPlatform(tauriPlatform(await keystoreAvailable(), MOBILE));
   if (MOBILE) {
-    // Imported here, behind a build-time constant, so the desktop bundle does
-    // not merely skip the phone shell at runtime — it never contains it.
     const { mount } = await import("@bitcoin-wallet/ui/mobile-shell");
     await boot({ mount });
   } else {

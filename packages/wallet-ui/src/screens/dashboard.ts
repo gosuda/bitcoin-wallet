@@ -271,7 +271,7 @@ export function renderDashboard(): HTMLElement {
       parts.push(`${formatNumber(picked.length)} selected, ${formatSats(coinsValue(picked))}`);
     }
     utxoCount.textContent = parts.join(" · ");
-    // With none ticked, a send chooses its coins on its own, as it always has.
+    // With none ticked, a send chooses its coins on its own.
     sendSelectedBtn.hidden = picked.length === 0;
   };
 
@@ -316,10 +316,8 @@ export function renderDashboard(): HTMLElement {
 
   // --- the preview an open row holds -----------------------------------------
   //
-  // Speed up and Cancel each show a built preview before anything is signed.
-  // One row is open at a time and it offers one or the other, so there is at
-  // most one preview: dropped when it is replaced, when its row closes, when
-  // the history is redrawn under it and when the screen goes. What a row
+  // One row is open at a time, so this is its one preview: dropped too when
+  // its row closes and when the history is redrawn under it. What a row
   // builds counts only while that row is still the one open.
   const preview = heldPreview(alert);
 
@@ -405,8 +403,6 @@ export function renderDashboard(): HTMLElement {
       slot.replaceChildren();
       bump.classList.remove("hidden");
     };
-    // Signing used the preview up whether or not it went out, so after a
-    // failure the card has nothing left to send; asking again builds another.
     const confirm = () => preview.send(rowOpen, (r) => broadcastDone(r, ownerDetail), fold);
     const ask = async (): Promise<void> => {
       alert.hide();
@@ -481,9 +477,6 @@ export function renderDashboard(): HTMLElement {
       }
     };
 
-    // Nothing built to send — the last build failed, or is still running — or
-    // signing used it up: build another, so what the button would send is on
-    // screen again.
     const send = () => preview.send(rowOpen, (r) => broadcastDone(r, ownerDetail), rebuild);
 
     const targets = radioGroup(

@@ -52,12 +52,10 @@ export function renderScan(): HTMLElement {
   const scan = platform().scanQr;
 
   /**
-   * One scan at a time, and only while this screen is still the one showing.
-   *
-   * The screen opens the camera itself, so pressing the button while that is
-   * still pending used to start a second concurrent scan against the same
-   * camera. And a scan that resolves after the user has moved on would prefill
-   * Send and navigate there, pulling them out of whatever they opened next.
+   * One scan at a time, and only while this screen is still the one showing:
+   * the screen opens the camera itself, so a press meanwhile would start a
+   * second scan, and a scan that lands after the user moved on would pull them
+   * to Send.
    */
   let scanning = false;
   const runScan = async (): Promise<void> => {

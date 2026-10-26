@@ -70,8 +70,6 @@ function phrase(cfg: AppConfig): HTMLElement {
     }
   };
 
-  // Named `size`, not `count`: the word-count chips below are `count`, and a
-  // paste handler built in here needs to reach them.
   const build = (size: WordCount) => {
     inputs = Array.from({ length: size }, (_, i) => {
       const input = wordInput(i + 1);
@@ -84,9 +82,7 @@ function phrase(cfg: AppConfig): HTMLElement {
         const words = text.trim().split(/\s+/).filter(Boolean);
         if (words.length < 2) return;
         ev.preventDefault();
-        // A whole phrase says how long it is. Pasting 24 words into the 12-word
-        // grid used to drop the last twelve silently, leaving a phrase that
-        // cannot restore anything and no clue why.
+        // A whole phrase says how long it is, and the grid takes that length.
         if (words.length === 12 || words.length === 24) {
           const size: WordCount = words.length === 24 ? 24 : 12;
           // Rebuilds the grid through the chips, so the control and the grid
@@ -119,9 +115,6 @@ function phrase(cfg: AppConfig): HTMLElement {
     { label: "Word count" },
   );
   build(12);
-  // Typed words are secret, and so is the passphrase: out of the DOM the
-  // moment the route changes. `inputs` is read late because the grid can be
-  // rebuilt for 24 words after this is armed.
   const fields = () => [...inputs, passphrase];
   wipeOnLeave(fields);
 
@@ -129,7 +122,7 @@ function phrase(cfg: AppConfig): HTMLElement {
   const restore = async (reset = false): Promise<void> => {
     const typed = inputs.map((i) => i.value.trim().toLowerCase()).filter(Boolean);
     // Every cell first, as the desktop waits for: a blank before an unknown
-    // word would shift the number the core names it by. Found by cubic.
+    // word would shift the number the core names it by.
     if (typed.length < inputs.length) {
       alert.show("error", MISSING_WORDS);
       return;
@@ -138,7 +131,6 @@ function phrase(cfg: AppConfig): HTMLElement {
     try {
       await api.validateMnemonic(words);
     } catch (e) {
-      // As the desktop says it: an unknown word by its place in the grid.
       if (onScreen()) alert.show("error", phraseError(errorMessage(e), typed));
       return;
     }

@@ -67,7 +67,7 @@ function reviewCard(r: PsbtReview): HTMLElement {
   const fee = ioRow(
     "Fee",
     // The amount has a column of its own; the rest is the one fee line,
-    // which breaks only after a "·". Found by cubic.
+    // which breaks only after a "·".
     rate === null || r.vsize === null ? "" : feeLine(null, r.vsize, rate),
     why ? el("span", { className: "hint", text: why }) : "",
     r.fee_sat === null ? "unknown" : formatNumber(r.fee_sat),

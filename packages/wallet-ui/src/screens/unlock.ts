@@ -84,8 +84,6 @@ export function renderUnlock(): HTMLElement {
   };
   const forgetBtn = button("Forget this wallet", () => showConfirm(), "quiet");
   forgetBtn.classList.add("btn-quiet-danger");
-  // The second step Settings has, in the same words: what is deleted and
-  // what brings the wallet back, then Keep it or Delete it.
   const confirmSlot = el("div", { className: "slot" });
   const showConfirm = () => askForget(confirmSlot, forgetBtn, forgetWarning(null), alert, true);
   showTrigger();

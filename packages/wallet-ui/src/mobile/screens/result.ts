@@ -48,7 +48,6 @@ export function renderResult(): HTMLElement {
       button(
         "Back to wallet",
         () => {
-          // Spent, as on the desktop: the result route has nothing to show again.
           session.lastResult = null;
           navigate("dashboard");
         },

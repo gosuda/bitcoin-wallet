@@ -92,12 +92,10 @@ export function renderSend(): HTMLElement {
    */
   let drain: TxPreview | null = null;
   /**
-   * Bumped by anything that changes what Max would build. A build resolves
-   * against the generation it started in; a later one means the address, the
-   * rate or the recipient list moved while it was in flight, and its PSBT pays
-   * what was on screen then — not what is there now. Without this the only
-   * guard is `drain`, which is still null mid-build, so every edit no-ops and
-   * the stale transaction installs unconditionally.
+   * Bumped by anything that changes what Max would build. A build that lands
+   * after the address, the rate or the recipients moved pays what was on
+   * screen when it started, so it is dropped; `drain` cannot tell, being null
+   * while a build is in flight.
    */
   let drainSeq = 0;
   let rowSeq = 0;
@@ -403,7 +401,7 @@ export function renderSend(): HTMLElement {
       }
       if (sats === null) {
         // Unit-neutral, as the address line above is: the field says why in
-        // its own unit (sat or BTC). Found by cubic.
+        // its own unit (sat or BTC).
         alert.show("error", "Every recipient needs a valid amount.");
         r.amount.focus();
         return null;
@@ -471,9 +469,8 @@ export function renderSend(): HTMLElement {
             recordSent(result, sameWallet, onScreen);
           } catch (e) {
             preview = null;
-            // The PSBT is spent either way: signing consumed it before it
-            // failed. Leaving `drain` pointing at it made the next Review
-            // reuse a psbt_id the core no longer has and fail as unknown_psbt.
+            // The PSBT is spent either way, as signing consumed it before it
+            // failed: a Review that reused it would fail as unknown_psbt.
             clearDrainChrome();
             if (onScreen()) {
               previewBox.className = "card review-card hidden";
@@ -536,13 +533,9 @@ export function renderSend(): HTMLElement {
           alert.show("error", rateErr);
           return;
         }
-        // Built, and named in Review, at the rate it pays: found by cubic,
-        // 0.5 was named while the core paid its 1 sat/vB floor.
+        // Built, and named in Review, at the rate it pays (`fieldRate`).
         const at = currentRate();
         try {
-          // Review supersedes a Max build still running: without this both
-          // survive, and confirming one drops the reference to the other
-          // without discarding it.
           cancelPendingDrain();
           const seq = drainSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
@@ -560,9 +553,8 @@ export function renderSend(): HTMLElement {
     "primary",
   );
 
-  // Screens are rebuilt on every navigation, so a preview or a Max build
-  // still pending when this one goes away is unreachable — left alone it
-  // would strand its PSBT in the core's pending map indefinitely.
+  // A preview or a Max build pending when the screen goes would stay in the
+  // core's pending map.
   const discardOnLeave = (): void => {
     if (preview && preview !== drain) void api.discardTx(preview.psbt_id);
     preview = null;
@@ -578,9 +570,8 @@ export function renderSend(): HTMLElement {
   void loadEstimate();
 
   return el("main", { className: "screen" }, [
-    // As every desktop heading says it. A wallet's address was here, which
-    // for a recovery phrase is only the next receiving address, not where
-    // the coins come from.
+    // As every desktop heading says it. No address: for a recovery phrase it
+    // is only the next receiving one, not where the coins come from.
     screenHead("Send", `${networkName} · ${host}`),
     alert.node,
     coinsLine,

@@ -85,10 +85,8 @@ export function renderTransaction(): HTMLElement {
 
   // --- the preview this screen holds -----------------------------------------
   //
-  // Speed up and Cancel each show a built preview before anything is signed,
-  // and a transaction offers one or the other, so there is at most one
-  // preview: dropped when it is replaced, when Cancel is called off and when
-  // the screen goes. What it builds counts only while this screen is shown.
+  // Dropped too when Cancel is called off; what it builds counts only while
+  // this screen is shown.
   const preview = heldPreview(alert);
 
   const broadcastDone = (result: BroadcastResult): void => recordSent(result, sameWallet, onScreen);
@@ -135,9 +133,8 @@ export function renderTransaction(): HTMLElement {
     );
     outputs.classList.add("m-io-card");
 
-    // Resolved before the button is offered, the way Result and the desktop
-    // dashboard do it: on regtest there is no explorer, and a button that only
-    // ever explains itself is worse than no button.
+    // Asked for before the button is drawn, as on Result and the Wallet page:
+    // regtest has no explorer, and so no button.
     const explorer = explorerUrl
       ? button(
           "Open in explorer",
@@ -148,7 +145,7 @@ export function renderTransaction(): HTMLElement {
           { icon: "external" },
         )
       : null;
-    // One per line, as on Sent: side by side, "Open in explorer" broke in two.
+    // One per line, as on Sent, so "Open in explorer" stays on one line.
     const ident = card(
       sectionLabel("Transaction id"),
       el("span", { className: "m-mono-block", text: d.txid }),
@@ -209,10 +206,7 @@ export function renderTransaction(): HTMLElement {
         // the floor is above 1 sat/vB and saying otherwise misreports the field.
         text = estimateUnavailable(suggested);
       }
-      // The note is information either way, but the field belongs to whoever
-      // typed in it: an estimate arriving after that is stale advice, not a
-      // correction, and replacing the number would bump at a rate the user
-      // never chose.
+      // The note says the estimate either way; a rate typed meanwhile stays.
       note.textContent = text;
       if (rateTouched) return;
       rate.value = String(suggested);
@@ -255,8 +249,6 @@ export function renderTransaction(): HTMLElement {
     };
     folded.addEventListener("click", close);
 
-    // Signing used the preview up whether or not it went out, so after a
-    // failure the card has nothing left to send; asking again builds another.
     const confirm = () => preview.send(onScreen, broadcastDone, close);
 
     const ask = async (): Promise<void> => {
@@ -348,8 +340,7 @@ export function renderTransaction(): HTMLElement {
       if (choice === "custom") {
         note.textContent = "Your rate";
         const typed = Number(custom.value);
-        // Rounded up to a tenth, as it is shown: found by cubic, 7.55 showed
-        // "7.5 sat/vB" and built at 7.55.
+        // Rounded up to a tenth, as it is shown.
         const at = typeableRate(typed);
         const problem =
           feeRateError(typed) ??
@@ -417,9 +408,6 @@ export function renderTransaction(): HTMLElement {
     );
     custom.addEventListener("input", () => void refresh());
 
-    // Nothing built to send — the last build failed, or is still running — or
-    // signing used it up: build another, so what the button would send is on
-    // screen again.
     const send = () => preview.send(onScreen, broadcastDone, refresh);
     const go = button("Speed up", () => withLock(go, send), { variant: "primary", block: true });
 

@@ -282,7 +282,6 @@ export function banner(): Banner {
     node,
     show(kind, message) {
       node.className = `banner banner-visible banner-${kind}`;
-      // Whoever wrote it: the core's messages and a few of the UI's are lower case.
       node.textContent = sentence(message);
     },
     hide() {

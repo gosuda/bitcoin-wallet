@@ -1,7 +1,7 @@
 /**
  * How values are written on screen, the same on both shells: the display
  * standard of Round 7 (docs/ROADMAP.md). Screens format through here, so a
- * rule is changed in one place and cannot drift between the shells again.
+ * rule is changed in one place, for both shells.
  */
 
 import type { CoinId } from "../types";
@@ -99,11 +99,7 @@ export function fieldRate(typed: number): number {
   return Number.isFinite(typed) && typed > 0 ? typeableRate(typed) : 1;
 }
 
-/**
- * A space that does not break. A time is one phrase, and so is each part of a
- * fee line: a row that wraps beside a wide amount put "Today" on one line and
- * "07:44" on the next, and a phone's review broke "141 vB" in two.
- */
+/** A space that does not break: a time is one phrase, and so is each part of a fee line. */
 const NBSP = "\u00a0";
 
 /** A count and what it counts, grouped as the device groups numbers: "1 input", "1,204 inputs". */
@@ -203,7 +199,7 @@ function dayOf(date: Date, now: Date): Intl.DateTimeFormatOptions {
 /**
  * Whether two dates fall in one year as the device's calendar counts them,
  * the calendar its dates are written in: a Persian year does not begin on
- * January 1, so comparing Gregorian years left out a year that differs.
+ * January 1.
  */
 function sameYear(a: Date, b: Date): boolean {
   const year = new Intl.DateTimeFormat(undefined, { year: "numeric" });

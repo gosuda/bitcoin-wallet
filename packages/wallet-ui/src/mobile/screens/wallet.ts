@@ -67,7 +67,6 @@ export function renderWallet(): HTMLElement {
   const paint = (balance: Balance): void => {
     const total = headlineSat(balance);
     hero.textContent = formatNumber(total);
-    // formatBtc already carries the unit; appending another gave "BTC BTC".
     sub.textContent = formatBtc(total);
     const waiting = pendingSat(balance);
     pending.textContent = waiting > 0 ? `${formatSats(waiting)} pending` : "";
@@ -127,9 +126,8 @@ export function renderWallet(): HTMLElement {
   const runSync = async (): Promise<void> => {
     if (sync.disabled) return;
     sync.disabled = true;
-    // A sync outlives the screen that asked for it. Closing this wallet and
-    // opening another mid-sync used to repaint the new wallet's balance with
-    // the previous one's numbers.
+    // A sync can outlive its screen, and a wallet opened meanwhile must not
+    // show its numbers.
     try {
       const balance = await api.sync();
       const txs = await api.listTransactions();

@@ -45,15 +45,10 @@ export function renderUnlock(): HTMLElement {
     icon: auth ? "faceid" : "key",
   });
 
-  // Two taps: this deletes the saved key and the local history, and the
-  // desktop screen already asked twice.
+  // Two taps, as on the desktop: this deletes the saved key and the local history.
   const forget = confirmDanger({
     trigger: "Forget this wallet",
     triggerVariant: "quiet",
-    // No wallet is open here and the remembered record does not say which kind
-    // this is, so it names every way back rather than promising a recovery
-    // phrase a single-key or watch-only wallet never had. A passphrase and a
-    // bare xpub are two of those ways, and the app offers both.
     text: forgetWarning(null),
     confirm: "Delete it",
     onConfirm: () => forgetThisWallet(alert, "key"),

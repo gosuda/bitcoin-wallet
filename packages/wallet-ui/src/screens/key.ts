@@ -124,8 +124,7 @@ export function renderKey(): HTMLElement {
     name: "key",
   });
 
-  // The single-key path is intact, just folded away: a recovery phrase is the
-  // default, and one raw key is the escape hatch.
+  // A recovery phrase is the default; one raw key is folded away here.
   const advanced = el("details", { className: "disclosure" }, [
     el("summary", {
       className: "disclosure-summary",

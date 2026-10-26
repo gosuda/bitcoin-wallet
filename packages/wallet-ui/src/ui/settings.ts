@@ -121,8 +121,7 @@ export function askForget(
   alert: Banner,
   closeOnFail: boolean,
 ): void {
-  // Focus goes back to the trigger: the button that had it is gone, and a
-  // keyboard or screen reader was left at the page. Found by cubic.
+  // Focus goes back to the trigger: the button that had it is gone.
   const close = (): void => {
     slot.replaceChildren();
     trigger?.focus();

@@ -80,8 +80,8 @@ function step(route: Route, s: GuardState, shell: Shell): Route {
   // chosen there is nothing to show.
   if (route === "tx" && !s.hasTxid) return "dashboard";
   if (route === "result" && !s.hasResult) return "dashboard";
-  // A config saved before P2PK stopped being openable can still name it, and
-  // Setup, which never offers it, is where a type is chosen again.
+  // A stored config may name a type that cannot be opened (`isOpenable`);
+  // Setup chooses again.
   if (KEY_ROUTES.has(route) && (s.configType === null || !isOpenable(s.configType))) {
     return "setup";
   }

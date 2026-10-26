@@ -2,10 +2,9 @@
  * Amounts as the user types them.
  *
  * Sats are the wallet's only unit; BTC is a display convention with exactly
- * eight decimals. Everything here is integer arithmetic: `Number("0.1") * 1e8`
- * is 10000000.000000002, and a wallet that rounds is a wallet that is off by a
- * sat. Both shells parse through this so they agree on what "1e5" means (an
- * error, not a hundred thousand).
+ * eight decimals. Everything here is integer arithmetic, as `Number("0.1") *
+ * 1e8` is 10000000.000000002. Both shells parse through this, so they agree on
+ * what "1e5" means (an error, not a hundred thousand).
  */
 
 export const SATS_PER_BTC = 100_000_000;

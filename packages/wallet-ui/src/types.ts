@@ -13,7 +13,7 @@ export type OpenableAddressType = Exclude<AddressType, "p2pk">;
  * Whether a wallet can be opened on `t`.
  *
  * `p2pk` stays in the union because the core still derives and prints such a
- * key, and a config stored before this may name it — but it cannot back a
+ * key, and a stored config may name it — but it cannot back a
  * wallet: its descriptor is a bare script with no signing context, and the
  * core refuses to open one rather than let a send reach that. Both shells'
  * route guards send such a config back to Setup, which never offers it.
@@ -210,7 +210,7 @@ export type RescanGap = (typeof RESCAN_GAPS)[number];
 export const LOCK_AFTER_CHOICES = [1, 5, 15, 60, "never"] as const;
 export type LockAfter = (typeof LOCK_AFTER_CHOICES)[number];
 
-/** Until another is chosen: five minutes, as decided on 2026-09-30. */
+/** Until another is chosen: five minutes (6.11). */
 export const DEFAULT_LOCK_AFTER: LockAfter = 5;
 
 export const LOCK_AFTER_LABELS: Record<LockAfter, string> = {
@@ -259,11 +259,9 @@ export const MAX_FEE_RATE_SAT_VB = 10_000;
  * screen can say so before the round trip to `build_transfer`/`build_drain`/
  * `build_fee_bump` fails with `invalid_fee_rate`.
  *
- * Not quite the core's own contract: `fee_rate_from_sat_vb` accepts `0` and
- * raises it to the floor, but an empty numeric input reads as `Number("")
- * === 0` in every browser, so treating a bare `0` as valid here would let a
- * cleared field silently enable Review. Refusing it is a deliberate product
- * choice on top of a core rule this UI otherwise mirrors exactly.
+ * Stricter than the core's `fee_rate_from_sat_vb`, which accepts `0` and
+ * raises it to the floor: a cleared numeric input reads as `0`, and accepting
+ * it would enable Review.
  */
 export function feeRateError(rate: number): string | null {
   if (!Number.isFinite(rate)) return "Enter a fee rate.";
@@ -329,18 +327,15 @@ export interface AppError {
 /** Frontend failure carrying the same `{ code, message, details? }` shape the commands return. */
 export class WalletError extends Error implements AppError {
   readonly code: string;
-  // `declare`: a plain declaration is itself an own property, initialised to
-  // `undefined`, under ES2022 class fields — the very state the constructor
-  // below avoids. This way it exists only when the constructor sets it.
+  // Declared, and set only when given: a plain field would be an own property
+  // holding `undefined`, which under `exactOptionalPropertyTypes` is not the
+  // unset property `AppError` allows.
   declare readonly details?: Record<string, unknown>;
 
   constructor(code: string, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "WalletError";
     this.code = code;
-    // Not `this.details = details`: under `exactOptionalPropertyTypes`, an
-    // optional property left unset and one explicitly set to `undefined`
-    // are different types, and only the former matches `AppError`.
     if (details !== undefined) this.details = details;
   }
 }
@@ -359,8 +354,7 @@ function isFiniteNumber(v: unknown): v is number {
  * Copy for the codes worth saying something more specific about than the
  * message the core already wrote — using `details` where it helps.
  * Everything else falls through to `value.message` unchanged: most codes
- * already carry a clear message, and the fix this table exists for is that
- * `errorMessage` used to append the raw code to every one of them.
+ * already carry a clear message.
  */
 function detailedMessage(value: AppError): string | null {
   const d = value.details;
@@ -417,7 +411,7 @@ function detailedMessage(value: AppError): string | null {
 /**
  * The message a failure carries, whatever shape it arrived in: an `Error`, a
  * bare string, or the plain `{ message }` object a Tauri mobile plugin rejects
- * with — which is not an `Error`, so reading only those lost what it said.
+ * with, which is not an `Error`.
  */
 export function messageOf(value: unknown): string | null {
   if (typeof value === "string") return value;

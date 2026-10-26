@@ -117,9 +117,7 @@ export function renderCreate(): HTMLElement {
         create,
       );
 
-      // The phrase, the passphrase and every confirm-grid word the user
-      // typed back are secret; zero each one before detaching the subtree
-      // that held them, rather than trust nothing still references it.
+      // Emptied before the subtree that held them is detached.
       wipeOnLeave(
         () => [passphrase, ...answers.values()],
         () => content.replaceChildren(),

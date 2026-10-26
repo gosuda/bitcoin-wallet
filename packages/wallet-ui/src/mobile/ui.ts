@@ -281,7 +281,7 @@ export function confirmDanger(opts: {
       const sheet = card(
         warning,
         go,
-        // Back to the trigger: the focused button is gone. Found by cubic.
+        // Back to the trigger: the focused button is gone.
         button(
           "Keep it",
           () => {

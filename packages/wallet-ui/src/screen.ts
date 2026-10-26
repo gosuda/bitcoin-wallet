@@ -39,17 +39,10 @@ export function redirect(route: Route): HTMLElement {
 }
 
 /**
- * Whether this render is still the one on screen, by route alone — no
- * wallet-identity check. `screenGuard` below layers that check on top, for
- * every screen that already shows a wallet's own state.
- *
- * That check is wrong for the handful of screens whose own job is to set
- * `session.wallet` for the first time — Create, Restore, and Key's two open
- * paths. `api.openWallet` sets `session.wallet` as a side effect of the very
- * call being awaited, before the caller's own code resumes, so a
- * wallet-identity check taken at render start would read as a swap on every
- * single success, not just a real navigation away. This is the guard those
- * screens use instead.
+ * Whether this render is still the one on screen, by route alone. Create,
+ * Restore and Key use it rather than `screenGuard`: the open they await sets
+ * `session.wallet` before they resume, so a wallet check taken at render
+ * start would read every success as a swap.
  */
 export function routeGuard(): () => boolean {
   const route = currentRoute();
@@ -68,13 +61,9 @@ export function routeGuard(): () => boolean {
 }
 
 /**
- * Whether `session.wallet` is still the wallet this render opened — no route
- * check, the mirror image of `routeGuard`. Split out for call sites that
- * need this half alone: recording that a broadcast already happened is
- * correct no matter which screen is on top afterward, but wrong once the
- * session has moved on to a different wallet, and `screenGuard`'s combined
- * check would also suppress it on a plain navigation that never touched the
- * wallet at all.
+ * Whether `session.wallet` is still the wallet this render opened, by wallet
+ * alone: a broadcast is recorded whichever screen is on top by then, but
+ * never for another wallet (`recordSent`).
  */
 export function sameWalletGuard(): () => boolean {
   const openedFor = session.wallet?.wallet_id ?? "";
@@ -84,17 +73,12 @@ export function sameWalletGuard(): () => boolean {
 /**
  * Whether the screen render that started a piece of async work is still on screen.
  *
- * Every `await` is a place the user can leave. When the result arrives the
- * screen that asked for it may be gone, and applying it then writes into a
- * detached DOM at best — at worst into the screen that replaced it, which is
- * how a sync started for one wallet repaints another's balance.
+ * Every `await` is a place the user can leave: a result applied once its
+ * screen is gone lands in a detached DOM, or in the screen that replaced it.
  *
  * The guard is per *render*, not per route: leaving Scan and opening it
- * again rebuilds the screen but reproduces the same route, so a camera
- * promise from the abandoned render would otherwise still read as current
- * and navigate the fresh one away to Send. `routeGuard` already retires on
- * the next render for exactly this reason; this adds the wallet check on
- * top, covering a swap that somehow arrives without a route change.
+ * again rebuilds the screen on the same route, and a camera promise from the
+ * abandoned render must not navigate the new one away to Send.
  *
  * This is not a substitute for disabling a button while its own work runs;
  * that is `withBusy` or `withLock`, and it answers a different question.

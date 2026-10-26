@@ -4,9 +4,8 @@
  * The core has no address validator to call before a build, so this is a
  * deliberately conservative prefix-and-charset test: it rejects only values
  * that cannot belong to the network, and the real parse happens when the
- * transaction is built. What it adds over "invalid" is a reason — an address
- * for the wrong network is the mistake people actually make, and saying which
- * network it was for is what stops them making it twice.
+ * transaction is built. What it adds over "invalid" is a reason: an address
+ * for another network is the usual mistake, and is named as one.
  */
 
 import { NETWORK_LABELS, type Network } from "./types";

@@ -1849,9 +1849,14 @@ but comments.
       sync label, each longer shared. Mutations fail tests on all eight openers and on both
       shells' send, Bump fee, PSBT, offer and watch-only tests; characterization tests (4, 57
       and 15 observations) pin the rest. Lines 11,698 to 11,590; the states are byte-identical
-- [ ] **10.14 The UI's comments say what holds** · M · `packages/wallet-ui/src`, `apps/*/src`
+- [x] **10.14 The UI's comments say what holds** · M · `packages/wallet-ui/src`, `apps/*/src`
       why: comments tell who found what, what a screen used to do, or repeat what a function's
-      own doc says
+      own doc says · done: 2026-10-27 — over both reviews' comment lists and a search for
+      history markers: who found what, "used to", former behaviour and dates (now the tracker's
+      item numbers) go, repeats of what a definition says are said once there, and the flowery
+      ones are plain; board, BIP and safety reasoning stay. Comment lines 2,288 to 2,131 in the
+      UI package and 113 to 99 in apps/native; code lines unchanged at 8,400, and no changed
+      line is anything but a comment
 - [ ] **10.15 Close wallet on the phone goes where the desktop's goes** · S ·
   `mobile/screens/settings.ts`, `ui/settings.ts`
       why: the phone's opened Setup, and only if the close did not throw; the desktop's opens

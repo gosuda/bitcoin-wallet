@@ -41,8 +41,7 @@ export function renderSetup(): HTMLElement {
 
   const addressType = chips(
     ADDRESS_TYPES.map((a) => ({ value: a, label: ADDRESS_TYPE_LABELS[a] })),
-    // A config saved before P2PK stopped being openable can name it; it is
-    // not a choice here, so start from the default instead.
+    // A stored config may name a type that cannot be opened: start from the default.
     cfg && isOpenable(cfg.address_type) ? cfg.address_type : "p2wpkh",
     undefined,
     { label: "Address type" },

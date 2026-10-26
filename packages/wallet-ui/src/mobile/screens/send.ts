@@ -144,10 +144,10 @@ export function renderSend(): HTMLElement {
   // recipient leaves it too: everything can only go to one address.
   let drain: TxPreview | null = null;
   /**
-   * See the desktop Send screen: `drain` is null while a build is in flight,
-   * so it cannot be the thing that invalidates one. This can, and must —
-   * the confirm sheet does not repeat the recipient, so a stale drain would
-   * be broadcast with nothing on screen contradicting it.
+   * Bumped by anything that changes what Max would build; `drain` is null
+   * while a build is in flight, so it cannot tell. The confirm sheet does not
+   * repeat the recipient, so a stale drain would go out with nothing on screen
+   * to contradict it.
    */
   let drainSeq = 0;
   const maxNote = el("span", { className: "hint" });
@@ -180,10 +180,7 @@ export function renderSend(): HTMLElement {
     refresh();
     if (bad) return alert.show("error", bad);
     try {
-      // Max moves the form on from whatever it was about to send, exactly as
-      // an edit does. Every edit says so through `clearPreview`; this was the
-      // one control that did not, so a visible sheet stayed confirmable while
-      // the amount beside it changed to the drained one.
+      // Max moves the form on from what it was about to send, as an edit does.
       clearPreview();
       leaveDrain();
       const seq = drainSeq;
@@ -236,14 +233,10 @@ export function renderSend(): HTMLElement {
     } else {
       try {
         estimate ??= await api.estimateFee();
-        // The target can change — including to Custom — while the estimate is
-        // in flight. `Number("custom")` is NaN, so applying it afterwards
-        // silently built at 1 sat/vB while the field showed the typed rate.
-        // The screen can also have changed while it was in flight.
+        // The target can change, to Custom included, and the screen can go
+        // while the estimate is in flight; applying it then would build at a
+        // rate the field does not show.
         if (fee.value() !== choice || !onScreen()) return;
-        // Rounded and floored as the desktop's field is: the raw estimate can be
-        // below the 1 sat/vB the core builds at, and the note would name a rate
-        // the transaction does not pay.
         const market = rateForTarget(estimate, Number(choice));
         rate = typeableRate(market ?? 1);
         // An estimate with no rate in it is none: say so, as the desktop does.
@@ -258,10 +251,8 @@ export function renderSend(): HTMLElement {
       // A Max preview is built at one rate; changing it afterwards would
       // leave Review showing the new rate and broadcasting the old one.
       leaveDrain();
-      // The caller's own `refresh()` right after calling this ran against
-      // the rate from before this estimate arrived. Re-validate now that
-      // `rate` itself changed, so an implausible estimate disables Review
-      // instead of leaving it clickable until the build rejects it.
+      // The caller's `refresh()` ran with the rate from before the estimate:
+      // check again, so an implausible estimate turns Review off.
       refresh();
     }
   }
@@ -274,11 +265,9 @@ export function renderSend(): HTMLElement {
 
   // --- validation -----------------------------------------------------------
   /**
-   * Custom validates what was typed, so a bad keystroke is flagged before
-   * `rate` ever changes. A preset has no typed value to check — but its
-   * estimate still becomes `rate`, and a backend that returns something
-   * non-finite or past the ceiling must not sail through unchecked just
-   * because a person did not type it.
+   * Custom checks what was typed, before `rate` changes. A preset checks the
+   * rate its estimate gave, which a backend can send non-finite or past the
+   * ceiling.
    */
   const rateError = (): string | null =>
     fee.value() === "custom" ? feeRateError(Number(rateInput.value)) : feeRateError(rate);
@@ -519,11 +508,8 @@ export function renderSend(): HTMLElement {
   let pendingPreview: TxPreview | null = null;
 
   /**
-   * Bumped whenever the form moves on from a preview.
-   *
-   * `pendingPreview` cannot do this job alone: it is still null while a build
-   * is in flight, so an edit during one clears nothing and the result installs
-   * regardless — the same shape as the Max race, on the ordinary path.
+   * Bumped whenever the form moves on from a preview: `pendingPreview` is
+   * null while a build is in flight, so it cannot tell.
    */
   let formSeq = 0;
 
@@ -616,9 +602,7 @@ export function renderSend(): HTMLElement {
     sheet.scrollIntoView({ block: "nearest" });
   }
 
-  // Screens are rebuilt on every navigation, so anything still pending when
-  // this one goes away is unreachable — abandoned sends would grow the core's
-  // pending map without bound.
+  // What is pending when the screen goes would stay in the core's pending map.
   const discardOnLeave = (): void => {
     clearPreview();
     leaveDrain();

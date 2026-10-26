@@ -11,7 +11,7 @@
  *
  * Only the remembered wallet, on a device that keeps its key, is closed:
  * Unlock opens it again. Any other wallet would need its recovery phrase or
- * key typed in again, so it stays open (decided on 2026-09-30).
+ * key typed in again, so it stays open.
  */
 
 import { api, whenIdle } from "../api";

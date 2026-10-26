@@ -84,9 +84,7 @@ export function renderCreate(): HTMLElement {
   let words: string[] = [];
   let blanks: number[] = [];
   let answers: HTMLInputElement[] = [];
-  // One wipe covers the phrase itself, the passphrase, and every confirm-grid
-  // word the user typed back — all secret, none of it allowed to outlive
-  // this screen. `answers` is read lazily so a regenerated grid is covered too.
+  // The passphrase and the words typed back; the phrase goes with them.
   wipeOnLeave(
     () => [passphrase, ...answers],
     () => {
