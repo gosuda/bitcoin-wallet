@@ -1,3 +1,6 @@
+/** Destinations only the phone shell has; the desktop's guard sends them to the wallet. */
+export const PHONE_ROUTES = ["receive", "scan", "tx", "export", "coins"] as const;
+
 export const ROUTES = [
   "setup",
   "key",
@@ -9,13 +12,7 @@ export const ROUTES = [
   "result",
   "settings",
   "psbt",
-  // Phone-only destinations; the desktop's guard sends them to the wallet
-  // (`PHONE_ONLY` in guards.ts).
-  "receive",
-  "scan",
-  "tx",
-  "export",
-  "coins",
+  ...PHONE_ROUTES,
 ] as const;
 export type Route = (typeof ROUTES)[number];
 

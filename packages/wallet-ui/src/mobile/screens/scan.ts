@@ -47,10 +47,7 @@ export function renderScan(): HTMLElement {
       );
       return;
     }
-    prefillSend({
-      address: payment.address,
-      ...(payment.amountSat === undefined ? {} : { amountSat: payment.amountSat }),
-    });
+    prefillSend(payment);
     navigate("send");
   };
 

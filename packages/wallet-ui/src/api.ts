@@ -29,7 +29,7 @@ import type {
   Utxo,
   WalletInfo,
 } from "./types";
-import { historyResetFixes, MAX_FEE_RATE_SAT_VB, NETWORK_LABELS, WalletError } from "./types";
+import { feeRateError, historyResetFixes, NETWORK_LABELS, WalletError } from "./types";
 import type { BuiltTx } from "./wasm";
 import {
   explorerTxUrl,
@@ -354,21 +354,6 @@ async function thenBalance(work: (wallet: WalletApi) => Promise<void>): Promise<
   return wallet.balance();
 }
 
-function requireRate(feeRateSatVb: number): void {
-  // Same code for the whole invalid class as the core's own
-  // fee_rate_from_sat_vb, so a screen branching on `invalid_fee_rate` sees
-  // it regardless of which of these two conditions actually caught it.
-  if (!Number.isFinite(feeRateSatVb) || feeRateSatVb <= 0) {
-    throw new WalletError("invalid_fee_rate", "fee rate must be a positive number");
-  }
-  if (feeRateSatVb > MAX_FEE_RATE_SAT_VB) {
-    throw new WalletError(
-      "invalid_fee_rate",
-      `fee rate must be at most ${MAX_FEE_RATE_SAT_VB} sat/vB`,
-    );
-  }
-}
-
 /**
  * Checks `feeRateSatVb`, builds with the open wallet, holds the unsigned PSBT
  * for `signAndBroadcast` and hands the screen its preview.
@@ -377,7 +362,9 @@ async function buildPreview(
   feeRateSatVb: number,
   build: (wallet: WalletApi) => Promise<BuiltTx>,
 ): Promise<TxPreview> {
-  requireRate(feeRateSatVb);
+  // Refused as the core refuses it, so `errorMessage` words it the same.
+  const rateErr = feeRateError(feeRateSatVb);
+  if (rateErr) throw new WalletError("invalid_fee_rate", rateErr);
   const built = await build(requireWallet());
   const psbtId = `${Date.now().toString(16)}-${(psbtCounter++).toString(16)}`;
   pending.set(psbtId, built.psbt_base64);

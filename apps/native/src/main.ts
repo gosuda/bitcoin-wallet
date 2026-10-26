@@ -38,10 +38,7 @@ async function wireDeepLinks(): Promise<void> {
     // guard bounce it leaves the payment in a module-global that the
     // next Send screen picks up — the recipient reappearing later, unasked.
     if (!session.wallet) return;
-    prefillSend({
-      address: payment.address,
-      ...(payment.amountSat === undefined ? {} : { amountSat: payment.amountSat }),
-    });
+    prefillSend(payment);
     window.location.hash = "#/send";
   };
 

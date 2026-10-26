@@ -45,8 +45,12 @@ interface Prefill {
 /** Set by the Scan screen and by a `bitcoin:` deep link before navigating here. */
 let prefill: Prefill = {};
 
-export function prefillSend(next: Prefill): void {
-  prefill = next;
+/** The next Send opens with `payment`'s address and amount filled in. */
+export function prefillSend(payment: PaymentRequest): void {
+  prefill = {
+    address: payment.address,
+    ...(payment.amountSat === undefined ? {} : { amountSat: payment.amountSat }),
+  };
 }
 
 type FeeChoice = `${FeeTarget}` | "custom";

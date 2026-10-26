@@ -8,7 +8,7 @@
  * that could drift apart.
  */
 
-import { ROUTES, type Route } from "./router";
+import { PHONE_ROUTES, ROUTES, type Route } from "./router";
 import { type AddressType, isOpenable } from "./types";
 
 export type Shell = "desktop" | "phone";
@@ -34,14 +34,8 @@ export const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>([
   "unlock",
 ]);
 
-/** Destinations only the phone shell has; the desktop sends them to the wallet. */
-export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
-  "receive",
-  "scan",
-  "tx",
-  "export",
-  "coins",
-]);
+/** `PHONE_ROUTES`, for the rules to look up. */
+export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>(PHONE_ROUTES);
 
 /**
  * Screens with nothing to show, configure or scan into without an open

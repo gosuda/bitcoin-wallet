@@ -1776,10 +1776,21 @@ but comments.
       failed (the phone stayed on its screen, or set the store's record) and the eight desktop
       ones passed; all pass after. On a phone the key store takes no app password, so what
       changes there is that an open no longer reads the store
-- [ ] **10.8 What the UI modules write twice is written once, and unused exports go** · S ·
+- [x] **10.8 What the UI modules write twice is written once, and unused exports go** · S ·
   `src/*.ts`, `wasm/`, `apps/native/src`
       why: the fee-rate check, the phone's routes, the address prefixes, a normalizer and the
-      prefill are each written two or three times, and four exports are imported nowhere
+      prefill are each written two or three times, and four exports are imported nowhere ·
+      done: 2026-10-27 — the api's builders check the rate with `feeRateError`, the screens'
+      check (the error keeps its code, and `errorMessage` words it; nothing reads the message),
+      the phone's routes are `PHONE_ROUTES`, an address's prefixes are written once per family
+      with test claimed before regtest, a detail spreads its summary from `toTxSummary`, and
+      `prefillSend` takes the payment whole; the `./screen` subpath and three unused `export`s
+      go. Not taken: the superseded error, the explorer URL, the broadcast normalizer, the
+      amount's tail and `SATS_PER_BTC` in format.ts, each as long as what it replaces. A
+      throwaway comparison gave the old and new address checks the same answer on 1,014,880
+      strings over five networks (and catches a reordered claim); mutations of each shared
+      piece fail tests where it is used. Code lines in the UI's TypeScript 8,753 to 8,715; the
+      271 states are byte-identical
 - [ ] **10.9 The phone's busy helper is named apart from the desktop's** · S · `ui/dom.ts`,
   `mobile/ui.ts`
       why: both were `withBusy`, but the desktop's shows a spinner and always enables the

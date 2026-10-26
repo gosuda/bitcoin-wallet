@@ -188,7 +188,7 @@ export interface PsbtReview {
 }
 
 /** The confirmation targets Send offers, in blocks. */
-export const FEE_TARGETS = [1, 3, 6] as const;
+const FEE_TARGETS = [1, 3, 6] as const;
 export type FeeTarget = (typeof FEE_TARGETS)[number];
 
 /** What Send starts on in both shells: about an hour, at a rate that rarely overpays. */
