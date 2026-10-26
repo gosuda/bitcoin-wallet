@@ -49,6 +49,11 @@ fn probe_entry_name() -> String {
     )
 }
 
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+fn persist_err(e: impl std::fmt::Display) -> Error {
+    Error::Persist(e.to_string())
+}
+
 /// Storage for unlock material, keyed by a wallet identifier.
 pub trait Keystore: Send + Sync {
     fn load(&self, wallet_id: &str) -> Result<Option<KeyMaterial>>;
@@ -236,7 +241,6 @@ impl NativeKeystore {
     /// user has asked for anything, and there a failed store install already
     /// surfaces as `NoDefaultStore`.
     pub fn self_check(&self) -> Result<()> {
-        backend::prepare().map_err(Error::Persist)?;
         // A name of its own per call. The probe writes, reads back and deletes,
         // so two checks running at once on one name race: the first deletes the
         // credential the second is about to read, and a working credential
@@ -246,12 +250,8 @@ impl NativeKeystore {
         #[cfg(any(target_os = "ios", target_os = "android"))]
         {
             const PROBE: &str = "wallet-core self check";
-            entry
-                .set_password(PROBE)
-                .map_err(|e| Error::Persist(e.to_string()))?;
-            let got = entry
-                .get_password()
-                .map_err(|e| Error::Persist(e.to_string()))?;
+            entry.set_password(PROBE).map_err(persist_err)?;
+            let got = entry.get_password().map_err(persist_err)?;
             // Best effort: leaving the probe behind is untidy, not unsafe.
             let _ = entry.delete_credential();
             if got != PROBE {
@@ -267,7 +267,7 @@ impl NativeKeystore {
 
     fn entry(&self, wallet_id: &str) -> Result<backend::Entry> {
         backend::prepare().map_err(Error::Persist)?;
-        backend::Entry::new(&self.service, wallet_id).map_err(|e| Error::Persist(e.to_string()))
+        backend::Entry::new(&self.service, wallet_id).map_err(persist_err)
     }
 }
 
@@ -277,29 +277,26 @@ impl Keystore for NativeKeystore {
         match self.entry(wallet_id)?.get_password() {
             Ok(json) => {
                 let json = Zeroizing::new(json);
-                let stored: StoredKey =
-                    serde_json::from_str(&json).map_err(|e| Error::Persist(e.to_string()))?;
+                let stored: StoredKey = serde_json::from_str(&json).map_err(persist_err)?;
                 Ok(Some(stored.into()))
             }
             Err(backend::Error::NoEntry) => Ok(None),
-            Err(e) => Err(Error::Persist(e.to_string())),
+            Err(e) => Err(persist_err(e)),
         }
     }
 
     fn store(&self, wallet_id: &str, key: KeyMaterial) -> Result<()> {
-        let json = Zeroizing::new(
-            serde_json::to_string(&StoredKey::from(&key))
-                .map_err(|e| Error::Persist(e.to_string()))?,
-        );
+        let json =
+            Zeroizing::new(serde_json::to_string(&StoredKey::from(&key)).map_err(persist_err)?);
         self.entry(wallet_id)?
             .set_password(&json)
-            .map_err(|e| Error::Persist(e.to_string()))
+            .map_err(persist_err)
     }
 
     fn remove(&self, wallet_id: &str) -> Result<()> {
         match self.entry(wallet_id)?.delete_credential() {
             Ok(()) | Err(backend::Error::NoEntry) => Ok(()),
-            Err(e) => Err(Error::Persist(e.to_string())),
+            Err(e) => Err(persist_err(e)),
         }
     }
 }

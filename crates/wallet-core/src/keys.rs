@@ -81,17 +81,15 @@ impl AddressType {
 
     /// Accepts both [`name`](Self::name) and [`id`](Self::id), plus a few
     /// common aliases.
-    pub fn parse(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "p2pk" => Some(AddressType::P2pk),
-            "p2pkh" => Some(AddressType::P2pkh),
-            "p2wpkh" => Some(AddressType::P2wpkh),
-            "nested_p2wpkh" | "np2wpkh" | "p2sh-p2wpkh" | "nested" => {
-                Some(AddressType::NestedP2wpkh)
-            }
-            "p2tr" | "taproot" => Some(AddressType::P2tr),
-            _ => None,
-        }
+    pub fn parse(s: &str) -> std::result::Result<Self, String> {
+        Ok(match s.to_ascii_lowercase().as_str() {
+            "p2pk" => AddressType::P2pk,
+            "p2pkh" => AddressType::P2pkh,
+            "p2wpkh" => AddressType::P2wpkh,
+            "nested_p2wpkh" | "np2wpkh" | "p2sh-p2wpkh" | "nested" => AddressType::NestedP2wpkh,
+            "p2tr" | "taproot" => AddressType::P2tr,
+            _ => return Err(format!("unknown address type '{s}'")),
+        })
     }
 }
 
@@ -796,8 +794,8 @@ mod tests {
         for t in AddressType::ALL {
             let serde = serde_json::to_value(t).unwrap();
             assert_eq!(serde.as_str(), Some(t.name()), "{t:?}");
-            assert_eq!(AddressType::parse(t.name()), Some(t));
-            assert_eq!(AddressType::parse(t.id()), Some(t));
+            assert_eq!(AddressType::parse(t.name()), Ok(t));
+            assert_eq!(AddressType::parse(t.id()), Ok(t));
         }
         // What a remembered nested wallet is stored under, whichever spelling
         // the caller used to name its type.

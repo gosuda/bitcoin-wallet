@@ -69,13 +69,8 @@ fn core_to_js<T: serde::Serialize>(result: wallet_core::Result<T>) -> Result<JsV
     to_js(&result.map_err(core_err)?)
 }
 
-fn parse_network(s: &str) -> Result<Network, JsValue> {
-    Network::parse(s).ok_or_else(|| js_error("unsupported", &format!("unknown network '{s}'")))
-}
-
-fn parse_address_type(s: &str) -> Result<AddressType, JsValue> {
-    AddressType::parse(s)
-        .ok_or_else(|| js_error("unsupported", &format!("unknown address type '{s}'")))
+fn unsupported(message: String) -> JsValue {
+    js_error("unsupported", &message)
 }
 
 /// Persister backed by a JS object (IndexedDB in practice). Keeps the
@@ -143,8 +138,8 @@ pub fn start() {
 #[wasm_bindgen]
 pub fn generate_key(network: &str, address_type: &str) -> Result<JsValue, JsValue> {
     core_to_js(wallet_core::generate_key(
-        parse_network(network)?,
-        parse_address_type(address_type)?,
+        Network::parse(network).map_err(unsupported)?,
+        AddressType::parse(address_type).map_err(unsupported)?,
     ))
 }
 
@@ -159,8 +154,8 @@ pub fn generate_mnemonic(
     word_count: u8,
 ) -> Result<JsValue, JsValue> {
     core_to_js(wallet_core::generate_mnemonic(
-        parse_network(network)?,
-        parse_address_type(address_type)?,
+        Network::parse(network).map_err(unsupported)?,
+        AddressType::parse(address_type).map_err(unsupported)?,
         word_count,
     ))
 }
@@ -197,8 +192,8 @@ pub fn wallet_id_for_key(
     let key = parse_key(secret, passphrase)?;
     wallet_core::keys::wallet_id(
         &key,
-        parse_network(network)?,
-        parse_address_type(address_type)?,
+        Network::parse(network).map_err(unsupported)?,
+        AddressType::parse(address_type).map_err(unsupported)?,
     )
     .map_err(core_err)
 }
@@ -211,7 +206,8 @@ pub fn explorer_tx_url(
     backend_url: &str,
     txid: &str,
 ) -> Result<Option<String>, JsValue> {
-    Ok(parse_network(network)?.explorer_tx_url(backend_url, txid))
+    let network = Network::parse(network).map_err(unsupported)?;
+    Ok(network.explorer_tx_url(backend_url, txid))
 }
 
 /// An open wallet. All methods are async and safe to call from JS.

@@ -28,15 +28,15 @@ impl Network {
     }
 
     /// Parse from [`Network::id`] (also accepts a few common aliases).
-    pub fn parse(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "bitcoin" | "mainnet" | "btc" => Some(Network::Bitcoin),
-            "testnet3" | "testnet" | "btc-testnet3" => Some(Network::Testnet3),
-            "testnet4" | "btc-testnet4" => Some(Network::Testnet4),
-            "signet" | "btc-signet" => Some(Network::Signet),
-            "regtest" => Some(Network::Regtest),
-            _ => None,
-        }
+    pub fn parse(s: &str) -> Result<Self, String> {
+        Ok(match s.to_ascii_lowercase().as_str() {
+            "bitcoin" | "mainnet" | "btc" => Network::Bitcoin,
+            "testnet3" | "testnet" | "btc-testnet3" => Network::Testnet3,
+            "testnet4" | "btc-testnet4" => Network::Testnet4,
+            "signet" | "btc-signet" => Network::Signet,
+            "regtest" => Network::Regtest,
+            _ => return Err(format!("unknown network '{s}'")),
+        })
     }
 
     /// Default public Esplora endpoint for this network (mempool.space).
@@ -130,7 +130,7 @@ mod tests {
             Network::Regtest,
         ];
         for n in all {
-            assert_eq!(Network::parse(n.id()), Some(n));
+            assert_eq!(Network::parse(n.id()), Ok(n));
             let back: Network = bitcoin::Network::from(n).try_into().unwrap();
             assert_eq!(back, n);
         }
@@ -138,9 +138,9 @@ mod tests {
 
     #[test]
     fn go_aliases() {
-        assert_eq!(Network::parse("btc"), Some(Network::Bitcoin));
-        assert_eq!(Network::parse("btc-testnet4"), Some(Network::Testnet4));
-        assert_eq!(Network::parse("nope"), None);
+        assert_eq!(Network::parse("btc"), Ok(Network::Bitcoin));
+        assert_eq!(Network::parse("btc-testnet4"), Ok(Network::Testnet4));
+        assert_eq!(Network::parse("nope"), Err("unknown network 'nope'".into()));
     }
 
     #[test]

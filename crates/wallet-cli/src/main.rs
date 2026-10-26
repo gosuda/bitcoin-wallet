@@ -191,14 +191,6 @@ impl CliError {
     }
 }
 
-fn parse_network(s: &str) -> Result<Network, String> {
-    Network::parse(s).ok_or_else(|| format!("unknown network '{s}'"))
-}
-
-fn parse_address_type(s: &str) -> Result<AddressType, String> {
-    AddressType::parse(s).ok_or_else(|| format!("unknown address type '{s}'"))
-}
-
 fn read_key(
     arg: Option<Zeroizing<String>>,
     passphrase: Option<&str>,
@@ -274,8 +266,8 @@ fn parse_recipient(s: &str) -> Result<Recipient, String> {
 }
 
 async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
-    let network = parse_network(&cli.network)?;
-    let address_type = parse_address_type(&cli.address_type)?;
+    let network = Network::parse(&cli.network)?;
+    let address_type = AddressType::parse(&cli.address_type)?;
     match cli.cmd {
         Cmd::Generate { mnemonic, words } => {
             if mnemonic {
@@ -393,14 +385,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
             };
             let w = open(network, address_type, &backend).await?;
             w.sync().await?;
-            let rate = match fee_rate {
-                Some(r) => r,
-                None => w
-                    .estimate_fee()
-                    .await?
-                    .for_target(wallet_core::wallet::DEFAULT_FEE_TARGET)
-                    .unwrap_or(wallet_core::wallet::MIN_FEE_RATE_SAT_VB),
-            };
+            let rate = w.fee_rate_or_estimate(fee_rate).await?;
             let built = match drain_to {
                 Some(address) => w.build_drain(address, rate).await?,
                 None => w.build_transfer(&recipients, rate).await?,

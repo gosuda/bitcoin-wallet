@@ -1890,11 +1890,21 @@ but comments.
       uses; `KeyMaterial::is_hd`'s doc says it is about a recovery phrase. A new test runs
       `address` for the test phrase, its account xpub and a hex key against each opened
       wallet's `is_hd()`: it failed before (the xpub false, its wallet true) and passes
-- [ ] **10.18 The core reads a fee rate, a default rate and a name one way each** · M ·
+- [x] **10.18 The core reads a fee rate, a default rate and a name one way each** · M ·
   `wallet-core`, `wallet-wasm`, `wallet-cli`
       why: sat/kwu becomes sat/vB two ways, network and address-type names are parsed with
       their errors in the CLI and the bindings, the default rate is worked out in the core and
-      the CLI, and the keystore wraps the same error eight times
+      the CLI, and the keystore wraps the same error eight times · done: 2026-10-27 — a
+      transaction's rate divides by 250 as the fee-too-low rate does, `fee_rate_or_estimate`
+      holds the default rate for the core's send and the CLI, `Network::parse` and
+      `AddressType::parse` return the "unknown …" message (the CLI still exits 1 with it, the
+      bindings throw the same `unsupported` error), and the keystore maps its errors through
+      one function and drops a second `prepare()`. Not taken: `Network::kind()`,
+      `Descriptors::into_external()` and a `sat_per_vb` helper, each longer than the call
+      sites. Throwaway tests on the old code and the new: 37 network and 31 address-type
+      spellings give byte-identical CLI output and exit code and binding errors, and the two
+      rate formulas give the same f64 bits for 28,000,641 values and for 68 real transactions;
+      the core also lints for iOS and Android, and the wasm `.d.ts` is unchanged
 - [ ] **10.19 The core pins the exit codes, and the regtest tests share their setup** · M ·
   `error.rs`, `wallet-cli`, `regtest-tests`
       why: the CLI's test re-lists every core error to pin what the core's own table could, and

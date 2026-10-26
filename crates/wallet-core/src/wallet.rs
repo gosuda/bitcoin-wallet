@@ -1010,8 +1010,7 @@ impl WalletHandle {
             sent_sat: d.sent.to_sat(),
             received_sat: d.received.to_sat(),
             fee_sat: d.fee.map(|f| f.to_sat()),
-            // sat/kwu is BDK's unit; 4 weight units to the virtual byte.
-            fee_rate_sat_vb: d.fee_rate.map(|r| r.to_sat_per_kwu() as f64 * 4.0 / 1000.0),
+            fee_rate_sat_vb: d.fee_rate.map(|r| r.to_sat_per_kwu() as f64 / 250.0),
             confirmations,
             block_height,
             timestamp,
@@ -1027,6 +1026,19 @@ impl WalletHandle {
 
     pub async fn chain_height(&self) -> Result<u32> {
         self.backend.height().await
+    }
+
+    /// `fee_rate_sat_vb` when given, else the backend's estimate for
+    /// [`DEFAULT_FEE_TARGET`] blocks, else [`MIN_FEE_RATE_SAT_VB`].
+    pub async fn fee_rate_or_estimate(&self, fee_rate_sat_vb: Option<f64>) -> Result<f64> {
+        Ok(match fee_rate_sat_vb {
+            Some(r) => r,
+            None => self
+                .estimate_fee()
+                .await?
+                .for_target(DEFAULT_FEE_TARGET)
+                .unwrap_or(MIN_FEE_RATE_SAT_VB),
+        })
     }
 
     /// Build an unsigned transfer. Change goes to the internal keychain for an
@@ -1560,14 +1572,7 @@ impl WalletHandle {
         recipients: &[Recipient],
         fee_rate_sat_vb: Option<f64>,
     ) -> Result<Broadcast> {
-        let rate = match fee_rate_sat_vb {
-            Some(r) => r,
-            None => self
-                .estimate_fee()
-                .await?
-                .for_target(DEFAULT_FEE_TARGET)
-                .unwrap_or(MIN_FEE_RATE_SAT_VB),
-        };
+        let rate = self.fee_rate_or_estimate(fee_rate_sat_vb).await?;
         let built = self.build_transfer(recipients, rate).await?;
         let signed = self.sign(&built.psbt_base64).await?;
         self.broadcast(&signed).await
