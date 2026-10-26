@@ -64,8 +64,35 @@ pub fn confirm(env: &TestEnv) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Pay `sat` from the node to the wallet's receive address, confirm it and
+/// sync the wallet. Returns the payment's txid.
+pub async fn fund_and_sync(env: &TestEnv, wallet: &WalletHandle, sat: u64) -> anyhow::Result<Txid> {
+    let txid = fund(env, &wallet.address().await, sat)?;
+    confirm(env)?;
+    wallet.sync().await?;
+    Ok(txid)
+}
+
 pub async fn open(url: &str, key: &KeyMaterial) -> anyhow::Result<WalletHandle> {
     Ok(WalletHandle::open(config(url), key, Box::new(MemoryPersister::new())).await?)
+}
+
+/// A new HD wallet, as the app's "New wallet" makes one.
+pub async fn open_new_hd(url: &str) -> anyhow::Result<WalletHandle> {
+    let seed = wallet_core::generate_mnemonic(Network::Regtest, AddressType::P2wpkh, 12)?;
+    open(url, &KeyMaterial::parse(&seed.words)).await
+}
+
+/// A new single-key wallet. As a recipient, its own balance shows what
+/// arrived, not what the sender believes it sent.
+pub async fn open_new_key(url: &str, address_type: AddressType) -> anyhow::Result<WalletHandle> {
+    let key = wallet_core::generate_key(Network::Regtest, address_type)?;
+    let key = KeyMaterial::PrivHex(key.priv_hex.clone());
+    let config = WalletConfig {
+        address_type,
+        ..config(url)
+    };
+    Ok(WalletHandle::open(config, &key, Box::new(MemoryPersister::new())).await?)
 }
 
 /// Build, unsigned, a payment of `amount_sat` to `address` alone.

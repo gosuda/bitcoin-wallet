@@ -9,14 +9,12 @@
 // reach the helpers here, not just the #[test] functions.
 #![cfg(test)]
 
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 mod common;
-use common::{TIMEOUT, build_payment, config, confirm, fund, open, send, start};
+use common::{build_payment, config, confirm, fund_and_sync, open_new_key, send, start};
 use wallet_core::bdk_wallet::ChangeSet;
 use wallet_core::bdk_wallet::chain::Merge;
-use wallet_core::bitcoin::Txid;
 use wallet_core::persist::{Persister, changeset_from_json, changeset_to_json};
 use wallet_core::{AddressType, KeyMaterial, Network, WalletHandle};
 
@@ -27,14 +25,10 @@ const SEND_SAT: u64 = 40_000;
 async fn receive_then_spend_against_a_real_node() -> anyhow::Result<()> {
     let (env, esplora_url) = start()?;
 
-    let key = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
-    let wallet = open(&esplora_url, &KeyMaterial::PrivHex(key.priv_hex.clone())).await?;
+    let wallet = open_new_key(&esplora_url, AddressType::P2wpkh).await?;
 
     // --- receive
-    let funding_txid = fund(&env, &wallet.address().await, FUNDING_SAT)?;
-    confirm(&env)?;
-
-    wallet.sync().await?;
+    let funding_txid = fund_and_sync(&env, &wallet, FUNDING_SAT).await?;
     let balance = wallet.balance().await;
     assert_eq!(balance.confirmed, FUNDING_SAT, "funding must be confirmed");
     assert_eq!(wallet.list_utxos().await.len(), 1);
@@ -88,22 +82,16 @@ async fn receive_then_spend_against_a_real_node() -> anyhow::Result<()> {
 async fn fee_bump_replaces_the_original() -> anyhow::Result<()> {
     let (env, esplora_url) = start()?;
 
-    let key = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
-    let wallet = open(&esplora_url, &KeyMaterial::PrivHex(key.priv_hex.clone())).await?;
-
-    fund(&env, &wallet.address().await, FUNDING_SAT)?;
-    confirm(&env)?;
-    wallet.sync().await?;
+    let wallet = open_new_key(&esplora_url, AddressType::P2wpkh).await?;
+    fund_and_sync(&env, &wallet, FUNDING_SAT).await?;
 
     // Send at the floor rate, leaving room to bump.
     let destination = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
     let original = build_payment(&wallet, &destination.address, SEND_SAT, 1.0).await?;
-    let signed = wallet.sign(&original.psbt_base64).await?;
-    let first = wallet.broadcast(&signed).await?;
-    env.wait_until_electrum_sees_txid(Txid::from_str(&first.txid)?, TIMEOUT)?;
+    let first = send(&env, &wallet, &original).await?;
 
     // Bump it while it is still unconfirmed.
-    let bumped = wallet.build_fee_bump(&first.txid, 8.0).await?;
+    let bumped = wallet.build_fee_bump(&first, 8.0).await?;
     assert!(
         bumped.fee_sat > original.fee_sat,
         "bump must raise the fee: {} -> {}",
@@ -112,25 +100,22 @@ async fn fee_bump_replaces_the_original() -> anyhow::Result<()> {
     );
     assert_eq!(bumped.total_out_sat, SEND_SAT, "recipient is unchanged");
 
-    let signed = wallet.sign(&bumped.psbt_base64).await?;
-    let replacement = wallet.broadcast(&signed).await?;
-    assert_ne!(replacement.txid, first.txid, "replacement is a new txid");
-
-    env.wait_until_electrum_sees_txid(Txid::from_str(&replacement.txid)?, TIMEOUT)?;
+    let replacement = send(&env, &wallet, &bumped).await?;
+    assert_ne!(replacement, first, "replacement is a new txid");
     confirm(&env)?;
     wallet.sync().await?;
 
     let history = wallet.list_transactions().await;
     let confirmed_spend = history
         .iter()
-        .find(|t| t.txid == replacement.txid)
+        .find(|t| t.txid == replacement)
         .expect("replacement is in history");
     assert!(
         confirmed_spend.confirmations.unwrap_or(0) >= 1,
         "the replacement is the one that confirmed"
     );
     assert!(
-        !history.iter().any(|t| t.txid == first.txid),
+        !history.iter().any(|t| t.txid == first),
         "the replaced transaction is dropped from the canonical history"
     );
     assert_eq!(
@@ -193,9 +178,7 @@ async fn state_survives_reopen_from_persister() -> anyhow::Result<()> {
             Box::new(JsonPersister::new(store.clone())),
         )
         .await?;
-        fund(&env, &wallet.address().await, FUNDING_SAT)?;
-        confirm(&env)?;
-        wallet.sync().await?;
+        fund_and_sync(&env, &wallet, FUNDING_SAT).await?;
         assert_eq!(wallet.balance().await.confirmed, FUNDING_SAT);
     }
     assert!(

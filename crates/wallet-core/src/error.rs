@@ -358,12 +358,19 @@ mod tests {
 
     /// Adding a variant fails to compile in [`Error::ordinal`] until it has
     /// one. Give it the next, raise `VARIANTS` here, and add its row to
-    /// `samples` — `the_table_covers_every_variant` fails until all three agree.
+    /// `samples` and its number to the list below —
+    /// `the_table_covers_every_variant` fails until all four agree.
     const VARIANTS: u8 = 19;
 
     #[test]
     fn the_table_covers_every_variant() {
-        let mut seen: Vec<u8> = samples().iter().map(|(e, ..)| e.ordinal()).collect();
+        let ordinals: Vec<u8> = samples().iter().map(|(e, ..)| e.ordinal()).collect();
+        // Row by row: the CLI exits with 10 plus the ordinal, so none moves.
+        let pinned = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 18, 15, 16, 17,
+        ];
+        assert_eq!(ordinals, pinned, "an ordinal moved");
+        let mut seen = ordinals;
         seen.sort_unstable();
         assert_eq!(seen, (0..VARIANTS).collect::<Vec<_>>());
     }

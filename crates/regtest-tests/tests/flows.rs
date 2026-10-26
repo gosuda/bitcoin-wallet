@@ -12,36 +12,14 @@
 use std::str::FromStr;
 
 mod common;
-use common::{TIMEOUT, build_payment, config, confirm, fund, open, send, start};
-use wallet_core::bitcoin::Txid;
-use wallet_core::{
-    AddressType, CoinId, KeyMaterial, MemoryPersister, Network, Recipient, WalletConfig,
-    WalletHandle,
+use common::{
+    TIMEOUT, build_payment, confirm, fund, fund_and_sync, open, open_new_hd, open_new_key, send,
+    start,
 };
+use wallet_core::bitcoin::Txid;
+use wallet_core::{AddressType, CoinId, KeyMaterial, Network, Recipient, WalletHandle};
 
 const FUNDING_SAT: u64 = 200_000;
-
-/// A new HD wallet, as the app's "New wallet" makes one.
-async fn new_hd_wallet(url: &str) -> anyhow::Result<WalletHandle> {
-    let seed = wallet_core::generate_mnemonic(Network::Regtest, AddressType::P2wpkh, 12)?;
-    open(url, &KeyMaterial::parse(&seed.words)).await
-}
-
-/// A wallet of its own for a recipient, so an assertion reads what arrived
-/// rather than what the sender believes it sent.
-async fn recipient(url: &str, address_type: AddressType) -> anyhow::Result<WalletHandle> {
-    let key = wallet_core::generate_key(Network::Regtest, address_type)?;
-    let wallet = WalletHandle::open(
-        WalletConfig {
-            address_type,
-            ..config(url)
-        },
-        &KeyMaterial::PrivHex(key.priv_hex.clone()),
-        Box::new(MemoryPersister::new()),
-    )
-    .await?;
-    Ok(wallet)
-}
 
 /// Two recipients in one transaction each receive exactly their amount, and
 /// the detail view of it reads the fee, the confirmation and who owns what.
@@ -50,13 +28,11 @@ async fn a_two_recipient_send_confirms_and_its_detail_reads_back() -> anyhow::Re
     const TO_FIRST_SAT: u64 = 30_000;
     const TO_SECOND_SAT: u64 = 45_000;
     let (env, url) = start()?;
-    let wallet = new_hd_wallet(&url).await?;
-    fund(&env, &wallet.address().await, FUNDING_SAT)?;
-    confirm(&env)?;
-    wallet.sync().await?;
+    let wallet = open_new_hd(&url).await?;
+    fund_and_sync(&env, &wallet, FUNDING_SAT).await?;
 
-    let first = recipient(&url, AddressType::P2wpkh).await?;
-    let second = recipient(&url, AddressType::P2tr).await?;
+    let first = open_new_key(&url, AddressType::P2wpkh).await?;
+    let second = open_new_key(&url, AddressType::P2tr).await?;
     let (first_address, second_address) = (first.address().await, second.address().await);
     let built = wallet
         .build_transfer(
@@ -135,14 +111,14 @@ async fn a_two_recipient_send_confirms_and_its_detail_reads_back() -> anyhow::Re
 async fn a_drain_arrives_whole_with_no_change() -> anyhow::Result<()> {
     const SECOND_FUNDING_SAT: u64 = 75_000;
     let (env, url) = start()?;
-    let wallet = new_hd_wallet(&url).await?;
+    let wallet = open_new_hd(&url).await?;
     fund(&env, &wallet.address().await, FUNDING_SAT)?;
     fund(&env, &wallet.new_address().await?, SECOND_FUNDING_SAT)?;
     confirm(&env)?;
     wallet.sync().await?;
     assert_eq!(wallet.list_utxos().await.len(), 2);
 
-    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let destination = open_new_key(&url, AddressType::P2wpkh).await?;
     let built = wallet
         .build_drain(&destination.address().await, 2.0)
         .await?;
@@ -182,10 +158,8 @@ async fn a_drain_arrives_whole_with_no_change() -> anyhow::Result<()> {
 async fn a_watch_only_copy_mirrors_the_full_wallet() -> anyhow::Result<()> {
     const SEND_SAT: u64 = 40_000;
     let (env, url) = start()?;
-    let wallet = new_hd_wallet(&url).await?;
-    fund(&env, &wallet.address().await, FUNDING_SAT)?;
-    confirm(&env)?;
-    wallet.sync().await?;
+    let wallet = open_new_hd(&url).await?;
+    fund_and_sync(&env, &wallet, FUNDING_SAT).await?;
 
     // A spend with change, so the copy has the internal keychain to find too.
     let elsewhere = wallet_core::generate_key(Network::Regtest, AddressType::P2wpkh)?;
@@ -245,7 +219,7 @@ async fn chosen_coins_move_and_a_frozen_one_stays() -> anyhow::Result<()> {
     const THIRD_FUNDING_SAT: u64 = 50_000;
     const SEND_SAT: u64 = 20_000;
     let (env, url) = start()?;
-    let wallet = new_hd_wallet(&url).await?;
+    let wallet = open_new_hd(&url).await?;
     fund(&env, &wallet.address().await, FUNDING_SAT)?;
     fund(&env, &wallet.new_address().await?, SECOND_FUNDING_SAT)?;
     fund(&env, &wallet.new_address().await?, THIRD_FUNDING_SAT)?;
@@ -260,7 +234,7 @@ async fn chosen_coins_move_and_a_frozen_one_stays() -> anyhow::Result<()> {
     assert_eq!(balance.spendable(), SECOND_FUNDING_SAT + THIRD_FUNDING_SAT);
 
     // --- a send held to the smallest coin, though either other would do
-    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let destination = open_new_key(&url, AddressType::P2wpkh).await?;
     let small = coin_worth(&wallet, THIRD_FUNDING_SAT).await;
     let built = wallet
         .build_transfer_from(
@@ -326,7 +300,7 @@ async fn chosen_coins_move_and_a_frozen_one_stays() -> anyhow::Result<()> {
 async fn a_child_pays_for_a_payment_someone_else_sent() -> anyhow::Result<()> {
     const PACKAGE_RATE: f64 = 50.0;
     let (env, url) = start()?;
-    let wallet = new_hd_wallet(&url).await?;
+    let wallet = open_new_hd(&url).await?;
     fund(&env, &wallet.address().await, FUNDING_SAT)?;
     wallet.sync().await?;
     let parent = wallet
@@ -379,12 +353,10 @@ async fn a_child_pays_for_a_payment_someone_else_sent() -> anyhow::Result<()> {
 async fn a_cancel_takes_a_send_back() -> anyhow::Result<()> {
     const SEND_SAT: u64 = 40_000;
     let (env, url) = start()?;
-    let wallet = new_hd_wallet(&url).await?;
-    fund(&env, &wallet.address().await, FUNDING_SAT)?;
-    confirm(&env)?;
-    wallet.sync().await?;
+    let wallet = open_new_hd(&url).await?;
+    fund_and_sync(&env, &wallet, FUNDING_SAT).await?;
 
-    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let destination = open_new_key(&url, AddressType::P2wpkh).await?;
     let original = build_payment(&wallet, &destination.address().await, SEND_SAT, 20.0).await?;
     let first = send(&env, &wallet, &original).await?;
 
@@ -420,16 +392,14 @@ async fn a_cancel_takes_a_send_back() -> anyhow::Result<()> {
 async fn a_psbt_goes_from_a_watch_only_copy_to_the_keys_and_out() -> anyhow::Result<()> {
     const SEND_SAT: u64 = 40_000;
     let (env, url) = start()?;
-    let keys = new_hd_wallet(&url).await?;
-    fund(&env, &keys.address().await, FUNDING_SAT)?;
-    confirm(&env)?;
-    keys.sync().await?;
+    let keys = open_new_hd(&url).await?;
+    fund_and_sync(&env, &keys, FUNDING_SAT).await?;
     let descriptor = keys.public_descriptors().await.external;
     let watcher = open(&url, &KeyMaterial::parse(&descriptor)).await?;
     assert!(watcher.is_watch_only());
     watcher.sync().await?;
 
-    let destination = recipient(&url, AddressType::P2wpkh).await?;
+    let destination = open_new_key(&url, AddressType::P2wpkh).await?;
     let unsigned = build_payment(&watcher, &destination.address().await, SEND_SAT, 2.0).await?;
     let refused = watcher.broadcast(&unsigned.psbt_base64).await.unwrap_err();
     assert_eq!(

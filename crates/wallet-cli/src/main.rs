@@ -488,68 +488,23 @@ mod tests {
         assert_eq!(passphrased.passphrase(), Some("TREZOR"));
     }
 
-    /// One instance of every `wallet_core::Error` variant, in exit-code
-    /// order. A table, not a chain of asserts, so a new variant only needs
-    /// one new row — and forgetting the row here is safe: `Error::ordinal`'s
-    /// match is exhaustive, so the compiler catches a missing *arm* there
-    /// regardless. What this table catches is two variants sharing a code by
-    /// mistake, or a code that moved, which an exhaustive match does not
-    /// prevent on its own.
-    fn one_of_each_core_error() -> Vec<Error> {
-        vec![
-            Error::InvalidKey("x".into()),
-            Error::InvalidAddress("x".into()),
-            Error::Descriptor("x".into()),
-            Error::Persist("x".into()),
-            Error::Backend("x".into()),
-            Error::Timeout(30),
-            Error::BuildTx("x".into()),
-            Error::InsufficientFunds {
-                needed_sat: 10,
-                available_sat: 5,
-                frozen_sat: 0,
-                all_frozen: false,
-            },
-            Error::InvalidFeeRate("x".into()),
-            Error::Sign("x".into()),
-            Error::Psbt("x".into()),
-            Error::Unsupported("x".into()),
-            Error::Dust { output: 0 },
-            Error::FeeTooLow {
-                required_sat_vb: Some(2.0),
-                required_sat: None,
-            },
-            Error::NoUtxos,
-            Error::InvalidTxid("x".into()),
-            Error::NotReplaceable("x".into()),
-            Error::CorruptState {
-                reason: "mismatch",
-                found: None,
-                supported: None,
-            },
-            Error::UnknownCoin("x".into()),
-        ]
-    }
-
+    /// A core error exits with 10 plus its ordinal, which the core's error
+    /// table pins per variant: so each has a code of its own, and none is 1.
     #[test]
     fn every_core_error_gets_its_own_exit_code_distinct_from_the_cli_level_one() {
-        let codes: Vec<u8> = one_of_each_core_error()
-            .into_iter()
-            .map(|e| CliError::from(e).exit_code())
-            .collect();
-        assert!(
-            codes.iter().all(|&c| c != 1),
-            "a core error's code must not collide with the CLI-level code 1: {codes:?}"
-        );
-        let mut sorted = codes.clone();
-        sorted.sort_unstable();
-        sorted.dedup();
-        assert_eq!(
-            sorted.len(),
-            codes.len(),
-            "duplicate exit code in {codes:?}"
-        );
-        assert_eq!(codes, (10..=28).collect::<Vec<u8>>(), "a code moved");
+        for e in [
+            Error::InvalidKey("x".into()),
+            Error::NoUtxos,
+            Error::UnknownCoin("x".into()),
+        ] {
+            let ordinal = e.ordinal();
+            let code = CliError::from(e).exit_code();
+            assert_eq!(code, 10 + ordinal);
+            assert_ne!(
+                code, 1,
+                "a core error's code must not collide with the CLI-level code 1"
+            );
+        }
     }
 
     #[test]

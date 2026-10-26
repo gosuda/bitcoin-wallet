@@ -1905,10 +1905,18 @@ but comments.
       spellings give byte-identical CLI output and exit code and binding errors, and the two
       rate formulas give the same f64 bits for 28,000,641 values and for 68 real transactions;
       the core also lints for iOS and Android, and the wasm `.d.ts` is unchanged
-- [ ] **10.19 The core pins the exit codes, and the regtest tests share their setup** · M ·
+- [x] **10.19 The core pins the exit codes, and the regtest tests share their setup** · M ·
   `error.rs`, `wallet-cli`, `regtest-tests`
       why: the CLI's test re-lists every core error to pin what the core's own table could, and
-      the regtest files open, fund and sync wallets by hand
+      the regtest files open, fund and sync wallets by hand · done: 2026-10-27 — error.rs's
+      table pins each variant's ordinal row by row, so the CLI's test keeps its name and
+      asserts only the CLI's rule (exit code 10 plus the ordinal, never 1), and its 35-line
+      list of every core error goes; swapping two ordinals now fails the core's test. The
+      regtest files share `open_new_hd`, `open_new_key` and `fund_and_sync` (seven
+      fund-confirm-sync runs), and the fee-bump test sends through `common::send`. Not taken: a
+      CLI helper for sign and broadcast (it returns four values to callers that build their own
+      JSON) and a test-vector module (it saves no line). The regtest crate builds and lists the
+      same 12 tests; they run in CI
 - [ ] **10.20 The Rust comments say what holds** · M · `crates/*`, `src-tauri/src`
       why: comments tell what the code used to do, a fact is explained in up to five files, and
       a few restate the line below
