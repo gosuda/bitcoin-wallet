@@ -560,7 +560,7 @@ export function renderDashboard(): HTMLElement {
         ]),
       ]),
     ];
-    const actions = el("div", { className: "tx-detail-actions" }, [
+    const actions = el("div", { className: "actions" }, [
       copyButton(() => d.txid, "Copy transaction id", "sm"),
     ]);
     if (explorer !== null) {

@@ -90,10 +90,6 @@ body {
   cursor: pointer;
 }
 
-.m-icon-btn:active {
-  background: var(--subtle);
-}
-
 /* Body -------------------------------------------------------------------- */
 
 .m-body {
@@ -163,7 +159,12 @@ body {
   cursor: pointer;
 }
 
-.m-btn:active {
+/* Pressed, a control takes the subtle fill; the primary button its own, below. */
+.m-icon-btn:active,
+.m-btn:active,
+button.m-txrow:active,
+.m-fold:active,
+.m-item:active {
   background: var(--subtle);
 }
 
@@ -284,7 +285,6 @@ body {
 }
 
 .m-chips-tight .m-chip {
-  padding: 0 12px;
   font-size: 14px;
   white-space: nowrap;
 }
@@ -517,31 +517,6 @@ body {
 
 /* Transactions ------------------------------------------------------------ */
 
-/* A history row is a button: it opens the transaction. */
-.m-txrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 11px var(--space-4);
-  border: none;
-  border-bottom: 1px solid var(--border);
-  min-height: var(--tap);
-  width: 100%;
-  background: transparent;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.m-txrow:last-child {
-  border-bottom: none;
-}
-
-button.m-txrow:active {
-  background: var(--subtle);
-}
-
 .m-chev {
   flex: none;
   display: inline-flex;
@@ -584,15 +559,9 @@ button.m-txrow:active {
   gap: 10px;
 }
 
-.m-bump .section-label {
+.m-bump .section-label,
+.m-fold .section-label {
   color: var(--accent-deep);
-}
-
-.m-bump-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
 }
 
 /* The words under an action card's heading (M11b). */
@@ -628,14 +597,6 @@ button.m-txrow:active {
   color: var(--fg);
   text-align: left;
   cursor: pointer;
-}
-
-.m-fold:active {
-  background: var(--subtle);
-}
-
-.m-fold .section-label {
-  color: var(--accent-deep);
 }
 
 .m-fold-hint {
@@ -743,30 +704,41 @@ button.m-txrow:active {
 
 /* Rows in a flush card ---------------------------------------------------- */
 
+/* A history row, which opens the transaction, or a setting: the card's width
+   at a thumb's height, ruled off from the next, and none of a button's look. */
+.m-txrow,
 .m-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   width: 100%;
   min-height: var(--tap);
-  padding: var(--space-3) var(--space-4);
   border: none;
   border-bottom: 1px solid var(--border);
   background: transparent;
-  color: var(--fg);
   font: inherit;
-  font-size: 16px;
   text-align: left;
   cursor: pointer;
 }
 
-.m-item:last-child {
-  border-bottom: none;
+.m-txrow {
+  padding: 11px var(--space-4);
+  color: inherit;
 }
 
-.m-item:active {
-  background: var(--subtle);
+.m-item {
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  color: var(--fg);
+  font-size: 16px;
+}
+
+/* A list's last row leaves its rule to the card's edge. */
+.m-txrow:last-child,
+.m-item:last-child,
+.m-block:last-child,
+.m-coin:last-child {
+  border-bottom: none;
 }
 
 .m-item-value {
@@ -789,10 +761,6 @@ button.m-txrow:active {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
   font-size: 16px;
-}
-
-.m-block:last-child {
-  border-bottom: none;
 }
 
 .m-block-head {
@@ -898,10 +866,6 @@ button.m-txrow:active {
   min-height: var(--tap);
   padding: 11px 0;
   border-bottom: 1px solid var(--border);
-}
-
-.m-coin:last-child {
-  border-bottom: none;
 }
 
 .m-coin-pick {

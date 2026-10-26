@@ -244,7 +244,7 @@ export function renderTransaction(): HTMLElement {
       rate.value = String(suggested);
     })();
     const sheet = card(
-      el("div", { className: "m-bump-head" }, [sectionLabel("Bump fee"), note]),
+      el("div", { className: "card-head" }, [sectionLabel("Bump fee"), note]),
       el("div", { className: "m-rate-row" }, [
         rate,
         el("span", { className: "m-rate-unit", text: "sat/vB" }),
@@ -471,7 +471,7 @@ export function renderTransaction(): HTMLElement {
     })();
 
     const sheet = card(
-      el("div", { className: "m-bump-head" }, [sectionLabel("Speed up"), note]),
+      el("div", { className: "card-head" }, [sectionLabel("Speed up"), note]),
       el("p", {
         className: "m-card-text",
         text: "Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).",

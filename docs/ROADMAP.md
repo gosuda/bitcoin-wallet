@@ -1691,10 +1691,25 @@ but comments.
 
 **Stylesheets**
 
-- [ ] **10.2 Rules that style one thing alike are written once** · S · `app.css`, `mobile.css`
+- [x] **10.2 Rules that style one thing alike are written once** · S · `app.css`, `mobile.css`
       why: the phone's history row and setting row, their press and their last border are
       written several times over, the phone's Bump fee head is the desktop's card head, and
-      some declarations repeat what already applies
+      some declarations repeat what already applies · done: 2026-10-27 — the phone's history
+      row and setting row share their eleven declarations, a flush list's last row drops its
+      rule in one `:last-child` rule (history row, setting, Rescan block, coin), and five
+      `:active` rules are one list before `.m-btn-primary:active`; the Bump fee and Speed up
+      heads use `card-head` and the desktop's transaction detail `actions` (two class swaps in
+      TypeScript), so `.m-bump-head` and `.tx-detail-actions` go; the radio chip's and unit
+      chip's `outline: none` are one rule, the tick's and unit chip's hidden inputs one; two
+      declarations that repeat what applies go. The sheets are 48 lines shorter. Not taken: the
+      `:has()` chip pair, and rules alike only by coincidence. Biome is clean
+      (`noDescendingSpecificity` included) and focus.test.ts finds its rules. The dumped states
+      change only in the swapped classes (19 states). Chrome 156 computed every non-custom
+      property of every element and its ::before, ::after and ::placeholder in all 251 states,
+      desktop at 1024 px and phone at 390 and 320 px, light and dark (92,868,520 values), and
+      in 22,968 variants forcing hover, press or keyboard focus on one element, an invalid
+      field, or Scan's see-through page (3,317,412,216 values): 0 differences from the base;
+      the base against itself 0, and a deliberate one-declaration edit caught in each mode
 
 **The UI tests**
 
