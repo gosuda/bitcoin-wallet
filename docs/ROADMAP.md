@@ -1958,10 +1958,19 @@ but comments.
 
 **Comments elsewhere**
 
-- [ ] **10.23 The stylesheets', CI's, Android files' and generator's comments say what holds**
+- [x] **10.23 The stylesheets', CI's, Android files' and generator's comments say what holds**
   · S · `*.css`, `.github`, `gen/android`, `gen.py`
       why: comments tell how a rule, a job or a board came to be, or repeat a fact said
-      elsewhere
+      elsewhere · done: 2026-10-27 — in the sheets, the `hidden` rule's, the word grid's and
+      the tab bar's stories go, the iOS zoom and the focus rings are explained once, and the
+      switch's restating comment goes; in CI, the queue-time story, "never run yet", the empty
+      certificate, the updater input's rename, the dated decision and wasm-pack's build time
+      go, with notes that repeat a script's header or the action's description; Keyring.kt's
+      out-of-date README note gives way to the reason the context is set, and MainActivity.kt
+      no longer repeats it; gen.py's history tags and its flowery lines go, its canvas data
+      untouched. Only comments change (the sheets and gen.py compared with comments stripped,
+      the workflows parsing identically); the boards regenerate byte-identical and the styles
+      compute the same
 
 ## Later — not picked
 

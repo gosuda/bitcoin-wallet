@@ -1,13 +1,7 @@
 /**
- * Phone layer, loaded only by the mobile shell.
- *
- * It shares every colour and font with the desktop stylesheet and changes only
- * what a thumb needs: 48px controls, 16px input text (anything smaller makes
- * iOS zoom the page on focus), 12px card radius, and real safe-area insets so
- * content clears the notch and the home indicator.
- *
- * Nothing here is scoped by media query — the shell that loads it is chosen by
- * platform, not by viewport, so a narrow desktop window never picks it up.
+ * The phone's layer over app.css, loaded only by the phone shell: what a thumb
+ * and a notched screen need. The shell is chosen by platform, not by viewport,
+ * so nothing here sits in a media query.
  */
 
 :root {
@@ -30,14 +24,9 @@ body {
   overflow: hidden;
 }
 
-/**
- * Each screen is a <main> holding a header and a scrolling body, so it has to
- * be a flex column itself and be allowed to shrink. Without this the body's
- * `flex: 1` has no flex parent, no scroll region forms, and everything below
- * the fold is silently clipped by the `overflow: hidden` above — which is
- * exactly as bad as it sounds on a screen whose primary button is at the
- * bottom.
- */
+/* Each screen is a <main> holding a header and a scrolling body: a flex column
+   allowed to shrink, so the body's `flex: 1` forms the scroll region and
+   nothing below the fold is cut off by the `overflow: hidden` above. */
 #app > main {
   flex: 1;
   min-height: 0;
@@ -215,8 +204,7 @@ button.m-txrow:active,
 .m-row {
   display: flex;
   gap: var(--space-2);
-  /* Without this, a chip beside a 48px input stretches to the input's height
-     and reads as a tall blob rather than a control. */
+  /* So a chip beside a 48px input keeps its own height, not the input's. */
   align-items: center;
 }
 
@@ -240,9 +228,8 @@ button.m-txrow:active,
   padding: 0 var(--space-3);
 }
 
-/* A word box is not a form field: it sits inside its own numbered cell, so the
-   48px rule above would make the blanks tower over the words beside them. Keep
-   the 16px text — that is what stops iOS zooming — and drop the rest. */
+/* A word box sits in its numbered cell, level with the words beside it: it
+   keeps the 16px text and none of a field's height, padding or corners. */
 .m-body .word-cell .word-input {
   min-height: 22px;
   padding: 0;
@@ -988,8 +975,8 @@ button.m-txrow:active,
   min-height: 44px;
 }
 
-/* Base64 runs unbroken, so it wraps at the box's edge. The text stays at the
-   16px floor rather than the board's 12px: anything smaller zooms iOS in. */
+/* Base64 runs unbroken, so it wraps at the box's edge; the text keeps the 16px
+   floor, not the board's 12px. */
 .m-body .m-psbt-field {
   word-break: break-all;
 }
@@ -1075,9 +1062,8 @@ button.m-txrow:active,
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--surface);
-  /* Android's gesture bar overlays an edge-to-edge webview but does not always
-     report a safe-area inset, which put the tab labels underneath it. The floor
-     keeps them clear whether or not the inset arrives. */
+  /* Android's gesture bar overlays an edge-to-edge webview without always
+     reporting a safe-area inset; the floor keeps the labels clear of it. */
   padding-bottom: max(var(--safe-bottom), 14px);
 }
 
@@ -1155,9 +1141,9 @@ button.m-txrow:active,
   border-radius: 0 0 20px 0;
 }
 
-/* The screen is the camera's layer, dark in either theme as drawn. While a scan
-   runs the camera sits behind the webview, so the page turns see-through and
-   this layer only dims it; the tab bar stays solid. */
+/* The camera's layer. While a scan runs the camera sits behind the webview:
+   the page turns see-through, this layer only dims it, and the tab bar stays
+   solid. */
 .m-scanner {
   background: var(--scan-bg);
   color: var(--scan-fg);
@@ -1214,12 +1200,10 @@ html[data-scanning] .m-scanner {
 /* Focus ------------------------------------------------------------------- */
 
 /**
- * Rings for keyboard focus: every rule here is `:focus-visible`, so a tap on a
- * row, tab or button draws nothing. Fields, textareas, chips and the other
- * buttons keep the ring app.css gives both shells, 2px of accent 1px outside,
- * since each has room around it; a field shows it on a tap too, because
- * browsers count a focused text field as keyboard focus. Rows, tabs and the
- * primary button take the rings drawn on the M15 board instead.
+ * Rings for keyboard focus, each `:focus-visible`, so a tap draws none; a
+ * focused text field counts as keyboard focus, so a field's ring shows on a
+ * tap too. Fields, chips and the other buttons, which have room around them,
+ * keep app.css's ring; rows, tabs and the primary button take the M15 board's.
  */
 
 /* A row runs edge to edge in its card, so a ring outside it would sit on the

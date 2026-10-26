@@ -56,7 +56,6 @@ def icon(name, size=16, color="currentColor"):
       "key": '<circle cx="8" cy="15" r="4"></circle><path d="M10.9 12.1L20 3"></path><path d="M16 7l3 3"></path>',
       "chevron": '<path d="M9 6l6 6-6 6"></path>',
       "arrow": '<path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path>',
-      # mobile
       "back": '<path d="M15 6l-6 6 6 6"></path>',
       "wallet": '<path d="M3 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2"></path><path d="M3 8v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2z"></path><circle cx="17" cy="14" r="1.2"></circle>',
       "scan": '<path d="M4 8V5a1 1 0 0 1 1-1h3"></path><path d="M16 4h3a1 1 0 0 1 1 1v3"></path><path d="M20 16v3a1 1 0 0 1-1 1h-3"></path><path d="M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M4 12h16"></path>',
@@ -64,7 +63,6 @@ def icon(name, size=16, color="currentColor"):
       "up": '<path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path>',
       "down": '<path d="M12 5v14"></path><path d="M18 13l-6 6-6-6"></path>',
       "faceid": '<path d="M4 8V6a2 2 0 0 1 2-2h2"></path><path d="M16 4h2a2 2 0 0 1 2 2v2"></path><path d="M20 16v2a2 2 0 0 1-2 2h-2"></path><path d="M8 20H6a2 2 0 0 1-2-2v-2"></path><path d="M9 10v1.5"></path><path d="M15 10v1.5"></path><path d="M9.5 15.5a3.5 3.5 0 0 0 5 0"></path>',
-      # round 6
       "lock": '<rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path>',
       "alert": '<circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5"></path><path d="M12 16.5v.01"></path>',
       "clipboard": '<rect x="8" y="3" width="8" height="4" rx="1"></rect><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"></path>',
@@ -133,8 +131,7 @@ TR_ADDR = "tb1p5n82a6xmp47yhkkc007dxstutv23cce37xqg0n2ugwsmfnu98h2szr4k32"
 # so a value that cannot exist teaches the wrong shape.
 TXID = "e19f4a7d05c3b8a2f6d1e0c9b7a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b2c8"
 # Account key of the published BIP39 zero-entropy vector, as the wallet's own
-# tests derive it. The previous fixture failed Base58Check and could not be
-# imported by anyone reading the board.
+# tests derive it.
 XPUB = "tpubDC8msFGeGuwnKG9Upg7DM2b4DaRqg3CUZa5g8v2SRQ6K4NSkxUgd7HsL2XVWbVm39yBA4LAxysQAm397zwQSQoQgewGiYZqrA9DsP4zbQ1M"
 WALLET_SUB = "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
 
@@ -325,9 +322,9 @@ def _hrow(dirn, txid, amt, conf, when, expanded=False, detail=None):
            f'<td class="num"><span{chev}>{icon("chevron", 14, "#A19F97")}</span></td></tr>')
     if not expanded:
         return row
-    # Click a row and it opens in place — the same detail the phone shows on its
-    # own screen, with the fee bump living inside it rather than on the row.
-    # A caller can pass its own detail; the default is the row 3 · Wallet shows open.
+    # Click a row and it opens in place, with the detail the phone shows on its own
+    # screen, fee bump included. A caller can pass its own detail; the default is
+    # the row 3 · Wallet shows open.
     if detail is None:
         detail = f"""    <dl class="kv" style="margin: 0;">
       <dt>Transaction id</dt><dd class="mono" style="font-size: 12px;">{TXID}</dd>
@@ -493,8 +490,8 @@ iconboard = HEAD + f'''<div style="width: 720px; min-height: 480px; background: 
 # Android phone. Same palette and type as the desktop boards; everything else
 # is re-scaled for a thumb: 48px controls, 16px input text (below that iOS
 # zooms the page on focus), 12px card radius, 999px chips. The status bar,
-# bottom tab bar and home indicator are drawn in so the usable height is
-# judged honestly rather than assumed.
+# bottom tab bar and home indicator are drawn in, so the height left for content
+# is a phone's.
 
 MOBILE_CSS = '''
     .m-frame { width: 390px; height: 844px; background: #FAFAF9; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; position: relative; }
@@ -663,14 +660,9 @@ mkey = m_screen("Start a wallet", f"""
   </div>
   <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-quiet">Advanced: use a single key</span></div>""")
 
-# The screen does not take a promise that the words were written down: it asks
-# for three of them back, and Continue stays disabled until they match. A board
-# showing only a checkbox described a gate the wallet does not have.
-#
-# Two 12-word grids do not fit one screen, and on the device they do not: the
-# screen scrolls. Two boards at the real height show that honestly, the way M8
-# and M8b already split Send — a taller frame would have drawn a phone nobody
-# holds, which is the whole reason the frame is fixed and clipped.
+# The screen asks for three of the words back, and Continue stays disabled
+# until they match. Two 12-word grids do not fit one screen, so it scrolls;
+# M3 and M3b draw it as two boards, each the height of the phone.
 CREATE_BLANKS = (3, 4, 9)
 mcreate = m_screen("New wallet", f'''
   <p style="margin:0;font-size:14px;color:#6B6B66;line-height:1.5;">Anyone with these words can spend this wallet's bitcoin. Write them down in order and keep them offline: this wallet cannot show them again.</p>
@@ -844,8 +836,6 @@ def m_settings(keys=(), wallet=(), scrolls=False):
 
 msettings = m_settings()
 
-# ---------------------------------------------------------------- mobile: new boards (round 3)
-
 mtx = m_screen("Transaction", f"""
   {m_hero("out", "−50,141", "Pending · seen 2 min ago")}
   {m_list(m_item("Fee", "141 sat · 1.0 sat/vB · 141 vB", chevron=False), m_item("Confirmations", "Pending", chevron=False))}
@@ -881,14 +871,14 @@ mexport = m_screen("Public keys", f"""
 
 # ---------------------------------------------------------------- round 6: product
 #
-# One batch for review (roadmap 6.6). The sample values are worked out, not
-# typed: the new addresses carry valid checksums, txids are 64 hex characters,
-# each vsize is that of the inputs and outputs drawn, the fees follow from it,
-# and PSBT_B64 is a real encoding of the transaction its boards describe
-# (2 inputs, 2 outputs — which is why it starts cHNidP8BAKYC).
+# The sample values are worked out, not typed: the addresses carry valid
+# checksums, txids are 64 hex characters, each vsize is that of the inputs and
+# outputs drawn, the fees follow from it, and PSBT_B64 is a real encoding of the
+# transaction its boards describe (2 inputs, 2 outputs — which is why it starts
+# cHNidP8BAKYC).
 #
-# No new classes: the few new controls (checkbox, switch, select) are inline,
-# like the rest of the boards, so no existing board's stylesheet changes.
+# The checkbox, switch and select are drawn inline, like the rest of the boards:
+# a class would change the stylesheet every board carries.
 
 R2_ADDR = "tb1qmdpena9w6e2h49wxe0tglyrezzgcgs37us67w0"        # a second recipient
 SENDER_CHANGE = "tb1qgjekfa6uqy5m5c7lnlgze4hmup0ukxtz0lfwtk"  # the sender's change on an incoming tx
@@ -1310,7 +1300,7 @@ canvas = {
     {"file": "MSend.dc.html", "html": msend, "title": "M8 · Send", "x": 940, "y": 4364, "w": 390, "h": 844},
     {"file": "MScan.dc.html", "html": mscan, "title": "M9 · Scan", "x": 1410, "y": 4364, "w": 390, "h": 844},
     {"file": "MSettings.dc.html", "html": msettings, "title": "M10 · Settings", "x": 1880, "y": 4364, "w": 390, "h": 844},
-    # Mobile row 3 — round 3: what a finished wallet still needed.
+    # Mobile row 3 — round 3: what a finished wallet needs.
     {"file": "MTx.dc.html", "html": mtx, "title": "M11 · Transaction", "x": 0, "y": 5328, "w": 390, "h": 844},
     {"file": "MExport.dc.html", "html": mexport, "title": "M12 · Public keys", "x": 470, "y": 5328, "w": 390, "h": 844},
     {"file": "MSendMax.dc.html", "html": msendmax, "title": "M8b · Send (Max)", "x": 940, "y": 5328, "w": 390, "h": 844},
@@ -1348,8 +1338,7 @@ canvas = {
     {"id": "mobile-native-note", "x": 2350, "y": 4364, "w": 400, "text": "What each mobile-only affordance costs\n\nM7 Receive QR — pure JS, no native plugin.\nM9 Scan — tauri-plugin-barcode-scanner, camera permission string in Info.plist and AndroidManifest.\nM5 Unlock — tauri-plugin-biometric; it authenticates, it does not hold the key, so the key still sits in iOS Keychain / Android Keystore and Face ID gates the read.\nM8 Send also opens from a bitcoin: deep link (tauri-plugin-deep-link), prefilled.\n\nM10 'Show recovery phrase' is behind the same biometric gate."},
     # Round 6. The brief sits above the desktop rows, over the right-hand board:
     # on the left, the 228px under phone row 3 is too short for it. Desktop
-    # notes at x=3120 as before; phone notes in three columns from x=2350,
-    # beside their row. round3-* and mobile-brief moved off the boards above.
+    # notes at x=3120; phone notes in three columns from x=2350, beside their row.
     {"id": "round6-brief", "x": 2350, "y": 5880, "w": 690, "text": "ROUND 6 — product. Reviewed on 2026-09-30.\n\nNEW phone: Unlock with reset, Send to several, Coins, Speed up, Cancel, Import PSBT, focus rings, Settings with Lock/Coins/Import.\nNEW desktop: Settings, Unlock and Remember with an app password (browser build), Coins, Speed up/Cancel, Import PSBT.\n\nDecided:\n(1) Reset only when the saved data cannot be read. Data saved by a newer app version asks for an update instead, since a reset would lose what that version keeps.\n(2) Lock after 5 minutes in the background by default. A wallet that is not remembered stays open.\n(3) App password: PBKDF2-SHA256 with 600,000 rounds and AES-GCM, named 'App password'.\n(4) Several recipients: one unit for all rows; scanning fills the last empty row.\n(5) Rescan and Public keys move to Settings; 3 · Wallet keeps neither."},
     {"id": "round6-settings-note", "x": 3120, "y": 6400, "w": 420, "text": "6 · Settings (6.8, 6.11)\n\nOpened from the gear in the top bar. 3 · Wallet is changed in place for it: the gear is its only change, and 3b, 3c and 7 carry the same gear. Chain rows ask first, then close the wallet and open Setup, as on the phone. Lock after is the phone's setting too. Import PSBT gets a card here, as it gets a row on the phone.\n\nForget is drawn open at its second step. Rescan and Public keys live here only: 3 · Wallet gave them up — choice (5)."},
     {"id": "round6-unlock-pw-note", "x": 3120, "y": 6780, "w": 420, "text": "2e · Unlock with an app password (6.12, browser build only)\n\nThe browser has no keychain, so a remembered key is encrypted with an 'App password' (WebCrypto, AES-GCM) and kept in IndexedDB. It is not the BIP39 passphrase: that one is part of the wallet, this one only locks the copy in this browser.\n\nA wrong password is its own error, under the field. The desktop app keeps the Keychain (2b) and asks for no password."},

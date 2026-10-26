@@ -252,8 +252,7 @@ th {
   gap: 6px;
 }
 
-/* The focus ring both shells share. The phone draws its own for rows, tabs
-   and the primary button, in mobile.css. */
+/* The focus ring both shells share, save where mobile.css draws the phone's own. */
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
@@ -774,7 +773,6 @@ tr.coin-frozen td.pending {
   outline-offset: 1px;
 }
 
-/* Frozen or not: on, the track takes the text colour and the knob moves over. */
 .switch {
   position: relative;
   flex: none;
@@ -1363,10 +1361,8 @@ a.link-button {
 }
 
 /*
- * The `hidden` attribute hides an element only through the browser's own
- * `display: none`, which any class that sets `display` outranks: the phone's
- * Custom rate row stayed on screen for every fee target that way. Both shells
- * load this file, so here it wins over every component's layout.
+ * The `hidden` attribute hides only through the browser's own `display: none`,
+ * which any class that sets `display` outranks. Both shells load this file.
  */
 /* biome-ignore-start lint/complexity/noImportantStyles: `hidden` has to beat every component's own display, however specific its selector */
 [hidden] {
@@ -1390,11 +1386,10 @@ a.link-button {
   gap: var(--space-2);
 }
 
-/* A recovery phrase is only useful if it can be read back a word at a time, so
-   the grid loses columns rather than hyphenating. Four columns on a phone leave
-   roughly 46px for the word itself once the index and padding are taken out,
-   and BIP39 runs to eight letters — which is how "dinner" came to render as
-   "dinn/er". Desktop keeps four: its window has a 720px minimum. */
+/* A recovery phrase is read back a word at a time, so the grid loses columns
+   rather than break a word: four on a phone leave about 46px for the word once
+   the index and padding are out, and a BIP39 word runs to eight letters.
+   Desktop keeps four: its window is at least 720px wide. */
 @media (max-width: 560px) {
   .word-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1509,10 +1504,9 @@ a.link-button {
 }
 
 /*
- * Motion here is decoration, never the message. With the preference set, a
- * state change lands at once and the busy spinner holds still: the button it
- * sits in stays disabled while the work runs, which is the actual signal.
- * Both shells load this file; mobile.css has no motion of its own.
+ * With reduced motion asked for, a change lands at once and the busy spinner
+ * holds still: its button, disabled while the work runs, still says so. Both
+ * shells load this file; mobile.css has no motion of its own.
  */
 /* biome-ignore-start lint/complexity/noImportantStyles: a reset has to beat every component's own transition, however specific its selector */
 @media (prefers-reduced-motion: reduce) {

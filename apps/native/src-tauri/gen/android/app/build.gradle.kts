@@ -17,7 +17,7 @@ val tauriProperties = Properties().apply {
 // gen/android/keystore.properties (gitignored: storeFile, storePassword,
 // keyAlias, keyPassword), or from the ANDROID_KEYSTORE_* environment the
 // release workflow sets from its secrets. With neither, a release build stays
-// unsigned, as it always was. docs/RELEASING.md has the recipe.
+// unsigned. docs/RELEASING.md has the recipe.
 val keystoreProperties = Properties().apply {
     val propFile = rootProject.file("keystore.properties")
     if (propFile.exists()) {

@@ -3,9 +3,8 @@ name: mobile bundles
 # Assembles the phone apps on demand: an Android debug APK and an iOS Simulator
 # app, neither signed for a store. The rust workflow compiles the shell for
 # every mobile target on each change; this goes the rest of the way to
-# something that installs. Manual only, as decided on 2026-09-14: a phone build
-# is long enough that paying for one on every push would be waste. Signing a
-# release is the release workflow's job (docs/RELEASING.md).
+# something that installs. Manual only: a phone build is too long to pay for on
+# every push. The release workflow signs a release (docs/RELEASING.md).
 on:
   workflow_dispatch:
 
@@ -26,8 +25,7 @@ jobs:
         with:
           targets: aarch64-linux-android,wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      # The generated Gradle project wants a JDK 17; pin it rather than trust
-      # whatever the image defaults to this month.
+      # The generated Gradle project wants JDK 17, whatever the image's default.
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

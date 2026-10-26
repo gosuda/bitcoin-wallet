@@ -31,10 +31,7 @@ jobs:
     name: ${{ matrix.name }}
     needs: version
     runs-on: ${{ matrix.os }}
-    # Never run yet, so there is no measured duration to set this from; a
-    # release build (thin LTO, one codegen unit, notarisation) is the slowest
-    # thing this repository does, and an hour is several times anything the
-    # other workflow has taken.
+    # A release build, with thin LTO, one codegen unit and notarisation.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -70,14 +67,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      # The frontend imports the wasm core, so it has to exist before the build.
       - uses: ./.github/actions/frontend
 
-      # Signing and notarisation happen only when these secrets exist; without
-      # them the bundles are unsigned (see docs/RELEASING.md). A secret that does
-      # not exist still arrives as an empty variable, and Tauri signs whenever
-      # APPLE_CERTIFICATE is set at all — so it failed importing an empty
-      # certificate. Each variable is therefore exported only when it has a value.
+      # Signing and notarisation happen only when these secrets exist (see
+      # docs/RELEASING.md). A missing secret arrives as an empty variable, and
+      # Tauri signs whenever APPLE_CERTIFICATE is set at all, so each is exported
+      # only when it has a value.
       - name: Export the Apple signing secrets that exist
         if: runner.os == 'macOS'
         env:
@@ -101,13 +96,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/native
-          # Only a tag publishes; a manual run just proves the bundles build.
           tagName: ${{ env.RELEASE_TAG }}
           releaseName: ${{ env.RELEASE_TAG }}
           releaseDraft: true
           prerelease: false
-          # No updater: v1 renamed this from includeUpdaterJson and defaults it
-          # to true, so the old name would be ignored and latest.json uploaded.
+          # No updater, and tauri-action defaults this to true.
           uploadUpdaterJson: false
           args: ${{ matrix.args }}
 

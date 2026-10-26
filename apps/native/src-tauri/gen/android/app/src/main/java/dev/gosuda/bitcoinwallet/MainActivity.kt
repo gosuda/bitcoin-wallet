@@ -7,8 +7,7 @@ import io.crates.keyring.Keyring
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     // Before super: super.onCreate starts the Rust side, which reads the
-    // credential store at startup. Without this the store has no Android
-    // context and panics across the JNI boundary.
+    // credential store at startup.
     Keyring.initializeNdkContext(applicationContext)
 
     enableEdgeToEdge()
