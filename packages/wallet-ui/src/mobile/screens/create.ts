@@ -6,7 +6,13 @@ import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
 import { rememberCheckbox } from "../../ui/remember";
-import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../../ui/text";
+import {
+  MISSING_WORDS,
+  PASSPHRASE_HINT,
+  WORDS_KEEP,
+  WORDS_MISMATCH,
+  WORDS_SPEND,
+} from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
 import { body, button, card, header, historyReset, labelled, lede, spacer, withLock } from "../ui";
 
@@ -63,15 +69,19 @@ export function renderCreate(): HTMLElement {
         }),
       );
 
-      const remember = rememberCheckbox();
+      const remember = rememberCheckbox(refresh);
       const passphrase = textInput({
         type: "password",
         placeholder: "Leave empty for none",
         name: "passphrase",
       });
 
+      const confirmed = (): boolean =>
+        [...answers.entries()].every(([i, input]) => input.value.trim().toLowerCase() === words[i]);
+
       const createWallet = async (reset = false): Promise<void> => {
         alert.hide();
+        if (!confirmed()) return alert.show("error", WORDS_MISMATCH);
         if (!remember.ready()) return;
         const willRemember = remember.checked();
         try {
@@ -90,17 +100,15 @@ export function renderCreate(): HTMLElement {
           if (onScreen()) offer.report(e, () => createWallet(true));
         }
       };
-      const create = button("Create wallet", () => withLock(create, createWallet), {
-        variant: "primary",
-        block: true,
-        disabled: true,
-      });
+      const create = button(
+        "Create wallet",
+        () => void withLock(create, createWallet).finally(refresh),
+        { variant: "primary", block: true, disabled: true },
+      );
 
+      // Off until the words match and a ticked Remember has its app password.
       function refresh(): void {
-        const ok = [...answers.entries()].every(
-          ([i, input]) => input.value.trim().toLowerCase() === words[i],
-        );
-        create.disabled = !ok;
+        create.disabled = !confirmed() || !remember.ready();
       }
 
       content.replaceChildren(

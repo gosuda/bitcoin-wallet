@@ -1810,10 +1810,17 @@ but comments.
       failed send's banner only on screen. Four new tests hold the broadcast, confirm, and
       leave for Settings or open another wallet before releasing it: before, the phone failed
       both and the desktop the second (a result recorded for another wallet); all pass after
-- [ ] **10.11 The phone checks what the desktop checks before it opens a wallet** · S ·
+- [x] **10.11 The phone checks what the desktop checks before it opens a wallet** · S ·
   `mobile/screens/*`
       why: the phone's single-key and watch-only Restore passed an empty field to the core, its
-      open buttons did not wait for Remember, and its Create did not re-check the words
+      open buttons did not wait for Remember, and its Create did not re-check the words · done:
+      2026-10-27 — the phone's single-key and watch-only Restore say "Enter a private key (hex
+      or WIF) or generate one." and "Paste an xpub or a public descriptor." for an empty field,
+      its open buttons wait for a ticked Remember's app password and take that gate back after
+      an open, and its Create re-checks the typed-back words when pressed; the three sentences
+      live in `ui/text.ts`. Twenty-two new tests on both shells: before, the ten phone ones
+      failed and every desktop one passed; all pass after. On a phone only the empty-field
+      messages can be seen
 - [ ] **10.12 Both shells share their rate fields, units, QR and explorer code, and the desktop
   its Close wallet** · M · `screens/*`, `mobile/screens/*`, `ui/*`
       why: a fee-rate field is set up five times, an amount converted between sat and BTC four

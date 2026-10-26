@@ -143,6 +143,13 @@ export const WORDS_KEEP =
 /** A phrase with a blank in it: Create's confirmation, and the phone's Restore. */
 export const MISSING_WORDS = "Fill in the missing words to continue.";
 
+/** When Create is pressed with a word typed back that is not the phrase's. */
+export const WORDS_MISMATCH = "The words you typed do not match the phrase.";
+
+/** When a single key, or a wallet to follow, is opened with its field empty. */
+export const NO_PRIVATE_KEY = "Enter a private key (hex or WIF) or generate one.";
+export const NO_WATCH_SOURCE = "Paste an xpub or a public descriptor.";
+
 /** What a single key is entered as, and what one key means. */
 export const PRIVATE_KEY_HINT =
   "A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.";

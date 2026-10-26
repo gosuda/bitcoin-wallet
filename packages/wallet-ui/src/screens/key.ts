@@ -10,6 +10,8 @@ import { NO_KEYSTORE_HINT, rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
 import {
   KEY_SHOWN_ONCE,
+  NO_PRIVATE_KEY,
+  NO_WATCH_SOURCE,
   PRIVATE_KEY_HINT,
   PRIVATE_KEY_PLACEHOLDER,
   watchPlaceholder,
@@ -88,7 +90,7 @@ export function renderKey(): HTMLElement {
     alert.hide();
     const value = secret.value.trim();
     if (!value) {
-      alert.show("error", "Enter a private key (hex or WIF) or generate one.");
+      alert.show("error", NO_PRIVATE_KEY);
       return;
     }
     // Nothing is remembered without a confirmed app password. The button waits
@@ -180,7 +182,7 @@ export function renderKey(): HTMLElement {
     alert.hide();
     const value = watchSource.value.trim();
     if (!value) {
-      alert.show("error", "Paste an xpub or a public descriptor.");
+      alert.show("error", NO_WATCH_SOURCE);
       return;
     }
     if (!watchRemember.ready()) return;

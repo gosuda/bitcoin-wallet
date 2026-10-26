@@ -37,7 +37,7 @@ import {
   useScreenHarness,
   withClipboard,
 } from "./harness";
-import { OPENERS } from "./openers";
+import { OPENERS, openerNamed } from "./openers";
 
 useScreenHarness();
 
@@ -420,6 +420,44 @@ describe.each(OPENERS.filter((o) => !o.remembered))(
     });
   },
 );
+
+describe.each([
+  { name: "desktop Key, private key", said: "Enter a private key (hex or WIF) or generate one." },
+  { name: "desktop Key, watch-only", said: "Paste an xpub or a public descriptor." },
+  { name: "phone Restore, single key", said: "Enter a private key (hex or WIF) or generate one." },
+  { name: "phone Restore, watch-only", said: "Paste an xpub or a public descriptor." },
+])("$name with its field left empty", ({ name, said }) => {
+  it("says what to enter, and opens nothing", async () => {
+    const { render, press } = openerNamed(name);
+    const screen = await render();
+    const fields = "input[name=secret], textarea[name=descriptor]";
+    for (const field of screen.querySelectorAll<HTMLInputElement>(fields)) type(field, "");
+
+    buttonNamed(screen, press).click();
+    await settle();
+
+    expect(find(screen, ".banner-visible").textContent).toBe(said);
+    expect(session.wallet).toBeNull();
+  });
+});
+
+describe.each(["desktop Create", "phone Create"].map(openerNamed))("$name", (opener) => {
+  it("checks the words typed back again when pressed", async () => {
+    const screen = await opener.render();
+    const go = buttonNamed(screen, opener.press);
+    expect(go.disabled).toBe(false);
+    // Changed with no input event, so nothing has checked it since.
+    find<HTMLInputElement>(screen, 'input[aria-label^="Word "]').value = "zoo";
+
+    go.click();
+    await settle();
+
+    expect(find(screen, ".banner-visible").textContent).toBe(
+      "The words you typed do not match the phrase.",
+    );
+    expect(session.wallet).toBeNull();
+  });
+});
 
 describe("coin control reaches the core (6.3)", () => {
   it("a build with chosen coins takes the coin-control path, and one without does not", async () => {

@@ -9,6 +9,8 @@ import type { HistoryReset } from "../../ui/reset";
 import {
   KEY_SHOWN_ONCE,
   MISSING_WORDS,
+  NO_PRIVATE_KEY,
+  NO_WATCH_SOURCE,
   PASSPHRASE_HINT,
   PRIVATE_KEY_HINT,
   PRIVATE_KEY_PLACEHOLDER,
@@ -100,7 +102,7 @@ function phrase(cfg: AppConfig): HTMLElement {
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => gate());
   const passphrase = textInput({ placeholder: "Leave empty for none", name: "passphrase" });
   passphrase.type = "password";
 
@@ -189,7 +191,11 @@ function phrase(cfg: AppConfig): HTMLElement {
     }
     await openWith(words, passphrase.value || undefined, door, reset, () => restore(true));
   };
-  const go = button("Restore wallet", () => withLock(go, restore), {
+  // Off while a ticked Remember waits for its app password.
+  const gate = () => {
+    go.disabled = !remember.ready();
+  };
+  const go = button("Restore wallet", () => void withLock(go, restore).finally(gate), {
     variant: "primary",
     block: true,
   });
@@ -216,7 +222,7 @@ function singleKey(cfg: AppConfig): HTMLElement {
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => gate());
   const secret = textInput({
     type: "password",
     mono: true,
@@ -229,9 +235,18 @@ function singleKey(cfg: AppConfig): HTMLElement {
   wipeOnLeave(fields);
 
   const door = { cfg, alert, offer, onScreen, remember, fields };
-  const open = (reset = false): Promise<void> =>
-    openWith(secret.value.trim(), undefined, door, reset, () => open(true));
-  const go = button("Open wallet", () => withLock(go, open), { variant: "primary", block: true });
+  const open = async (reset = false): Promise<void> => {
+    const value = secret.value.trim();
+    if (!value) return alert.show("error", NO_PRIVATE_KEY);
+    await openWith(value, undefined, door, reset, () => open(true));
+  };
+  const gate = () => {
+    go.disabled = !remember.ready();
+  };
+  const go = button("Open wallet", () => void withLock(go, open).finally(gate), {
+    variant: "primary",
+    block: true,
+  });
 
   const generate = button("Generate new key", async () => {
     alert.hide();
@@ -268,7 +283,7 @@ function watchOnly(cfg: AppConfig): HTMLElement {
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => gate());
   const source = el("textarea", {
     attrs: {
       rows: "3",
@@ -285,9 +300,15 @@ function watchOnly(cfg: AppConfig): HTMLElement {
   wipeOnLeave(fields);
 
   const door = { cfg, alert, offer, onScreen, remember, fields };
-  const follow = (reset = false): Promise<void> =>
-    openWith(source.value.trim(), undefined, door, reset, () => follow(true));
-  const go = button("Follow this wallet", () => withLock(go, follow), {
+  const follow = async (reset = false): Promise<void> => {
+    const value = source.value.trim();
+    if (!value) return alert.show("error", NO_WATCH_SOURCE);
+    await openWith(value, undefined, door, reset, () => follow(true));
+  };
+  const gate = () => {
+    go.disabled = !remember.ready();
+  };
+  const go = button("Follow this wallet", () => void withLock(go, follow).finally(gate), {
     variant: "primary",
     block: true,
     icon: "eye",

@@ -10,10 +10,10 @@ import { renderRestore } from "../src/screens/restore";
 import { renderSettings } from "../src/screens/settings";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
-import type { RememberedWallet } from "../src/types";
-import { fake } from "./fakes";
+import { type RememberedWallet, WalletError } from "../src/types";
+import { deferred, fake } from "./fakes";
 import { buttonNamed, find, leaveTo, mountAt, settle, type, useScreenHarness } from "./harness";
-import { openerNamed } from "./openers";
+import { OPENERS, openerNamed } from "./openers";
 
 useScreenHarness();
 
@@ -221,6 +221,53 @@ describe("remembering in the browser takes an app password (6.12)", () => {
     session.remembered = await api.openWallet(fake.PHRASE, "p2wpkh", true, undefined, PASSWORD);
     const screen = mountAt("settings", renderSettings);
     expect(screen.textContent).toContain("Yes · in this browser, encrypted with your app password");
+  });
+});
+
+describe.each(OPENERS.filter((o) => !o.remembered))("$name in the browser (6.12)", (opener) => {
+  /** The screen, its open button, and the Remember box beside it: Key has one per way in. */
+  async function rendered() {
+    const screen = await opener.render();
+    const go = buttonNamed(screen, opener.press);
+    const form = go.closest(".disclosure-body, .card") ?? screen;
+    return { go, form, remember: find<HTMLInputElement>(form, "input[name=remember]") };
+  }
+
+  it("keeps its open button off while a ticked Remember waits for the app password", async () => {
+    inTheBrowser();
+    const { go, form, remember } = await rendered();
+    expect(go.disabled).toBe(false);
+
+    remember.click();
+    expect(go.disabled).toBe(true);
+    const [password, confirm] = passwordPair(form);
+    type(password, PASSWORD);
+    expect(go.disabled).toBe(true);
+    type(confirm, PASSWORD);
+    expect(go.disabled).toBe(false);
+  });
+
+  it("puts that back on its button after an open that fails", async () => {
+    inTheBrowser();
+    const held = deferred<void>();
+    vi.spyOn(fake.FakeWallet, "open").mockImplementation(async () => {
+      await held.promise;
+      throw new WalletError("network", "the server did not answer");
+    });
+    const { go, form, remember } = await rendered();
+    remember.click();
+    const [password, confirm] = passwordPair(form);
+    type(password, PASSWORD);
+    type(confirm, PASSWORD);
+
+    go.click();
+    await settle();
+    type(confirm, "");
+    held.resolve();
+    await settle();
+
+    expect(session.wallet).toBeNull();
+    expect(go.disabled).toBe(true);
   });
 });
 
