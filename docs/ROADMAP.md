@@ -1751,10 +1751,17 @@ but comments.
 
 **The UI: behaviour made alike, modules and screens**
 
-- [ ] **10.6 The phone's Bump fee records a send only for its wallet, and moves only from its
+- [x] **10.6 The phone's Bump fee records a send only for its wallet, and moves only from its
   screen** · S · `mobile/screens/tx.ts`
       why: it wrote the result and opened Result unchecked, where the same screen's other
       sends, and the desktop's Bump fee, check that the wallet and the screen are still theirs
+      · done: 2026-10-27 — the phone's Bump fee hands its result to `broadcastDone`, so it is
+      recorded only for the wallet that sent it, Result opens only while the screen is shown,
+      and a failure is shown only on screen, as on the desktop. Two new tests on both shells
+      hold the broadcast, press Bump fee, and release it after leaving for Settings or after
+      another wallet opened: on the code before, the phone failed both ("expected '#/result' to
+      be '#/settings'", and a result recorded where null was expected) and the desktop passed;
+      both pass on both shells after
 - [ ] **10.7 The phone opens a wallet the way the desktop does** · M · `mobile/screens/*`
       why: the phone's Create and Restore read the remembered record back after every open, so
       a failed read put an error over a wallet that opened, and an open without Remember

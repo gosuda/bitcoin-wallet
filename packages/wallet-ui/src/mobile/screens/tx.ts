@@ -210,12 +210,11 @@ export function renderTransaction(): HTMLElement {
           }
           try {
             const built = await api.buildFeeBump(id, value);
-            session.lastResult = await api.signAndBroadcast(built.psbt_id);
-            navigate("result");
+            broadcastDone(await api.signAndBroadcast(built.psbt_id));
           } catch (e) {
             // A rate below the replacement rules is refused by the node; its
             // own wording is the most useful thing to show.
-            alert.show("error", errorMessage(e));
+            if (onScreen()) alert.show("error", errorMessage(e));
           }
         }),
       { variant: "primary", block: true },

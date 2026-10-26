@@ -4,7 +4,7 @@ import { api } from "../src/api";
 import { renderDashboard } from "../src/screens/dashboard";
 import { session } from "../src/session";
 import type { FeeTarget, TxDetail } from "../src/types";
-import { fake, n } from "./fakes";
+import { deferred, fake, n } from "./fakes";
 import {
   buttonNamed,
   expectDropped,
@@ -64,6 +64,15 @@ function history(...txs: TxDetail[]): void {
       });
     });
   }
+}
+
+const BROADCAST = { txid: "f".repeat(64), persist_error: null };
+
+/** Holds the next broadcast open until it is resolved. */
+function holdBroadcast() {
+  const held = deferred<typeof BROADCAST>();
+  vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(() => held.promise);
+  return held;
 }
 
 /** The buttons named `name` exactly, or whose name matches it. */
@@ -232,6 +241,38 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
 
     expect(discardTx).toHaveBeenCalledWith(held.psbt_id);
     await expectDropped(held.psbt_id);
+  });
+
+  it("a Bump fee that lands after the screen is left is recorded, and opens nothing", async () => {
+    history(sent());
+    const screen = await shell.show(OUTGOING);
+    const broadcast = holdBroadcast();
+    buttonNamed(screen, "Bump fee").click();
+    await settle();
+
+    leaveTo("settings");
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult?.txid).toBe(BROADCAST.txid);
+    expect(window.location.hash).toBe("#/settings");
+  });
+
+  it("a Bump fee that lands once another wallet is open is not recorded for it", async () => {
+    history(sent());
+    const screen = await shell.show(OUTGOING);
+    const here = window.location.hash;
+    const broadcast = holdBroadcast();
+    buttonNamed(screen, "Bump fee").click();
+    await settle();
+
+    vi.spyOn(fake.FakeWallet.prototype, "id", "get").mockReturnValue("testnet4-p2wpkh-other");
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult).toBeNull();
+    expect(window.location.hash).toBe(here);
   });
 });
 
