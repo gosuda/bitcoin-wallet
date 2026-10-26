@@ -1945,9 +1945,16 @@ but comments.
       install, Biome, tsc, vitest, the Tauri-pair check, the wasm bindings' tests and the wasm
       build pass; the version scripts print and exit the same, and a bump changes the same 8
       files byte for byte
-- [ ] **10.22 The boards' remaining repeated parts are drawn with helpers** · S · `gen.py`
+- [x] **10.22 The boards' remaining repeated parts are drawn with helpers** · S · `gen.py`
       why: the phone Settings, Unlock and Send boards and two desktop cards repeat blocks line
-      for line
+      for line · done: 2026-10-26 — `m_settings` draws M10 and M10b, `key_card` 2 · Key's
+      private-key card for 2 and 2f, `tx_actions` the Copy and explorer row on 3 · Wallet and
+      both 3c rows with `BUMP` at its end, `M_UNLOCK_HEAD` the head of M5 and M5b, `m_addr` and
+      `m_fee_chips` the phone's address field and fee row (`FEE_CHIP` goes), `SIGNET` the label
+      written ten times, and the icon board's sizes come from a table. gen.py 1,421 to 1,403
+      lines (1,258 to 1,233 code lines). The unit chips and the tab tuple stay: each sits on
+      one line. Regenerating leaves all 38 boards, `canvas.json` and `app-icon.svg`
+      byte-identical by sha256, and pyflakes is clean
 
 **Comments elsewhere**
 

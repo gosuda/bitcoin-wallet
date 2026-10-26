@@ -71,7 +71,9 @@ def icon(name, size=16, color="currentColor"):
     }
     return f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths[name]}</svg>'
 
-def topbar(step=None, meta="Signet · mempool.space", settings=None):
+SIGNET = "Signet · mempool.space"
+
+def topbar(step=None, meta=SIGNET, settings=None):
     # settings: None draws no link, "link" the gear that opens Settings,
     # "on" the same gear while Settings is the open page.
     gear = ""
@@ -102,7 +104,7 @@ def topbar(step=None, meta="Signet · mempool.space", settings=None):
   </div>
 </header>'''
 
-def page(body, step=None, meta="Signet · mempool.space", minh=640, settings=None):
+def page(body, step=None, meta=SIGNET, minh=640, settings=None):
     return HEAD + f'<div style="width: 960px; min-height: {minh}px; background: #FAFAF9; display: flex; flex-direction: column;">\n{topbar(step, meta, settings)}\n<main style="width: 100%; max-width: 880px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 16px; box-sizing: border-box;">\n{body}\n</main>\n</div>\n' + TAIL
 
 def head(title, sub):
@@ -134,6 +136,7 @@ TXID = "e19f4a7d05c3b8a2f6d1e0c9b7a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b2c8"
 # tests derive it. The previous fixture failed Base58Check and could not be
 # imported by anyone reading the board.
 XPUB = "tpubDC8msFGeGuwnKG9Upg7DM2b4DaRqg3CUZa5g8v2SRQ6K4NSkxUgd7HsL2XVWbVm39yBA4LAxysQAm397zwQSQoQgewGiYZqrA9DsP4zbQ1M"
+WALLET_SUB = "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
 
 def fake_qr(px=210):
     """A stand-in QR: real finder patterns, deterministic noise for the payload."""
@@ -163,16 +166,20 @@ setup = page(head("Setup", "Which chain, and which Esplora server to read it fro
   <span class="btn btn-primary">Continue {icon("arrow", 16, "#FFFFFF")}</span>
 </div>''', step=0)
 
-key = page(head("Start a wallet", "Signet · mempool.space") + f"""
-<section class="card" style="gap: 16px;">
+def key_card(remember):
+    """2 · Key's private-key card around its Remember box; 2f's box reveals the app password."""
+    return f"""<section class="card" style="gap: 16px;">
   {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.")}
-  <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;">{icon("check", 12, "#FFFFFF")}</span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>
+  {remember}
   <div style="display: flex; gap: 8px; align-items: center;">
     <span class="btn btn-primary">{icon("key", 16, "#FFFFFF")} Open wallet</span>
     <span class="btn">Generate new key</span>
     <span class="btn btn-quiet">Back</span>
   </div>
-</section>
+</section>"""
+
+key = page(head("Start a wallet", SIGNET) + f"""
+{key_card(f'<label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;"><span style="width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #1A1A1A; background: #1A1A1A; display: inline-flex; align-items: center; justify-content: center;">{icon("check", 12, "#FFFFFF")}</span><span>Remember on this device</span><span class="hint">· stored in the macOS Keychain, unlocked with your login</span></label>')}
 <section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label" style="color: #9A3412;">New key — shown once</span>
@@ -211,7 +218,7 @@ def word_grid(words, blanks=()):
 
 WORDS = ['ridge', 'olive', 'spider', 'canyon', 'fabric', 'velvet', 'hazard', 'meadow', 'tunnel', 'orbit', 'cactus', 'spoon']
 
-create = page(head("New wallet", "Signet · mempool.space") + f'''
+create = page(head("New wallet", SIGNET) + f'''
 <section class="card" style="border-color: #C2410C; background: #FFF7ED; gap: 12px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label" style="color: #9A3412;">Recovery phrase — shown once</span>
@@ -236,7 +243,7 @@ create = page(head("New wallet", "Signet · mempool.space") + f'''
   </div>
 </div>''', step=1, minh=760)
 
-restore = page(head("Restore wallet", "Signet · mempool.space") + f'''
+restore = page(head("Restore wallet", SIGNET) + f'''
 <section class="card" style="gap: 16px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label">Recovery phrase</span>
@@ -281,7 +288,7 @@ def unlock_card(saved, how, password="", note=""):
   </div>{foot}
 </section>'''
 
-unlock = page(head("Unlock", "Signet · mempool.space") + "\n" + unlock_card(
+unlock = page(head("Unlock", SIGNET) + "\n" + unlock_card(
     "Wallet saved on this device",
     "The key is kept in the macOS Keychain. Unlocking may ask for your login password."), step=1)
 
@@ -294,6 +301,16 @@ def _tr(o,a,v,c):
     st = ' style="color: #B45309;"' if c=="pending" else ""
     return f'<tr><td class="mono">{o}</td><td class="mono" style="color: #6B6B66;">{a}</td><td class="num mono">{v}</td><td class="num mono"{st}>{"Pending" if c == "pending" else c}</td></tr>'
 trs = "".join(_tr(*r) for r in rows)
+
+BUMP = f'<span class="hint">Bump to</span><span class="input mono" style="width: 56px; min-height: 28px; padding: 4px 8px; font-size: 12px; justify-content: flex-end;">2.4</span><span class="hint">sat/vB</span><span class="btn btn-sm btn-primary">{icon("refresh", 12, "#FFFFFF")} Bump fee</span>'
+def tx_actions(end=""):
+    """The buttons under an open row's details; `end` (an outgoing row's fee bump) sits at the far right."""
+    tail = f'\n      <span style="margin-left: auto; display: flex; align-items: center; gap: 8px;">{end}</span>' if end else ""
+    return f'''<div style="display: flex; align-items: center; gap: 8px;">
+      <span class="btn btn-sm">{icon("copy", 14)} Copy transaction id</span>
+      <span class="btn btn-sm">{icon("external", 14)} Open in explorer</span>{tail}
+    </div>'''
+
 def _hrow(dirn, txid, amt, conf, when, expanded=False, detail=None):
     up = dirn == "out"
     col = "#1A1A1A" if up else "#166534"
@@ -318,11 +335,7 @@ def _hrow(dirn, txid, amt, conf, when, expanded=False, detail=None):
       <dt>To</dt><dd class="mono">{TR_ADDR[:24]}… <span style="font-weight: 500;">50,000 sat</span></dd>
       <dt>Change</dt><dd class="mono">{ADDR[:24]}… <span style="font-weight: 500;">199,859 sat</span> <span class="hint">back to this wallet</span></dd>
     </dl>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="btn btn-sm">{icon("copy", 14)} Copy transaction id</span>
-      <span class="btn btn-sm">{icon("external", 14)} Open in explorer</span>
-      <span style="margin-left: auto; display: flex; align-items: center; gap: 8px;"><span class="hint">Bump to</span><span class="input mono" style="width: 56px; min-height: 28px; padding: 4px 8px; font-size: 12px; justify-content: flex-end;">2.4</span><span class="hint">sat/vB</span><span class="btn btn-sm btn-primary">{icon("refresh", 12, "#FFFFFF")} Bump fee</span></span>
-    </div>"""
+    {tx_actions(BUMP)}"""
     return row + f"""<tr><td colspan="6" style="padding: 0 8px 12px 32px; white-space: normal; border-bottom: 1px solid #E4E3DF;">
   <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; background: #F4F4F2; border-radius: 4px;">
 {detail}
@@ -348,7 +361,7 @@ hrows = "".join([
 
 # 3 · Wallet's height as rendered; the board and its place on the canvas share it.
 MAIN_H = 1280
-dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b") + f"""
+dash = page(head("Wallet", WALLET_SUB) + f"""
 <section class="card" style="gap: 8px;">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label">Balance</span>
@@ -394,7 +407,7 @@ dash = page(head("Wallet", "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
   <span class="btn btn-danger">Close wallet</span>
 </div>""", step=2, minh=MAIN_H, settings="link")
 
-send = page(head("Send", "Signet · mempool.space") + f"""
+send = page(head("Send", SIGNET) + f"""
 <section class="card">
   <div style="display: flex; align-items: center; justify-content: space-between;">
     <span class="label">Recipients</span>
@@ -428,7 +441,7 @@ send = page(head("Send", "Signet · mempool.space") + f"""
   </div>
 </section>""", step=2, minh=1000)
 
-result = page(head("Sent", "Signet · mempool.space") + f'''
+result = page(head("Sent", SIGNET) + f'''
 <section class="card" style="align-items: flex-start; gap: 16px; padding: 24px;">
   <div style="display: flex; align-items: center; gap: 12px;">
     <span style="width: 36px; height: 36px; border-radius: 50%; background: #F0FDF4; border: 1px solid #BBE5C8; display: inline-flex; align-items: center; justify-content: center;">{icon("check", 18, "#166534")}</span>
@@ -457,17 +470,15 @@ def mark(size, r):
   <circle cx="256" cy="204" r="112" fill="none" stroke="#FAFAF9" stroke-width="48"></circle>
   <path d="M206 296h100L342 448H170z" fill="#FAFAF9"></path>
 </svg>'''
+icon_sizes = "\n    ".join(f'<div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">{mark(px, r)}<span class="hint">{label}</span></div>'
+                            for label, px, r in (("macOS · 256", 256, 58), ("128", 128, 29), ("64", 64, 14), ("32", 32, 7), ("16", 16, 4)))
 iconboard = HEAD + f'''<div style="width: 720px; min-height: 480px; background: #FAFAF9; padding: 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px;">
   <div style="display: flex; align-items: baseline; justify-content: space-between;">
     <h1 style="margin: 0; font-size: 20px; font-weight: 600;">App icon</h1>
     <p style="margin: 0; font-size: 12px; color: #6B6B66;">Keyhole-in-coin mark · terracotta on warm white</p>
   </div>
   <div style="display: flex; gap: 32px; align-items: flex-end;">
-    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">{mark(256, 58)}<span class="hint">macOS · 256</span></div>
-    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">{mark(128, 29)}<span class="hint">128</span></div>
-    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">{mark(64, 14)}<span class="hint">64</span></div>
-    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">{mark(32, 7)}<span class="hint">32</span></div>
-    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">{mark(16, 4)}<span class="hint">16</span></div>
+    {icon_sizes}
   </div>
   <div style="display: flex; gap: 16px;">
     <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E4E3DF; border-radius: 4px; background: #FFFFFF;">{mark(40, 9)}<span style="font-weight: 500;">Bitcoin Wallet</span></div>
@@ -605,6 +616,19 @@ def m_outputs(*outputs):
     {rows}
   </div>'''
 
+def m_addr(addr, err=False):
+    """A phone address field, with its scan button beside it."""
+    return f'''<div style="display:flex;gap:8px;">
+      <span class="m-input mono{" err" if err else ""}" style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{addr}</span>
+      <span class="m-btn" style="flex:none;width:48px;padding:0;">{icon("scan", 22)}</span>
+    </div>'''
+
+def m_fee_chips(on, wrap=False):
+    nowrap = "white-space:nowrap;" if wrap else ""
+    chips = "".join(f'<span class="m-chip{" on" if t == on else ""}" style="padding:0 12px;font-size:14px;{nowrap}">{t}</span>'
+                    for t in ("1 block", "3 blocks", "6 blocks", "Custom"))
+    return f'<div style="display:flex;{"flex-wrap:wrap;" if wrap else ""}gap:6px;">{chips}</div>'
+
 msetup = m_screen("Setup", f'''
   <p style="margin:0;font-size:15px;color:#6B6B66;">Which chain, and which Esplora server to read it from. Both are kept on this device and can change later.</p>
   <div class="m-card">
@@ -671,13 +695,14 @@ mrestore = m_screen("Restore wallet", f'''
     <span class="m-btn m-btn-primary" style="flex:none;opacity:0.45;">Restore</span>
   </div>''')
 
-munlock = phone(f"""<div class="m-body" style="justify-content:center;align-items:center;gap:18px;padding:0 24px 32px;">
-  <span style="width:76px;height:76px;border-radius:999px;background:#FFFFFF;border:1px solid #E4E3DF;display:flex;align-items:center;justify-content:center;">{icon("faceid", 36, "#C2410C")}</span>
+M_UNLOCK_HEAD = f'''<span style="width:76px;height:76px;border-radius:999px;background:#FFFFFF;border:1px solid #E4E3DF;display:flex;align-items:center;justify-content:center;">{icon("faceid", 36, "#C2410C")}</span>
   <div style="display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center;">
     <span style="font-size:20px;font-weight:600;">Unlock wallet</span>
     <span class="mono" style="font-size:13px;color:#6B6B66;">{ADDR[:14]}…{ADDR[-6:]}</span>
     <span style="font-size:13px;color:#6B6B66;">Signet · native segwit</span>
-  </div>
+  </div>'''
+munlock = phone(f"""<div class="m-body" style="justify-content:center;align-items:center;gap:18px;padding:0 24px 32px;">
+  {M_UNLOCK_HEAD}
   <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
     <span class="m-btn m-btn-primary" style="flex:none;">{icon("faceid", 20, "#FFFFFF")} Unlock with Face ID</span>
     <span class="m-btn m-btn-quiet" style="flex:none;">Use a different wallet</span>
@@ -734,10 +759,7 @@ mreceive = m_screen("Receive", f"""
 msend = m_screen("Send", f"""
   <div class="m-card" style="gap:8px;">
     <span class="label">To</span>
-    <div style="display:flex;gap:8px;">
-      <span class="m-input mono err" style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4</span>
-      <span class="m-btn" style="flex:none;width:48px;padding:0;">{icon("scan", 22)}</span>
-    </div>
+    {m_addr("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", err=True)}
     <span class="m-err">Not a Signet address — this one is for Bitcoin mainnet.</span>
   </div>
   <div class="m-card" style="gap:8px;">
@@ -750,7 +772,7 @@ msend = m_screen("Send", f"""
   </div>
   <div class="m-card">
     <span class="label">Fee</span>
-    <div style="display:flex;gap:6px;"><span class="m-chip" style="padding:0 12px;font-size:14px;">1 block</span><span class="m-chip" style="padding:0 12px;font-size:14px;">3 blocks</span><span class="m-chip" style="padding:0 12px;font-size:14px;">6 blocks</span><span class="m-chip on" style="padding:0 12px;font-size:14px;">Custom</span></div>
+    {m_fee_chips("Custom")}
     <div style="display:flex;gap:8px;align-items:center;"><span class="m-input mono" style="width:120px;">2.4</span><span style="font-size:15px;color:#6B6B66;">sat/vB · floor 1.0</span></div>
   </div>
   <div style="margin-top:auto;display:flex;"><span class="m-btn m-btn-primary" style="opacity:0.45;">Review</span></div>""")
@@ -758,10 +780,7 @@ msend = m_screen("Send", f"""
 msendmax = m_screen("Send", f"""
   <div class="m-card">
     <span class="label">To</span>
-    <div style="display:flex;gap:8px;">
-      <span class="m-input mono" style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{TR_ADDR}</span>
-      <span class="m-btn" style="flex:none;width:48px;padding:0;">{icon("scan", 22)}</span>
-    </div>
+    {m_addr(TR_ADDR)}
   </div>
   <div class="m-card">
     <span class="label">Amount</span>
@@ -773,7 +792,7 @@ msendmax = m_screen("Send", f"""
   </div>
   <div class="m-card">
     <span class="label">Fee</span>
-    <div style="display:flex;gap:6px;"><span class="m-chip" style="padding:0 12px;font-size:14px;">1 block</span><span class="m-chip on" style="padding:0 12px;font-size:14px;">3 blocks</span><span class="m-chip" style="padding:0 12px;font-size:14px;">6 blocks</span><span class="m-chip" style="padding:0 12px;font-size:14px;">Custom</span></div>
+    {m_fee_chips("3 blocks")}
     <span style="font-size:13px;color:#6B6B66;">1.0 sat/vB · 141 sat</span>
   </div>
   <div class="m-card" style="border-color:#1A1A1A;gap:8px;">
@@ -802,7 +821,12 @@ mscan = phone(f'''<div style="flex:1;position:relative;background:#131312;displa
   <div style="padding:0 16px 28px;display:flex;"><span class="m-btn" style="background:rgba(236,234,228,0.12);border-color:transparent;color:#ECEAE4;">Paste from clipboard</span></div>
 </div>''', tabs="Scan")
 
-msettings = m_screen("Settings", f"""
+def m_settings(keys=(), wallet=(), scrolls=False):
+    """M10, the Settings tab. M10b adds `keys` and `wallet` rows and no longer fits one
+    screen, so it scrolls: the body clips, and Forget sits under the rows, not at the foot."""
+    more = "".join(f"\n    {row}" for row in keys)
+    forget = "flex:none;" if scrolls else "margin-top:auto;flex:none;"
+    return m_screen("Settings", f"""
   {m_list(m_item("Network", "Signet"), m_item("Esplora server", "mempool.space"), m_item("Address type", "Native segwit"))}
   <div class="m-card" style="gap:0;padding:0;">
     <div class="m-item" style="flex-direction:column;align-items:stretch;gap:10px;">
@@ -810,12 +834,15 @@ msettings = m_screen("Settings", f"""
       <div style="display:flex;gap:8px;align-items:center;"><span class="m-chip on">20</span><span class="m-chip">100</span><span class="m-chip">500</span><span class="m-btn" style="min-height:40px;margin-left:auto;flex:none;padding:0 14px;">{icon("refresh", 16)} Rescan</span></div>
       <span class="hint">For a restored wallet that shows less than it should.</span>
     </div>
-    {m_item("Export public keys", "xpub · descriptors")}
+    {m_item("Export public keys", "xpub · descriptors")}{more}
   </div>
-  {m_list(m_item("Wallet", "Recovery phrase (HD)", chevron=False), m_item("Remembered on this device", "Yes", chevron=False))}
+  {m_list(m_item("Wallet", "Recovery phrase (HD)", chevron=False), m_item("Remembered on this device", "Yes", chevron=False), *wallet)}
   {m_list(m_item("Close wallet", None, chevron=False))}
-  <span class="m-btn m-btn-danger" style="margin-top:auto;flex:none;">Forget this wallet</span>
-  <span class="mono" style="text-align:center;font-size:12px;color:#A19F97;">signet-p2wpkh-a83832f28a8b4e14</span>""", left=None, tabs="Settings")
+  <span class="m-btn m-btn-danger" style="{forget}">Forget this wallet</span>
+  <span class="mono" style="text-align:center;font-size:12px;color:#A19F97;">signet-p2wpkh-a83832f28a8b4e14</span>""",
+        style="gap:12px;overflow:hidden;" if scrolls else "gap:12px;", left=None, tabs="Settings")
+
+msettings = m_settings()
 
 # ---------------------------------------------------------------- mobile: new boards (round 3)
 
@@ -907,7 +934,6 @@ def _setrow(k, v, action="", last=False):
 
 CHANGE_BTN = '<span class="btn btn-sm">Change…</span>'
 PW = '<span class="input" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>'
-WALLET_SUB = "Signet · P2WPKH (segwit) · signet-p2wpkh-3f0c9a1b"
 
 # -- desktop
 
@@ -959,7 +985,7 @@ settings_page = page(head("Settings", WALLET_SUB) + f"""
   </div>
 </section>""", step=2, minh=1040, settings="on")
 
-unlock_pw = page(head("Unlock", "Browser build · Signet · mempool.space") + "\n" + unlock_card(
+unlock_pw = page(head("Unlock", "Browser build · " + SIGNET) + "\n" + unlock_card(
     "Wallet saved in this browser",
     "Its key is encrypted with your app password and kept in this browser's storage.",
     password=f'''<div style="display: flex; flex-direction: column; gap: 6px; width: 320px;">
@@ -969,23 +995,14 @@ unlock_pw = page(head("Unlock", "Browser build · Signet · mempool.space") + "\
   </div>''',
     note='<span class="hint">Forgotten it? It cannot be reset. Forget this wallet here, and open it again with what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor.</span>'), step=1)
 
-key_remember = page(head("Start a wallet", "Browser build · Signet · mempool.space") + f"""
-<section class="card" style="gap: 16px;">
-  {field("Private key", '<span class="input mono" style="justify-content: space-between;"><span style="letter-spacing: 0.18em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>' + icon("eye", 16, "#6B6B66") + '</span>', "A private key in hex (64 characters) or WIF. One key means one address and no recovery phrase.")}
-  <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">{checkbox(True)}<span>Remember on this device</span><span class="hint">· encrypted with an app password and kept in this browser</span></label>
+key_remember = page(head("Start a wallet", "Browser build · " + SIGNET) + "\n" + key_card(f'''<label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px;">{checkbox(True)}<span>Remember on this device</span><span class="hint">· encrypted with an app password and kept in this browser</span></label>
   <div style="display: flex; flex-direction: column; gap: 10px; margin-left: 7px; padding-left: 17px; border-left: 2px solid #E4E3DF;">
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
       {field("App password", PW)}
       {field("Confirm app password", PW)}
     </div>
     <span style="font-size: 12px; color: #9A3412;">Anyone with this browser's files and this password can spend. It cannot be recovered.</span>
-  </div>
-  <div style="display: flex; gap: 8px; align-items: center;">
-    <span class="btn btn-primary">{icon("key", 16, "#FFFFFF")} Open wallet</span>
-    <span class="btn">Generate new key</span>
-    <span class="btn btn-quiet">Back</span>
-  </div>
-</section>""", step=1)
+  </div>'''), step=1)
 
 def _coin_tr(outpoint, value, conf, state):
     frozen = state == "frozen"
@@ -1022,10 +1039,7 @@ speedup_detail = f"""    <dl class="kv" style="margin: 0;">
       <dt>Received</dt><dd class="mono">{ADDR[:24]}… <span style="font-weight: 500;">30,000 sat</span></dd>
       <dt>To</dt><dd class="mono">{SENDER_CHANGE[:24]}… <span style="font-weight: 500;">71,859 sat</span></dd>
     </dl>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="btn btn-sm">{icon("copy", 14)} Copy transaction id</span>
-      <span class="btn btn-sm">{icon("external", 14)} Open in explorer</span>
-    </div>
+    {tx_actions()}
     <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #C2410C; border-radius: 4px; background: #FFFFFF;">
       <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px;"><span class="label" style="color: #9A3412;">Speed up</span><span class="hint">Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).</span></div>
       <div style="display: flex; align-items: center; gap: 12px;">
@@ -1045,11 +1059,7 @@ cancel_detail = f"""    <dl class="kv" style="margin: 0;">
       <dt>To</dt><dd class="mono">{TR_ADDR[:24]}… <span style="font-weight: 500;">40,000 sat</span></dd>
       <dt>Change</dt><dd class="mono">{ADDR[:24]}… <span style="font-weight: 500;">9,427 sat</span> <span class="hint">back to this wallet</span></dd>
     </dl>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <span class="btn btn-sm">{icon("copy", 14)} Copy transaction id</span>
-      <span class="btn btn-sm">{icon("external", 14)} Open in explorer</span>
-      <span style="margin-left: auto; display: flex; align-items: center; gap: 8px;"><span class="hint">Bump to</span><span class="input mono" style="width: 56px; min-height: 28px; padding: 4px 8px; font-size: 12px; justify-content: flex-end;">2.4</span><span class="hint">sat/vB</span><span class="btn btn-sm btn-primary">{icon("refresh", 12, "#FFFFFF")} Bump fee</span><span class="btn btn-sm btn-danger">Cancel</span></span>
-    </div>"""
+    {tx_actions(BUMP + '<span class="btn btn-sm btn-danger">Cancel</span>')}"""
 
 # The app opens one row at a time; both unconfirmed rows are drawn open here.
 txa_rows = "".join([
@@ -1104,12 +1114,7 @@ def m_check(on):
     return '<span style="width:24px;height:24px;flex:none;border-radius:6px;border:1.5px solid #A19F97;box-sizing:border-box;background:#FFFFFF;"></span>'
 
 munlock_reset = phone(f"""<div class="m-body" style="justify-content:center;align-items:center;gap:16px;padding:0 24px 32px;">
-  <span style="width:76px;height:76px;border-radius:999px;background:#FFFFFF;border:1px solid #E4E3DF;display:flex;align-items:center;justify-content:center;">{icon("faceid", 36, "#C2410C")}</span>
-  <div style="display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center;">
-    <span style="font-size:20px;font-weight:600;">Unlock wallet</span>
-    <span class="mono" style="font-size:13px;color:#6B6B66;">{ADDR[:14]}…{ADDR[-6:]}</span>
-    <span style="font-size:13px;color:#6B6B66;">Signet · native segwit</span>
-  </div>
+  {M_UNLOCK_HEAD}
   <div class="m-card" style="width:100%;box-sizing:border-box;border-color:#B91C1C;gap:12px;">
     <div style="display:flex;gap:10px;align-items:flex-start;">
       <span style="flex:none;display:inline-flex;margin-top:2px;">{icon("alert", 20, "#B91C1C")}</span>
@@ -1125,34 +1130,16 @@ munlock_reset = phone(f"""<div class="m-body" style="justify-content:center;alig
   <span class="m-btn m-btn-quiet" style="flex:none;width:100%;">Use a different wallet</span>
 </div>""")
 
-msettings6 = m_screen("Settings", f"""
-  {m_list(m_item("Network", "Signet"), m_item("Esplora server", "mempool.space"), m_item("Address type", "Native segwit"))}
-  <div class="m-card" style="gap:0;padding:0;">
-    <div class="m-item" style="flex-direction:column;align-items:stretch;gap:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;"><span>Rescan</span><span class="v">gap</span></div>
-      <div style="display:flex;gap:8px;align-items:center;"><span class="m-chip on">20</span><span class="m-chip">100</span><span class="m-chip">500</span><span class="m-btn" style="min-height:40px;margin-left:auto;flex:none;padding:0 14px;">{icon("refresh", 16)} Rescan</span></div>
-      <span class="hint">For a restored wallet that shows less than it should.</span>
-    </div>
-    {m_item("Export public keys", "xpub · descriptors")}
-    {m_item("Coins", "3 · 1 frozen")}
-    {m_item("Import PSBT")}
-  </div>
-  {m_list(m_item("Wallet", "Recovery phrase (HD)", chevron=False), m_item("Remembered on this device", "Yes", chevron=False), m_item("Lock after", "5 min in background"))}
-  {m_list(m_item("Close wallet", None, chevron=False))}
-  <span class="m-btn m-btn-danger" style="flex:none;">Forget this wallet</span>
-  <span class="mono" style="text-align:center;font-size:12px;color:#A19F97;">signet-p2wpkh-a83832f28a8b4e14</span>""", style="gap:12px;overflow:hidden;", left=None, tabs="Settings")
+msettings6 = m_settings(keys=(m_item("Coins", "3 · 1 frozen"), m_item("Import PSBT")),
+                        wallet=(m_item("Lock after", "5 min in background"),), scrolls=True)
 
 def m_recipient(n, addr, amount):
     return f'''<div class="m-card" style="gap:8px;padding:12px 16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;height:20px;"><span class="label">Recipient {n}</span><span style="display:inline-flex;">{icon("x", 18, "#6B6B66")}</span></div>
-    <div style="display:flex;gap:8px;">
-      <span class="m-input mono" style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{addr}</span>
-      <span class="m-btn" style="flex:none;width:48px;padding:0;">{icon("scan", 22)}</span>
-    </div>
+    {m_addr(addr)}
     <span class="m-input mono" style="font-size:18px;justify-content:space-between;">{amount}<span style="font-size:14px;color:#A19F97;">sat</span></span>
   </div>'''
 
-FEE_CHIP = "padding:0 12px;font-size:14px;"
 msendmulti = m_screen("Send", f"""
   {m_recipient(1, TR_ADDR, "30,000")}
   {m_recipient(2, R2_ADDR, "18,000")}
@@ -1162,7 +1149,7 @@ msendmulti = m_screen("Send", f"""
   </div>
   <div class="m-card" style="gap:10px;padding:12px 16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;"><span class="label">Fee</span><span class="hint">1.0 sat/vB · 184 sat</span></div>
-    <div style="display:flex;gap:6px;"><span class="m-chip" style="{FEE_CHIP}">1 block</span><span class="m-chip" style="{FEE_CHIP}">3 blocks</span><span class="m-chip on" style="{FEE_CHIP}">6 blocks</span><span class="m-chip" style="{FEE_CHIP}">Custom</span></div>
+    {m_fee_chips("6 blocks")}
   </div>
   <div class="m-card" style="border-color:#1A1A1A;gap:8px;padding:12px 16px;">
     <span class="label">Review</span>
@@ -1227,7 +1214,7 @@ mtx_incoming = m_screen("Transaction", f"""
   <div class="m-card" style="border-color:#C2410C;gap:10px;">
     <div style="display:flex;align-items:center;justify-content:space-between;"><span class="label" style="color:#9A3412;">Speed up</span><span class="hint">1-block estimate 5.0 sat/vB</span></div>
     <span style="font-size:14px;line-height:1.5;color:#6B6B66;">Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).</span>
-    <div style="display:flex;gap:6px;"><span class="m-chip on" style="{FEE_CHIP}">1 block</span><span class="m-chip" style="{FEE_CHIP}">3 blocks</span><span class="m-chip" style="{FEE_CHIP}">6 blocks</span><span class="m-chip" style="{FEE_CHIP}">Custom</span></div>
+    {m_fee_chips("1 block")}
     <div style="display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;font-size:15px;">
       <span style="color:#6B6B66;">Fee</span><span class="mono">1,114 sat</span>
       <span style="color:#6B6B66;">Rate</span><span class="mono">5.0 sat/vB for the two together</span>
@@ -1266,13 +1253,8 @@ def m_spec(label, inner):
 
 def narrow_fee(width):
     """The Fee card as a phone `width` px wide lays it out: labels whole, the row wrapping."""
-    chips = "".join(
-        f'<span class="m-chip{" on" if label == "6 blocks" else ""}" style="{FEE_CHIP}white-space:nowrap;">{label}</span>'
-        for label in ("1 block", "3 blocks", "6 blocks", "Custom")
-    )
     return (f'<div class="m-card" style="width:{width - 32}px;box-sizing:border-box;gap:10px;padding:12px 16px;">'
-            f'<span class="label">Fee</span>'
-            f'<div style="display:flex;flex-wrap:wrap;gap:6px;">{chips}</div>'
+            f'<span class="label">Fee</span>{m_fee_chips("6 blocks", wrap=True)}'
             f'<span style="font-size:13px;color:#6B6B66;">2.0 sat/vB</span></div>')
 
 ROW_RING = 'class="m-item" style="box-shadow:inset 0 0 0 2px #C2410C;"'
