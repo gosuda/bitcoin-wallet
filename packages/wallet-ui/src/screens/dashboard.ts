@@ -1,10 +1,7 @@
-import QRCode from "qrcode";
-import { formatAmount, parseAmount, type Unit } from "../amount";
+import type { Unit } from "../amount";
 import { api } from "../api";
 import { headlineSat, pendingSat } from "../balance";
-import { buildPaymentUri, qrPayload } from "../bip21";
 import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../feebump";
-import { platform } from "../platform";
 import { navigate } from "../router";
 import { redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
@@ -17,10 +14,8 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type TxDetail,
-  type TxOutput,
   type TxSummary,
   type Utxo,
 } from "../types";
@@ -37,14 +32,17 @@ import {
 import {
   append,
   banner,
+  boundRate,
   button,
   clear,
+  convertField,
   el,
   formatBtc,
   formatNumber,
   formatSats,
   kv,
   mono,
+  openExplorer,
   radioGroup,
   readout,
   sectionLabel,
@@ -58,25 +56,29 @@ import {
   formatRate,
   formatTime,
   formatWhen,
+  outputRole,
   shortId,
   shortOutpoint,
 } from "../ui/format";
 import { icon } from "../ui/icons";
 import { heldPreview } from "../ui/preview";
-import {
-  explorerFailed,
-  FROZEN_HINT,
-  NO_COINS,
-  RECEIVE_QR_NOTE,
-  SENT_TITLE,
-  whoseInputs,
-} from "../ui/text";
+import { drawReceiveQr, receivePayload } from "../ui/qr";
+import { FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, SENT_TITLE, whoseInputs } from "../ui/text";
+import { closeThisWallet } from "./settings";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
     el("span", { className: "stat-label", text: label }),
     el("span", { className: `stat-value mono ${cls}`.trim(), text: value }),
   ]);
+}
+
+/** A Conf. cell: the count, or Pending in the pending colour. */
+function confCell(confirmations: number | null): HTMLElement {
+  return el("td", {
+    className: confirmations === null ? "num mono pending" : "num mono",
+    text: confirmations === null ? "Pending" : formatNumber(confirmations),
+  });
 }
 
 /**
@@ -104,7 +106,6 @@ function utxoTable(
   ]);
   const body = el("tbody");
   for (const u of utxos) {
-    const pending = u.confirmations === null;
     body.appendChild(
       el("tr", { className: u.frozen ? "coin-frozen" : "" }, [
         ticked
@@ -126,10 +127,7 @@ function utxoTable(
           attrs: { title: u.address },
         }),
         el("td", { className: "num mono", text: formatNumber(u.value) }),
-        el("td", {
-          className: `num mono ${pending ? "pending" : ""}`.trim(),
-          text: u.confirmations === null ? "Pending" : formatNumber(u.confirmations),
-        }),
+        confCell(u.confirmations),
         el("td", { className: "num" }, [
           el("span", { className: "coin-freeze" }, [
             u.frozen ? el("span", { className: "coin-tag" }, [icon("lock", 12), "Frozen"]) : null,
@@ -145,11 +143,8 @@ function utxoTable(
 /** How often the dashboard re-syncs while it is on screen and visible. */
 const AUTO_SYNC_MS = 60_000;
 
-/** What a row says about an output: ours is change on a send, a receipt otherwise. */
-function outputLabel(d: TxDetail, o: TxOutput): string {
-  if (!o.ours) return "To";
-  return d.net_sat < 0 ? "Change" : "Received";
-}
+/** What a row says about an output, by its `outputRole`. */
+const OUTPUT_LABELS = { recipient: "To", change: "Change", ours: "Received" } as const;
 
 type OpenRow = (tx: TxSummary, row: HTMLTableRowElement, chevron: HTMLElement) => void;
 
@@ -179,7 +174,6 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
   for (const tx of txs) {
     // `net_sat` is negative for a send, and the fee is already part of it.
     const incoming = tx.net_sat >= 0;
-    const pending = tx.confirmations === null;
     const chevron = el("span", { className: "tx-chevron" }, [icon("chevron", 14)]);
     const row = el("tr", {
       className: "tx-open",
@@ -200,10 +194,7 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
         className: `num mono tx-amount ${incoming ? "tx-in" : ""}`.trim(),
         text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
       }),
-      el("td", {
-        className: `num mono ${pending ? "pending" : ""}`.trim(),
-        text: tx.confirmations === null ? "Pending" : formatNumber(tx.confirmations),
-      }),
+      confCell(tx.confirmations),
       el("td", {
         className: "num muted",
         text: tx.timestamp === null ? "—" : formatWhen(tx.timestamp),
@@ -277,7 +268,7 @@ export function renderDashboard(): HTMLElement {
   const paintCoinCount = (): void => {
     const frozen = coins.filter((u) => u.frozen).length;
     const picked = chosen();
-    const parts = [`${formatNumber(coins.length)} coin${coins.length === 1 ? "" : "s"}`];
+    const parts = [counted(coins.length, "coin")];
     if (frozen > 0) parts.push(`${formatNumber(frozen)} frozen`);
     if (picked.length > 0) {
       parts.push(`${formatNumber(picked.length)} selected, ${formatSats(coinsValue(picked))}`);
@@ -378,10 +369,7 @@ export function renderDashboard(): HTMLElement {
   ): HTMLElement => {
     const rate = textInput({ value: String(suggested), type: "number", mono: true });
     rate.id = `bump-rate-${txid.slice(0, 8)}`;
-    rate.min = "1";
-    rate.max = String(MAX_FEE_RATE_SAT_VB);
-    rate.step = "0.1";
-    rate.classList.add("bump-rate");
+    boundRate(rate).classList.add("bump-rate");
     const bumpBtn = button(
       "Bump fee",
       () =>
@@ -552,7 +540,7 @@ export function renderDashboard(): HTMLElement {
       ["Fee", feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb)],
       ["From", `${counted(d.inputs.length, "input")} · ${whoseInputs(d.inputs)}`],
       ...d.outputs.map((o): [string, Node] => [
-        outputLabel(d, o),
+        OUTPUT_LABELS[outputRole(d, o)],
         el("span", { className: "mono" }, [
           `${o.address ?? "script"} `,
           el("span", { className: "strong", text: formatSats(o.value_sat) }),
@@ -565,16 +553,10 @@ export function renderDashboard(): HTMLElement {
     ]);
     if (explorer !== null) {
       actions.appendChild(
-        button(
-          "Open in explorer",
-          () =>
-            void platform()
-              .openUrl(explorer)
-              .catch((e: unknown) => alert.show("warn", explorerFailed(errorMessage(e)))),
-          "default",
-          "sm",
-          { name: "external", size: 14 },
-        ),
+        button("Open in explorer", () => void openExplorer(explorer, alert), "default", "sm", {
+          name: "external",
+          size: 14,
+        }),
       );
     }
     const box = el("div", { className: "tx-detail-box" }, [kv(rows), actions]);
@@ -720,18 +702,7 @@ export function renderDashboard(): HTMLElement {
     trailing: true,
   });
 
-  const closeBtn = button(
-    "Close wallet",
-    () =>
-      withBusy(closeBtn, async () => {
-        try {
-          await api.closeWallet();
-        } finally {
-          navigate(session.remembered ? "unlock" : "key");
-        }
-      }),
-    "danger",
-  );
+  const closeBtn = button("Close wallet", () => withBusy(closeBtn, closeThisWallet), "danger");
 
   // --- receive: the address, its QR, and an optional amount request -------
   //
@@ -750,39 +721,13 @@ export function renderDashboard(): HTMLElement {
   const uriNote = el("span", { className: "hint mono break" });
   let requestUnit: Unit = "sat";
 
-  /** What is shared: the bare address, or a bitcoin: URI once an amount is set. */
-  const sharePayload = (): string => {
-    const parsed = parseAmount(requestAmount.value, requestUnit);
-    requestErr.textContent = parsed.error ?? "";
-    requestAmount.classList.toggle("input-invalid", parsed.error !== null);
-    return parsed.sats === null
-      ? receiving
-      : buildPaymentUri({ address: receiving, amountSat: parsed.sats });
-  };
-
-  const paintQr = async () => {
-    const share = sharePayload();
-    uriNote.textContent = share === receiving ? "" : share;
-    qrCanvas.setAttribute(
-      "aria-label",
-      share === receiving ? "QR code of the receiving address" : "QR code of the payment request",
-    );
-    try {
-      await QRCode.toCanvas(qrCanvas, qrPayload(share), {
-        errorCorrectionLevel: "M",
-        margin: 1,
-        width: 120,
-        color: { dark: "#1a1a1aff", light: "#ffffffff" },
-      });
-    } catch (e) {
-      alert.show("warn", errorMessage(e));
-    }
-  };
+  const sharePayload = (): string =>
+    receivePayload(receiving, requestAmount, requestUnit, requestErr);
+  const paintQr = () => drawReceiveQr(qrCanvas, uriNote, receiving, sharePayload(), 120, alert);
   requestAmount.addEventListener("input", () => void paintQr());
   const units = unitChips("request_unit", (unit) => {
-    const parsed = parseAmount(requestAmount.value, requestUnit);
+    convertField(requestAmount, requestUnit, unit);
     requestUnit = unit;
-    if (parsed.sats !== null) requestAmount.value = formatAmount(parsed.sats, unit);
     void paintQr();
   });
 

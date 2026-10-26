@@ -9,7 +9,7 @@
 import { platform } from "../platform";
 import { navigate, type Route } from "../router";
 import { errorMessage, historyResetFixes, type TxOutput } from "../types";
-import { type Banner, el } from "../ui/dom";
+import { type Banner, boundRate, el } from "../ui/dom";
 import { outputRole } from "../ui/format";
 import { type IconName, icon } from "../ui/icons";
 import { type HistoryReset, RESET_CONFIRM, RESET_TEXT, RESET_TRIGGER } from "../ui/reset";
@@ -123,6 +123,15 @@ export function outputNote(owner: { net_sat: number }, output: TxOutput): string
 
 export function row(...children: Child[]): HTMLElement {
   return el("div", { className: "m-row" }, children);
+}
+
+/** A fee-rate field, bounded and on a decimal keypad, with its unit after it. */
+export function rateRow(input: HTMLInputElement): HTMLElement {
+  boundRate(input).setAttribute("inputmode", "decimal");
+  return el("div", { className: "m-rate-row" }, [
+    input,
+    el("span", { className: "m-rate-unit", text: "sat/vB" }),
+  ]);
 }
 
 /**

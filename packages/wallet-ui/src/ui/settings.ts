@@ -1,14 +1,22 @@
 /**
  * What Setup, Settings and Unlock do the same way on both shells: save the
- * chain settings, rescan, and forget the wallet remembered on this device.
- * Each shell draws its own controls around them.
+ * chain settings, close the wallet to change them, rescan, save a lock time,
+ * and forget the wallet remembered on this device. Each shell draws its own
+ * controls around them.
  */
 
 import { api, canUnlockHere } from "../api";
 import { headlineSat } from "../balance";
 import { navigate, type Route } from "../router";
 import { session } from "../session";
-import { type AddressType, type AppConfig, errorMessage, type Network } from "../types";
+import {
+  type AddressType,
+  type AppConfig,
+  errorMessage,
+  lockAfterFrom,
+  type Network,
+} from "../types";
+import { chooseLockAfter } from "./autolock";
 import { type Banner, button, el, withBusy } from "./dom";
 import { formatSats } from "./format";
 import { SERVER_REQUIRED } from "./text";
@@ -42,6 +50,12 @@ export async function saveSetup(
   }
 }
 
+/** Settings' Continue after asking to change the chain: closes this wallet and opens Setup. */
+export async function closeForSetup(): Promise<void> {
+  await api.closeWallet();
+  navigate("setup");
+}
+
 /**
  * Rescan, at the gap chosen when it was asked for, which the banner names: the
  * gap chips stay live while it runs.
@@ -59,6 +73,20 @@ export async function rescanAt(gap: string, alert: Banner, onScreen: () => boole
   } catch (e) {
     if (onScreen()) alert.show("error", errorMessage(e));
   }
+}
+
+/**
+ * Lock after's `choice`, applied at once and saved. A save that fails is said
+ * while `onScreen` holds; the choice still holds until the app closes.
+ */
+export function saveLockAfter(choice: string, alert: Banner, onScreen: () => boolean): void {
+  void chooseLockAfter(lockAfterFrom(choice)).catch((e: unknown) => {
+    if (!onScreen()) return;
+    alert.show(
+      "error",
+      `The lock time could not be saved (${errorMessage(e)}). It holds until the app closes.`,
+    );
+  });
 }
 
 /**

@@ -13,6 +13,12 @@ export const SATS_PER_BTC = 100_000_000;
 /** Amount unit of a field. Sats are the internal representation. */
 export type Unit = "sat" | "btc";
 
+/** The two units as a choice offers them, sat first. */
+export const UNIT_CHOICES: readonly { value: Unit; label: string }[] = [
+  { value: "sat", label: "sat" },
+  { value: "btc", label: "BTC" },
+];
+
 /** A parsed amount, or the reason it is not one. Empty text is neither. */
 export interface AmountParse {
   sats: number | null;

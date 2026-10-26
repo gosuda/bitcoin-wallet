@@ -90,6 +90,16 @@ export function typeableRate(rateSatPerVb: number): number {
 }
 
 /**
+ * The rate a fee field holding `typed` builds at, which Review names: rounded
+ * up to a tenth and floored at the relay minimum, as `typeableRate` is. A tenth
+ * is a whole number of sat/kwu, so the core builds at exactly that. A field
+ * with no positive number in it builds at the minimum.
+ */
+export function fieldRate(typed: number): number {
+  return Number.isFinite(typed) && typed > 0 ? typeableRate(typed) : 1;
+}
+
+/**
  * A space that does not break. A time is one phrase, and so is each part of a
  * fee line: a row that wraps beside a wide amount put "Today" on one line and
  * "07:44" on the next, and a phone's review broke "141 vB" in two.

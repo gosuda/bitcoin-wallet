@@ -1,6 +1,5 @@
 import { api } from "../../api";
 import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../../feebump";
-import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
@@ -11,12 +10,11 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   type TxDetail,
   type TxOutput,
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
-import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, formatNumber, kv, openExplorer, sectionLabel, textInput } from "../../ui/dom";
 import {
   counted,
   feeLine,
@@ -29,7 +27,7 @@ import {
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { heldPreview } from "../../ui/preview";
-import { estimateUnavailable, explorerFailed, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
+import { estimateUnavailable, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
 import {
   body,
   button,
@@ -41,6 +39,7 @@ import {
   lede,
   listCard,
   outputNote,
+  rateRow,
   withLock,
 } from "../ui";
 
@@ -158,13 +157,9 @@ export function renderTransaction(): HTMLElement {
     const explorer = explorerUrl
       ? button(
           "Open in explorer",
-          async () => {
+          () => {
             alert.hide();
-            try {
-              await platform().openUrl(explorerUrl);
-            } catch (e) {
-              alert.show("warn", explorerFailed(errorMessage(e)));
-            }
+            void openExplorer(explorerUrl, alert);
           },
           { icon: "external" },
         )
@@ -193,10 +188,6 @@ export function renderTransaction(): HTMLElement {
     const rate = textInput({ value: "1", type: "number", mono: true, name: "bump_rate" });
     // The card's heading names the action, not the field.
     rate.setAttribute("aria-label", "Fee rate, in sat/vB");
-    rate.min = "1";
-    rate.max = String(MAX_FEE_RATE_SAT_VB);
-    rate.step = "0.1";
-    rate.setAttribute("inputmode", "decimal");
     const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const bump = button(
       "Bump fee",
@@ -244,10 +235,7 @@ export function renderTransaction(): HTMLElement {
     })();
     const sheet = card(
       el("div", { className: "card-head" }, [sectionLabel("Bump fee"), note]),
-      el("div", { className: "m-rate-row" }, [
-        rate,
-        el("span", { className: "m-rate-unit", text: "sat/vB" }),
-      ]),
+      rateRow(rate),
       bump,
     );
     sheet.classList.add("m-bump");
@@ -345,15 +333,8 @@ export function renderTransaction(): HTMLElement {
 
     const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const custom = textInput({ type: "number", mono: true, name: "speedup_rate" });
-    custom.min = "1";
-    custom.max = String(MAX_FEE_RATE_SAT_VB);
-    custom.step = "0.1";
-    custom.setAttribute("inputmode", "decimal");
+    const customRow = rateRow(custom);
     custom.setAttribute("aria-label", "Rate for the two together, in sat/vB");
-    const customRow = el("div", { className: "m-rate-row" }, [
-      custom,
-      el("span", { className: "m-rate-unit", text: "sat/vB" }),
-    ]);
     // Holds the rate field only while Custom is chosen.
     const customSlot = el("div", { className: "slot" });
     const customErr = el("span", { className: "m-err", attrs: { role: "status" } });

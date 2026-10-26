@@ -1,5 +1,5 @@
 import { addressError, addressLooksValid } from "../../address";
-import { formatAmount, parseAmount, type Unit } from "../../amount";
+import { formatAmount, parseAmount, UNIT_CHOICES, type Unit } from "../../amount";
 import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
 import { navigate } from "../../router";
@@ -12,15 +12,14 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type Recipient,
   rateForTarget,
   type TxPreview,
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
-import { banner, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
-import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
+import { banner, convertField, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
+import { feeLine, fieldRate, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
 import {
@@ -31,6 +30,7 @@ import {
   header,
   labelled,
   lede,
+  rateRow,
   row,
   scanInPlace,
   spacer,
@@ -44,6 +44,11 @@ interface Prefill {
 
 /** Set by the Scan screen and by a `bitcoin:` deep link before navigating here. */
 let prefill: Prefill = {};
+
+/** Under the camera's reticle, on Scan and on Send's own scan. */
+export const SCAN_HINT = "Point the camera at an address or a bitcoin: QR code.";
+/** A code read on Scan or on Send that holds no payment. */
+export const NOT_A_PAYMENT = "That QR code is not a Bitcoin address.";
 
 /** The next Send opens with `payment`'s address and amount filled in. */
 export function prefillSend(payment: PaymentRequest): void {
@@ -117,18 +122,12 @@ export function renderSend(): HTMLElement {
 
   let currentUnit: Unit = "sat";
   const unit = chips<Unit>(
-    [
-      { value: "sat", label: "sat" },
-      { value: "btc", label: "BTC" },
-    ],
+    UNIT_CHOICES,
     currentUnit,
     (next) => {
       if (next === currentUnit) return;
-      // Convert the shown values instead of reinterpreting them; keep whole
-      // sats. A value that does not parse stays as typed: its message says why.
       for (const r of rows) {
-        const parsed = parseAmount(r.amount.value, currentUnit);
-        if (parsed.sats !== null) r.amount.value = formatAmount(parsed.sats, next);
+        convertField(r.amount, currentUnit, next);
         r.unitMark.textContent = UNIT_LABELS[next];
       }
       currentUnit = next;
@@ -207,14 +206,7 @@ export function renderSend(): HTMLElement {
 
   // --- fee -----------------------------------------------------------------
   const rateInput = textInput({ value: "1", type: "number", mono: true, name: "rate" });
-  rateInput.min = "1";
-  rateInput.max = String(MAX_FEE_RATE_SAT_VB);
-  rateInput.step = "0.1";
-  rateInput.setAttribute("inputmode", "decimal");
-  const customRow = el("div", { className: "m-rate-row" }, [
-    rateInput,
-    el("span", { className: "m-rate-unit", text: "sat/vB" }),
-  ]);
+  const customRow = rateRow(rateInput);
   customRow.hidden = true;
   const rateErr = el("span", { className: "m-err", attrs: { role: "status" } });
   const rateNote = el("span", { className: "m-txmeta", text: FETCHING_ESTIMATE });
@@ -239,9 +231,7 @@ export function renderSend(): HTMLElement {
     const choice = fee.value();
     const before = rate;
     if (choice === "custom") {
-      const typed = Number(rateInput.value);
-      // Rounded up to a tenth, the rate Review names and the core builds at.
-      rate = Number.isFinite(typed) && typed > 0 ? typeableRate(typed) : 1;
+      rate = fieldRate(Number(rateInput.value));
       rateNote.textContent = `Custom rate · ${FLOOR_NOTE}`;
     } else {
       try {
@@ -476,12 +466,7 @@ export function renderSend(): HTMLElement {
   //
   // The camera runs on this screen rather than on Scan, which would rebuild
   // this one and lose every row (`scanInPlace`).
-  const scan = scanInPlace(
-    host,
-    alert,
-    onScreen,
-    "Point the camera at an address or a bitcoin: QR code.",
-  );
+  const scan = scanInPlace(host, alert, onScreen, SCAN_HINT);
   const scanNote = lede("Address filled in from a scan.");
 
   /**
@@ -517,7 +502,7 @@ export function renderSend(): HTMLElement {
     scan?.(form, (text) => {
       const payment = parsePaymentUri(text);
       if (payment) fillFromScan(scanTarget(pressed), payment);
-      else alert.show("warn", "That QR code is not a Bitcoin address.");
+      else alert.show("warn", NOT_A_PAYMENT);
     });
 
   // --- review -----------------------------------------------------------------

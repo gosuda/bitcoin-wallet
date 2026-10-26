@@ -8,17 +8,16 @@ import {
   errorMessage,
   LOCK_AFTER_CHOICES,
   LOCK_AFTER_LABELS,
-  lockAfterFrom,
   NETWORK_LABELS,
   type PublicDescriptors,
   RESCAN_GAPS,
 } from "../types";
-import { chooseLockAfter, lockAfter } from "../ui/autolock";
+import { lockAfter } from "../ui/autolock";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, kv, mono, radioGroup, sectionLabel, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
 import { rememberedWhere } from "../ui/remember";
-import { askForget, rescanAt } from "../ui/settings";
+import { askForget, closeForSetup, rescanAt, saveLockAfter } from "../ui/settings";
 import {
   copyDescriptorsLabel,
   forgetWarning,
@@ -38,9 +37,9 @@ function settingRow(label: string, value: Node | string, action?: HTMLElement): 
 
 /**
  * "Lock after" as the board draws it: a select whose own arrow gives way to
- * the app's chevron, turned down. A choice applies at once and is saved.
+ * the app's chevron, turned down. A choice goes to `save` at once.
  */
-function lockSelect(onSaveFailed: (e: unknown) => void): HTMLElement {
+function lockSelect(save: (choice: string) => void): HTMLElement {
   const select = el("select", { attrs: { name: "lock_after", "aria-label": "Lock after" } });
   for (const choice of LOCK_AFTER_CHOICES) {
     const label = LOCK_AFTER_LABELS[choice];
@@ -51,10 +50,17 @@ function lockSelect(onSaveFailed: (e: unknown) => void): HTMLElement {
     option.selected = choice === lockAfter();
     select.appendChild(option);
   }
-  select.addEventListener("change", () => {
-    void chooseLockAfter(lockAfterFrom(select.value)).catch(onSaveFailed);
-  });
+  select.addEventListener("change", () => save(select.value));
   return el("span", { className: "select-box" }, [select, icon("chevron", 14)]);
+}
+
+/** Close wallet, here and on the Wallet page; then Unlock for a remembered wallet, else Key. */
+export async function closeThisWallet(): Promise<void> {
+  try {
+    await api.closeWallet();
+  } finally {
+    navigate(session.remembered ? "unlock" : "key");
+  }
 }
 
 /**
@@ -73,15 +79,7 @@ export function renderSettings(): HTMLElement {
   // --- chain: any change means Setup, and Setup means closing this wallet ---
   const changeSlot = el("div", { className: "slot" });
   const change = (what: string) => () => {
-    const go = button(
-      "Continue",
-      () =>
-        withBusy(go, async () => {
-          await api.closeWallet();
-          navigate("setup");
-        }),
-      "primary",
-    );
+    const go = button("Continue", () => withBusy(go, closeForSetup), "primary");
     changeSlot.replaceChildren(
       el("section", { className: "card review-card" }, [
         el("span", {
@@ -109,14 +107,7 @@ export function renderSettings(): HTMLElement {
   // Only a remembered wallet is ever locked, so without a keystore there is
   // nothing to choose.
   const lockValue = canRemember
-    ? lockSelect((e) => {
-        if (onScreen()) {
-          alert.show(
-            "error",
-            `The lock time could not be saved (${errorMessage(e)}). It holds until the app closes.`,
-          );
-        }
-      })
+    ? lockSelect((choice) => saveLockAfter(choice, alert, onScreen))
     : "Not available here";
 
   // --- rescan: for a restore that shows too little ----------------------------
@@ -184,15 +175,7 @@ export function renderSettings(): HTMLElement {
   keysSlot.appendChild(showKeys);
 
   // --- leaving: close, or forget this device's copy altogether ---------------
-  const closeBtn = button("Close wallet", () =>
-    withBusy(closeBtn, async () => {
-      try {
-        await api.closeWallet();
-      } finally {
-        navigate(session.remembered ? "unlock" : "key");
-      }
-    }),
-  );
+  const closeBtn = button("Close wallet", () => withBusy(closeBtn, closeThisWallet));
   const forgetSlot = el("div", { className: "slot" });
   const showForget = () => askForget(forgetSlot, forgetBtn, forgetWarning(wallet), alert, false);
   // Without a working keystore there is no saved key to delete, and a stale

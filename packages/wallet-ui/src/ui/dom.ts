@@ -1,4 +1,6 @@
-import type { Unit } from "../amount";
+import { formatAmount, parseAmount, UNIT_CHOICES, type Unit } from "../amount";
+import { platform } from "../platform";
+import { errorMessage, MAX_FEE_RATE_SAT_VB } from "../types";
 import { type IconName, icon } from "./icons";
 import { sentence } from "./text";
 
@@ -159,6 +161,23 @@ export function textInput(
   return input;
 }
 
+/**
+ * Writes the amount in `field` in `to` instead of `from`, keeping whole sats.
+ * Text that does not parse stays as typed: its message says why.
+ */
+export function convertField(field: HTMLInputElement, from: Unit, to: Unit): void {
+  const { sats } = parseAmount(field.value, from);
+  if (sats !== null) field.value = formatAmount(sats, to);
+}
+
+/** A fee-rate field's bounds: from 1 sat/vB to the ceiling the core takes, in tenths. */
+export function boundRate(input: HTMLInputElement): HTMLInputElement {
+  input.min = "1";
+  input.max = String(MAX_FEE_RATE_SAT_VB);
+  input.step = "0.1";
+  return input;
+}
+
 /** Says `message` in `slot`, under a field, and marks `input` invalid; `null` clears both. */
 export function setFieldError(slot: HTMLElement, input: HTMLElement, message: string | null): void {
   slot.textContent = message ?? "";
@@ -197,10 +216,7 @@ export function unitChips(
     attrs: { role: "radiogroup", "aria-label": "Amount unit" },
   });
   const inputs: HTMLInputElement[] = [];
-  for (const [unit, label] of [
-    ["sat", "sat"],
-    ["btc", "BTC"],
-  ] as const) {
+  for (const { value: unit, label } of UNIT_CHOICES) {
     const input = el("input", { attrs: { type: "radio", name, value: unit } });
     input.checked = unit === "sat";
     input.addEventListener("change", () => {
@@ -279,6 +295,15 @@ export function banner(): Banner {
     queuedNotice = null;
   }
   return alert;
+}
+
+/** Opens `url`, a transaction on a block explorer; a refusal is said in `alert`. */
+export async function openExplorer(url: string, alert: Banner): Promise<void> {
+  try {
+    await platform().openUrl(url);
+  } catch (e) {
+    alert.show("warn", `Could not open the explorer: ${errorMessage(e)}`);
+  }
 }
 
 export function kv(rows: readonly [string, Node | string][]): HTMLElement {

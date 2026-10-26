@@ -12,7 +12,6 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type Recipient,
   rateForTarget,
@@ -21,7 +20,9 @@ import {
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../ui/coins";
 import {
   banner,
+  boundRate,
   button,
+  convertField,
   el,
   field,
   formatSats,
@@ -34,7 +35,7 @@ import {
   unitChips,
   withBusy,
 } from "../ui/dom";
-import { feeLine, typeableRate } from "../ui/format";
+import { feeLine, fieldRate, typeableRate } from "../ui/format";
 import { ESTIMATE_UNAVAILABLE_TYPE, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
 
 interface RecipientRow {
@@ -102,9 +103,7 @@ export function renderSend(): HTMLElement {
 
   const feeRate = textInput({ value: "1", type: "number", mono: true });
   feeRate.id = "send-fee-rate";
-  feeRate.min = "1";
-  feeRate.max = String(MAX_FEE_RATE_SAT_VB);
-  feeRate.step = "0.1";
+  boundRate(feeRate);
   const feeError = el("span", { className: "field-error hidden" });
   /**
    * Set once the user types a rate. The first estimate can land afterwards,
@@ -126,15 +125,7 @@ export function renderSend(): HTMLElement {
     setError(feeError, feeRate, rateTouched ? feeRateError(Number(feeRate.value)) : null);
   };
 
-  /**
-   * The rate the form will build at: rounded up to a tenth and floored at the
-   * relay minimum, which is the rate Review names. A tenth is a whole number
-   * of sat/kwu, so the core builds at exactly that.
-   */
-  const currentRate = (): number => {
-    const rate = Number(feeRate.value);
-    return Number.isFinite(rate) && rate > 0 ? typeableRate(rate) : 1;
-  };
+  const currentRate = (): number => fieldRate(Number(feeRate.value));
 
   let targetBlocks: TargetChoice = `${DEFAULT_FEE_TARGET}`;
   const target = radioGroup("fee_target", FEE_TARGET_CHOICES, targetBlocks, (v) => {
@@ -210,13 +201,10 @@ export function renderSend(): HTMLElement {
     updateReview();
   };
 
-  /** Converts the shown value instead of reinterpreting it; keeps whole sats. */
   const setUnit = (row: RecipientRow, unit: Unit) => {
     if (row.unit === unit) return;
-    const parsed = parseAmount(row.amount.value, row.unit);
+    convertField(row.amount, row.unit, unit);
     row.unit = unit;
-    // An unparsable value is left as typed; its message already says why.
-    if (parsed.sats !== null) row.amount.value = formatAmount(parsed.sats, unit);
     refreshRow(row);
   };
 

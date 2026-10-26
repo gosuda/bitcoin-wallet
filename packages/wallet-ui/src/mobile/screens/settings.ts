@@ -10,14 +10,13 @@ import {
   LOCK_AFTER_CHOICES,
   LOCK_AFTER_LABELS,
   type LockAfter,
-  lockAfterFrom,
   NETWORK_LABELS,
   RESCAN_GAPS,
   type RescanGap,
 } from "../../types";
-import { chooseLockAfter, lockAfter } from "../../ui/autolock";
+import { lockAfter } from "../../ui/autolock";
 import { banner, el, formatNumber } from "../../ui/dom";
-import { rescanAt } from "../../ui/settings";
+import { closeForSetup, rescanAt, saveLockAfter } from "../../ui/settings";
 import { forgetWarning, RESCAN_HINT } from "../../ui/text";
 import {
   body,
@@ -50,15 +49,10 @@ export function renderSettings(): HTMLElement {
   // The row says so and asks, rather than bouncing to a form silently.
   const changeHost = el("div");
   const change = (what: string) => () => {
-    const go = button(
-      "Continue",
-      () =>
-        withLock(go, async () => {
-          await api.closeWallet();
-          navigate("setup");
-        }),
-      { variant: "primary", block: true },
-    );
+    const go = button("Continue", () => withLock(go, closeForSetup), {
+      variant: "primary",
+      block: true,
+    });
     const sheet = card(
       lede(`Changing the ${what} closes this wallet. You will open it again from Setup.`),
       go,
@@ -115,15 +109,7 @@ export function renderSettings(): HTMLElement {
         chips<Wait>(
           LOCK_AFTER_CHOICES.map((c) => ({ value: `${c}` as Wait, label: LOCK_AFTER_LABELS[c] })),
           `${lockAfter()}`,
-          (value) => {
-            void chooseLockAfter(lockAfterFrom(value)).catch((e: unknown) => {
-              if (!onScreen()) return;
-              alert.show(
-                "error",
-                `The lock time could not be saved (${errorMessage(e)}). It holds until the app closes.`,
-              );
-            });
-          },
+          (value) => saveLockAfter(value, alert, onScreen),
           { label: "Lock after" },
         ).node,
         el("span", {

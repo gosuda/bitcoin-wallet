@@ -1821,10 +1821,21 @@ but comments.
       live in `ui/text.ts`. Twenty-two new tests on both shells: before, the ten phone ones
       failed and every desktop one passed; all pass after. On a phone only the empty-field
       messages can be seen
-- [ ] **10.12 Both shells share their rate fields, units, QR and explorer code, and the desktop
+- [x] **10.12 Both shells share their rate fields, units, QR and explorer code, and the desktop
   its Close wallet** · M · `screens/*`, `mobile/screens/*`, `ui/*`
       why: a fee-rate field is set up five times, an amount converted between sat and BTC four
-      times, a transaction opened in the explorer four times, and Close wallet written twice
+      times, a transaction opened in the explorer four times, and Close wallet written twice ·
+      done: 2026-10-27 — `boundRate` sets up the five rate fields, `rateRow` the phone's,
+      `fieldRate` rounds a typed rate; `UNIT_CHOICES` and `convertField` convert an amount in
+      place; `ui/qr.ts` draws a QR and a receive payload (widths per caller, Export still the
+      raw xpub); `openExplorer` opens a transaction (the phone's still hides its banner first);
+      `closeForSetup` and `saveLockAfter` serve both Settings (the desktop still focuses
+      Continue); `closeThisWallet` both desktop pages; and the Wallet page labels outputs
+      through `outputRole` and counts coins through `counted`. Not taken: the Settings
+      sentences, the recovery-phrase helpers and the coin ticks, each longer shared. Mutations
+      fail tests on both shells where tests reach the code, and throwaway characterization
+      tests (54 and 15 observations, identical on the old code and the new) pin the rest. Lines
+      11,765 to 11,698; the states are byte-identical
 - [ ] **10.13 Both shells open a wallet, record a send, offer a fee bump and sync through one
   helper each** · M · `screens/*`, `mobile/screens/*`, `ui/*`
       why: once 10.7, 10.10 and 10.11 make the behaviour alike, the logic is written once per

@@ -6,7 +6,7 @@ import { errorMessage } from "../../types";
 import { readClipboard } from "../../ui/clipboard";
 import { banner, el } from "../../ui/dom";
 import { body, button, header, lede, reticle, seeThroughMark } from "../ui";
-import { prefillSend } from "./send";
+import { NOT_A_PAYMENT, prefillSend, SCAN_HINT } from "./send";
 
 /**
  * The camera preview is rendered by the OS behind the webview, not by us, so
@@ -41,9 +41,7 @@ export function renderScan(): HTMLElement {
     if (!payment) {
       alert.show(
         "warn",
-        from === "scan"
-          ? "That QR code is not a Bitcoin address."
-          : "The clipboard does not hold a Bitcoin address.",
+        from === "scan" ? NOT_A_PAYMENT : "The clipboard does not hold a Bitcoin address.",
       );
       return;
     }
@@ -112,11 +110,7 @@ export function renderScan(): HTMLElement {
       alert.node,
       el("div", { className: "m-scan" }, [
         reticle(),
-        lede(
-          scan
-            ? "Point the camera at an address or a bitcoin: QR code."
-            : "This build has no camera access; paste an address instead.",
-        ),
+        lede(scan ? SCAN_HINT : "This build has no camera access; paste an address instead."),
       ]),
       scan ? start : null,
       paste,
