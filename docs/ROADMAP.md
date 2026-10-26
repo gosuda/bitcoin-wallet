@@ -1669,6 +1669,21 @@ regenerate byte-identical; and a path no test reaches is pinned first by a chara
 test, run on the old code and the new, then removed. A comment-only commit changes nothing
 but comments.
 
+**Result.** 25,195 code lines at `619c3db`, 25,109 at the end (−86), and 4,660 comment lines
+to 4,257 (−403, 8.6%), by tokei over the tracked sources less the Go reference, the
+generated phone projects, the boards `gen.py` writes and the lockfiles. Outside `docs/`, the
+refactors and comment commits take out 892 lines net and the seven fixes add 456, most of
+them the 58 tests that prove them (444 vitest tests to 502). This branch's Android debug
+build, installed on an emulator over a September build with its Signet wallet, started at
+Unlock and unlocked it, closed to Unlock (10.15), said what an empty single key and an empty
+watch-only field lack (10.11), left the field empty after a generated key and a leave
+(10.16), and opened a generated key without Remember, which Settings showed as not
+remembered, before closing back to Unlock for the first wallet (10.7). Sending and fee bumps
+were not driven there: the wallet's local Signet rig needs Rosetta. Pull request #62.
+
+**Left for the canvas.** The phone's Restore checks the phrase when pressed, the desktop's as
+it is typed: an interaction to design before it is made alike.
+
 
 **Comments that are wrong**
 
