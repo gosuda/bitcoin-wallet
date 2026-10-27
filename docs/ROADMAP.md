@@ -1681,6 +1681,25 @@ watch-only field lack (10.11), left the field empty after a generated key and a 
 remembered, before closing back to Unlock for the first wallet (10.7). Sending and fee bumps
 were not driven there: the wallet's local Signet rig needs Rosetta. Pull request #62.
 
+**Reviewed** by cubic on 2026-10-26 (PR #62): fifteen comments, each checked against the code
+and the tests. Eight were taken, in five commits, four of them with tests that failed before
+(502 vitest tests to 512): Lock after left a failed save's message up after a later choice
+saved, and on the Tauri store an earlier save could finish after a later one and be the one
+kept; Receive outlined an amount it cannot take but never set `aria-invalid`; the phone
+Send's Custom fee rate had no accessible name; the desktop's sync every minute, arriving
+while a sync ran on, turned the Sync button back on; and three comments said where values
+are normalized, what the rate check refuses and the focus ring's exception wrongly or
+loosely. Seven were answered on the pull request instead. Close wallet opening Unlock for
+the remembered wallet while another was open is what both shells show at launch (10.15), and
+Unlock names that wallet and offers another. Create's confirmation words are emptied with the
+rest on the route change, as on the desktop. `min="1"` on the rate fields was there before
+the round, nothing styles `:invalid`, and the core raises a rate under 1 to the floor. The
+10.7 test checks the session's record, which 10.7 changed; the write to the device is
+covered in `app-password.test.ts`, where dropping the remember flag fails four tests.
+`btcw address` deriving twice is one run of a command, for one rule that matches the wallet
+(10.17). The two on the phone's Restore cannot happen in the Tauri build the phone shell ships
+in, where Remember never waits for a password, and cubic had resolved them.
+
 **Left for the canvas.** The phone's Restore checks the phrase when pressed, the desktop's as
 it is typed: an interaction to design before it is made alike.
 

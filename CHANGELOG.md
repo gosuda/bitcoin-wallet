@@ -83,6 +83,12 @@ pull requests a change arrived in.
   into the field that was cleared when you left. (#62)
 - `btcw address` reports `hd` as `btcw address --new` does; for an account xpub the two
   disagreed. (#62)
+- A Lock after choice that saves takes back the message a failed one left, and of two choices
+  made quickly the later one is the one kept. (#62)
+- The desktop's Sync button stays busy while a sync runs past a minute; the sync it runs every
+  minute turned it back on. (#62)
+- Screen readers hear an amount Receive cannot take as invalid, and the phone Send's Custom
+  fee rate by its name. (#62)
 - Paste on the phone's Scan screen reads the clipboard. It read it the way a web page
   does, which the app's webview refuses, so it only ever said that clipboard access was
   refused. (#42)
