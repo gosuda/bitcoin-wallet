@@ -1,16 +1,10 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from "vitest";
 import { wipeOnLeave } from "../src/ui/words";
-
-const navigateTo = (hash: string): void => {
-  window.location.hash = hash;
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
-};
+import { leaveTo } from "./harness";
 
 describe("wipeOnLeave", () => {
-  // The defect this guards: a typed private key, passphrase or pasted
-  // descriptor survived a route change because nothing zeroed it before the
-  // node was detached — only removal from view, not from memory.
+  // Detaching a field takes it from view, not from memory.
   it("clears every field's value on the next route change", () => {
     const key = document.createElement("input");
     const descriptor = document.createElement("textarea");
@@ -20,7 +14,7 @@ describe("wipeOnLeave", () => {
     wipeOnLeave(() => [key, descriptor]);
     expect(key.value).not.toBe("");
 
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
     expect(key.value).toBe("");
     expect(descriptor.value).toBe("");
   });
@@ -36,14 +30,12 @@ describe("wipeOnLeave", () => {
         detached = true;
       },
     );
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
 
     expect(input.value).toBe("");
     expect(detached).toBe(true);
   });
 
-  // `inputs` is a function, not a snapshot, so a screen that rebuilds its
-  // grid (e.g. 12 words become 24) after arming this is still covered.
   it("reads the field list lazily, so a field added after arming is still wiped", () => {
     let fields: HTMLInputElement[] = [];
     wipeOnLeave(() => fields);
@@ -52,7 +44,7 @@ describe("wipeOnLeave", () => {
     addedLater.value = "typed after the wipe was armed";
     fields = [addedLater];
 
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
     expect(addedLater.value).toBe("");
   });
 
@@ -60,9 +52,9 @@ describe("wipeOnLeave", () => {
     const input = document.createElement("input");
     wipeOnLeave(() => [input]);
 
-    navigateTo("#/dashboard");
+    leaveTo("dashboard");
     input.value = "typed on the next screen";
-    navigateTo("#/settings");
+    leaveTo("settings");
 
     expect(input.value).toBe("typed on the next screen");
   });

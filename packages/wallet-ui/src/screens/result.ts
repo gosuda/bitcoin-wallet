@@ -1,12 +1,10 @@
-import { platform } from "../platform";
 import { navigate } from "../router";
 import { redirect, screenHead } from "../screen";
 import { session } from "../session";
-import { errorMessage } from "../types";
 import { copyButton } from "../ui/clipboard";
-import { banner, button, el, readout, sectionLabel, withBusy } from "../ui/dom";
+import { banner, button, el, openExplorer, readout, sectionLabel, withBusy } from "../ui/dom";
 import { icon } from "../ui/icons";
-import { explorerFailed, SENT_LINE, SENT_TITLE, sentNotSaved } from "../ui/text";
+import { SENT_LINE, SENT_TITLE, sentNotSaved } from "../ui/text";
 
 export function renderResult(): HTMLElement {
   const result = session.lastResult;
@@ -23,14 +21,7 @@ export function renderResult(): HTMLElement {
   openBtn = explorer
     ? button(
         "Open in explorer",
-        () =>
-          withBusy(openBtn as HTMLButtonElement, async () => {
-            try {
-              await platform().openUrl(explorer);
-            } catch (e) {
-              alert.show("warn", explorerFailed(errorMessage(e)));
-            }
-          }),
+        () => withBusy(openBtn as HTMLButtonElement, () => openExplorer(explorer, alert)),
         "primary",
         "md",
         { name: "external" },

@@ -1,9 +1,8 @@
 import { addressError, addressLooksValid } from "../../address";
-import { formatAmount, parseAmount, type Unit } from "../../amount";
+import { formatAmount, parseAmount, UNIT_CHOICES, type Unit } from "../../amount";
 import { api } from "../../api";
 import { type PaymentRequest, parsePaymentUri } from "../../bip21";
-import { navigate } from "../../router";
-import { redirect, screenGuard } from "../../screen";
+import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
 import {
   DEFAULT_FEE_TARGET,
@@ -12,16 +11,16 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type Recipient,
   rateForTarget,
   type TxPreview,
 } from "../../types";
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../../ui/coins";
-import { banner, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
-import { feeLine, formatRate, formatSats, typeableRate } from "../../ui/format";
+import { banner, convertField, el, kv, sectionLabel, setFieldError, textInput } from "../../ui/dom";
+import { feeLine, fieldRate, formatRate, formatSats, typeableRate } from "../../ui/format";
 import { icon } from "../../ui/icons";
+import { recordSent } from "../../ui/preview";
 import { estimateUnavailable, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../../ui/text";
 import {
   body,
@@ -31,10 +30,11 @@ import {
   header,
   labelled,
   lede,
+  rateRow,
   row,
   scanInPlace,
   spacer,
-  withBusy,
+  withLock,
 } from "../ui";
 
 interface Prefill {
@@ -45,8 +45,17 @@ interface Prefill {
 /** Set by the Scan screen and by a `bitcoin:` deep link before navigating here. */
 let prefill: Prefill = {};
 
-export function prefillSend(next: Prefill): void {
-  prefill = next;
+/** Under the camera's reticle, on Scan and on Send's own scan. */
+export const SCAN_HINT = "Point the camera at an address or a bitcoin: QR code.";
+/** A code read on Scan or on Send that holds no payment. */
+export const NOT_A_PAYMENT = "That QR code is not a Bitcoin address.";
+
+/** The next Send opens with `payment`'s address and amount filled in. */
+export function prefillSend(payment: PaymentRequest): void {
+  prefill = {
+    address: payment.address,
+    ...(payment.amountSat === undefined ? {} : { amountSat: payment.amountSat }),
+  };
 }
 
 type FeeChoice = `${FeeTarget}` | "custom";
@@ -87,6 +96,7 @@ function recipientList(to: readonly Recipient[], fee: string, total: number): HT
 
 export function renderSend(): HTMLElement {
   const onScreen = screenGuard();
+  const sameWallet = sameWalletGuard();
   const info = session.wallet;
   if (!info) return redirect("setup");
   const host = el("main");
@@ -112,18 +122,12 @@ export function renderSend(): HTMLElement {
 
   let currentUnit: Unit = "sat";
   const unit = chips<Unit>(
-    [
-      { value: "sat", label: "sat" },
-      { value: "btc", label: "BTC" },
-    ],
+    UNIT_CHOICES,
     currentUnit,
     (next) => {
       if (next === currentUnit) return;
-      // Convert the shown values instead of reinterpreting them; keep whole
-      // sats. A value that does not parse stays as typed: its message says why.
       for (const r of rows) {
-        const parsed = parseAmount(r.amount.value, currentUnit);
-        if (parsed.sats !== null) r.amount.value = formatAmount(parsed.sats, next);
+        convertField(r.amount, currentUnit, next);
         r.unitMark.textContent = UNIT_LABELS[next];
       }
       currentUnit = next;
@@ -140,10 +144,10 @@ export function renderSend(): HTMLElement {
   // recipient leaves it too: everything can only go to one address.
   let drain: TxPreview | null = null;
   /**
-   * See the desktop Send screen: `drain` is null while a build is in flight,
-   * so it cannot be the thing that invalidates one. This can, and must —
-   * the confirm sheet does not repeat the recipient, so a stale drain would
-   * be broadcast with nothing on screen contradicting it.
+   * Bumped by anything that changes what Max would build; `drain` is null
+   * while a build is in flight, so it cannot tell. The confirm sheet does not
+   * repeat the recipient, so a stale drain would go out with nothing on screen
+   * to contradict it.
    */
   let drainSeq = 0;
   const maxNote = el("span", { className: "hint" });
@@ -176,15 +180,12 @@ export function renderSend(): HTMLElement {
     refresh();
     if (bad) return alert.show("error", bad);
     try {
-      // Max moves the form on from whatever it was about to send, exactly as
-      // an edit does. Every edit says so through `clearPreview`; this was the
-      // one control that did not, so a visible sheet stayed confirmable while
-      // the amount beside it changed to the drained one.
+      // Max moves the form on from what it was about to send, as an edit does.
       clearPreview();
       leaveDrain();
       const seq = drainSeq;
       const preview = await api.buildDrain(to, rate, heldTo(coins));
-      if (seq !== drainSeq) {
+      if (seq !== drainSeq || !onScreen()) {
         void api.discardTx(preview.psbt_id);
         return;
       }
@@ -195,21 +196,16 @@ export function renderSend(): HTMLElement {
       maxNote.textContent = maxModeNote(preview.total_out_sat + preview.fee_sat, preview.fee_sat);
       refresh();
     } catch (e) {
-      alert.show("error", errorMessage(e));
+      if (onScreen()) alert.show("error", errorMessage(e));
     }
   };
-  max.addEventListener("click", () => void withBusy(max, fillMax));
+  max.addEventListener("click", () => void withLock(max, fillMax));
 
   // --- fee -----------------------------------------------------------------
   const rateInput = textInput({ value: "1", type: "number", mono: true, name: "rate" });
-  rateInput.min = "1";
-  rateInput.max = String(MAX_FEE_RATE_SAT_VB);
-  rateInput.step = "0.1";
-  rateInput.setAttribute("inputmode", "decimal");
-  const customRow = el("div", { className: "m-rate-row" }, [
-    rateInput,
-    el("span", { className: "m-rate-unit", text: "sat/vB" }),
-  ]);
+  // The card's "Fee" names the choice, not the field.
+  rateInput.setAttribute("aria-label", "Fee rate, in sat/vB");
+  const customRow = rateRow(rateInput);
   customRow.hidden = true;
   const rateErr = el("span", { className: "m-err", attrs: { role: "status" } });
   const rateNote = el("span", { className: "m-txmeta", text: FETCHING_ESTIMATE });
@@ -234,21 +230,15 @@ export function renderSend(): HTMLElement {
     const choice = fee.value();
     const before = rate;
     if (choice === "custom") {
-      const typed = Number(rateInput.value);
-      // Rounded up to a tenth, the rate Review names and the core builds at.
-      rate = Number.isFinite(typed) && typed > 0 ? typeableRate(typed) : 1;
+      rate = fieldRate(Number(rateInput.value));
       rateNote.textContent = `Custom rate · ${FLOOR_NOTE}`;
     } else {
       try {
         estimate ??= await api.estimateFee();
-        // The target can change — including to Custom — while the estimate is
-        // in flight. `Number("custom")` is NaN, so applying it afterwards
-        // silently built at 1 sat/vB while the field showed the typed rate.
-        // The screen can also have changed while it was in flight.
+        // The target can change, to Custom included, and the screen can go
+        // while the estimate is in flight; applying it then would build at a
+        // rate the field does not show.
         if (fee.value() !== choice || !onScreen()) return;
-        // Rounded and floored as the desktop's field is: the raw estimate can be
-        // below the 1 sat/vB the core builds at, and the note would name a rate
-        // the transaction does not pay.
         const market = rateForTarget(estimate, Number(choice));
         rate = typeableRate(market ?? 1);
         // An estimate with no rate in it is none: say so, as the desktop does.
@@ -263,10 +253,8 @@ export function renderSend(): HTMLElement {
       // A Max preview is built at one rate; changing it afterwards would
       // leave Review showing the new rate and broadcasting the old one.
       leaveDrain();
-      // The caller's own `refresh()` right after calling this ran against
-      // the rate from before this estimate arrived. Re-validate now that
-      // `rate` itself changed, so an implausible estimate disables Review
-      // instead of leaving it clickable until the build rejects it.
+      // The caller's `refresh()` ran with the rate from before the estimate:
+      // check again, so an implausible estimate turns Review off.
       refresh();
     }
   }
@@ -279,16 +267,9 @@ export function renderSend(): HTMLElement {
 
   // --- validation -----------------------------------------------------------
   /**
-   * `touched` decides only whether a field may show its message. Review
-   * follows the values: a form filled in correctly is ready whether or not
-   * focus has left the last field.
-   */
-  /**
-   * Custom validates what was typed, so a bad keystroke is flagged before
-   * `rate` ever changes. A preset has no typed value to check — but its
-   * estimate still becomes `rate`, and a backend that returns something
-   * non-finite or past the ceiling must not sail through unchecked just
-   * because a person did not type it.
+   * Custom checks what was typed, before `rate` changes. A preset checks the
+   * rate its estimate gave, which a backend can send non-finite or past the
+   * ceiling.
    */
   const rateError = (): string | null =>
     fee.value() === "custom" ? feeRateError(Number(rateInput.value)) : feeRateError(rate);
@@ -305,6 +286,11 @@ export function renderSend(): HTMLElement {
     return out;
   };
 
+  /**
+   * `touched` decides only whether a field may show its message. Review
+   * follows the values: a form filled in correctly is ready whether or not
+   * focus has left the last field.
+   */
   const refresh = (): void => {
     for (const r of rows) {
       setFieldError(
@@ -471,12 +457,7 @@ export function renderSend(): HTMLElement {
   //
   // The camera runs on this screen rather than on Scan, which would rebuild
   // this one and lose every row (`scanInPlace`).
-  const scan = scanInPlace(
-    host,
-    alert,
-    onScreen,
-    "Point the camera at an address or a bitcoin: QR code.",
-  );
+  const scan = scanInPlace(host, alert, onScreen, SCAN_HINT);
   const scanNote = lede("Address filled in from a scan.");
 
   /**
@@ -512,7 +493,7 @@ export function renderSend(): HTMLElement {
     scan?.(form, (text) => {
       const payment = parsePaymentUri(text);
       if (payment) fillFromScan(scanTarget(pressed), payment);
-      else alert.show("warn", "That QR code is not a Bitcoin address.");
+      else alert.show("warn", NOT_A_PAYMENT);
     });
 
   // --- review -----------------------------------------------------------------
@@ -529,11 +510,8 @@ export function renderSend(): HTMLElement {
   let pendingPreview: TxPreview | null = null;
 
   /**
-   * Bumped whenever the form moves on from a preview.
-   *
-   * `pendingPreview` cannot do this job alone: it is still null while a build
-   * is in flight, so an edit during one clears nothing and the result installs
-   * regardless — the same shape as the Max race, on the ordinary path.
+   * Bumped whenever the form moves on from a preview: `pendingPreview` is
+   * null while a build is in flight, so it cannot tell.
    */
   let formSeq = 0;
 
@@ -548,7 +526,7 @@ export function renderSend(): HTMLElement {
   const review = button(
     "Review",
     () =>
-      withBusy(review, async () => {
+      withLock(review, async () => {
         alert.hide();
         for (const r of rows) {
           r.touched.address = true;
@@ -588,20 +566,19 @@ export function renderSend(): HTMLElement {
     const confirm = button(
       "Confirm and send",
       () =>
-        withBusy(confirm, async () => {
+        withLock(confirm, async () => {
           try {
             // Consumed by the broadcast either way, so neither may be
             // discarded again on the way out.
             drain = null;
             pendingPreview = null;
-            session.lastResult = await api.signAndBroadcast(preview.psbt_id);
-            navigate("result");
+            recordSent(await api.signAndBroadcast(preview.psbt_id), sameWallet, onScreen);
           } catch (e) {
             // Signing consumed the PSBT before it failed, so the mounted
             // Confirm would retry an id the core no longer has. Take the sheet
             // down and make them review the current form again.
             clearPreview();
-            alert.show("error", errorMessage(e));
+            if (onScreen()) alert.show("error", errorMessage(e));
           }
         }),
       { variant: "primary", block: true },
@@ -627,9 +604,7 @@ export function renderSend(): HTMLElement {
     sheet.scrollIntoView({ block: "nearest" });
   }
 
-  // Screens are rebuilt on every navigation, so anything still pending when
-  // this one goes away is unreachable — abandoned sends would grow the core's
-  // pending map without bound.
+  // What is pending when the screen goes would stay in the core's pending map.
   const discardOnLeave = (): void => {
     clearPreview();
     leaveDrain();

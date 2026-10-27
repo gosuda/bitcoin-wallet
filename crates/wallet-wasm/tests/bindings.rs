@@ -230,8 +230,8 @@ async fn the_nested_type_has_one_spelling_and_keeps_its_ids() {
         "2Mww8dCYPUpKHofjgcXcBCEGmniw9CoaiD2"
     );
 
-    // A wallet remembered while the UI still translated the name to
-    // `np2wpkh` is stored under the same id, so it still unlocks.
+    // Either name gives the same id, so a wallet remembered under one unlocks
+    // under the other.
     let id = wallet_id_for_key(WORDS, "testnet4", "nested_p2wpkh", None).unwrap();
     assert_eq!(
         id,

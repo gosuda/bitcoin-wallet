@@ -12,6 +12,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
 
 jobs:
   # A tag names the version it releases. One that disagrees with the workspace
@@ -24,18 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Check the version, and the tag when there is one
-        env:
-          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-        run: scripts/check-version.sh ${TAG:+"$TAG"}
+        run: scripts/check-version.sh ${RELEASE_TAG:+"$RELEASE_TAG"}
 
   bundle:
     name: ${{ matrix.name }}
     needs: version
     runs-on: ${{ matrix.os }}
-    # Never run yet, so there is no measured duration to set this from; a
-    # release build (thin LTO, one codegen unit, notarisation) is the slowest
-    # thing this repository does, and an hour is several times anything the
-    # other workflow has taken.
+    # A release build, with thin LTO, one codegen unit and notarisation.
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -71,17 +67,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      # The frontend imports the wasm core, so it has to exist before the build.
       - uses: ./.github/actions/frontend
 
-      # One workspace, one lockfile: install from the repo root.
-      - run: pnpm install --frozen-lockfile
-
-      # Signing and notarisation happen only when these secrets exist; without
-      # them the bundles are unsigned (see docs/RELEASING.md). A secret that does
-      # not exist still arrives as an empty variable, and Tauri signs whenever
-      # APPLE_CERTIFICATE is set at all — so it failed importing an empty
-      # certificate. Each variable is therefore exported only when it has a value.
+      # Signing and notarisation happen only when these secrets exist (see
+      # docs/RELEASING.md). A missing secret arrives as an empty variable, and
+      # Tauri signs whenever APPLE_CERTIFICATE is set at all, so each is exported
+      # only when it has a value.
       - name: Export the Apple signing secrets that exist
         if: runner.os == 'macOS'
         env:
@@ -105,18 +96,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/native
-          # Only a tag publishes; a manual run just proves the bundles build.
-          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: ${{ env.RELEASE_TAG }}
           releaseDraft: true
           prerelease: false
-          # No updater: v1 renamed this from includeUpdaterJson and defaults it
-          # to true, so the old name would be ignored and latest.json uploaded.
+          # No updater, and tauri-action defaults this to true.
           uploadUpdaterJson: false
           args: ${{ matrix.args }}
 
       - name: Keep the bundles for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ !env.RELEASE_TAG }}
         uses: actions/upload-artifact@v7
         with:
           name: bundle-${{ matrix.os }}-${{ matrix.rust-target || 'native' }}
@@ -163,7 +152,6 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: ./.github/actions/frontend
-      - run: pnpm install --frozen-lockfile
 
       # The keystore exists only in this job's temporary directory; the Gradle
       # build reads it through ANDROID_KEYSTORE_* (app/build.gradle.kts).
@@ -189,17 +177,16 @@ jobs:
           done
 
       - name: Attach to the draft release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.RELEASE_TAG
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
-          gh release upload "$TAG" --clobber \
+          gh release upload "$RELEASE_TAG" --clobber \
             apps/native/src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk \
             apps/native/src-tauri/gen/android/app/build/outputs/bundle/*/*.aab
 
       - name: Keep them for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ !env.RELEASE_TAG }}
         uses: actions/upload-artifact@v7
         with:
           name: android-release
@@ -225,7 +212,6 @@ jobs:
           targets: aarch64-apple-ios,wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/frontend
-      - run: pnpm install --frozen-lockfile
 
       # The CLI reads the team from APPLE_DEVELOPMENT_TEAM and the key from a
       # file, so the key exists only in this job's temporary directory.
@@ -251,14 +237,13 @@ jobs:
           done
 
       - name: Attach to the draft release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.RELEASE_TAG
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: gh release upload "$TAG" --clobber apps/native/src-tauri/gen/apple/build/*/*.ipa
+        run: gh release upload "$RELEASE_TAG" --clobber apps/native/src-tauri/gen/apple/build/*/*.ipa
 
       - name: Keep it for a manual run
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ !env.RELEASE_TAG }}
         uses: actions/upload-artifact@v7
         with:
           name: ios-release

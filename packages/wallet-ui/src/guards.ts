@@ -8,7 +8,7 @@
  * that could drift apart.
  */
 
-import { ROUTES, type Route } from "./router";
+import { PHONE_ROUTES, ROUTES, type Route } from "./router";
 import { type AddressType, isOpenable } from "./types";
 
 export type Shell = "desktop" | "phone";
@@ -34,14 +34,8 @@ export const KEY_ROUTES: ReadonlySet<Route> = new Set<Route>([
   "unlock",
 ]);
 
-/** Destinations only the phone shell has; the desktop sends them to the wallet. */
-export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>([
-  "receive",
-  "scan",
-  "tx",
-  "export",
-  "coins",
-]);
+/** `PHONE_ROUTES`, for the rules to look up. */
+export const PHONE_ONLY: ReadonlySet<Route> = new Set<Route>(PHONE_ROUTES);
 
 /**
  * Screens with nothing to show, configure or scan into without an open
@@ -86,13 +80,13 @@ function step(route: Route, s: GuardState, shell: Shell): Route {
   // chosen there is nothing to show.
   if (route === "tx" && !s.hasTxid) return "dashboard";
   if (route === "result" && !s.hasResult) return "dashboard";
-  // A config saved before P2PK stopped being openable can still name it, and
-  // Setup, which never offers it, is where a type is chosen again.
+  // A stored config may name a type that cannot be opened (`isOpenable`);
+  // Setup chooses again.
   if (KEY_ROUTES.has(route) && (s.configType === null || !isOpenable(s.configType))) {
     return "setup";
   }
-  // Unlock exists only where a key can outlive the session; in a browser there
-  // is nothing to unlock, so the route is unreachable rather than empty.
+  // Unlock exists only where a remembered wallet can open here (`unlockable`);
+  // elsewhere the route is unreachable rather than empty.
   if (route === "unlock" && !s.unlockable) return "key";
   return route;
 }

@@ -8,9 +8,8 @@ describe("feeRateError", () => {
     }
   });
 
-  // The defect this guards: a typed rate reached `build_transfer` unchecked
-  // above, so a misplaced decimal or a unit mix-up (sat/vkB for sat/vB) was
-  // sent to the core as-is instead of being caught where it was typed.
+  // A misplaced decimal or a unit mix-up (sat/vkB for sat/vB) is caught where
+  // it is typed, not sent to the core.
   it("refuses anything past the ceiling", () => {
     for (const rate of [MAX_FEE_RATE_SAT_VB + 0.01, 1e5, 1e30]) {
       expect(feeRateError(rate)).not.toBeNull();

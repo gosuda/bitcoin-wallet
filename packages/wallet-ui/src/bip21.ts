@@ -4,9 +4,8 @@
  * Deliberately permissive about the input and strict about the output: a QR may
  * hold a bare address, a URI, or a URI with parameters we do not implement, and
  * in every case the useful answer is the address plus an amount if one is
- * there. Anything unparseable returns null rather than throwing, because the
- * caller's job is to prefill a form, not to validate — the wallet core rejects
- * a bad address far more authoritatively than a regex could.
+ * there. Anything unparseable returns null rather than throwing: the caller
+ * prefills a form, and the core is what checks the address.
  */
 
 import { formatAmount, parseAmount } from "./amount";
@@ -32,9 +31,8 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   // whole payload in `pathname` and the query handling differs between engines.
   const rest = text.slice("bitcoin:".length);
   const [addressPart = "", queryPart = ""] = rest.split("?", 2);
-  // `decodeURIComponent` throws on a malformed escape — "bitcoin:%" is enough.
-  // This function promises null instead, and a throw here also aborted the
-  // deep-link handler's map before it could reach a later valid URL.
+  // `decodeURIComponent` throws on a malformed escape ("bitcoin:%"); this
+  // returns null instead, so a deep link's later URLs are still read.
   let address: string;
   try {
     address = decodeURIComponent(addressPart).trim();
@@ -51,8 +49,7 @@ export function parsePaymentUri(input: string): PaymentRequest | null {
   for (const key of params.keys()) {
     // Case-sensitive on purpose: BIP21 spells the required prefix "req-", and
     // query keys are not case-folded. "REQ-Foo" is therefore an unknown
-    // *optional* parameter, which the spec says to ignore — rejecting it
-    // turned a usable payment link into a dead one.
+    // *optional* parameter, which the spec says to ignore.
     if (key.startsWith("req-")) return null;
   }
 
@@ -88,13 +85,10 @@ export function buildPaymentUri(request: PaymentRequest): string {
 /**
  * What goes in a QR.
  *
- * A bare bech32 address is upper-cased: BIP173 prefers it in QR codes and it
- * is case-insensitive, so nothing is lost. Measured on a 42-character address
- * the code is no smaller — version 3 either way — so this is convention, not a
- * win. A URI is left alone: its parameters are not case-insensitive, and an
- * upper-cased label would arrive changed. Base58 is case-*sensitive*; upper-
- * casing one would produce a QR that scans cleanly and pays nobody, which is
- * the load-bearing branch here.
+ * A bare bech32 address is upper-cased, as BIP173 prefers in QR codes; it is
+ * case-insensitive, so nothing is lost. A URI is left alone, since its
+ * parameters are case-sensitive, and so is base58: upper-cased, a base58
+ * address would scan cleanly and pay nobody.
  */
 export function qrPayload(text: string): string {
   return /^(bc1|tb1|bcrt1)[a-z0-9]+$/i.test(text) ? text.toUpperCase() : text;

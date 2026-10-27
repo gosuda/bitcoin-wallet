@@ -6,9 +6,8 @@
  * random salt, and encrypts the secret with AES-256-GCM under a fresh random
  * IV, all through WebCrypto. What is kept is a versioned record of the
  * ciphertext and what it takes to derive that key again: never the password,
- * never the secret. GCM authenticates what it decrypts, and the wallet id with
- * it, so a wrong password fails outright instead of yielding garbage, and says
- * so as its own error.
+ * never the secret. GCM authenticates what it decrypts, so a wrong password
+ * fails as its own error.
  *
  * Where records are kept is handed in (`SealedStore`), so all of this runs, and
  * is tested, without IndexedDB.
@@ -19,7 +18,7 @@ import type { Platform } from "./index";
 
 /**
  * PBKDF2 rounds for a newly sealed secret: OWASP's current recommendation for
- * PBKDF2-HMAC-SHA256, as decided on 2026-09-30. Every record carries its own
+ * PBKDF2-HMAC-SHA256 (6.12). Every record carries its own
  * count, so raising this later leaves the records already written readable.
  */
 export const PBKDF2_ITERATIONS = 600_000;
@@ -40,7 +39,7 @@ const TAG_BYTES = 16;
  *
  * The ciphertext is bound to the wallet's id, as GCM's additional data, so a
  * record copied into another wallet's slot fails the tag instead of opening
- * there. Version 1 does so from the start, since no record was written before.
+ * there.
  */
 export interface SealedSecret {
   version: typeof VERSION;

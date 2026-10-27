@@ -1,15 +1,13 @@
-import QRCode from "qrcode";
-
-import { formatAmount, parseAmount, type Unit } from "../../amount";
+import { UNIT_CHOICES, type Unit } from "../../amount";
 import { api } from "../../api";
-import { buildPaymentUri, qrPayload } from "../../bip21";
 import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
-import { banner, el, textInput } from "../../ui/dom";
+import { banner, convertField, el, textInput } from "../../ui/dom";
+import { drawReceiveQr, receivePayload } from "../../ui/qr";
 import { RECEIVE_QR_NOTE } from "../../ui/text";
-import { body, button, card, chips, header, labelled, lede, row, withBusy } from "../ui";
+import { body, button, card, chips, header, labelled, lede, row, withLock } from "../ui";
 
 export function renderReceive(): HTMLElement {
   const info = session.wallet;
@@ -32,56 +30,29 @@ export function renderReceive(): HTMLElement {
   amount.setAttribute("inputmode", "decimal");
   let unitValue: Unit = "sat";
   const unit = chips<Unit>(
-    [
-      { value: "sat", label: "sat" },
-      { value: "btc", label: "BTC" },
-    ],
+    UNIT_CHOICES,
     unitValue,
     (next) => {
-      const parsed = parseAmount(amount.value, unitValue);
+      convertField(amount, unitValue, next);
       unitValue = next;
-      if (parsed.sats !== null) amount.value = formatAmount(parsed.sats, next);
       void paint();
     },
     { label: "Amount unit" },
   );
   const amountErr = el("span", { className: "m-err", attrs: { role: "status" } });
 
-  /** What is shared: the bare address, or a bitcoin: URI once an amount is set. */
-  const payload = (): string => {
-    const parsed = parseAmount(amount.value, unitValue);
-    amountErr.textContent = parsed.error ?? "";
-    amount.classList.toggle("input-invalid", parsed.error !== null);
-    return parsed.sats === null ? address : buildPaymentUri({ address, amountSat: parsed.sats });
-  };
-
-  const paint = async (): Promise<void> => {
+  const payload = (): string => receivePayload(address, amount, unitValue, amountErr);
+  const paint = (): Promise<void> => {
     text.textContent = address;
-    const share = payload();
-    caption.textContent = share === address ? "" : share;
-    canvas.setAttribute(
-      "aria-label",
-      share === address ? "QR code of the receiving address" : "QR code of the payment request",
-    );
-    try {
-      await QRCode.toCanvas(canvas, qrPayload(share), {
-        errorCorrectionLevel: "M",
-        margin: 1,
-        width: 190,
-        color: { dark: "#1a1a1aff", light: "#ffffffff" },
-      });
-    } catch (e) {
-      alert.show("warn", errorMessage(e));
-    }
+    return drawReceiveQr(canvas, caption, address, payload(), 190, alert);
   };
   amount.addEventListener("input", () => void paint());
 
   const fresh: HTMLButtonElement = button(
     "New address",
     () =>
-      // Two taps used to reveal two addresses and show the second, quietly
-      // burning the first. `withBusy` exists for exactly this.
-      withBusy(fresh, async () => {
+      // A second tap while this runs would reveal another address, leaving the first unused.
+      withLock(fresh, async () => {
         alert.hide();
         try {
           address = await api.newAddress();

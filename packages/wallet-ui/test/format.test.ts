@@ -136,7 +136,6 @@ describe("pending, confirmations and time", () => {
   // A time is one phrase: its spaces do not break, so a wrapping row keeps it whole.
   const whole = (text: string) => text.replace(/ /g, "\u00a0");
 
-  // Found in review: a row reading "Dec 31, 2025" opened a detail without it.
   it("names a past year in a transaction's detail, as the list does", () => {
     const lastYear = new Date(2025, 11, 31, 9, 5);
     expect(formatDateTime(lastYear.getTime() / 1000, now)).toContain("2025");
@@ -144,8 +143,7 @@ describe("pending, confirmations and time", () => {
     expect(formatDateTime(thisYear.getTime() / 1000, now)).not.toContain("2026");
   });
 
-  // Found in review: Jan 5, 2026 is 15 Dey 1404 in the Persian calendar, a
-  // year before now's 8 Mehr 1405, and it was written without its year.
+  // Jan 5, 2026 is 15 Dey 1404 in the Persian calendar, a year before now's 8 Mehr 1405.
   it("reads the year in the device's own calendar", () => {
     const device = "fa-IR";
     const toDate = Date.prototype.toLocaleDateString;
@@ -215,7 +213,6 @@ describe("typeableRate", () => {
     expect(typeableRate(3)).toBe(3);
   });
 
-  // Found in review: Esplora's estimates carry float noise.
   it("rounds an estimate's float noise away before rounding up", () => {
     expect(typeableRate(18.900000000000002)).toBe(18.9);
     expect(typeableRate(2.004)).toBe(2.1);
@@ -226,7 +223,7 @@ describe("typeableRate", () => {
   });
 });
 
-// Found in review: counts beside grouped amounts were not grouped.
+// Counts are grouped as the amounts beside them are.
 describe("counted", () => {
   it("groups a count as the device does, and names what it counts", () => {
     expect(counted(1, "input")).toBe("1 input");

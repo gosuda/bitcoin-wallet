@@ -4,8 +4,8 @@
  * Every request the wasm core sends its chain backend goes out through the
  * page's `fetch`, and this is the only place one can be bounded: on wasm32
  * `esplora-client` does not pass its timeout on to reqwest, so a server that
- * never answers would be waited on for good. The core no longer bounds a scan
- * as a whole — its length follows the wallet's history — so without this a
+ * never answers would be waited on for good. The core does not bound a scan as
+ * a whole, since its length follows the wallet's history, so without this a
  * hung server would hang a sync with it.
  */
 
@@ -30,7 +30,7 @@ export const REQWEST_TIMED_OUT = "reqwest::errors::TimedOut";
  * reqwest aborts a request's signal once it has finished with the response (or
  * given up on it), so that abort is passed on to `fetchFn` and ends the timer.
  * It reaches `fetchFn` as `init.signal`, the only signal Tauri's HTTP plugin
- * listens to; the one on the `Request` itself it never saw.
+ * listens to, and not the one on the `Request` itself.
  */
 export function withTimeout(fetchFn: typeof fetch, ms = REQUEST_TIMEOUT_MS): typeof fetch {
   return (input, init) => {

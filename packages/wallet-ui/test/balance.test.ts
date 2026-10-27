@@ -12,8 +12,7 @@ const balance = (b: Partial<Balance>): Balance => ({
 });
 
 describe("balance rules", () => {
-  // The defect this module was extracted for: two shells showed different
-  // headline numbers for one wallet because only one counted these.
+  // Both shells show this headline, so both count these.
   it("counts everything tracked in the headline, pending, immature and frozen included", () => {
     const b = balance({
       confirmed: 1000,

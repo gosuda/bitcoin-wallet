@@ -6,7 +6,7 @@ import { errorMessage } from "../../types";
 import { readClipboard } from "../../ui/clipboard";
 import { banner, el } from "../../ui/dom";
 import { body, button, header, lede, reticle, seeThroughMark } from "../ui";
-import { prefillSend } from "./send";
+import { NOT_A_PAYMENT, prefillSend, SCAN_HINT } from "./send";
 
 /**
  * The camera preview is rendered by the OS behind the webview, not by us, so
@@ -41,28 +41,21 @@ export function renderScan(): HTMLElement {
     if (!payment) {
       alert.show(
         "warn",
-        from === "scan"
-          ? "That QR code is not a Bitcoin address."
-          : "The clipboard does not hold a Bitcoin address.",
+        from === "scan" ? NOT_A_PAYMENT : "The clipboard does not hold a Bitcoin address.",
       );
       return;
     }
-    prefillSend({
-      address: payment.address,
-      ...(payment.amountSat === undefined ? {} : { amountSat: payment.amountSat }),
-    });
+    prefillSend(payment);
     navigate("send");
   };
 
   const scan = platform().scanQr;
 
   /**
-   * One scan at a time, and only while this screen is still the one showing.
-   *
-   * The screen opens the camera itself, so pressing the button while that is
-   * still pending used to start a second concurrent scan against the same
-   * camera. And a scan that resolves after the user has moved on would prefill
-   * Send and navigate there, pulling them out of whatever they opened next.
+   * One scan at a time, and only while this screen is still the one showing:
+   * the screen opens the camera itself, so a press meanwhile would start a
+   * second scan, and a scan that lands after the user moved on would pull them
+   * to Send.
    */
   let scanning = false;
   const runScan = async (): Promise<void> => {
@@ -115,11 +108,7 @@ export function renderScan(): HTMLElement {
       alert.node,
       el("div", { className: "m-scan" }, [
         reticle(),
-        lede(
-          scan
-            ? "Point the camera at an address or a bitcoin: QR code."
-            : "This build has no camera access; paste an address instead.",
-        ),
+        lede(scan ? SCAN_HINT : "This build has no camera access; paste an address instead."),
       ]),
       scan ? start : null,
       paste,

@@ -70,6 +70,25 @@ pull requests a change arrived in.
 
 ### Fixed
 
+- On the phone, Close wallet opens Unlock for a remembered wallet, or the start screen, as
+  on the desktop. It opened Setup. (#62)
+- A send, or a fee bump on the phone, is recorded only for the wallet that made it, and
+  opens Sent only while its screen is still shown. On the phone, one that finished after you
+  had moved on took you to Sent anyway. (#62)
+- On the phone, opening a wallet no longer reads the saved record back, so a read that fails
+  no longer puts an error over a wallet that opened. (#62)
+- The phone's single-key and watch-only Restore say what to enter when the field is empty,
+  as the desktop does, instead of the wallet core's error. (#62)
+- A key generated on the phone's single-key Restore after you left it is no longer written
+  into the field that was cleared when you left. (#62)
+- `btcw address` reports `hd` as `btcw address --new` does; for an account xpub the two
+  disagreed. (#62)
+- A Lock after choice that saves takes back the message a failed one left, and of two choices
+  made quickly the later one is the one kept. (#62)
+- The desktop's Sync button stays busy while a sync runs past a minute; the sync it runs every
+  minute turned it back on. (#62)
+- Screen readers hear an amount Receive cannot take as invalid, and the phone Send's Custom
+  fee rate by its name. (#62)
 - Paste on the phone's Scan screen reads the clipboard. It read it the way a web page
   does, which the app's webview refuses, so it only ever said that clipboard access was
   refused. (#42)

@@ -5,9 +5,16 @@ import { session } from "../session";
 import { backendHost, errorMessage, NETWORK_LABELS } from "../types";
 import { copyButton } from "../ui/clipboard";
 import { banner, button, el, field, sectionLabel, textInput, withBusy } from "../ui/dom";
+import { openAndEnter } from "../ui/open";
 import { rememberCheckbox } from "../ui/remember";
 import { historyReset } from "../ui/reset";
-import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../ui/text";
+import {
+  MISSING_WORDS,
+  PASSPHRASE_HINT,
+  WORDS_KEEP,
+  WORDS_MISMATCH,
+  WORDS_SPEND,
+} from "../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../ui/words";
 import { showKeyAdvanced } from "./key";
 
@@ -77,9 +84,7 @@ export function renderCreate(): HTMLElement {
   let words: string[] = [];
   let blanks: number[] = [];
   let answers: HTMLInputElement[] = [];
-  // One wipe covers the phrase itself, the passphrase, and every confirm-grid
-  // word the user typed back — all secret, none of it allowed to outlive
-  // this screen. `answers` is read lazily so a regenerated grid is covered too.
+  // The passphrase and the words typed back; the phrase goes with them.
   wipeOnLeave(
     () => [passphrase, ...answers],
     () => {
@@ -100,41 +105,24 @@ export function renderCreate(): HTMLElement {
     createBtn.disabled = phrase === null || !confirmed() || !remember.ready();
   };
 
-  const submit = async (reset = false): Promise<void> => {
-    alert.hide();
-    const secret = phrase;
-    if (!secret) {
-      alert.show("error", "No recovery phrase yet — go back and try again.");
-      return;
-    }
-    if (!confirmed()) {
-      alert.show("error", "The words you typed do not match the phrase.");
-      return;
-    }
-    if (!remember.ready()) return;
-    const willRemember = remember.checked();
-    try {
-      const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-      const info = await open(
-        secret,
-        cfg.address_type,
-        willRemember,
-        passphrase.value || undefined,
-        remember.appPassword(),
-      );
+  const door = {
+    cfg,
+    alert,
+    offer,
+    onScreen,
+    remember,
+    fields: () => [passphrase],
+    also: () => {
       phrase = null;
-      passphrase.value = "";
-      if (willRemember) session.remembered = info;
-      // `onScreen` is `routeGuard`, not `screenGuard`: it has no wallet-id
-      // check to misfire against the `session.wallet` that `api.openWallet` set.
-      if (onScreen()) navigate("dashboard");
-    } catch (e) {
-      if (onScreen()) offer.report(e, () => submit(true));
-    }
+    },
+  };
+  const submit = async (reset = false): Promise<void> => {
+    const secret = phrase;
+    if (!secret) return alert.show("error", "No recovery phrase yet — go back and try again.");
+    if (!confirmed()) return alert.show("error", WORDS_MISMATCH);
+    await openAndEnter(secret, passphrase.value || undefined, door, reset, () => submit(true));
   };
 
-  // `withBusy` restores the button it disabled, so the confirm gate is re-applied
-  // once the attempt settles.
   const createBtn = button(
     "Create wallet",
     () => void withBusy(createBtn, submit).finally(refresh),

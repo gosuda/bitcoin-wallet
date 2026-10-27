@@ -1,3 +1,6 @@
+/** Destinations only the phone shell has; the desktop's guard sends them to the wallet. */
+export const PHONE_ROUTES = ["receive", "scan", "tx", "export", "coins"] as const;
+
 export const ROUTES = [
   "setup",
   "key",
@@ -9,13 +12,7 @@ export const ROUTES = [
   "result",
   "settings",
   "psbt",
-  // Mobile-only destinations. Harmless on desktop, which simply never links
-  // to them; the shell decides which routes it can render.
-  "receive",
-  "scan",
-  "tx",
-  "export",
-  "coins",
+  ...PHONE_ROUTES,
 ] as const;
 export type Route = (typeof ROUTES)[number];
 

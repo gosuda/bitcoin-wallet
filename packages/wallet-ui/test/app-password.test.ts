@@ -10,15 +10,14 @@ import { renderRestore } from "../src/screens/restore";
 import { renderSettings } from "../src/screens/settings";
 import { renderUnlock } from "../src/screens/unlock";
 import { session } from "../src/session";
-import type { RememberedWallet } from "../src/types";
-import { fake } from "./fakes";
+import { type RememberedWallet, WalletError } from "../src/types";
+import { deferred, fake } from "./fakes";
 import { buttonNamed, find, leaveTo, mountAt, settle, type, useScreenHarness } from "./harness";
-import { typeWords } from "./openers";
+import { OPENERS, openerNamed } from "./openers";
 
 useScreenHarness();
 
-/** The fake core gives every wallet this id, whatever opened it. */
-const WALLET_ID = "testnet4-p2wpkh-fake";
+const WALLET_ID = fake.SAVED.wallet_id;
 const KEY = "11".repeat(32);
 const PASSWORD = "correct horse battery staple";
 /** Few rounds, so a test does not wait on the real count; a record carries its own. */
@@ -184,64 +183,91 @@ describe("remembering in the browser takes an app password (6.12)", () => {
     expect(browser.remembered()).toBeNull();
   });
 
-  it.each([
-    {
-      name: "Create",
-      route: "create" as const,
-      render: renderCreate,
-      press: "Create wallet",
-      fill: async (screen: HTMLElement) => {
-        await settle();
-        typeWords(screen);
-      },
+  it.each([{ name: "Create" }, { name: "Restore" }])(
+    "$name asks the same, right below the BIP39 passphrase",
+    async ({ name }) => {
+      const browser = inTheBrowser();
+      const { render, press } = openerNamed(`desktop ${name}`);
+      const screen = await render();
+      type(find(screen, "input[name=passphrase]"), "TREZOR");
+      const go = buttonNamed(screen, press);
+      expect(go.disabled).toBe(false);
+
+      find<HTMLInputElement>(screen, "input[name=remember]").click();
+      expect(go.disabled).toBe(true);
+      const order = [
+        ...screen.querySelectorAll<HTMLInputElement>(
+          "input[name=passphrase], input[name=remember], input[name^=app_password]",
+        ),
+      ].map((f) => f.name);
+      expect(order).toEqual(["passphrase", "remember", "app_password", "app_password_confirm"]);
+
+      const [password, confirm] = passwordPair(screen);
+      type(password, PASSWORD);
+      type(confirm, PASSWORD);
+      expect(go.disabled).toBe(false);
+      go.click();
+      await landsOn("dashboard");
+
+      expect(await unseal(WALLET_ID, browser.records.get(WALLET_ID), PASSWORD)).toEqual({
+        secret: fake.PHRASE,
+        passphrase: "TREZOR",
+      });
     },
-    {
-      name: "Restore",
-      route: "restore" as const,
-      render: renderRestore,
-      press: "Restore wallet",
-      fill: async (screen: HTMLElement) => {
-        typeWords(screen);
-        // Leaving a box checks the phrase at once instead of after a pause in typing.
-        find(screen, 'input[aria-label="Word 12"]').dispatchEvent(new Event("blur"));
-        await settle();
-      },
-    },
-  ])("$name asks the same, right below the BIP39 passphrase", async (screenCase) => {
-    const browser = inTheBrowser();
-    const screen = mountAt(screenCase.route, screenCase.render);
-    await screenCase.fill(screen);
-    type(find(screen, "input[name=passphrase]"), "TREZOR");
-    const go = buttonNamed(screen, screenCase.press);
-    expect(go.disabled).toBe(false);
-
-    find<HTMLInputElement>(screen, "input[name=remember]").click();
-    expect(go.disabled).toBe(true);
-    const order = [
-      ...screen.querySelectorAll<HTMLInputElement>(
-        "input[name=passphrase], input[name=remember], input[name^=app_password]",
-      ),
-    ].map((f) => f.name);
-    expect(order).toEqual(["passphrase", "remember", "app_password", "app_password_confirm"]);
-
-    const [password, confirm] = passwordPair(screen);
-    type(password, PASSWORD);
-    type(confirm, PASSWORD);
-    expect(go.disabled).toBe(false);
-    go.click();
-    await landsOn("dashboard");
-
-    expect(await unseal(WALLET_ID, browser.records.get(WALLET_ID), PASSWORD)).toEqual({
-      secret: fake.PHRASE,
-      passphrase: "TREZOR",
-    });
-  });
+  );
 
   it("Settings says the key is kept in this browser", async () => {
     inTheBrowser();
     session.remembered = await api.openWallet(fake.PHRASE, "p2wpkh", true, undefined, PASSWORD);
     const screen = mountAt("settings", renderSettings);
     expect(screen.textContent).toContain("Yes · in this browser, encrypted with your app password");
+  });
+});
+
+describe.each(OPENERS.filter((o) => !o.remembered))("$name in the browser (6.12)", (opener) => {
+  /** The screen, its open button, and the Remember box beside it: Key has one per way in. */
+  async function rendered() {
+    const screen = await opener.render();
+    const go = buttonNamed(screen, opener.press);
+    const form = go.closest(".disclosure-body, .card") ?? screen;
+    return { go, form, remember: find<HTMLInputElement>(form, "input[name=remember]") };
+  }
+
+  it("keeps its open button off while a ticked Remember waits for the app password", async () => {
+    inTheBrowser();
+    const { go, form, remember } = await rendered();
+    expect(go.disabled).toBe(false);
+
+    remember.click();
+    expect(go.disabled).toBe(true);
+    const [password, confirm] = passwordPair(form);
+    type(password, PASSWORD);
+    expect(go.disabled).toBe(true);
+    type(confirm, PASSWORD);
+    expect(go.disabled).toBe(false);
+  });
+
+  it("puts that back on its button after an open that fails", async () => {
+    inTheBrowser();
+    const held = deferred<void>();
+    vi.spyOn(fake.FakeWallet, "open").mockImplementation(async () => {
+      await held.promise;
+      throw new WalletError("network", "the server did not answer");
+    });
+    const { go, form, remember } = await rendered();
+    remember.click();
+    const [password, confirm] = passwordPair(form);
+    type(password, PASSWORD);
+    type(confirm, PASSWORD);
+
+    go.click();
+    await settle();
+    type(confirm, "");
+    held.resolve();
+    await settle();
+
+    expect(session.wallet).toBeNull();
+    expect(go.disabled).toBe(true);
   });
 });
 
@@ -283,7 +309,6 @@ describe("Unlock in the browser asks for the app password (6.12)", () => {
     expect(window.location.hash).toBe("#/unlock");
     expect(browser.records.has(WALLET_ID)).toBe(true);
 
-    // Typing again takes the error away; the right password then opens it.
     type(password, PASSWORD);
     expect(errorUnder(password)).toBe("");
     buttonNamed(screen, "Unlock").click();
@@ -393,7 +418,7 @@ describe("where the OS keystore keeps the key, nothing asks for an app password 
 
     buttonNamed(screen, "Unlock").click();
     await landsOn("dashboard");
-    // Asked by wallet id alone, as it always was.
+    // By wallet id alone: an OS keystore takes no password.
     expect(loadSecret).toHaveBeenCalledWith(WALLET_ID);
   });
 });

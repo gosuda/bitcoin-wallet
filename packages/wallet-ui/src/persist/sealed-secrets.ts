@@ -6,9 +6,6 @@
  * round count that open it with the app password. Nothing here can read it.
  * A database of its own rather than a store beside the wallet state, so
  * neither's version or reset can reach the other.
- *
- * Raw IndexedDB wrapped in promises by `idb.ts`, as `indexeddb.ts` is; writes
- * resolve only once the transaction has committed.
  */
 
 import type { SealedSecret, SealedStore } from "../platform/sealed";

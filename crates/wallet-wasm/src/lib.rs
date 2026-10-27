@@ -36,10 +36,6 @@ fn js_error(code: &str, message: &str) -> JsValue {
 }
 
 fn core_err(e: wallet_core::Error) -> JsValue {
-    // `ErrorPayload` is the one place that decides this shape; building it
-    // here instead of calling `e.code()`/`e.to_string()`/`e.details()`
-    // separately means the wasm and Tauri boundaries cannot drift apart on
-    // what a wire error looks like.
     let payload = wallet_core::ErrorPayload::from(&e);
     let err = js_error(payload.code, &payload.message);
     // JSON-compatible, so `details` is the value `JSON.parse` gives the Tauri
@@ -63,19 +59,12 @@ fn to_js<T: serde::Serialize>(v: &T) -> Result<JsValue, JsValue> {
     serde_wasm_bindgen::to_value(v).map_err(other_err)
 }
 
-/// What a wallet-core call returned, as JS: the value through [`to_js`], or
-/// the error through [`core_err`].
 fn core_to_js<T: serde::Serialize>(result: wallet_core::Result<T>) -> Result<JsValue, JsValue> {
     to_js(&result.map_err(core_err)?)
 }
 
-fn parse_network(s: &str) -> Result<Network, JsValue> {
-    Network::parse(s).ok_or_else(|| js_error("unsupported", &format!("unknown network '{s}'")))
-}
-
-fn parse_address_type(s: &str) -> Result<AddressType, JsValue> {
-    AddressType::parse(s)
-        .ok_or_else(|| js_error("unsupported", &format!("unknown address type '{s}'")))
+fn unsupported(message: String) -> JsValue {
+    js_error("unsupported", &message)
 }
 
 /// Persister backed by a JS object (IndexedDB in practice). Keeps the
@@ -143,8 +132,8 @@ pub fn start() {
 #[wasm_bindgen]
 pub fn generate_key(network: &str, address_type: &str) -> Result<JsValue, JsValue> {
     core_to_js(wallet_core::generate_key(
-        parse_network(network)?,
-        parse_address_type(address_type)?,
+        Network::parse(network).map_err(unsupported)?,
+        AddressType::parse(address_type).map_err(unsupported)?,
     ))
 }
 
@@ -159,8 +148,8 @@ pub fn generate_mnemonic(
     word_count: u8,
 ) -> Result<JsValue, JsValue> {
     core_to_js(wallet_core::generate_mnemonic(
-        parse_network(network)?,
-        parse_address_type(address_type)?,
+        Network::parse(network).map_err(unsupported)?,
+        AddressType::parse(address_type).map_err(unsupported)?,
         word_count,
     ))
 }
@@ -173,10 +162,6 @@ pub fn validate_mnemonic(words: &str) -> Result<(), JsValue> {
 }
 
 /// Key material for a secret plus an optional BIP39 passphrase.
-///
-/// The passphrase is part of the wallet's identity, so every entry point whose
-/// answer depends on the seed takes it. It only applies to a mnemonic: handing
-/// one in with a hex or WIF secret is an error rather than a silent no-op.
 fn parse_key(secret: &str, passphrase: Option<String>) -> Result<KeyMaterial, JsValue> {
     KeyMaterial::parse_with_passphrase(secret, passphrase.as_deref()).map_err(core_err)
 }
@@ -197,8 +182,8 @@ pub fn wallet_id_for_key(
     let key = parse_key(secret, passphrase)?;
     wallet_core::keys::wallet_id(
         &key,
-        parse_network(network)?,
-        parse_address_type(address_type)?,
+        Network::parse(network).map_err(unsupported)?,
+        AddressType::parse(address_type).map_err(unsupported)?,
     )
     .map_err(core_err)
 }
@@ -211,7 +196,8 @@ pub fn explorer_tx_url(
     backend_url: &str,
     txid: &str,
 ) -> Result<Option<String>, JsValue> {
-    Ok(parse_network(network)?.explorer_tx_url(backend_url, txid))
+    let network = Network::parse(network).map_err(unsupported)?;
+    Ok(network.explorer_tx_url(backend_url, txid))
 }
 
 /// An open wallet. All methods are async and safe to call from JS.
@@ -354,10 +340,11 @@ impl Wallet {
         to_js(&self.inner.list_transactions().await)
     }
 
-    /// `{ sat_per_vb_by_target: { "1": 12.3, ... } }`.
+    /// `Map { sat_per_vb_by_target: Map { "1" => 12.3, ... } }`, which
+    /// `normalize.ts` flattens into a plain object.
     pub async fn estimate_fee(&self) -> Result<JsValue, JsValue> {
         let fee = self.inner.estimate_fee().await.map_err(core_err)?;
-        // BTreeMap<u16, f64> keys become strings in JS objects.
+        // String keys ("1", not 1), as a JSON object has them.
         let obj: std::collections::BTreeMap<String, f64> = fee
             .sat_per_vb_by_target
             .iter()

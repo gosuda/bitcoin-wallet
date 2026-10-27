@@ -81,15 +81,9 @@ export function toTxDetail(raw: unknown): TxDetail {
   const read = reader(raw);
   const inputs = (read("inputs") as unknown[]).map(toTxInput);
   return {
-    txid: String(read("txid")),
-    net_sat: Number(read("net_sat")),
-    sent_sat: Number(read("sent_sat")),
-    received_sat: Number(read("received_sat")),
-    fee_sat: optionalNumber(read("fee_sat")),
+    ...toTxSummary(raw),
     fee_rate_sat_vb: optionalNumber(read("fee_rate_sat_vb")),
-    confirmations: optionalNumber(read("confirmations")),
     block_height: optionalNumber(read("block_height")),
-    timestamp: optionalNumber(read("timestamp")),
     vsize: Number(read("vsize")),
     inputs,
     outputs: (read("outputs") as unknown[]).map(toTxOutput),

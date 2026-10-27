@@ -51,13 +51,12 @@ pub fn changeset_to_json(cs: &ChangeSet) -> Result<String> {
 /// changeset.
 ///
 /// Reads three shapes: a versioned envelope `{"v": N, "changeset": ...}` at
-/// or below [`STATE_FORMAT`]; a bare `ChangeSet` object with no `"v"` key —
-/// what every record written before the envelope existed still looks like;
-/// or nothing at all. A `"v"` from the future, or JSON that does not parse
-/// or does not decode as a changeset, is refused as [`Error::CorruptState`]
-/// rather than handed to BDK, which would fail later with a less specific
-/// error and no way to tell "written by a newer build" from "actually
-/// corrupt".
+/// or below [`STATE_FORMAT`]; a bare `ChangeSet` object with no `"v"` key,
+/// a record from before the envelope; or nothing at all. A `"v"` from the
+/// future, or JSON that does not parse or does not decode as a changeset, is
+/// refused as [`Error::CorruptState`] rather than handed to BDK, which would
+/// fail later with a less specific error and no way to tell "written by a
+/// newer build" from "actually corrupt".
 pub fn changeset_from_json(json: Option<&str>) -> Result<ChangeSet> {
     let json = match json {
         Some(j) if !j.trim().is_empty() => j,
@@ -125,8 +124,8 @@ mod tests {
 
     #[test]
     fn a_legacy_bare_record_still_loads() {
-        // What every record looked like before the envelope existed: the
-        // `ChangeSet`'s own JSON with no wrapper at all.
+        // A record from before the envelope: the `ChangeSet`'s own JSON, with
+        // no wrapper.
         let bare = serde_json::to_string(&ChangeSet::default()).unwrap();
         assert!(changeset_from_json(Some(&bare)).unwrap().is_empty());
     }

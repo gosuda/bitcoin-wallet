@@ -2,7 +2,7 @@ import { addressError, addressLooksValid } from "../address";
 import { formatAmount, parseAmount, type Unit } from "../amount";
 import { api } from "../api";
 import { navigate } from "../router";
-import { redirect, screenGuard, screenHead } from "../screen";
+import { redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   backendHost,
@@ -12,7 +12,6 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type Recipient,
   rateForTarget,
@@ -21,7 +20,9 @@ import {
 import { heldTo, LET_WALLET_CHOOSE, payingFrom, takeChosenCoins } from "../ui/coins";
 import {
   banner,
+  boundRate,
   button,
+  convertField,
   el,
   field,
   formatSats,
@@ -34,7 +35,8 @@ import {
   unitChips,
   withBusy,
 } from "../ui/dom";
-import { feeLine, typeableRate } from "../ui/format";
+import { feeLine, fieldRate, typeableRate } from "../ui/format";
+import { recordSent } from "../ui/preview";
 import { ESTIMATE_UNAVAILABLE_TYPE, FETCHING_ESTIMATE, FLOOR_NOTE, maxModeNote } from "../ui/text";
 
 interface RecipientRow {
@@ -66,6 +68,7 @@ export function renderSend(): HTMLElement {
   const cfg = session.config;
   if (!wallet || !cfg) return redirect("setup");
   const onScreen = screenGuard();
+  const sameWallet = sameWalletGuard();
   const host = backendHost(cfg.backend);
   const networkName = NETWORK_LABELS[wallet.network];
   /**
@@ -89,21 +92,17 @@ export function renderSend(): HTMLElement {
    */
   let drain: TxPreview | null = null;
   /**
-   * Bumped by anything that changes what Max would build. A build resolves
-   * against the generation it started in; a later one means the address, the
-   * rate or the recipient list moved while it was in flight, and its PSBT pays
-   * what was on screen then — not what is there now. Without this the only
-   * guard is `drain`, which is still null mid-build, so every edit no-ops and
-   * the stale transaction installs unconditionally.
+   * Bumped by anything that changes what Max would build. A build that lands
+   * after the address, the rate or the recipients moved pays what was on
+   * screen when it started, so it is dropped; `drain` cannot tell, being null
+   * while a build is in flight.
    */
   let drainSeq = 0;
   let rowSeq = 0;
 
   const feeRate = textInput({ value: "1", type: "number", mono: true });
   feeRate.id = "send-fee-rate";
-  feeRate.min = "1";
-  feeRate.max = String(MAX_FEE_RATE_SAT_VB);
-  feeRate.step = "0.1";
+  boundRate(feeRate);
   const feeError = el("span", { className: "field-error hidden" });
   /**
    * Set once the user types a rate. The first estimate can land afterwards,
@@ -125,15 +124,7 @@ export function renderSend(): HTMLElement {
     setError(feeError, feeRate, rateTouched ? feeRateError(Number(feeRate.value)) : null);
   };
 
-  /**
-   * The rate the form will build at: rounded up to a tenth and floored at the
-   * relay minimum, which is the rate Review names. A tenth is a whole number
-   * of sat/kwu, so the core builds at exactly that.
-   */
-  const currentRate = (): number => {
-    const rate = Number(feeRate.value);
-    return Number.isFinite(rate) && rate > 0 ? typeableRate(rate) : 1;
-  };
+  const currentRate = (): number => fieldRate(Number(feeRate.value));
 
   let targetBlocks: TargetChoice = `${DEFAULT_FEE_TARGET}`;
   const target = radioGroup("fee_target", FEE_TARGET_CHOICES, targetBlocks, (v) => {
@@ -209,13 +200,10 @@ export function renderSend(): HTMLElement {
     updateReview();
   };
 
-  /** Converts the shown value instead of reinterpreting it; keeps whole sats. */
   const setUnit = (row: RecipientRow, unit: Unit) => {
     if (row.unit === unit) return;
-    const parsed = parseAmount(row.amount.value, row.unit);
+    convertField(row.amount, row.unit, unit);
     row.unit = unit;
-    // An unparsable value is left as typed; its message already says why.
-    if (parsed.sats !== null) row.amount.value = formatAmount(parsed.sats, unit);
     refreshRow(row);
   };
 
@@ -413,7 +401,7 @@ export function renderSend(): HTMLElement {
       }
       if (sats === null) {
         // Unit-neutral, as the address line above is: the field says why in
-        // its own unit (sat or BTC). Found by cubic.
+        // its own unit (sat or BTC).
         alert.show("error", "Every recipient needs a valid amount.");
         r.amount.focus();
         return null;
@@ -478,15 +466,11 @@ export function renderSend(): HTMLElement {
             const result = await api.signAndBroadcast(p.psbt_id);
             preview = null;
             drain = null;
-            // Broadcast either way: record it regardless, but only steal the
-            // screen away if this is still the one that asked for it.
-            session.lastResult = result;
-            if (onScreen()) navigate("result");
+            recordSent(result, sameWallet, onScreen);
           } catch (e) {
             preview = null;
-            // The PSBT is spent either way: signing consumed it before it
-            // failed. Leaving `drain` pointing at it made the next Review
-            // reuse a psbt_id the core no longer has and fail as unknown_psbt.
+            // The PSBT is spent either way, as signing consumed it before it
+            // failed: a Review that reused it would fail as unknown_psbt.
             clearDrainChrome();
             if (onScreen()) {
               previewBox.className = "card review-card hidden";
@@ -549,13 +533,9 @@ export function renderSend(): HTMLElement {
           alert.show("error", rateErr);
           return;
         }
-        // Built, and named in Review, at the rate it pays: found by cubic,
-        // 0.5 was named while the core paid its 1 sat/vB floor.
+        // Built, and named in Review, at the rate it pays (`fieldRate`).
         const at = currentRate();
         try {
-          // Review supersedes a Max build still running: without this both
-          // survive, and confirming one drops the reference to the other
-          // without discarding it.
           cancelPendingDrain();
           const seq = drainSeq;
           // In Max mode the preview already exists and is exactly the amount shown.
@@ -573,9 +553,8 @@ export function renderSend(): HTMLElement {
     "primary",
   );
 
-  // Screens are rebuilt on every navigation, so a preview or a Max build
-  // still pending when this one goes away is unreachable — left alone it
-  // would strand its PSBT in the core's pending map indefinitely.
+  // A preview or a Max build pending when the screen goes would stay in the
+  // core's pending map.
   const discardOnLeave = (): void => {
     if (preview && preview !== drain) void api.discardTx(preview.psbt_id);
     preview = null;
@@ -591,9 +570,8 @@ export function renderSend(): HTMLElement {
   void loadEstimate();
 
   return el("main", { className: "screen" }, [
-    // As every desktop heading says it. A wallet's address was here, which
-    // for a recovery phrase is only the next receiving address, not where
-    // the coins come from.
+    // As every desktop heading says it. No address: for a recovery phrase it
+    // is only the next receiving one, not where the coins come from.
     screenHead("Send", `${networkName} · ${host}`),
     alert.node,
     coinsLine,

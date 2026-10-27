@@ -1,13 +1,22 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
+import { renderSettings as renderPhoneSettings } from "../src/mobile/screens/settings";
 import { platform, setPlatform } from "../src/platform";
 import { renderDashboard } from "../src/screens/dashboard";
 import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
-import type { RememberedWallet } from "../src/types";
-import { fake } from "./fakes";
-import { buttonNamed, find, mountAt, settle, showAt, useScreenHarness } from "./harness";
+import type { Balance } from "../src/types";
+import { deferred, fake } from "./fakes";
+import {
+  buttonNamed,
+  find,
+  mountAt,
+  rememberSaved,
+  settle,
+  showAt,
+  useScreenHarness,
+} from "./harness";
 
 useScreenHarness();
 
@@ -75,18 +84,15 @@ describe("Settings on the desktop (6.8)", () => {
     expect(find(screen, ".banner").textContent).toContain("Rescanned with a gap of 100");
   });
 
-  // Found in review: the gap chips stay live while a rescan runs, and the
-  // banner read the gap again once it answered.
+  // The gap chips stay live while a rescan runs.
   it("names the gap the rescan ran with, though another is chosen meanwhile", async () => {
     const screen = await openSettings();
-    let answer = (): void => {};
-    vi.spyOn(api, "rescan").mockImplementationOnce(
-      () => new Promise((resolve) => (answer = () => resolve(fake.state.balance))),
-    );
+    const rescan = deferred<Balance>();
+    vi.spyOn(api, "rescan").mockImplementationOnce(() => rescan.promise);
     find<HTMLInputElement>(screen, "input[name=rescan_gap][value='100']").click();
     buttonNamed(screen, "Rescan").click();
     find<HTMLInputElement>(screen, "input[name=rescan_gap][value='500']").click();
-    answer();
+    rescan.resolve(fake.state.balance);
     await settle();
 
     expect(api.rescan).toHaveBeenCalledWith(100);
@@ -106,22 +112,9 @@ describe("Settings on the desktop (6.8)", () => {
 
   it("forgets a remembered wallet only after asking", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    const wallet = session.wallet;
-    if (!wallet) throw new Error("the wallet did not open");
-    const record: RememberedWallet = {
-      wallet_id: wallet.wallet_id,
-      address: wallet.address,
-      network: wallet.network,
-      address_type: wallet.address_type,
-    };
     const forgetSecret = vi.fn(async () => undefined);
-    setPlatform({
-      ...platform(),
-      canRememberWallet: true,
-      getRemembered: async () => record,
-      forgetSecret,
-    });
-    session.remembered = record;
+    rememberSaved();
+    setPlatform({ ...platform(), forgetSecret });
     const screen = mountAt("settings", renderSettings);
     expect(screen.textContent).toContain("in the ");
 
@@ -135,8 +128,37 @@ describe("Settings on the desktop (6.8)", () => {
     buttonNamed(screen, "Delete it").click();
     await settle();
 
-    expect(forgetSecret).toHaveBeenCalledWith(wallet.wallet_id);
+    expect(forgetSecret).toHaveBeenCalledWith(fake.SAVED.wallet_id);
     expect(session.remembered).toBeNull();
+    expect(session.wallet).toBeNull();
+    expect(window.location.hash).toBe("#/key");
+  });
+});
+
+describe.each([
+  { shell: "desktop", render: renderSettings },
+  { shell: "phone", render: renderPhoneSettings },
+])("Close wallet on the $shell's Settings (6.8)", ({ render }) => {
+  /** Settings for the open wallet, with Close wallet pressed. */
+  async function closeFromSettings(): Promise<void> {
+    const screen = mountAt("settings", render);
+    buttonNamed(screen, "Close wallet").click();
+    await settle();
+  }
+
+  it("opens Unlock for a remembered wallet", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    rememberSaved();
+    await closeFromSettings();
+
+    expect(session.wallet).toBeNull();
+    expect(window.location.hash).toBe("#/unlock");
+  });
+
+  it("opens Key for one not remembered", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    await closeFromSettings();
+
     expect(session.wallet).toBeNull();
     expect(window.location.hash).toBe("#/key");
   });

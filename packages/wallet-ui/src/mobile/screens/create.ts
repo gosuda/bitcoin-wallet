@@ -1,14 +1,20 @@
 import { api } from "../../api";
-import { navigate } from "../../router";
 import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel, textInput } from "../../ui/dom";
+import { openAndEnter } from "../../ui/open";
 import { rememberCheckbox } from "../../ui/remember";
-import { MISSING_WORDS, PASSPHRASE_HINT, WORDS_KEEP, WORDS_SPEND } from "../../ui/text";
+import {
+  MISSING_WORDS,
+  PASSPHRASE_HINT,
+  WORDS_KEEP,
+  WORDS_MISMATCH,
+  WORDS_SPEND,
+} from "../../ui/text";
 import { wipeOnLeave, wordCell, wordGrid, wordInput, wordText } from "../../ui/words";
-import { body, button, card, header, historyReset, labelled, lede, spacer, withBusy } from "../ui";
+import { body, button, card, header, historyReset, labelled, lede, spacer, withLock } from "../ui";
 
 /** How many words the user has to type back before the wallet is created. */
 const CHECKS = 3;
@@ -63,40 +69,32 @@ export function renderCreate(): HTMLElement {
         }),
       );
 
-      const remember = rememberCheckbox();
+      const remember = rememberCheckbox(refresh);
       const passphrase = textInput({
         type: "password",
         placeholder: "Leave empty for none",
         name: "passphrase",
       });
 
-      const createWallet = async (reset = false): Promise<void> => {
-        alert.hide();
-        try {
-          const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-          await open(
-            generated.words,
-            cfg.address_type,
-            remember.checked(),
-            passphrase.value || undefined,
-          );
-          session.remembered = await api.getRemembered();
-          if (onScreen()) navigate("dashboard");
-        } catch (e) {
-          if (onScreen()) offer.report(e, () => createWallet(true));
-        }
-      };
-      const create = button("Create wallet", () => withBusy(create, createWallet), {
-        variant: "primary",
-        block: true,
-        disabled: true,
-      });
+      const confirmed = (): boolean =>
+        [...answers.entries()].every(([i, input]) => input.value.trim().toLowerCase() === words[i]);
 
-      function refresh(): void {
-        const ok = [...answers.entries()].every(
-          ([i, input]) => input.value.trim().toLowerCase() === words[i],
+      const door = { cfg, alert, offer, onScreen, remember, fields: () => [passphrase] };
+      const createWallet = async (reset = false): Promise<void> => {
+        if (!confirmed()) return alert.show("error", WORDS_MISMATCH);
+        await openAndEnter(generated.words, passphrase.value || undefined, door, reset, () =>
+          createWallet(true),
         );
-        create.disabled = !ok;
+      };
+      const create = button(
+        "Create wallet",
+        () => void withLock(create, createWallet).finally(refresh),
+        { variant: "primary", block: true, disabled: true },
+      );
+
+      // Off until the words match and a ticked Remember has its app password.
+      function refresh(): void {
+        create.disabled = !confirmed() || !remember.ready();
       }
 
       content.replaceChildren(
@@ -119,9 +117,7 @@ export function renderCreate(): HTMLElement {
         create,
       );
 
-      // The phrase, the passphrase and every confirm-grid word the user
-      // typed back are secret; zero each one before detaching the subtree
-      // that held them, rather than trust nothing still references it.
+      // Emptied before the subtree that held them is detached.
       wipeOnLeave(
         () => [passphrase, ...answers.values()],
         () => content.replaceChildren(),

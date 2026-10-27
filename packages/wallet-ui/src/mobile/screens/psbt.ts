@@ -16,7 +16,7 @@ import {
   row,
   scanInPlace,
   spacer,
-  withBusy,
+  withLock,
 } from "../ui";
 
 /**
@@ -121,12 +121,12 @@ export function renderPsbt(): HTMLElement {
     },
   });
 
-  const sign = button("Sign", () => void withBusy(sign, flow.sign).finally(afterSign), {
+  const sign = button("Sign", () => void withLock(sign, flow.sign).finally(afterSign), {
     variant: "primary",
   });
   const send = button(
     "Broadcast",
-    () => void withBusy(send, flow.broadcast).finally(() => paint(flow.review())),
+    () => void withLock(send, flow.broadcast).finally(() => paint(flow.review())),
   );
   /** Signing that made it final hands the keyboard on to Broadcast. */
   const afterSign = (): void => {

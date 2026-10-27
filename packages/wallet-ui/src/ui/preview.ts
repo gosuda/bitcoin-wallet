@@ -7,8 +7,42 @@
  */
 
 import { api } from "../api";
-import { type BroadcastResult, errorMessage, type TxPreview } from "../types";
+import { canPayForParent, isBumpable } from "../feebump";
+import { navigate } from "../router";
+import { session } from "../session";
+import { type BroadcastResult, errorMessage, type TxDetail, type TxPreview } from "../types";
 import type { Banner } from "./dom";
+
+/**
+ * What a transaction offers besides copy and link. Nothing can be signed
+ * without a key, and nothing confirmed needs speeding up. Our own unconfirmed
+ * send is replaced (Bump fee) or taken back (Cancel); a child (Speed up) is
+ * for what replacement cannot reach, a payment someone else sent above all.
+ */
+export type OfferKind = "replace" | "child" | "none";
+
+export async function offerKind(d: TxDetail, watchOnly: boolean): Promise<OfferKind> {
+  if (watchOnly || d.confirmations !== null) return "none";
+  if (isBumpable(d)) return "replace";
+  return canPayForParent(d, await api.listUtxos()) ? "child" : "none";
+}
+
+/**
+ * After a broadcast, on every screen that sends. It went out, so it is
+ * recorded for the wallet that sent it whichever screen is on top by now, and
+ * never for another, whose Result would read it as its own; then `show` runs,
+ * opening Result unless the screen says otherwise, only while `onScreen` holds.
+ */
+export function recordSent(
+  result: BroadcastResult,
+  sameWallet: () => boolean,
+  onScreen: () => boolean,
+  show = (): void => navigate("result"),
+): void {
+  if (!sameWallet()) return;
+  session.lastResult = result;
+  if (onScreen()) show();
+}
 
 export interface HeldPreview {
   /** Discards the preview held, and any build still running once it lands. */

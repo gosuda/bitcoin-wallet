@@ -1,6 +1,5 @@
 import { api } from "../../api";
-import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../../feebump";
-import { platform } from "../../platform";
+import { suggestBumpRate, suggestPackageRate } from "../../feebump";
 import { navigate } from "../../router";
 import { redirect, sameWalletGuard, screenGuard } from "../../screen";
 import { session } from "../../session";
@@ -11,12 +10,11 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   type TxDetail,
   type TxOutput,
 } from "../../types";
 import { copyButton } from "../../ui/clipboard";
-import { banner, el, formatNumber, kv, sectionLabel, textInput } from "../../ui/dom";
+import { banner, el, formatNumber, kv, openExplorer, sectionLabel, textInput } from "../../ui/dom";
 import {
   counted,
   feeLine,
@@ -28,8 +26,8 @@ import {
   typeableRate,
 } from "../../ui/format";
 import { icon } from "../../ui/icons";
-import { heldPreview } from "../../ui/preview";
-import { estimateUnavailable, explorerFailed, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
+import { heldPreview, type OfferKind, offerKind, recordSent } from "../../ui/preview";
+import { estimateUnavailable, FETCHING_ESTIMATE, whoseInputs } from "../../ui/text";
 import {
   body,
   button,
@@ -41,7 +39,8 @@ import {
   lede,
   listCard,
   outputNote,
-  withBusy,
+  rateRow,
+  withLock,
 } from "../ui";
 
 /**
@@ -59,12 +58,6 @@ export function showTransaction(txid: string): void {
 export function currentTxid(): string | null {
   return current;
 }
-
-/**
- * What the screen offers besides copy and link: replace our own unconfirmed
- * send (Bump fee or Cancel), give a payment a child (Speed up), or nothing.
- */
-type Offer = "replace" | "child" | "none";
 
 type SpeedChoice = `${FeeTarget}` | "custom";
 
@@ -92,25 +85,13 @@ export function renderTransaction(): HTMLElement {
 
   // --- the preview this screen holds -----------------------------------------
   //
-  // Speed up and Cancel each show a built preview before anything is signed,
-  // and a transaction offers one or the other, so there is at most one
-  // preview: dropped when it is replaced, when Cancel is called off and when
-  // the screen goes. What it builds counts only while this screen is shown.
+  // Dropped too when Cancel is called off; what it builds counts only while
+  // this screen is shown.
   const preview = heldPreview(alert);
 
-  /**
-   * After a broadcast from this screen. It went out, so it is recorded for
-   * this wallet whichever screen is on top by now — never for another wallet,
-   * whose Result screen would read it as its own — and shown only while this
-   * screen is still the one open.
-   */
-  const broadcastDone = (result: BroadcastResult): void => {
-    if (!sameWallet()) return;
-    session.lastResult = result;
-    if (onScreen()) navigate("result");
-  };
+  const broadcastDone = (result: BroadcastResult): void => recordSent(result, sameWallet, onScreen);
 
-  const paint = (d: TxDetail, explorerUrl: string | null, offer: Offer): void => {
+  const paint = (d: TxDetail, explorerUrl: string | null, offer: OfferKind): void => {
     const incoming = d.net_sat >= 0;
     const dot = el("span", { className: "m-dirdot" }, [icon(incoming ? "down" : "up", 22)]);
     dot.classList.add(incoming ? "m-tx-in" : "m-tx-out");
@@ -152,24 +133,19 @@ export function renderTransaction(): HTMLElement {
     );
     outputs.classList.add("m-io-card");
 
-    // Resolved before the button is offered, the way Result and the desktop
-    // dashboard do it: on regtest there is no explorer, and a button that only
-    // ever explains itself is worse than no button.
+    // Asked for before the button is drawn, as on Result and the Wallet page:
+    // regtest has no explorer, and so no button.
     const explorer = explorerUrl
       ? button(
           "Open in explorer",
-          async () => {
+          () => {
             alert.hide();
-            try {
-              await platform().openUrl(explorerUrl);
-            } catch (e) {
-              alert.show("warn", explorerFailed(errorMessage(e)));
-            }
+            void openExplorer(explorerUrl, alert);
           },
           { icon: "external" },
         )
       : null;
-    // One per line, as on Sent: side by side, "Open in explorer" broke in two.
+    // One per line, as on Sent, so "Open in explorer" stays on one line.
     const ident = card(
       sectionLabel("Transaction id"),
       el("span", { className: "m-mono-block", text: d.txid }),
@@ -193,15 +169,11 @@ export function renderTransaction(): HTMLElement {
     const rate = textInput({ value: "1", type: "number", mono: true, name: "bump_rate" });
     // The card's heading names the action, not the field.
     rate.setAttribute("aria-label", "Fee rate, in sat/vB");
-    rate.min = "1";
-    rate.max = String(MAX_FEE_RATE_SAT_VB);
-    rate.step = "0.1";
-    rate.setAttribute("inputmode", "decimal");
     const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const bump = button(
       "Bump fee",
       () =>
-        withBusy(bump, async () => {
+        withLock(bump, async () => {
           alert.hide();
           const value = Number(rate.value);
           const rateErr = feeRateError(value);
@@ -210,12 +182,11 @@ export function renderTransaction(): HTMLElement {
           }
           try {
             const built = await api.buildFeeBump(id, value);
-            session.lastResult = await api.signAndBroadcast(built.psbt_id);
-            navigate("result");
+            broadcastDone(await api.signAndBroadcast(built.psbt_id));
           } catch (e) {
             // A rate below the replacement rules is refused by the node; its
             // own wording is the most useful thing to show.
-            alert.show("error", errorMessage(e));
+            if (onScreen()) alert.show("error", errorMessage(e));
           }
         }),
       { variant: "primary", block: true },
@@ -235,20 +206,14 @@ export function renderTransaction(): HTMLElement {
         // the floor is above 1 sat/vB and saying otherwise misreports the field.
         text = estimateUnavailable(suggested);
       }
-      // The note is information either way, but the field belongs to whoever
-      // typed in it: an estimate arriving after that is stale advice, not a
-      // correction, and replacing the number would bump at a rate the user
-      // never chose.
+      // The note says the estimate either way; a rate typed meanwhile stays.
       note.textContent = text;
       if (rateTouched) return;
       rate.value = String(suggested);
     })();
     const sheet = card(
-      el("div", { className: "m-bump-head" }, [sectionLabel("Bump fee"), note]),
-      el("div", { className: "m-rate-row" }, [
-        rate,
-        el("span", { className: "m-rate-unit", text: "sat/vB" }),
-      ]),
+      el("div", { className: "card-head" }, [sectionLabel("Bump fee"), note]),
+      rateRow(rate),
       bump,
     );
     sheet.classList.add("m-bump");
@@ -284,8 +249,6 @@ export function renderTransaction(): HTMLElement {
     };
     folded.addEventListener("click", close);
 
-    // Signing used the preview up whether or not it went out, so after a
-    // failure the card has nothing left to send; asking again builds another.
     const confirm = () => preview.send(onScreen, broadcastDone, close);
 
     const ask = async (): Promise<void> => {
@@ -303,7 +266,7 @@ export function renderTransaction(): HTMLElement {
           onScreen,
         );
         if (!built) return;
-        const go = button("Cancel transaction", () => withBusy(go, confirm), {
+        const go = button("Cancel transaction", () => withLock(go, confirm), {
           variant: "danger",
           block: true,
         });
@@ -323,7 +286,7 @@ export function renderTransaction(): HTMLElement {
       }
     };
 
-    const trigger = button("Cancel", () => withBusy(trigger, ask), {
+    const trigger = button("Cancel", () => withLock(trigger, ask), {
       variant: "danger",
       block: true,
     });
@@ -346,15 +309,8 @@ export function renderTransaction(): HTMLElement {
 
     const note = el("span", { className: "hint", text: FETCHING_ESTIMATE });
     const custom = textInput({ type: "number", mono: true, name: "speedup_rate" });
-    custom.min = "1";
-    custom.max = String(MAX_FEE_RATE_SAT_VB);
-    custom.step = "0.1";
-    custom.setAttribute("inputmode", "decimal");
+    const customRow = rateRow(custom);
     custom.setAttribute("aria-label", "Rate for the two together, in sat/vB");
-    const customRow = el("div", { className: "m-rate-row" }, [
-      custom,
-      el("span", { className: "m-rate-unit", text: "sat/vB" }),
-    ]);
     // Holds the rate field only while Custom is chosen.
     const customSlot = el("div", { className: "slot" });
     const customErr = el("span", { className: "m-err", attrs: { role: "status" } });
@@ -384,8 +340,7 @@ export function renderTransaction(): HTMLElement {
       if (choice === "custom") {
         note.textContent = "Your rate";
         const typed = Number(custom.value);
-        // Rounded up to a tenth, as it is shown: found by cubic, 7.55 showed
-        // "7.5 sat/vB" and built at 7.55.
+        // Rounded up to a tenth, as it is shown.
         const at = typeableRate(typed);
         const problem =
           feeRateError(typed) ??
@@ -453,11 +408,8 @@ export function renderTransaction(): HTMLElement {
     );
     custom.addEventListener("input", () => void refresh());
 
-    // Nothing built to send — the last build failed, or is still running — or
-    // signing used it up: build another, so what the button would send is on
-    // screen again.
     const send = () => preview.send(onScreen, broadcastDone, refresh);
-    const go = button("Speed up", () => withBusy(go, send), { variant: "primary", block: true });
+    const go = button("Speed up", () => withLock(go, send), { variant: "primary", block: true });
 
     void refresh();
     void (async () => {
@@ -471,7 +423,7 @@ export function renderTransaction(): HTMLElement {
     })();
 
     const sheet = card(
-      el("div", { className: "m-bump-head" }, [sectionLabel("Speed up"), note]),
+      el("div", { className: "card-head" }, [sectionLabel("Speed up"), note]),
       el("p", {
         className: "m-card-text",
         text: "Spends this payment on to this wallet, with a fee that pulls the original into a block with it (CPFP).",
@@ -487,18 +439,6 @@ export function renderTransaction(): HTMLElement {
     return sheet;
   };
 
-  /**
-   * Nothing can be signed without a key, and nothing confirmed needs speeding
-   * up. Our own unconfirmed send is sped up by replacing it, or taken back; a
-   * child is for what replacement cannot reach, a payment someone else sent
-   * above all.
-   */
-  const offerFor = async (d: TxDetail): Promise<Offer> => {
-    if (info.is_watch_only || d.confirmations !== null) return "none";
-    if (isBumpable(d)) return "replace";
-    return canPayForParent(d, await api.listUtxos()) ? "child" : "none";
-  };
-
   void (async () => {
     try {
       const detail = await api.transaction(txid);
@@ -510,7 +450,7 @@ export function renderTransaction(): HTMLElement {
       // Asked for once, here, so the button below is only built when there is
       // somewhere for it to go.
       const explorerUrl = await api.explorerUrl(detail.txid).catch(() => null);
-      const offer = await offerFor(detail);
+      const offer = await offerKind(detail, info.is_watch_only);
       if (!onScreen()) return;
       paint(detail, explorerUrl, offer);
     } catch (e) {

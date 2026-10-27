@@ -57,7 +57,7 @@ export function objectStore(
     return handle;
   }
 
-  /** Runs one request and resolves after the transaction commits. */
+  /** Runs one request in a transaction of its own. */
   return async function withStore<T>(
     mode: IDBTransactionMode,
     run: (store: IDBObjectStore) => IDBRequest<T>,

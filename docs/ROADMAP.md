@@ -1637,6 +1637,375 @@ its Rescan at a gap of 100 said "Rescanned with a gap of 100: 29,009 sat in this
       36977779495), which created no release. Release's two signed phone legs skip without
       store keys; they run the same steps as mobile-bundle's two
 
+## Round 10 — Less code, plainer comments
+
+Branch `round-10-less-code-and-prose`. Picked on 2026-10-26: the owner asked for the
+repetition Round 9 left, and the prose comments carry beyond what they need, to be found and
+taken out across the whole repository. Two rules were set with it. A comment keeps only the
+meaning that was settled, in the present tense: how the code got there (who found what in
+review, what it used to do, a dated bug) is the history's to tell, and a comment whose
+meaning the code or a name already says goes. And where the two shells behave differently,
+they are made to behave alike, the phone taking the desktop's behaviour (or both the rule the
+rest of the app follows), each in a commit of its own with a test that failed before it.
+
+**How the targets were found.** Four read-only reviews, one per area (the screens of both
+shells with the shared UI modules; the other UI modules and the two apps' TypeScript; the
+Rust crates and the Tauri host; the stylesheets, CI, scripts and the hand-written Android
+files), and the UI tests read whole. Each listed repetition with every copy's location and
+how the copies differ, and every comment that tells a story, restates the code, repeats a
+fact said elsewhere, or says something no longer true. Round 9's "not taken" list stands: a
+lead it refused for a reason that still holds is not taken again, and a helper is taken only
+when it saves lines net, which ruled out many that would have wrapped an import past Biome's
+100 columns. The implementing agents found more places where the shells differ; those that
+are behaviour were made alike here (10.10, 10.11, 10.15, 10.16).
+
+**How an item is proved.** As in Round 9: the TypeScript gate on every commit, fmt and
+clippy with the tests of the crates it touches on every one that touches Rust, and the whole
+gate on the final tree, with every test the round started with still there by name. The
+screen states the UI suite reaches (251 at the base, dumped with field values, checkedness,
+focus and the URL, randomness seeded) are byte-identical to the previous commit's after every
+refactor; a markup change is shown by Chrome to compute the same style; the boards
+regenerate byte-identical; and a path no test reaches is pinned first by a characterization
+test, run on the old code and the new, then removed. A comment-only commit changes nothing
+but comments.
+
+**Result.** 25,195 code lines at `619c3db`, 25,109 at the end (−86), and 4,660 comment lines
+to 4,257 (−403, 8.6%), by tokei over the tracked sources less the Go reference, the
+generated phone projects, the boards `gen.py` writes and the lockfiles. Outside `docs/`, the
+refactors and comment commits take out 892 lines net and the seven fixes add 456, most of
+them the 58 tests that prove them (444 vitest tests to 502). This branch's Android debug
+build, installed on an emulator over a September build with its Signet wallet, started at
+Unlock and unlocked it, closed to Unlock (10.15), said what an empty single key and an empty
+watch-only field lack (10.11), left the field empty after a generated key and a leave
+(10.16), and opened a generated key without Remember, which Settings showed as not
+remembered, before closing back to Unlock for the first wallet (10.7). Sending and fee bumps
+were not driven there: the wallet's local Signet rig needs Rosetta. Pull request #62.
+
+**Reviewed** by cubic on 2026-10-26 (PR #62): fifteen comments, each checked against the code
+and the tests. Eight were taken, in five commits, four of them with tests that failed before
+(502 vitest tests to 512): Lock after left a failed save's message up after a later choice
+saved, and on the Tauri store an earlier save could finish after a later one and be the one
+kept; Receive outlined an amount it cannot take but never set `aria-invalid`; the phone
+Send's Custom fee rate had no accessible name; the desktop's sync every minute, arriving
+while a sync ran on, turned the Sync button back on; and three comments said where values
+are normalized, what the rate check refuses and the focus ring's exception wrongly or
+loosely. Seven were answered on the pull request instead. Close wallet opening Unlock for
+the remembered wallet while another was open is what both shells show at launch (10.15), and
+Unlock names that wallet and offers another. Create's confirmation words are emptied with the
+rest on the route change, as on the desktop. `min="1"` on the rate fields was there before
+the round, nothing styles `:invalid`, and the core raises a rate under 1 to the floor. The
+10.7 test checks the session's record, which 10.7 changed; the write to the device is
+covered in `app-password.test.ts`, where dropping the remember flag fails four tests.
+`btcw address` deriving twice is one run of a command, for one rule that matches the wallet
+(10.17). The two on the phone's Restore cannot happen in the Tauri build the phone shell ships
+in, where Remember never waits for a password, and cubic had resolved them.
+
+**Left for the canvas.** The phone's Restore checks the phrase when pressed, the desktop's as
+it is typed: an interaction to design before it is made alike.
+
+
+**Comments that are wrong**
+
+- [x] **10.1 Comments that say something false, or sit on the wrong item, are corrected** · S ·
+  all areas
+      why: the browser has something to unlock since app passwords, the Tauri platform does
+      more than two things, "two shapes" lists three, a doc promises a plain object where a
+      `Map` arrives, and several comments describe the test or function above or below them ·
+      done: 2026-10-27 — in the UI: Unlock's guard no longer says the browser has nothing to
+      unlock, the route list says the desktop's guard sends the phone's routes to the wallet,
+      the Tauri platform's header names its plugins as well as the config store and the
+      keystore, and a display and a text test's comments, the phone Send's `refresh` doc and
+      `confirmDanger`'s doc sit on what they describe; `screenGuard`'s doc now says it is made
+      once while the screen is built, where two pointers sent the reader. In the core: "three
+      shapes" of wallet, `AddressType` for every wallet, no promise of a browser keystore,
+      `sign` for any of the `build_*` methods, and `estimate_fee` returning a nested `Map` that
+      `normalize.ts` flattens. In mobile.css, the badge rule's specificity, not its place,
+      makes it win. `git diff -U0` shows only comments; the gates pass, the 251 states are
+      byte-identical, and the rebuilt wasm package differs only in that doc's text
+
+**Stylesheets**
+
+- [x] **10.2 Rules that style one thing alike are written once** · S · `app.css`, `mobile.css`
+      why: the phone's history row and setting row, their press and their last border are
+      written several times over, the phone's Bump fee head is the desktop's card head, and
+      some declarations repeat what already applies · done: 2026-10-27 — the phone's history
+      row and setting row share their eleven declarations, a flush list's last row drops its
+      rule in one `:last-child` rule (history row, setting, Rescan block, coin), and five
+      `:active` rules are one list before `.m-btn-primary:active`; the Bump fee and Speed up
+      heads use `card-head` and the desktop's transaction detail `actions` (two class swaps in
+      TypeScript), so `.m-bump-head` and `.tx-detail-actions` go; the radio chip's and unit
+      chip's `outline: none` are one rule, the tick's and unit chip's hidden inputs one; two
+      declarations that repeat what applies go. The sheets are 48 lines shorter. Not taken: the
+      `:has()` chip pair, and rules alike only by coincidence. Biome is clean
+      (`noDescendingSpecificity` included) and focus.test.ts finds its rules. The dumped states
+      change only in the swapped classes (19 states). Chrome 156 computed every non-custom
+      property of every element and its ::before, ::after and ::placeholder in all 251 states,
+      desktop at 1024 px and phone at 390 and 320 px, light and dark (92,868,520 values), and
+      in 22,968 variants forcing hover, press or keyboard focus on one element, an invalid
+      field, or Scan's see-through page (3,317,412,216 values): 0 differences from the base;
+      the base against itself 0, and a deliberate one-declaration edit caught in each mode
+
+**The UI tests**
+
+- [x] **10.3 The UI tests share their pure helpers and the send board 3c draws** · S · `test/*`
+      why: `n`, `nth` and `txid` are written in several files, the same 40,000-sat send in two,
+      and two files navigate by hand where the harness has `leaveTo` · done: 2026-10-27 — `n`,
+      `nth` and `txid` come from fakes.ts (a11y's four unchecked casts become `nth`), the
+      40,000-sat send is `fake.sentTx(payee, confirmations)` with each file keeping its payee,
+      reset and app-password read the wallet id from `fake.SAVED`, and the screen and words
+      tests use the harness's `leaveTo`. A throwaway test showed `sentTx` gives each file's old
+      fixture exactly; four mutations of `routeGuard` and `wipeOnLeave` fail the same tests
+      under the old navigation and the new. `buttonsNamed`, `texts`, `wordBoxes` and the key
+      and descriptor constants were measured and not taken: each makes imports wrap and costs
+      more lines than it saves. Code lines in test/ 5,396 to 5,369. The same 444 test names
+      pass with the same assertion count each, and the 251 states are byte-identical
+- [x] **10.4 The UI tests remember, hold, paste, scan and open a detail through shared
+  helpers** · M · `test/*`
+      why: seven tests set up a device that remembers the wallet, eight build a promise to
+      release by hand, and the clipboard, the camera and a dropped preview's check are each
+      written two to five times · done: 2026-10-27 — `rememberSaved`, `withClipboard` with
+      `refusedRead`, `camera`, `expectDropped` and `showPhoneTx` in the harness, `deferred` in
+      fakes (the fake's own sync and PSBT holds included), and `openerNamed`, through which
+      app-password's Create and Restore table reuses the openers' fill steps under its own
+      titles. Not taken: one `openWallet()` for the 41 identical calls, measured at 15 lines
+      more once the imports wrap. Eleven mutations of the source (a camera left running, Paste
+      reading the page's clipboard, a late read winning, a held preview kept, Unlock moving on
+      after it was left, and others) fail the same tests before and after. Code lines in test/
+      5,369 to 5,296. The same 444 names pass with the same assertion count each, and the 251
+      states are byte-identical
+- [x] **10.5 The UI tests' comments say what holds** · S · `test/*`
+      why: 35 comments tell who found a bug in review, or what a screen used to say · done:
+      2026-10-27 — the tagged history (found in review, by cubic, in Round 9, "the defect this
+      guards", a dated bug, "this test asserted the opposite") and the "used to say" comments
+      are gone where the test's name or code says the rest, and rewritten in the present tense
+      where they say more; the narrating and flowery ones are cut to their point, and "the
+      fakes stand in for every file" is said once, in setup-fakes.ts. Board, BIP and decision
+      references stay. Comment lines in test/ 482 to 421; `git diff -U0` shows only comments,
+      and the same 444 tests pass
+
+**The UI: behaviour made alike, modules and screens**
+
+- [x] **10.6 The phone's Bump fee records a send only for its wallet, and moves only from its
+  screen** · S · `mobile/screens/tx.ts`
+      why: it wrote the result and opened Result unchecked, where the same screen's other
+      sends, and the desktop's Bump fee, check that the wallet and the screen are still theirs
+      · done: 2026-10-27 — the phone's Bump fee hands its result to `broadcastDone`, so it is
+      recorded only for the wallet that sent it, Result opens only while the screen is shown,
+      and a failure is shown only on screen, as on the desktop. Two new tests on both shells
+      hold the broadcast, press Bump fee, and release it after leaving for Settings or after
+      another wallet opened: on the code before, the phone failed both ("expected '#/result' to
+      be '#/settings'", and a result recorded where null was expected) and the desktop passed;
+      both pass on both shells after
+- [x] **10.7 The phone opens a wallet the way the desktop does** · M · `mobile/screens/*`
+      why: the phone's Create and Restore read the remembered record back after every open, so
+      a failed read put an error over a wallet that opened, and an open without Remember
+      overwrote the session's record · done: 2026-10-27 — the phone's Create and its three
+      Restores return unless Remember is ready, read the box once, pass its app password on,
+      empty their secret fields once the wallet is open, set the session's record from the open
+      only when they remembered, and move on only while on screen, as the desktop's Create,
+      Restore and Key do; Restore reads the settings when drawn. late-open's hold moved from
+      the read-back this removes to the core's open, so it still fails when a phone opener
+      moves on after it was left. Sixteen new tests run every way in but Unlock with Remember
+      ticked over a store that cannot be read, and unticked: before, the eight phone ones
+      failed (the phone stayed on its screen, or set the store's record) and the eight desktop
+      ones passed; all pass after. On a phone the key store takes no app password, so what
+      changes there is that an open no longer reads the store
+- [x] **10.8 What the UI modules write twice is written once, and unused exports go** · S ·
+  `src/*.ts`, `wasm/`, `apps/native/src`
+      why: the fee-rate check, the phone's routes, the address prefixes, a normalizer and the
+      prefill are each written two or three times, and four exports are imported nowhere ·
+      done: 2026-10-27 — the api's builders check the rate with `feeRateError`, the screens'
+      check (the error keeps its code, and `errorMessage` words it; nothing reads the message),
+      the phone's routes are `PHONE_ROUTES`, an address's prefixes are written once per family
+      with test claimed before regtest, a detail spreads its summary from `toTxSummary`, and
+      `prefillSend` takes the payment whole; the `./screen` subpath and three unused `export`s
+      go. Not taken: the superseded error, the explorer URL, the broadcast normalizer, the
+      amount's tail and `SATS_PER_BTC` in format.ts, each as long as what it replaces. A
+      throwaway comparison gave the old and new address checks the same answer on 1,014,880
+      strings over five networks (and catches a reordered claim); mutations of each shared
+      piece fail tests where it is used. Code lines in the UI's TypeScript 8,753 to 8,715; the
+      271 states are byte-identical
+- [x] **10.9 The phone's busy helper is named apart from the desktop's** · S · `ui/dom.ts`,
+  `mobile/ui.ts`
+      why: both were `withBusy`, but the desktop's shows a spinner and always enables the
+      button again, and the phone's restores the state the button had · done: 2026-10-27 — the
+      desktop's helper keeps `withBusy`, which says it shows the busy spinner, and the phone's
+      is `withLock`; each doc says how it puts the button back, so four comments at the
+      desktop's Unlock, Create, Restore and Key that said it go. A longer pair of names wrapped
+      imports and calls past 100 columns, 51 lines for the same change. Leaving the button
+      disabled fails one desktop test for `withBusy` and one phone test for `withLock`; the 271
+      states are byte-identical
+- [x] **10.10 A send records its result only for its wallet, and opens Result only from Send**
+  · S · `screens/send.ts`, `mobile/screens/send.ts`
+      why: the phone's Send recorded and moved unchecked, and the desktop's recorded for
+      whichever wallet was open, where every other broadcast checks both · done: 2026-10-27 —
+      both Sends record a broadcast only while the wallet that sent it is still open, and open
+      Result only from their own screen, as every other broadcast does; the phone also shows a
+      failed send's banner only on screen. Four new tests hold the broadcast, confirm, and
+      leave for Settings or open another wallet before releasing it: before, the phone failed
+      both and the desktop the second (a result recorded for another wallet); all pass after
+- [x] **10.11 The phone checks what the desktop checks before it opens a wallet** · S ·
+  `mobile/screens/*`
+      why: the phone's single-key and watch-only Restore passed an empty field to the core, its
+      open buttons did not wait for Remember, and its Create did not re-check the words · done:
+      2026-10-27 — the phone's single-key and watch-only Restore say "Enter a private key (hex
+      or WIF) or generate one." and "Paste an xpub or a public descriptor." for an empty field,
+      its open buttons wait for a ticked Remember's app password and take that gate back after
+      an open, and its Create re-checks the typed-back words when pressed; the three sentences
+      live in `ui/text.ts`. Twenty-two new tests on both shells: before, the ten phone ones
+      failed and every desktop one passed; all pass after. On a phone only the empty-field
+      messages can be seen
+- [x] **10.12 Both shells share their rate fields, units, QR and explorer code, and the desktop
+  its Close wallet** · M · `screens/*`, `mobile/screens/*`, `ui/*`
+      why: a fee-rate field is set up five times, an amount converted between sat and BTC four
+      times, a transaction opened in the explorer four times, and Close wallet written twice ·
+      done: 2026-10-27 — `boundRate` sets up the five rate fields, `rateRow` the phone's,
+      `fieldRate` rounds a typed rate; `UNIT_CHOICES` and `convertField` convert an amount in
+      place; `ui/qr.ts` draws a QR and a receive payload (widths per caller, Export still the
+      raw xpub); `openExplorer` opens a transaction (the phone's still hides its banner first);
+      `closeForSetup` and `saveLockAfter` serve both Settings (the desktop still focuses
+      Continue); `closeThisWallet` both desktop pages; and the Wallet page labels outputs
+      through `outputRole` and counts coins through `counted`. Not taken: the Settings
+      sentences, the recovery-phrase helpers and the coin ticks, each longer shared. Mutations
+      fail tests on both shells where tests reach the code, and throwaway characterization
+      tests (54 and 15 observations, identical on the old code and the new) pin the rest. Lines
+      11,765 to 11,698; the states are byte-identical
+- [x] **10.13 Both shells open a wallet, record a send, offer a fee bump and sync through one
+  helper each** · M · `screens/*`, `mobile/screens/*`, `ui/*`
+      why: once 10.7, 10.10 and 10.11 make the behaviour alike, the logic is written once per
+      screen · done: 2026-10-27 — `recordSent` records a send for both Sends, the phone's
+      transaction screen, Import PSBT and the Wallet page (which keeps its "another row is
+      open" banner); `openAndEnter` in `ui/open.ts` opens a wallet for the desktop's Create,
+      Restore and Key and the phone's Create and three Restores, each keeping its own checks
+      and markup; `offerKind` says which fee action a transaction offers, and `autoSync` with
+      one `AUTO_SYNC_MS` runs both shells' timer (the desktop's quiet failure and the phone's
+      banner kept). Not taken: the PSBT status line, the cancel summary, the CPFP hint and the
+      sync label, each longer shared. Mutations fail tests on all eight openers and on both
+      shells' send, Bump fee, PSBT, offer and watch-only tests; characterization tests (4, 57
+      and 15 observations) pin the rest. Lines 11,698 to 11,590; the states are byte-identical
+- [x] **10.14 The UI's comments say what holds** · M · `packages/wallet-ui/src`, `apps/*/src`
+      why: comments tell who found what, what a screen used to do, or repeat what a function's
+      own doc says · done: 2026-10-27 — over both reviews' comment lists and a search for
+      history markers: who found what, "used to", former behaviour and dates (now the tracker's
+      item numbers) go, repeats of what a definition says are said once there, and the flowery
+      ones are plain; board, BIP and safety reasoning stay. Comment lines 2,288 to 2,131 in the
+      UI package and 113 to 99 in apps/native; code lines unchanged at 8,400, and no changed
+      line is anything but a comment
+- [x] **10.15 Close wallet on the phone goes where the desktop's goes** · S ·
+  `mobile/screens/settings.ts`, `ui/settings.ts`
+      why: the phone's opened Setup, and only if the close did not throw; the desktop's opens
+      Unlock for a remembered wallet, else Key, either way · done: 2026-10-27 —
+      `closeThisWallet` moves to the shared `ui/settings.ts`, and the phone's Settings closes
+      through it, so Close wallet opens Unlock for a remembered wallet, else Key, on both
+      shells. Two new tests on both shells' Settings, with the wallet remembered and not:
+      before, the phone failed both ("expected '#/setup' to be '#/unlock'", and '#/key') and
+      the desktop passed; all pass after
+- [x] **10.16 The phone guards work that lands after it is left, as the desktop does** · S ·
+  `mobile/screens/restore.ts`, `mobile/screens/send.ts`
+      why: a key generated on the phone's single-key Restore after the user left was written
+      into the field the leave had wiped, and Max kept less of the desktop's checks · done:
+      2026-10-27 — the phone's Generate new key runs under `withLock`, writes the key only
+      while its screen is shown and says a failure only there, and the phone's Max keeps a
+      drain only if the form and the screen are still the ones that asked, as the desktop's Key
+      and Max do. Four new tests on both shells: before, the phone's button stayed enabled
+      while the key was held, the key landed in the wiped field ("expected 'cNewKeyInWifForm'
+      to be ''"), and a Max that landed once another wallet was open filled the amount in and
+      showed its error; the desktop passed all four, and all pass after. Leaving Send already
+      moved the Max's sequence, so for a user the Max half changes nothing
+
+**The core, the CLI and the regtest tests**
+
+- [x] **10.17 The CLI reports one `hd` for an address, new or not** · S · `wallet-cli`,
+  `keys.rs`
+      why: `address` reported the key's `is_hd()` and `address --new` the wallet's, which
+      differ for an xpub; the wallet's is the one the UI shows · done: 2026-10-27 — `address`
+      reports the wallet's `hd`, as `address --new` does, through the core's new
+      `keys::wallet_is_hd`, which asks the same `Descriptors::is_hd` the handle's `is_hd` now
+      uses; `KeyMaterial::is_hd`'s doc says it is about a recovery phrase. A new test runs
+      `address` for the test phrase, its account xpub and a hex key against each opened
+      wallet's `is_hd()`: it failed before (the xpub false, its wallet true) and passes
+- [x] **10.18 The core reads a fee rate, a default rate and a name one way each** · M ·
+  `wallet-core`, `wallet-wasm`, `wallet-cli`
+      why: sat/kwu becomes sat/vB two ways, network and address-type names are parsed with
+      their errors in the CLI and the bindings, the default rate is worked out in the core and
+      the CLI, and the keystore wraps the same error eight times · done: 2026-10-27 — a
+      transaction's rate divides by 250 as the fee-too-low rate does, `fee_rate_or_estimate`
+      holds the default rate for the core's send and the CLI, `Network::parse` and
+      `AddressType::parse` return the "unknown …" message (the CLI still exits 1 with it, the
+      bindings throw the same `unsupported` error), and the keystore maps its errors through
+      one function and drops a second `prepare()`. Not taken: `Network::kind()`,
+      `Descriptors::into_external()` and a `sat_per_vb` helper, each longer than the call
+      sites. Throwaway tests on the old code and the new: 37 network and 31 address-type
+      spellings give byte-identical CLI output and exit code and binding errors, and the two
+      rate formulas give the same f64 bits for 28,000,641 values and for 68 real transactions;
+      the core also lints for iOS and Android, and the wasm `.d.ts` is unchanged
+- [x] **10.19 The core pins the exit codes, and the regtest tests share their setup** · M ·
+  `error.rs`, `wallet-cli`, `regtest-tests`
+      why: the CLI's test re-lists every core error to pin what the core's own table could, and
+      the regtest files open, fund and sync wallets by hand · done: 2026-10-27 — error.rs's
+      table pins each variant's ordinal row by row, so the CLI's test keeps its name and
+      asserts only the CLI's rule (exit code 10 plus the ordinal, never 1), and its 35-line
+      list of every core error goes; swapping two ordinals now fails the core's test. The
+      regtest files share `open_new_hd`, `open_new_key` and `fund_and_sync` (seven
+      fund-confirm-sync runs), and the fee-bump test sends through `common::send`. Not taken: a
+      CLI helper for sign and broadcast (it returns four values to callers that build their own
+      JSON) and a test-vector module (it saves no line). The regtest crate builds and lists the
+      same 12 tests; they run in CI
+- [x] **10.20 The Rust comments say what holds** · M · `crates/*`, `src-tauri/src`
+      why: comments tell what the code used to do, a fact is explained in up to five files, and
+      a few restate the line below · done: 2026-10-27 — 33 history comments, the long and
+      flowery ones, eleven facts said in several files (said once where they are defined), and
+      the restating ones; the rescan test's assert message now says what it checks. BIP, BDK,
+      CVE and platform reasons, safety notes and every clap doc stay. Only comments and that
+      one string change; the wasm `.d.ts` is unchanged
+
+**CI and the generator**
+
+- [x] **10.21 One install, one Node version, one tag test and one list of version files** · S ·
+  `.github`, `scripts`
+      why: every job that uses the frontend action runs the same install after it, Node 22 is
+      written in two places Dependabot does not update, release tests the tag eight times, and
+      the version files are listed in two scripts · done: 2026-10-27 — `pnpm install
+      --frozen-lockfile` is the frontend action's last step, so the six jobs that ran it
+      straight after the action run the same steps in the same order (release's Windows leg
+      installs under bash, a composite step naming its shell). Node comes from a root `.nvmrc`
+      saying 24, read by both setup-node uses; Dependabot has no ecosystem for it, so the next
+      major is one edit. release's eight tag tests read one `RELEASE_TAG`. The version files
+      both version scripts write out are named once, in `scripts/version-files.sh` (four lines
+      more, for one list to keep). The apt-get step stays in each job: a composite for it adds
+      lines. actionlint 1.7.12 is clean on all four workflows before and after; every job keeps
+      its id, name, runner, needs, condition, matrix and timeout, and its steps with both
+      composites expanded are the same apart from these changes. Under Node 24.21.0 the
+      install, Biome, tsc, vitest, the Tauri-pair check, the wasm bindings' tests and the wasm
+      build pass; the version scripts print and exit the same, and a bump changes the same 8
+      files byte for byte
+- [x] **10.22 The boards' remaining repeated parts are drawn with helpers** · S · `gen.py`
+      why: the phone Settings, Unlock and Send boards and two desktop cards repeat blocks line
+      for line · done: 2026-10-26 — `m_settings` draws M10 and M10b, `key_card` 2 · Key's
+      private-key card for 2 and 2f, `tx_actions` the Copy and explorer row on 3 · Wallet and
+      both 3c rows with `BUMP` at its end, `M_UNLOCK_HEAD` the head of M5 and M5b, `m_addr` and
+      `m_fee_chips` the phone's address field and fee row (`FEE_CHIP` goes), `SIGNET` the label
+      written ten times, and the icon board's sizes come from a table. gen.py 1,421 to 1,403
+      lines (1,258 to 1,233 code lines). The unit chips and the tab tuple stay: each sits on
+      one line. Regenerating leaves all 38 boards, `canvas.json` and `app-icon.svg`
+      byte-identical by sha256, and pyflakes is clean
+
+**Comments elsewhere**
+
+- [x] **10.23 The stylesheets', CI's, Android files' and generator's comments say what holds**
+  · S · `*.css`, `.github`, `gen/android`, `gen.py`
+      why: comments tell how a rule, a job or a board came to be, or repeat a fact said
+      elsewhere · done: 2026-10-27 — in the sheets, the `hidden` rule's, the word grid's and
+      the tab bar's stories go, the iOS zoom and the focus rings are explained once, and the
+      switch's restating comment goes; in CI, the queue-time story, "never run yet", the empty
+      certificate, the updater input's rename, the dated decision and wasm-pack's build time
+      go, with notes that repeat a script's header or the action's description; Keyring.kt's
+      out-of-date README note gives way to the reason the context is set, and MainActivity.kt
+      no longer repeats it; gen.py's history tags and its flowery lines go, its canvas data
+      untouched. Only comments change (the sheets and gen.py compared with comments stripped,
+      the workflows parsing identically); the boards regenerate byte-identical and the styles
+      compute the same
+
 ## Later — not picked
 
 Listed, not scheduled; each goes to the design canvas first unless marked otherwise.

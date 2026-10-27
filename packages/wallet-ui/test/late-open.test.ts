@@ -1,65 +1,44 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from "vitest";
-import { platform, setPlatform } from "../src/platform";
+import { describe, expect, it, vi } from "vitest";
 import { session } from "../src/session";
-import { fake } from "./fakes";
-import { buttonNamed, leaveTo, settle, useScreenHarness } from "./harness";
-import { OPENERS } from "./openers";
+import { deferred, fake } from "./fakes";
+import { buttonNamed, leaveTo, rememberSaved, settle, useScreenHarness } from "./harness";
+import { openerNamed } from "./openers";
 
 useScreenHarness();
 
-/** A promise held open until `release` is called. */
-function held<T>(value: T): { promise: Promise<T>; release: () => void } {
-  let release = (): void => {};
-  const promise = new Promise<T>((resolve) => {
-    release = () => resolve(value);
-  });
-  return { promise, release };
-}
-
 /** Unlock reads the key from the key store; the read is what waits. */
 function unlocking(gate: Promise<void>): void {
-  setPlatform({
-    ...platform(),
-    canRememberWallet: true,
-    getRemembered: async () => fake.SAVED,
+  rememberSaved({
     loadSecret: async () => {
       await gate;
       return { secret: fake.PHRASE, passphrase: null };
     },
   });
-  session.remembered = fake.SAVED;
 }
 
-/** The phone's openers read the remembered record back once the wallet is open. */
-function readingBack(gate: Promise<void>): void {
-  setPlatform({
-    ...platform(),
-    getRemembered: async () => {
-      await gate;
-      return null;
-    },
+/** The other openers hand the key to the core; its open is what waits. */
+function opening(gate: Promise<void>): void {
+  const open = fake.FakeWallet.open;
+  vi.spyOn(fake.FakeWallet, "open").mockImplementation(async () => {
+    await gate;
+    return open();
   });
 }
 
 /** The openers held here: both Unlock screens, and the phone's Create and Restore. */
-const LATE = new Set([
+const LATE_OPENERS = [
   "desktop Unlock",
   "phone Unlock",
   "phone Restore, recovery phrase",
   "phone Restore, single key",
   "phone Create",
-]);
-const LATE_OPENERS = OPENERS.filter((o) => LATE.has(o.name));
-// Found in review: an opener renamed in openers.ts would drop out of here
-// without a word, so a name that matches none fails the file instead.
-if (LATE_OPENERS.length !== LATE.size) throw new Error("LATE names an opener openers.ts lacks");
+].map(openerNamed);
 
 describe.each(LATE_OPENERS)("an open that finishes after $name was left", (opener) => {
   it("opens the wallet, and leaves the screen the user went to alone", async () => {
-    const { promise, release } = held<void>(undefined);
-    // Installs a platform whose step after the press waits on `promise`.
-    const hold = opener.remembered ? unlocking : readingBack;
+    const { promise, resolve: release } = deferred<void>();
+    const hold = opener.remembered ? unlocking : opening;
     hold(promise);
     const screen = await opener.render();
 
@@ -69,9 +48,7 @@ describe.each(LATE_OPENERS)("an open that finishes after $name was left", (opene
     release();
     await settle();
 
-    // It went through, so the wallet is open wherever the user is now…
     expect(session.wallet?.wallet_id).toBe(fake.SAVED.wallet_id);
-    // …but the screen they went to is theirs.
     expect(window.location.hash).toBe("#/setup");
   });
 });

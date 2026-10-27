@@ -9,7 +9,7 @@ import { shortId } from "../../ui/format";
 import { icon } from "../../ui/icons";
 import { forgetThisWallet } from "../../ui/settings";
 import { forgetWarning } from "../../ui/text";
-import { body, button, confirmDanger, header, historyReset, spacer, withBusy } from "../ui";
+import { body, button, confirmDanger, header, historyReset, spacer, withLock } from "../ui";
 
 export function renderUnlock(): HTMLElement {
   const record = session.remembered;
@@ -38,22 +38,17 @@ export function renderUnlock(): HTMLElement {
       else offer.node.replaceWith(unlock);
     }
   };
-  // Unlock with or without biometrics, as the desktop's says.
-  const unlock = button("Unlock", () => withBusy(unlock, attempt), {
+  // "Unlock" with or without biometrics, as on the desktop.
+  const unlock = button("Unlock", () => withLock(unlock, attempt), {
     variant: "primary",
     block: true,
     icon: auth ? "faceid" : "key",
   });
 
-  // Two taps: this deletes the saved key and the local history, and the
-  // desktop screen already asked twice.
+  // Two taps, as on the desktop: this deletes the saved key and the local history.
   const forget = confirmDanger({
     trigger: "Forget this wallet",
     triggerVariant: "quiet",
-    // No wallet is open here and the remembered record does not say which kind
-    // this is, so it names every way back rather than promising a recovery
-    // phrase a single-key or watch-only wallet never had. A passphrase and a
-    // bare xpub are two of those ways, and the app offers both.
     text: forgetWarning(null),
     confirm: "Delete it",
     onConfirm: () => forgetThisWallet(alert, "key"),

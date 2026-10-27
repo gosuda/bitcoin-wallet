@@ -9,7 +9,7 @@
 import { platform } from "../platform";
 import { navigate, type Route } from "../router";
 import { errorMessage, historyResetFixes, type TxOutput } from "../types";
-import { type Banner, el } from "../ui/dom";
+import { type Banner, boundRate, el } from "../ui/dom";
 import { outputRole } from "../ui/format";
 import { type IconName, icon } from "../ui/icons";
 import { type HistoryReset, RESET_CONFIRM, RESET_TEXT, RESET_TRIGGER } from "../ui/reset";
@@ -123,6 +123,15 @@ export function outputNote(owner: { net_sat: number }, output: TxOutput): string
 
 export function row(...children: Child[]): HTMLElement {
   return el("div", { className: "m-row" }, children);
+}
+
+/** A fee-rate field, bounded and on a decimal keypad, with its unit after it. */
+export function rateRow(input: HTMLInputElement): HTMLElement {
+  boundRate(input).setAttribute("inputmode", "decimal");
+  return el("div", { className: "m-rate-row" }, [
+    input,
+    el("span", { className: "m-rate-unit", text: "sat/vB" }),
+  ]);
 }
 
 /**
@@ -243,13 +252,13 @@ export function labelled(text: string, control: HTMLElement, note?: string): HTM
   return label;
 }
 
-/**
- * A destructive action in two taps: the trigger replaces itself with what
- * will happen and a Delete / Keep pair. Every place a wallet can be forgotten
- * goes through this, so the phone never destroys anything on one tap.
- */
 let confirmSeq = 0;
 
+/**
+ * A destructive action in two taps: the trigger replaces itself with what will
+ * happen and a Delete / Keep pair. Every place a wallet can be forgotten goes
+ * through this, so the phone never destroys anything on one tap.
+ */
 export function confirmDanger(opts: {
   trigger: string;
   triggerVariant?: "danger" | "quiet";
@@ -261,7 +270,7 @@ export function confirmDanger(opts: {
   const arm = button(
     opts.trigger,
     () => {
-      const go = button(opts.confirm, () => withBusy(go, opts.onConfirm), {
+      const go = button(opts.confirm, () => withLock(go, opts.onConfirm), {
         variant: "danger",
         block: true,
       });
@@ -272,7 +281,7 @@ export function confirmDanger(opts: {
       const sheet = card(
         warning,
         go,
-        // Back to the trigger: the focused button is gone. Found by cubic.
+        // Back to the trigger: the focused button is gone.
         button(
           "Keep it",
           () => {
@@ -311,7 +320,7 @@ export function historyReset(alert: Banner): HistoryReset {
       const trigger = button(
         RESET_TRIGGER,
         () => {
-          const go = button(RESET_CONFIRM, () => withBusy(go, reset), {
+          const go = button(RESET_CONFIRM, () => withLock(go, reset), {
             variant: "primary",
             block: true,
           });
@@ -444,10 +453,11 @@ export function lede(text: string): HTMLElement {
 }
 
 /**
- * Runs an async action with the button disabled, so a slow sync or broadcast
- * cannot be fired twice by an impatient tap.
+ * Runs `work` with the button disabled and `aria-busy` set, no spinner, so a
+ * slow sync or broadcast cannot be fired twice by an impatient tap. Then the
+ * button is disabled again only if it was before.
  */
-export async function withBusy(btn: HTMLButtonElement, work: () => Promise<void>): Promise<void> {
+export async function withLock(btn: HTMLButtonElement, work: () => Promise<void>): Promise<void> {
   const wasDisabled = btn.disabled;
   btn.disabled = true;
   btn.setAttribute("aria-busy", "true");

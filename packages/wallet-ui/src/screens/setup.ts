@@ -17,8 +17,7 @@ import { SETUP_LEDE } from "../ui/text";
 export function renderSetup(): HTMLElement {
   const initial = session.config;
   let network: Network = initial?.network ?? "signet";
-  // A config saved before P2PK stopped being openable can name it; it is not
-  // among the choices below, so start from the default instead.
+  // A stored config may name a type that cannot be opened: start from the default.
   const stored = initial?.address_type;
   let addressType: AddressType = stored && isOpenable(stored) ? stored : "p2wpkh";
   let urlTouched = initial !== null && initial.backend.url !== DEFAULT_ESPLORA_URL[network];

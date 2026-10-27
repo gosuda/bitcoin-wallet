@@ -8,12 +8,10 @@ import { renderDashboard } from "../src/screens/dashboard";
 import { renderSend } from "../src/screens/send";
 import { session } from "../src/session";
 import type { Utxo } from "../src/types";
-import { fake } from "./fakes";
+import { fake, n, nth, txid } from "./fakes";
 import { buttonNamed, find, leaveTo, settle, showAt, type, useScreenHarness } from "./harness";
 
 useScreenHarness();
-
-const txid = (head: string, tail: string): string => `${head}${"0".repeat(46)}${tail}`;
 
 /** The three coins 3b and M13 are drawn with: one frozen, and 45,000 + 16,234 = 61,234 to choose. */
 const BIG: Utxo = {
@@ -51,14 +49,6 @@ function threeCoins(): void {
 
 /** How the core is told which coin: its txid and output index, nothing else. */
 const id = (u: Utxo) => ({ txid: u.txid, vout: u.vout });
-
-const n = (sats: number): string => sats.toLocaleString();
-
-function nth<T>(items: readonly T[], i: number): T {
-  const item = items[i];
-  if (item === undefined) throw new Error(`nothing at ${i}`);
-  return item;
-}
 
 const texts = (root: ParentNode, selector: string) =>
   [...root.querySelectorAll(selector)].map((e) => e.textContent);

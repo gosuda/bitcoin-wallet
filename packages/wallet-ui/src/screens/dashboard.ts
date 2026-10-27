@@ -1,12 +1,9 @@
-import QRCode from "qrcode";
-import { formatAmount, parseAmount, type Unit } from "../amount";
+import type { Unit } from "../amount";
 import { api } from "../api";
 import { headlineSat, pendingSat } from "../balance";
-import { buildPaymentUri, qrPayload } from "../bip21";
-import { canPayForParent, isBumpable, suggestBumpRate, suggestPackageRate } from "../feebump";
-import { platform } from "../platform";
+import { suggestBumpRate, suggestPackageRate } from "../feebump";
 import { navigate } from "../router";
-import { redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
+import { autoSync, redirect, sameWalletGuard, screenGuard, screenHead } from "../screen";
 import { session } from "../session";
 import {
   ADDRESS_TYPE_LABELS,
@@ -17,10 +14,8 @@ import {
   type FeeEstimate,
   type FeeTarget,
   feeRateError,
-  MAX_FEE_RATE_SAT_VB,
   NETWORK_LABELS,
   type TxDetail,
-  type TxOutput,
   type TxSummary,
   type Utxo,
 } from "../types";
@@ -37,14 +32,17 @@ import {
 import {
   append,
   banner,
+  boundRate,
   button,
   clear,
+  convertField,
   el,
   formatBtc,
   formatNumber,
   formatSats,
   kv,
   mono,
+  openExplorer,
   radioGroup,
   readout,
   sectionLabel,
@@ -58,25 +56,29 @@ import {
   formatRate,
   formatTime,
   formatWhen,
+  outputRole,
   shortId,
   shortOutpoint,
 } from "../ui/format";
 import { icon } from "../ui/icons";
-import { heldPreview } from "../ui/preview";
-import {
-  explorerFailed,
-  FROZEN_HINT,
-  NO_COINS,
-  RECEIVE_QR_NOTE,
-  SENT_TITLE,
-  whoseInputs,
-} from "../ui/text";
+import { heldPreview, offerKind, recordSent } from "../ui/preview";
+import { drawReceiveQr, receivePayload } from "../ui/qr";
+import { closeThisWallet } from "../ui/settings";
+import { FROZEN_HINT, NO_COINS, RECEIVE_QR_NOTE, SENT_TITLE, whoseInputs } from "../ui/text";
 
 function stat(label: string, value: string, cls = ""): HTMLElement {
   return el("div", { className: "stat" }, [
     el("span", { className: "stat-label", text: label }),
     el("span", { className: `stat-value mono ${cls}`.trim(), text: value }),
   ]);
+}
+
+/** A Conf. cell: the count, or Pending in the pending colour. */
+function confCell(confirmations: number | null): HTMLElement {
+  return el("td", {
+    className: confirmations === null ? "num mono pending" : "num mono",
+    text: confirmations === null ? "Pending" : formatNumber(confirmations),
+  });
 }
 
 /**
@@ -104,7 +106,6 @@ function utxoTable(
   ]);
   const body = el("tbody");
   for (const u of utxos) {
-    const pending = u.confirmations === null;
     body.appendChild(
       el("tr", { className: u.frozen ? "coin-frozen" : "" }, [
         ticked
@@ -126,10 +127,7 @@ function utxoTable(
           attrs: { title: u.address },
         }),
         el("td", { className: "num mono", text: formatNumber(u.value) }),
-        el("td", {
-          className: `num mono ${pending ? "pending" : ""}`.trim(),
-          text: u.confirmations === null ? "Pending" : formatNumber(u.confirmations),
-        }),
+        confCell(u.confirmations),
         el("td", { className: "num" }, [
           el("span", { className: "coin-freeze" }, [
             u.frozen ? el("span", { className: "coin-tag" }, [icon("lock", 12), "Frozen"]) : null,
@@ -142,14 +140,8 @@ function utxoTable(
   return el("div", { className: "table-wrap" }, [el("table", {}, [el("thead", {}, [head]), body])]);
 }
 
-/** How often the dashboard re-syncs while it is on screen and visible. */
-const AUTO_SYNC_MS = 60_000;
-
-/** What a row says about an output: ours is change on a send, a receipt otherwise. */
-function outputLabel(d: TxDetail, o: TxOutput): string {
-  if (!o.ours) return "To";
-  return d.net_sat < 0 ? "Change" : "Received";
-}
+/** What a row says about an output, by its `outputRole`. */
+const OUTPUT_LABELS = { recipient: "To", change: "Change", ours: "Received" } as const;
 
 type OpenRow = (tx: TxSummary, row: HTMLTableRowElement, chevron: HTMLElement) => void;
 
@@ -179,7 +171,6 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
   for (const tx of txs) {
     // `net_sat` is negative for a send, and the fee is already part of it.
     const incoming = tx.net_sat >= 0;
-    const pending = tx.confirmations === null;
     const chevron = el("span", { className: "tx-chevron" }, [icon("chevron", 14)]);
     const row = el("tr", {
       className: "tx-open",
@@ -200,10 +191,7 @@ function txTable(txs: TxSummary[], onOpen: OpenRow): HTMLElement {
         className: `num mono tx-amount ${incoming ? "tx-in" : ""}`.trim(),
         text: `${incoming ? "+" : "−"}${formatNumber(Math.abs(tx.net_sat))}`,
       }),
-      el("td", {
-        className: `num mono ${pending ? "pending" : ""}`.trim(),
-        text: tx.confirmations === null ? "Pending" : formatNumber(tx.confirmations),
-      }),
+      confCell(tx.confirmations),
       el("td", {
         className: "num muted",
         text: tx.timestamp === null ? "—" : formatWhen(tx.timestamp),
@@ -277,13 +265,13 @@ export function renderDashboard(): HTMLElement {
   const paintCoinCount = (): void => {
     const frozen = coins.filter((u) => u.frozen).length;
     const picked = chosen();
-    const parts = [`${formatNumber(coins.length)} coin${coins.length === 1 ? "" : "s"}`];
+    const parts = [counted(coins.length, "coin")];
     if (frozen > 0) parts.push(`${formatNumber(frozen)} frozen`);
     if (picked.length > 0) {
       parts.push(`${formatNumber(picked.length)} selected, ${formatSats(coinsValue(picked))}`);
     }
     utxoCount.textContent = parts.join(" · ");
-    // With none ticked, a send chooses its coins on its own, as it always has.
+    // With none ticked, a send chooses its coins on its own.
     sendSelectedBtn.hidden = picked.length === 0;
   };
 
@@ -328,10 +316,8 @@ export function renderDashboard(): HTMLElement {
 
   // --- the preview an open row holds -----------------------------------------
   //
-  // Speed up and Cancel each show a built preview before anything is signed.
-  // One row is open at a time and it offers one or the other, so there is at
-  // most one preview: dropped when it is replaced, when its row closes, when
-  // the history is redrawn under it and when the screen goes. What a row
+  // One row is open at a time, so this is its one preview: dropped too when
+  // its row closes and when the history is redrawn under it. What a row
   // builds counts only while that row is still the one open.
   const preview = heldPreview(alert);
 
@@ -345,31 +331,19 @@ export function renderDashboard(): HTMLElement {
   };
 
   /**
-   * After a broadcast from an open row. It went out; what is left is who
-   * hears of it. If the session has since moved to a different wallet, this
-   * result is not that wallet's to show: recording it here would leave a
-   * stale txid sitting where the new wallet's Result screen would read it as
-   * its own, so only a still-current wallet gets it recorded at all. From
-   * there, steal the screen only if this row's detail is still the one open —
-   * the user may have opened a different transaction's detail on this same
-   * dashboard while the broadcast was in flight.
+   * After a broadcast from an open row: Result opens only while that row is
+   * still the one open. With another open, a banner says it landed, in the
+   * Sent screen's words, so a silent success does not invite a second send.
    */
-  const broadcastDone = (result: BroadcastResult, ownerDetail: HTMLTableRowElement): void => {
-    if (!sameWallet()) return;
-    session.lastResult = result;
-    if (!onScreen()) return;
-    if (open?.detail === ownerDetail) {
-      closeDetail();
-      navigate("result");
-    } else {
-      // The row that started it is no longer the open detail, and
-      // closeDetail/navigate would steal a screen the user has since moved on
-      // from. Confirm it landed some other way, or a silent success invites a
-      // retry that does it twice. In the Sent screen's words: the id says
-      // which it was.
-      alert.show("ok", `${SENT_TITLE}: ${shortId(result.txid)}.`);
-    }
-  };
+  const broadcastDone = (result: BroadcastResult, ownerDetail: HTMLTableRowElement): void =>
+    recordSent(result, sameWallet, onScreen, () => {
+      if (open?.detail === ownerDetail) {
+        closeDetail();
+        navigate("result");
+      } else {
+        alert.show("ok", `${SENT_TITLE}: ${shortId(result.txid)}.`);
+      }
+    });
 
   const bumpInline = (
     txid: string,
@@ -378,10 +352,7 @@ export function renderDashboard(): HTMLElement {
   ): HTMLElement => {
     const rate = textInput({ value: String(suggested), type: "number", mono: true });
     rate.id = `bump-rate-${txid.slice(0, 8)}`;
-    rate.min = "1";
-    rate.max = String(MAX_FEE_RATE_SAT_VB);
-    rate.step = "0.1";
-    rate.classList.add("bump-rate");
+    boundRate(rate).classList.add("bump-rate");
     const bumpBtn = button(
       "Bump fee",
       () =>
@@ -432,8 +403,6 @@ export function renderDashboard(): HTMLElement {
       slot.replaceChildren();
       bump.classList.remove("hidden");
     };
-    // Signing used the preview up whether or not it went out, so after a
-    // failure the card has nothing left to send; asking again builds another.
     const confirm = () => preview.send(rowOpen, (r) => broadcastDone(r, ownerDetail), fold);
     const ask = async (): Promise<void> => {
       alert.hide();
@@ -508,9 +477,6 @@ export function renderDashboard(): HTMLElement {
       }
     };
 
-    // Nothing built to send — the last build failed, or is still running — or
-    // signing used it up: build another, so what the button would send is on
-    // screen again.
     const send = () => preview.send(rowOpen, (r) => broadcastDone(r, ownerDetail), rebuild);
 
     const targets = radioGroup(
@@ -552,7 +518,7 @@ export function renderDashboard(): HTMLElement {
       ["Fee", feeLine(d.fee_sat, d.vsize, d.fee_rate_sat_vb)],
       ["From", `${counted(d.inputs.length, "input")} · ${whoseInputs(d.inputs)}`],
       ...d.outputs.map((o): [string, Node] => [
-        outputLabel(d, o),
+        OUTPUT_LABELS[outputRole(d, o)],
         el("span", { className: "mono" }, [
           `${o.address ?? "script"} `,
           el("span", { className: "strong", text: formatSats(o.value_sat) }),
@@ -560,21 +526,15 @@ export function renderDashboard(): HTMLElement {
         ]),
       ]),
     ];
-    const actions = el("div", { className: "tx-detail-actions" }, [
+    const actions = el("div", { className: "actions" }, [
       copyButton(() => d.txid, "Copy transaction id", "sm"),
     ]);
     if (explorer !== null) {
       actions.appendChild(
-        button(
-          "Open in explorer",
-          () =>
-            void platform()
-              .openUrl(explorer)
-              .catch((e: unknown) => alert.show("warn", explorerFailed(errorMessage(e)))),
-          "default",
-          "sm",
-          { name: "external", size: 14 },
-        ),
+        button("Open in explorer", () => void openExplorer(explorer, alert), "default", "sm", {
+          name: "external",
+          size: 14,
+        }),
       );
     }
     const box = el("div", { className: "tx-detail-box" }, [kv(rows), actions]);
@@ -591,21 +551,15 @@ export function renderDashboard(): HTMLElement {
     return box;
   };
 
-  /**
-   * Nothing can be signed without a key, and nothing confirmed needs speeding
-   * up. Our own unconfirmed send is sped up by replacing it, or taken back; a
-   * child is for what replacement cannot reach, a payment someone else sent
-   * above all.
-   */
+  /** The offer, with the rate a replacement starts from or the estimate a child is priced from. */
   const offerFor = async (d: TxDetail): Promise<Offer> => {
-    if (wallet.is_watch_only || d.confirmations !== null) return { kind: "none" };
-    if (isBumpable(d)) {
-      // Without an estimate the original's own rate still sets the floor.
-      const estimate = await api.estimateFee().catch(() => null);
-      return { kind: "replace", rate: suggestBumpRate(estimate, d.fee_rate_sat_vb) };
-    }
-    if (!canPayForParent(d, await api.listUtxos())) return { kind: "none" };
-    return { kind: "child", estimate: await api.estimateFee().catch(() => null) };
+    const kind = await offerKind(d, wallet.is_watch_only);
+    if (kind === "none") return { kind };
+    // Without an estimate the original's own rate still sets a replacement's floor.
+    const estimate = await api.estimateFee().catch(() => null);
+    return kind === "replace"
+      ? { kind, rate: suggestBumpRate(estimate, d.fee_rate_sat_vb) }
+      : { kind, estimate };
   };
 
   const openDetail: OpenRow = (tx, row, chevron) => {
@@ -720,18 +674,7 @@ export function renderDashboard(): HTMLElement {
     trailing: true,
   });
 
-  const closeBtn = button(
-    "Close wallet",
-    () =>
-      withBusy(closeBtn, async () => {
-        try {
-          await api.closeWallet();
-        } finally {
-          navigate(session.remembered ? "unlock" : "key");
-        }
-      }),
-    "danger",
-  );
+  const closeBtn = button("Close wallet", () => withBusy(closeBtn, closeThisWallet), "danger");
 
   // --- receive: the address, its QR, and an optional amount request -------
   //
@@ -750,39 +693,13 @@ export function renderDashboard(): HTMLElement {
   const uriNote = el("span", { className: "hint mono break" });
   let requestUnit: Unit = "sat";
 
-  /** What is shared: the bare address, or a bitcoin: URI once an amount is set. */
-  const sharePayload = (): string => {
-    const parsed = parseAmount(requestAmount.value, requestUnit);
-    requestErr.textContent = parsed.error ?? "";
-    requestAmount.classList.toggle("input-invalid", parsed.error !== null);
-    return parsed.sats === null
-      ? receiving
-      : buildPaymentUri({ address: receiving, amountSat: parsed.sats });
-  };
-
-  const paintQr = async () => {
-    const share = sharePayload();
-    uriNote.textContent = share === receiving ? "" : share;
-    qrCanvas.setAttribute(
-      "aria-label",
-      share === receiving ? "QR code of the receiving address" : "QR code of the payment request",
-    );
-    try {
-      await QRCode.toCanvas(qrCanvas, qrPayload(share), {
-        errorCorrectionLevel: "M",
-        margin: 1,
-        width: 120,
-        color: { dark: "#1a1a1aff", light: "#ffffffff" },
-      });
-    } catch (e) {
-      alert.show("warn", errorMessage(e));
-    }
-  };
+  const sharePayload = (): string =>
+    receivePayload(receiving, requestAmount, requestUnit, requestErr);
+  const paintQr = () => drawReceiveQr(qrCanvas, uriNote, receiving, sharePayload(), 120, alert);
   requestAmount.addEventListener("input", () => void paintQr());
   const units = unitChips("request_unit", (unit) => {
-    const parsed = parseAmount(requestAmount.value, requestUnit);
+    convertField(requestAmount, requestUnit, unit);
     requestUnit = unit;
-    if (parsed.sats !== null) requestAmount.value = formatAmount(parsed.sats, unit);
     void paintQr();
   });
 
@@ -884,16 +801,10 @@ export function renderDashboard(): HTMLElement {
     el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);
 
-  // Keep the wallet fresh while this screen is open. The router swaps screens
-  // without a teardown hook, so the timer retires itself once the node is gone.
-  const timer = window.setInterval(() => {
-    if (!screen.isConnected) {
-      window.clearInterval(timer);
-      return;
-    }
-    if (document.hidden) return;
-    void withBusy(syncBtn, () => runSync(true));
-  }, AUTO_SYNC_MS);
+  // A sync still running keeps the button busy: `withBusy` would turn it back on.
+  autoSync(screen, () => {
+    if (!syncing) void withBusy(syncBtn, () => runSync(true));
+  });
 
   return screen;
 }

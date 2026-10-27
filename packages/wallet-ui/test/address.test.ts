@@ -64,8 +64,7 @@ describe("addressError", () => {
     expect(addressError(MAINNET_B58, "bitcoin")).toBeNull();
   });
 
-  // The mistake people actually make, and the one worth naming precisely:
-  // paying a mainnet address from a test wallet, or the reverse.
+  // The usual mistake: paying a mainnet address from a test wallet, or the reverse.
   it("names the network an address is actually for", () => {
     expect(addressError(MAINNET_BECH32, "signet")).toBe(
       "Not a Signet address — this one is for Bitcoin mainnet.",

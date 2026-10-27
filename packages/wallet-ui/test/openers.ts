@@ -36,6 +36,13 @@ export interface Opener {
   press: string;
 }
 
+/** The opener named `name`; a name that matches none fails at once. */
+export function openerNamed(name: string): Opener {
+  const found = OPENERS.find((o) => o.name === name);
+  if (!found) throw new Error(`no opener named ${name}`);
+  return found;
+}
+
 export const OPENERS: readonly Opener[] = [
   {
     name: "desktop Unlock",

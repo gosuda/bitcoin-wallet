@@ -1,18 +1,28 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/api";
-import { renderTransaction, showTransaction } from "../src/mobile/screens/tx";
 import { renderDashboard } from "../src/screens/dashboard";
 import { session } from "../src/session";
 import type { FeeTarget, TxDetail } from "../src/types";
-import { fake } from "./fakes";
-import { at, buttonNamed, find, leaveTo, mount, settle, type, useScreenHarness } from "./harness";
+import { fake, n } from "./fakes";
+import {
+  BROADCAST,
+  buttonNamed,
+  expectDropped,
+  find,
+  holdBroadcast,
+  leaveTo,
+  settle,
+  showAt,
+  showPhoneTx,
+  type,
+  useScreenHarness,
+} from "./harness";
 
 useScreenHarness();
 
 // The two unconfirmed rows board 3c draws open, with its numbers.
 const INCOMING = "d0ff3c6274ec32caad0106af2f8e7b89e266655a59c71e6ce20890e9679c6d46";
-const OUTGOING = "772eeeec07e1338eb286f2cfc3455011a5fd69335c5b7d07bbcac8eb810de03a";
 
 /** 30,000 sat paid to this wallet by someone else, at 1 sat/vB. */
 const payment = (confirmations: number | null = null): TxDetail => ({
@@ -34,23 +44,9 @@ const payment = (confirmations: number | null = null): TxDetail => ({
 });
 
 /** 40,000 sat sent from this wallet at 1 sat/vB, with its change back. */
-const sent = (confirmations: number | null = null): TxDetail => ({
-  txid: OUTGOING,
-  net_sat: -40_153,
-  sent_sat: 49_580,
-  received_sat: 9_427,
-  fee_sat: 153,
-  fee_rate_sat_vb: 1,
-  confirmations,
-  block_height: confirmations === null ? null : 324_051,
-  timestamp: 1_790_000_000,
-  vsize: 153,
-  inputs: [{ txid: "cd".repeat(32), vout: 1, value_sat: 49_580, ours: true }],
-  outputs: [
-    { address: "tb1p5n82a6xmp47yhkkc007dzr4k32", value_sat: 40_000, ours: false },
-    { address: fake.ADDRESS, value_sat: 9_427, ours: true },
-  ],
-});
+const sent = (confirmations: number | null = null): TxDetail =>
+  fake.sentTx("tb1p5n82a6xmp47yhkkc007dzr4k32", confirmations);
+const OUTGOING = sent().txid;
 
 /** Puts `txs` in the wallet's history, each with the unspent coin it left this wallet. */
 function history(...txs: TxDetail[]): void {
@@ -71,8 +67,6 @@ function history(...txs: TxDetail[]): void {
     });
   }
 }
-
-const n = (sats: number): string => sats.toLocaleString();
 
 /** The buttons named `name` exactly, or whose name matches it. */
 function buttons(root: ParentNode, name: string | RegExp): HTMLButtonElement[] {
@@ -105,9 +99,7 @@ const DESKTOP: Shell = {
   shell: "desktop",
   async show(txid) {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    at("dashboard");
-    const screen = mount(renderDashboard());
-    await settle();
+    const screen = await showAt("dashboard", renderDashboard);
     // The row opens from any of its cells.
     find<HTMLElement>(screen, `td[title="${txid}"]`).click();
     await settle();
@@ -126,13 +118,7 @@ const PHONE: Shell = {
   shell: "phone",
   async show(txid) {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
-    // Already on the route, so choosing the row starts no navigation that
-    // would retire the screen about to be built.
-    at("tx");
-    showTransaction(txid);
-    const screen = mount(renderTransaction());
-    await settle();
-    return screen;
+    return showPhoneTx(txid);
   },
   target(screen, blocks) {
     const group = find(screen, "[role=radiogroup][aria-label='Fee target']");
@@ -205,9 +191,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 2]);
     expect(screen.textContent).toMatch(/raised above the 1\.0 sat\/vB it pays alone/i);
     expect(discardTx).toHaveBeenCalledWith(first.psbt_id);
-    await expect(api.signAndBroadcast(first.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(first.psbt_id);
   });
 
   it("Cancel asks first: Keep it sends nothing, and Cancel transaction sends it", async () => {
@@ -225,9 +209,7 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     await settle();
     expect(screen.textContent).not.toContain(card);
     const kept = await buildCancel.mock.results[0]?.value;
-    await expect(api.signAndBroadcast(kept.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(kept.psbt_id);
     expect(fake.callNames()).not.toContain("sign");
     expect(fake.callNames()).not.toContain("broadcast");
 
@@ -251,9 +233,39 @@ describe.each([DESKTOP, PHONE])("Speed up and Cancel on the $shell (6.14)", (she
     leaveTo("settings");
 
     expect(discardTx).toHaveBeenCalledWith(held.psbt_id);
-    await expect(api.signAndBroadcast(held.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(held.psbt_id);
+  });
+
+  it("a Bump fee that lands after the screen is left is recorded, and opens nothing", async () => {
+    history(sent());
+    const screen = await shell.show(OUTGOING);
+    const broadcast = holdBroadcast();
+    buttonNamed(screen, "Bump fee").click();
+    await settle();
+
+    leaveTo("settings");
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult?.txid).toBe(BROADCAST.txid);
+    expect(window.location.hash).toBe("#/settings");
+  });
+
+  it("a Bump fee that lands once another wallet is open is not recorded for it", async () => {
+    history(sent());
+    const screen = await shell.show(OUTGOING);
+    const here = window.location.hash;
+    const broadcast = holdBroadcast();
+    buttonNamed(screen, "Bump fee").click();
+    await settle();
+
+    vi.spyOn(fake.FakeWallet.prototype, "id", "get").mockReturnValue("testnet4-p2wpkh-other");
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult).toBeNull();
+    expect(window.location.hash).toBe(here);
   });
 });
 
@@ -270,8 +282,8 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
         cards.findIndex((c) => c.querySelector(".section-label")?.textContent === label);
       expect(place(action), action).toBeGreaterThan(0);
       expect(place(action), action).toBeLessThan(place("Transaction id"));
-      // Found in review: with every address whole, the outputs pushed Bump
-      // fee below the fold of a 375×667 phone.
+      // With every address whole, the outputs would push Bump fee below the
+      // fold of a 375×667 phone.
       const outputs = cards.findIndex((c) =>
         c.querySelector(".section-label")?.textContent?.startsWith("Outputs"),
       );
@@ -279,7 +291,6 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     }
   });
 
-  // Found in review: the field had no name once the button stopped naming the rate.
   it("names Bump fee's rate field for a screen reader", async () => {
     history(sent());
     const screen = await PHONE.show(OUTGOING);
@@ -306,9 +317,7 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     expect(buttons(screen, "Bump fee")).toHaveLength(1);
     expect(buttonNamed(screen, "Cancel")).toBeTruthy();
     const dropped = await buildCancel.mock.results[0]?.value;
-    await expect(api.signAndBroadcast(dropped.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(dropped.psbt_id);
   });
 
   it("builds a Custom rate only above what the transaction pays alone", async () => {
@@ -331,8 +340,7 @@ describe("Speed up and Cancel on the phone, as M11b and M11c draw them", () => {
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.5]);
     expect(screen.textContent).toContain("7.5 sat/vB for the two together");
 
-    // Found by cubic: 7.55 read "7.5 sat/vB" and was built at 7.55. It is
-    // rounded up to a tenth, and built at what it says.
+    // Rounded up to a tenth, and built at what it says.
     type(rate, "7.55");
     await settle();
     expect(fake.calls).toContainEqual(["build_cpfp", INCOMING, 7.6]);

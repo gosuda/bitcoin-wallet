@@ -4,7 +4,7 @@
 //! (feature `keystore-native`) stores it in the OS credential store — macOS
 //! Keychain, Windows Credential Manager, Secret Service on Linux, iOS Keychain,
 //! Android Keystore — so a wallet can be unlocked on later launches without
-//! re-entering the key. Browser builds get their own implementation later.
+//! re-entering the key.
 //!
 //! Mobile takes a different route to the same place. `keyring`'s `v1` wrapper
 //! finds and installs the platform store itself on desktop, but on iOS and
@@ -14,11 +14,6 @@
 //! themselves — Keychain Services in `protected` mode on iOS, and on Android
 //! SharedPreferences encrypted under an AES/GCM key held in the Android
 //! Keystore.
-//!
-//! That difference is invisible to the compiler: a missing store is a runtime
-//! failure on a device that builds perfectly well on CI. [`NativeKeystore::
-//! self_check`] exists so the app can find out at startup instead of when a
-//! user first presses "Remember".
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -47,6 +42,11 @@ fn probe_entry_name() -> String {
         std::process::id(),
         PROBE_SEQ.fetch_add(1, Ordering::Relaxed)
     )
+}
+
+#[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
+fn persist_err(e: impl std::fmt::Display) -> Error {
+    Error::Persist(e.to_string())
 }
 
 /// Storage for unlock material, keyed by a wallet identifier.
@@ -145,17 +145,15 @@ mod backend {
     }
 }
 
-/// The wire shape [`KeyMaterial`] used to serialize as, kept private to this
+/// The wire form of [`KeyMaterial`] in the credential store, private to this
 /// module.
 ///
 /// `KeyMaterial` itself does not derive `Serialize`/`Deserialize`: every
 /// variant is either a secret or, for `WatchOnly`, material meant to move
 /// only through this module's own API, and a derive would make
 /// `serde_json::to_string(&key)` compile anywhere in the crate with nothing
-/// marking it as reading out spending material. This mirrors the exact enum
-/// shape the derive used to produce — same variant names, same
-/// `rename_all = "snake_case"`, same fields — so an entry a previous build
-/// wrote to the credential store still loads.
+/// marking it as reading out spending material. Its variant names, casing
+/// and fields are those of the entries already stored, so they keep loading.
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 #[derive(Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 #[serde(rename_all = "snake_case")]
@@ -187,10 +185,9 @@ impl From<&KeyMaterial> for StoredKey {
 #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
 impl From<StoredKey> for KeyMaterial {
     fn from(stored: StoredKey) -> Self {
-        // `ref` bindings, not a move: `StoredKey` now zeroizes on drop, and
-        // Rust refuses to move a field out of a type that does. `stored`
-        // stays fully intact and gets wiped when it drops at the end of this
-        // call, after these clones have handed the data to the new value.
+        // `ref` bindings, not a move: `StoredKey` zeroizes on drop, and Rust
+        // refuses to move a field out of a type that does. `stored` is wiped
+        // when it drops at the end of this call, after the clones.
         match stored {
             StoredKey::PrivHex(ref s) => KeyMaterial::PrivHex(s.clone()),
             StoredKey::Wif(ref s) => KeyMaterial::Wif(s.clone()),
@@ -236,22 +233,13 @@ impl NativeKeystore {
     /// user has asked for anything, and there a failed store install already
     /// surfaces as `NoDefaultStore`.
     pub fn self_check(&self) -> Result<()> {
-        backend::prepare().map_err(Error::Persist)?;
-        // A name of its own per call. The probe writes, reads back and deletes,
-        // so two checks running at once on one name race: the first deletes the
-        // credential the second is about to read, and a working credential
-        // store is reported broken.
         let entry = self.entry(&probe_entry_name())?;
 
         #[cfg(any(target_os = "ios", target_os = "android"))]
         {
             const PROBE: &str = "wallet-core self check";
-            entry
-                .set_password(PROBE)
-                .map_err(|e| Error::Persist(e.to_string()))?;
-            let got = entry
-                .get_password()
-                .map_err(|e| Error::Persist(e.to_string()))?;
+            entry.set_password(PROBE).map_err(persist_err)?;
+            let got = entry.get_password().map_err(persist_err)?;
             // Best effort: leaving the probe behind is untidy, not unsafe.
             let _ = entry.delete_credential();
             if got != PROBE {
@@ -267,7 +255,7 @@ impl NativeKeystore {
 
     fn entry(&self, wallet_id: &str) -> Result<backend::Entry> {
         backend::prepare().map_err(Error::Persist)?;
-        backend::Entry::new(&self.service, wallet_id).map_err(|e| Error::Persist(e.to_string()))
+        backend::Entry::new(&self.service, wallet_id).map_err(persist_err)
     }
 }
 
@@ -277,29 +265,26 @@ impl Keystore for NativeKeystore {
         match self.entry(wallet_id)?.get_password() {
             Ok(json) => {
                 let json = Zeroizing::new(json);
-                let stored: StoredKey =
-                    serde_json::from_str(&json).map_err(|e| Error::Persist(e.to_string()))?;
+                let stored: StoredKey = serde_json::from_str(&json).map_err(persist_err)?;
                 Ok(Some(stored.into()))
             }
             Err(backend::Error::NoEntry) => Ok(None),
-            Err(e) => Err(Error::Persist(e.to_string())),
+            Err(e) => Err(persist_err(e)),
         }
     }
 
     fn store(&self, wallet_id: &str, key: KeyMaterial) -> Result<()> {
-        let json = Zeroizing::new(
-            serde_json::to_string(&StoredKey::from(&key))
-                .map_err(|e| Error::Persist(e.to_string()))?,
-        );
+        let json =
+            Zeroizing::new(serde_json::to_string(&StoredKey::from(&key)).map_err(persist_err)?);
         self.entry(wallet_id)?
             .set_password(&json)
-            .map_err(|e| Error::Persist(e.to_string()))
+            .map_err(persist_err)
     }
 
     fn remove(&self, wallet_id: &str) -> Result<()> {
         match self.entry(wallet_id)?.delete_credential() {
             Ok(()) | Err(backend::Error::NoEntry) => Ok(()),
-            Err(e) => Err(Error::Persist(e.to_string())),
+            Err(e) => Err(persist_err(e)),
         }
     }
 }
@@ -319,12 +304,8 @@ mod tests {
         assert_ne!(probe_entry_name(), probe_entry_name());
     }
 
-    /// The OS credential store holds JSON built from `StoredKey`, not
-    /// `KeyMaterial` directly, precisely so this shape can be pinned without
-    /// giving every caller of `serde_json::to_string` a `KeyMaterial` it can
-    /// accidentally serialize: entries written before HD support, or by an
-    /// older build, must keep loading, and every current variant must
-    /// round-trip through it.
+    /// The JSON shape of `StoredKey` is pinned: entries already stored keep
+    /// loading, and every variant round-trips.
     #[test]
     #[cfg(all(feature = "keystore-native", not(target_arch = "wasm32")))]
     fn stored_key_json_shape_is_stable() {

@@ -7,8 +7,7 @@ describe("parseAmount, sat", () => {
     expect(parseAmount("  21000  ", "sat")).toEqual({ sats: 21000, error: null });
   });
 
-  // The bug this module exists for: a phone keypad offers "e", and
-  // Number("1e5") is 100000 — so a typo used to become a real amount.
+  // A phone keypad offers "e", and Number("1e5") is 100000.
   it("refuses exponent notation rather than reading it as a number", () => {
     expect(parseAmount("1e5", "sat").sats).toBeNull();
     expect(parseAmount("1e5", "sat").error).toBe("Enter a whole number of sat.");

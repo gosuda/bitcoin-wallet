@@ -1,14 +1,15 @@
 import { api } from "../../api";
-import { navigate } from "../../router";
-import { routeGuard } from "../../screen";
+import { redirect, routeGuard } from "../../screen";
 import { session } from "../../session";
-import { errorMessage, type WordCount } from "../../types";
-import { type Banner, banner, el, textInput } from "../../ui/dom";
+import { type AppConfig, errorMessage, type WordCount } from "../../types";
+import { banner, el, textInput } from "../../ui/dom";
+import { openAndEnter } from "../../ui/open";
 import { rememberCheckbox } from "../../ui/remember";
-import type { HistoryReset } from "../../ui/reset";
 import {
   KEY_SHOWN_ONCE,
   MISSING_WORDS,
+  NO_PRIVATE_KEY,
+  NO_WATCH_SOURCE,
   PASSPHRASE_HINT,
   PRIVATE_KEY_HINT,
   PRIVATE_KEY_PLACEHOLDER,
@@ -26,7 +27,7 @@ import {
   labelled,
   lede,
   spacer,
-  withBusy,
+  withLock,
 } from "../ui";
 
 type Mode = "phrase" | "key" | "watch";
@@ -42,44 +43,19 @@ export function setRestoreMode(next: Mode): void {
 }
 
 export function renderRestore(): HTMLElement {
-  if (mode === "key") return singleKey();
-  if (mode === "watch") return watchOnly();
-  return phrase();
+  const cfg = session.config;
+  if (!cfg) return redirect("setup");
+  if (mode === "key") return singleKey(cfg);
+  if (mode === "watch") return watchOnly(cfg);
+  return phrase(cfg);
 }
 
-/**
- * The open behind each door's button; `reset` goes through the api's history
- * reset. The wallet is open once it returns, whatever screen is up by then,
- * but only the door still on screen moves on to it, or offers a reset for a
- * failure, which runs `again`.
- */
-async function openWith(
-  secret: string,
-  remember: boolean,
-  passphrase: string | undefined,
-  { alert, offer, onScreen }: { alert: Banner; offer: HistoryReset; onScreen: () => boolean },
-  reset: boolean,
-  again: () => Promise<void>,
-): Promise<void> {
-  try {
-    alert.hide();
-    const cfg = session.config;
-    if (!cfg) return navigate("setup");
-    const open = reset ? api.resetHistoryAndOpen : api.openWallet;
-    await open(secret, cfg.address_type, remember, passphrase);
-    session.remembered = await api.getRemembered();
-    if (onScreen()) navigate("dashboard");
-  } catch (e) {
-    if (onScreen()) offer.report(e, again);
-  }
-}
-
-function phrase(): HTMLElement {
+function phrase(cfg: AppConfig): HTMLElement {
   // `routeGuard`, not `screenGuard`: opening is what sets `session.wallet`.
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => gate());
   const passphrase = textInput({ placeholder: "Leave empty for none", name: "passphrase" });
   passphrase.type = "password";
 
@@ -94,8 +70,6 @@ function phrase(): HTMLElement {
     }
   };
 
-  // Named `size`, not `count`: the word-count chips below are `count`, and a
-  // paste handler built in here needs to reach them.
   const build = (size: WordCount) => {
     inputs = Array.from({ length: size }, (_, i) => {
       const input = wordInput(i + 1);
@@ -108,9 +82,7 @@ function phrase(): HTMLElement {
         const words = text.trim().split(/\s+/).filter(Boolean);
         if (words.length < 2) return;
         ev.preventDefault();
-        // A whole phrase says how long it is. Pasting 24 words into the 12-word
-        // grid used to drop the last twelve silently, leaving a phrase that
-        // cannot restore anything and no clue why.
+        // A whole phrase says how long it is, and the grid takes that length.
         if (words.length === 12 || words.length === 24) {
           const size: WordCount = words.length === 24 ? 24 : 12;
           // Rebuilds the grid through the chips, so the control and the grid
@@ -143,16 +115,14 @@ function phrase(): HTMLElement {
     { label: "Word count" },
   );
   build(12);
-  // Typed words are secret, and so is the passphrase: out of the DOM the
-  // moment the route changes. `inputs` is read late because the grid can be
-  // rebuilt for 24 words after this is armed.
-  wipeOnLeave(() => [...inputs, passphrase]);
+  const fields = () => [...inputs, passphrase];
+  wipeOnLeave(fields);
 
-  const door = { alert, offer, onScreen };
+  const door = { cfg, alert, offer, onScreen, remember, fields };
   const restore = async (reset = false): Promise<void> => {
     const typed = inputs.map((i) => i.value.trim().toLowerCase()).filter(Boolean);
     // Every cell first, as the desktop waits for: a blank before an unknown
-    // word would shift the number the core names it by. Found by cubic.
+    // word would shift the number the core names it by.
     if (typed.length < inputs.length) {
       alert.show("error", MISSING_WORDS);
       return;
@@ -161,15 +131,16 @@ function phrase(): HTMLElement {
     try {
       await api.validateMnemonic(words);
     } catch (e) {
-      // As the desktop says it: an unknown word by its place in the grid.
       if (onScreen()) alert.show("error", phraseError(errorMessage(e), typed));
       return;
     }
-    await openWith(words, remember.checked(), passphrase.value || undefined, door, reset, () =>
-      restore(true),
-    );
+    await openAndEnter(words, passphrase.value || undefined, door, reset, () => restore(true));
   };
-  const go = button("Restore wallet", () => withBusy(go, restore), {
+  // Off while a ticked Remember waits for its app password.
+  const gate = () => {
+    go.disabled = !remember.ready();
+  };
+  const go = button("Restore wallet", () => void withLock(go, restore).finally(gate), {
     variant: "primary",
     block: true,
   });
@@ -192,11 +163,11 @@ function phrase(): HTMLElement {
   ]);
 }
 
-function singleKey(): HTMLElement {
+function singleKey(cfg: AppConfig): HTMLElement {
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => gate());
   const secret = textInput({
     type: "password",
     mono: true,
@@ -205,26 +176,37 @@ function singleKey(): HTMLElement {
   });
   secret.setAttribute("autocapitalize", "none");
   secret.setAttribute("autocorrect", "off");
-  wipeOnLeave(() => [secret]);
+  const fields = () => [secret];
+  wipeOnLeave(fields);
 
-  const door = { alert, offer, onScreen };
-  const open = (reset = false): Promise<void> =>
-    openWith(secret.value.trim(), remember.checked(), undefined, door, reset, () => open(true));
-  const go = button("Open wallet", () => withBusy(go, open), { variant: "primary", block: true });
-
-  const generate = button("Generate new key", async () => {
-    alert.hide();
-    const cfg = session.config;
-    if (!cfg) return navigate("setup");
-    try {
-      const key = await api.generateKey(cfg.network, cfg.address_type);
-      secret.value = key.wif;
-      secret.type = "text";
-      alert.show("warn", KEY_SHOWN_ONCE);
-    } catch (e) {
-      alert.show("error", errorMessage(e));
-    }
+  const door = { cfg, alert, offer, onScreen, remember, fields };
+  const open = async (reset = false): Promise<void> => {
+    const value = secret.value.trim();
+    if (!value) return alert.show("error", NO_PRIVATE_KEY);
+    await openAndEnter(value, undefined, door, reset, () => open(true));
+  };
+  const gate = () => {
+    go.disabled = !remember.ready();
+  };
+  const go = button("Open wallet", () => void withLock(go, open).finally(gate), {
+    variant: "primary",
+    block: true,
   });
+
+  const generate = button("Generate new key", () =>
+    withLock(generate, async () => {
+      alert.hide();
+      try {
+        const key = await api.generateKey(cfg.network, cfg.address_type);
+        if (!onScreen()) return;
+        secret.value = key.wif;
+        secret.type = "text";
+        alert.show("warn", KEY_SHOWN_ONCE);
+      } catch (e) {
+        if (onScreen()) alert.show("error", errorMessage(e));
+      }
+    }),
+  );
 
   return el("main", {}, [
     header("Single key", { back: "key" }),
@@ -245,16 +227,16 @@ function singleKey(): HTMLElement {
  * another wallet. The core reads it the same way it reads a key, so the open
  * path is shared; what differs is what the user is told it can do.
  */
-function watchOnly(): HTMLElement {
+function watchOnly(cfg: AppConfig): HTMLElement {
   const onScreen = routeGuard();
   const alert = banner();
   const offer = historyReset(alert);
-  const remember = rememberCheckbox();
+  const remember = rememberCheckbox(() => gate());
   const source = el("textarea", {
     attrs: {
       rows: "3",
       name: "descriptor",
-      placeholder: watchPlaceholder(session.config?.network),
+      placeholder: watchPlaceholder(cfg.network),
       spellcheck: "false",
       autocapitalize: "off",
       autocomplete: "off",
@@ -262,12 +244,19 @@ function watchOnly(): HTMLElement {
   });
   // Not spendable, but it reveals the wallet's whole history and every
   // future address — the same reason Export warns before it is shared.
-  wipeOnLeave(() => [source]);
+  const fields = () => [source];
+  wipeOnLeave(fields);
 
-  const door = { alert, offer, onScreen };
-  const follow = (reset = false): Promise<void> =>
-    openWith(source.value.trim(), remember.checked(), undefined, door, reset, () => follow(true));
-  const go = button("Follow this wallet", () => withBusy(go, follow), {
+  const door = { cfg, alert, offer, onScreen, remember, fields };
+  const follow = async (reset = false): Promise<void> => {
+    const value = source.value.trim();
+    if (!value) return alert.show("error", NO_WATCH_SOURCE);
+    await openAndEnter(value, undefined, door, reset, () => follow(true));
+  };
+  const gate = () => {
+    go.disabled = !remember.ready();
+  };
+  const go = button("Follow this wallet", () => void withLock(go, follow).finally(gate), {
     variant: "primary",
     block: true,
     icon: "eye",

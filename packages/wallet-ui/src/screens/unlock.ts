@@ -59,7 +59,6 @@ export function renderUnlock(): HTMLElement {
   const gate = () => {
     unlockBtn.disabled = password !== null && password.input.value === "";
   };
-  // `withBusy` enables the button again, so the gate is put back once it settles.
   const unlockBtn = button(
     "Unlock",
     () => void withBusy(unlockBtn, unlock).finally(gate),
@@ -78,15 +77,13 @@ export function renderUnlock(): HTMLElement {
     gate();
   }
 
-  // Two-step inline confirm: the slot swaps between the trigger and the prompt.
+  // Two-step inline confirm: the trigger stays in the actions row, and the prompt opens below it.
   const forgetSlot = el("span", { className: "push-end" });
   const showTrigger = () => {
     forgetSlot.replaceChildren(forgetBtn);
   };
   const forgetBtn = button("Forget this wallet", () => showConfirm(), "quiet");
   forgetBtn.classList.add("btn-quiet-danger");
-  // The second step Settings has, in the same words: what is deleted and
-  // what brings the wallet back, then Keep it or Delete it.
   const confirmSlot = el("div", { className: "slot" });
   const showConfirm = () => askForget(confirmSlot, forgetBtn, forgetWarning(null), alert, true);
   showTrigger();

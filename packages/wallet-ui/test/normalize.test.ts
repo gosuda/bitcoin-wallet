@@ -38,7 +38,6 @@ describe("toFeeEstimate", () => {
 });
 
 describe("toUtxo", () => {
-  // The bug from 2026-09-28: an unconfirmed output rendered "undefined".
   it("turns a missing confirmation count into null", () => {
     const raw = { txid: "ab", vout: 1, value: 1000, confirmations: undefined, address: "tb1q" };
     expect(toUtxo(raw)).toEqual({

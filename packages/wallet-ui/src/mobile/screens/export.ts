@@ -1,11 +1,10 @@
-import QRCode from "qrcode";
-
 import { api } from "../../api";
 import { redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { errorMessage, type PublicDescriptors } from "../../types";
 import { copyButton } from "../../ui/clipboard";
 import { banner, el, sectionLabel } from "../../ui/dom";
+import { drawQr } from "../../ui/qr";
 import { copyDescriptorsLabel, PUBLIC_KEYS_NOTE } from "../../ui/text";
 import { body, card, header, lede, row } from "../ui";
 
@@ -35,16 +34,7 @@ export function renderExport(): HTMLElement {
       );
       keys.classList.add("m-centre-items");
       sections.push(keys);
-      try {
-        await QRCode.toCanvas(canvas, xpub, {
-          errorCorrectionLevel: "M",
-          margin: 1,
-          width: 150,
-          color: { dark: "#1a1a1aff", light: "#ffffffff" },
-        });
-      } catch (e) {
-        alert.show("warn", errorMessage(e));
-      }
+      await drawQr(canvas, xpub, 150, alert);
       if (!onScreen()) return;
     }
     const both = d.internal === null ? d.external : `${d.external}\n${d.internal}`;

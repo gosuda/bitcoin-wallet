@@ -28,15 +28,15 @@ impl Network {
     }
 
     /// Parse from [`Network::id`] (also accepts a few common aliases).
-    pub fn parse(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "bitcoin" | "mainnet" | "btc" => Some(Network::Bitcoin),
-            "testnet3" | "testnet" | "btc-testnet3" => Some(Network::Testnet3),
-            "testnet4" | "btc-testnet4" => Some(Network::Testnet4),
-            "signet" | "btc-signet" => Some(Network::Signet),
-            "regtest" => Some(Network::Regtest),
-            _ => None,
-        }
+    pub fn parse(s: &str) -> Result<Self, String> {
+        Ok(match s.to_ascii_lowercase().as_str() {
+            "bitcoin" | "mainnet" | "btc" => Network::Bitcoin,
+            "testnet3" | "testnet" | "btc-testnet3" => Network::Testnet3,
+            "testnet4" | "btc-testnet4" => Network::Testnet4,
+            "signet" | "btc-signet" => Network::Signet,
+            "regtest" => Network::Regtest,
+            _ => return Err(format!("unknown network '{s}'")),
+        })
     }
 
     /// Default public Esplora endpoint for this network (mempool.space).
@@ -74,13 +74,11 @@ impl Network {
             .next()
             .unwrap_or("");
         // Drop any userinfo and port: blockstream.info:443 is the same explorer
-        // as blockstream.info, and comparing the raw authority sent a user with
-        // an explicit port to mempool.space instead of their own backend.
+        // as blockstream.info.
         let host = authority.rsplit('@').next().unwrap_or(authority);
         let host = host.split(':').next().unwrap_or(host);
         // blockstream.info does not serve testnet4. Hostnames are
-        // case-insensitive, and a backend typed with any capitals matched
-        // nothing and sent its own transactions to mempool.space.
+        // case-insensitive.
         let base = if host.eq_ignore_ascii_case("blockstream.info") && self != Network::Testnet4 {
             "https://blockstream.info"
         } else {
@@ -130,7 +128,7 @@ mod tests {
             Network::Regtest,
         ];
         for n in all {
-            assert_eq!(Network::parse(n.id()), Some(n));
+            assert_eq!(Network::parse(n.id()), Ok(n));
             let back: Network = bitcoin::Network::from(n).try_into().unwrap();
             assert_eq!(back, n);
         }
@@ -138,9 +136,9 @@ mod tests {
 
     #[test]
     fn go_aliases() {
-        assert_eq!(Network::parse("btc"), Some(Network::Bitcoin));
-        assert_eq!(Network::parse("btc-testnet4"), Some(Network::Testnet4));
-        assert_eq!(Network::parse("nope"), None);
+        assert_eq!(Network::parse("btc"), Ok(Network::Bitcoin));
+        assert_eq!(Network::parse("btc-testnet4"), Ok(Network::Testnet4));
+        assert_eq!(Network::parse("nope"), Err("unknown network 'nope'".into()));
     }
 
     #[test]
@@ -158,9 +156,8 @@ mod tests {
                 .as_deref(),
             Some("https://blockstream.info/signet/tx/ab")
         );
-        // An explicit port names the same explorer. Comparing the whole
-        // authority sent these users to a different one than they configured.
-        // …and so does any capitalisation: hostnames are case-insensitive.
+        // Userinfo, an explicit port and any capitalisation name the same
+        // explorer.
         for url in [
             "https://blockstream.info:443/signet/api",
             "https://user@blockstream.info:443/signet/api",

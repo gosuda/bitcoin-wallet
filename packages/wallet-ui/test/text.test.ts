@@ -39,8 +39,7 @@ describe("the sentences both Send screens say", () => {
   });
 });
 
-// Found in review: the core's words reached the screen in lower case, as did
-// a few of the UI's own.
+// The core's messages, and a few of the UI's own, start in lower case.
 describe("sentence", () => {
   it("writes a message with a capital and a full stop", () => {
     expect(sentence("backend error: HTTP 503")).toBe("Backend error: HTTP 503.");
@@ -49,7 +48,6 @@ describe("sentence", () => {
       "PSBT error: input 0 is not signed.",
     );
     expect(sentence("Already one. ")).toBe("Already one.");
-    // Found by cubic: a one-word message stayed lower case.
     expect(sentence("timeout")).toBe("Timeout.");
   });
 
@@ -90,7 +88,6 @@ describe("whoseInputs", () => {
     expect(whoseInputs([theirs, theirs])).toBe("none from this wallet");
   });
 
-  // Found in review: a mining payout read "from another wallet".
   // No transaction has none; said anyway rather than "all from this wallet".
   it("says no wallet for no inputs", () => {
     expect(whoseInputs([])).toBe("from no wallet");

@@ -1,7 +1,5 @@
 /*
- * What jsdom cannot provide to the screens: the WebAssembly wrapper and the
- * IndexedDB persister. `setup-fakes.ts` puts these in their place for every
- * test file.
+ * Stand-ins for the WebAssembly wrapper and the IndexedDB persister.
  *
  * This module imports nothing that imports the wasm wrapper, so a mock
  * factory can load it. The helpers that drive screens are in `harness.ts`.
@@ -9,8 +7,8 @@
  * The fake wallet answers from `fake.state`, which a test sets up and
  * `fake.reset()` puts back, and records every call the core would have
  * received in `fake.calls`. It also holds the fixtures the tests share: the
- * wallet's phrase and remembered record, a transaction's history row, and a
- * sealed store kept in memory.
+ * wallet's phrase and remembered record, a send and its history row, and a
+ * sealed store kept in memory; and the small pure helpers they share.
  */
 
 import type { SealedStore } from "../src/platform/sealed";
@@ -36,6 +34,28 @@ const SAVED: RememberedWallet = {
   address_type: "p2wpkh",
 };
 
+/** A number as the screens write it, in the test's locale. */
+export const n = (count: number): string => count.toLocaleString();
+
+/** `items[i]`, failing the test where there is none. */
+export function nth<T>(items: readonly T[], i: number): T {
+  const item = items[i];
+  if (item === undefined) throw new Error(`nothing at ${i}`);
+  return item;
+}
+
+/** A promise held open, and what settles it. */
+export function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+/** A txid that reads as `head…tail` once shortened. */
+export const txid = (head: string, tail: string): string => `${head}${"0".repeat(46)}${tail}`;
+
 const built = (total: number) => ({
   psbt_base64: `psbt-${total}`,
   fee_sat: 141,
@@ -45,7 +65,7 @@ const built = (total: number) => ({
   input_count: 1,
 });
 
-interface FakeState {
+export interface FakeState {
   balance: Balance;
   utxos: Utxo[];
   transactions: TxSummary[];
@@ -229,11 +249,9 @@ export const fake = {
   },
   /** Holds every `sync` open until `release` is called. */
   holdSync(): () => void {
-    let release = (): void => {};
-    syncGate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    return release;
+    const gate = deferred<void>();
+    syncGate = gate.promise;
+    return gate.resolve;
   },
   /**
    * Holds the next `import_psbt` or `sign_psbt` open until `release` is
@@ -241,11 +259,9 @@ export const fake = {
    * when it was asked, so a later call can be given another answer meanwhile.
    */
   holdPsbt(): () => void {
-    let release = (): void => {};
-    psbtGate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    return release;
+    const gate = deferred<void>();
+    psbtGate = gate.promise;
+    return gate.resolve;
   },
   /** Back to an empty wallet with no call recorded; every test starts here. */
   reset(): void {
@@ -253,6 +269,29 @@ export const fake = {
     calls.length = 0;
     syncGate = Promise.resolve();
     psbtGate = null;
+  },
+  /**
+   * The send board 3c draws: 40,000 sat paid to `payee` at 1 sat/vB, its change
+   * back to this wallet. A fresh object each call.
+   */
+  sentTx(payee: string, confirmations: number | null): TxDetail {
+    return {
+      txid: "772eeeec07e1338eb286f2cfc3455011a5fd69335c5b7d07bbcac8eb810de03a",
+      net_sat: -40_153,
+      sent_sat: 49_580,
+      received_sat: 9_427,
+      fee_sat: 153,
+      fee_rate_sat_vb: 1,
+      confirmations,
+      block_height: confirmations === null ? null : 324_051,
+      timestamp: 1_790_000_000,
+      vsize: 153,
+      inputs: [{ txid: "cd".repeat(32), vout: 1, value_sat: 49_580, ours: true }],
+      outputs: [
+        { address: payee, value_sat: 40_000, ours: false },
+        { address: ADDRESS, value_sat: 9_427, ours: true },
+      ],
+    };
   },
   /** The row the core lists in the history for `detail`, as a fresh object. */
   summaryOf(detail: TxDetail): TxSummary {

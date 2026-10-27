@@ -11,7 +11,7 @@
  *
  * Only the remembered wallet, on a device that keeps its key, is closed:
  * Unlock opens it again. Any other wallet would need its recovery phrase or
- * key typed in again, so it stays open (decided on 2026-09-30).
+ * key typed in again, so it stays open.
  */
 
 import { api, whenIdle } from "../api";
@@ -28,13 +28,18 @@ export function lockAfter(): LockAfter {
   return limit;
 }
 
+/** The last save of a choice; each waits for the one before, so the last choice is kept. */
+let saving: Promise<void> = Promise.resolve();
+
 /**
  * Applies `choice` from the next time the app goes to the background, and
  * saves it. When saving fails, the choice still holds until the app closes.
  */
-export async function chooseLockAfter(choice: LockAfter): Promise<void> {
+export function chooseLockAfter(choice: LockAfter): Promise<void> {
   limit = choice;
-  await platform().setLockAfter(choice);
+  const save = () => platform().setLockAfter(choice);
+  saving = saving.then(save, save);
+  return saving;
 }
 
 /**

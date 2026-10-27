@@ -9,6 +9,7 @@
 #   scripts/check-version.sh v1.2.3     also require a release tag to match
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source scripts/version-files.sh
 
 workspace_version() {
   awk '/^\[workspace\.package\]/ { inside = 1; next }
@@ -35,7 +36,7 @@ for manifest in crates/*/Cargo.toml apps/native/src-tauri/Cargo.toml; do
   fi
 done
 
-for pkg in package.json packages/wallet-ui/package.json apps/web/package.json apps/native/package.json; do
+for pkg in "${packages[@]}"; do
   found=$(jq -r .version "$pkg")
   [[ "$found" == "$want" ]] || mismatch "$pkg" "version" "$found"
 done
@@ -48,12 +49,10 @@ found=$(jq -r .version apps/native/src-tauri/tauri.conf.json)
 
 # The generated Xcode project is checked in; the Tauri CLI rewrites these on
 # an iOS build, so between builds they must already agree.
-plist=apps/native/src-tauri/gen/apple/bitcoin-wallet-app_iOS/Info.plist
 for key in CFBundleShortVersionString CFBundleVersion; do
   found=$(awk -v key="<key>$key</key>" 'index($0, key) { getline; gsub(/.*<string>|<\/string>.*/, ""); print; exit }' "$plist")
   [[ "$found" == "$want" ]] || mismatch "$plist" "$key" "$found"
 done
-project=apps/native/src-tauri/gen/apple/project.yml
 for key in CFBundleShortVersionString CFBundleVersion; do
   found=$(awk -v key="$key:" '$1 == key { v = $2; gsub(/"/, "", v); print v; exit }' "$project")
   [[ "$found" == "$want" ]] || mismatch "$project" "$key" "$found"

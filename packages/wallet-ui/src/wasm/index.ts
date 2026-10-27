@@ -3,14 +3,10 @@
  *
  * `wallet-wasm` is the one wallet implementation: this module initializes the
  * WebAssembly binary once (lazily, on first use) and re-exports its API with
- * the app's own types instead of the generated `any`. No wallet operation goes
- * through Tauri.
- *
- * Shape mismatches are normalized here so the rest of the app never sees them:
- * `estimate_fee` arrives as a `Map` because `serde-wasm-bindgen` maps Rust maps
- * to JS `Map`s, and a Rust `None` inside a result arrives as `undefined` where
- * the app's types say `null`. Names need no translation: the core accepts and
- * returns the same address-type names the app uses.
+ * the app's own types instead of the generated `any`. Shapes are normalized in
+ * `normalize.ts`, and a value the core leaves out (`undefined`) is `null` here;
+ * names need no translation, as the core takes and returns the address-type
+ * names the app uses.
  */
 
 import type {

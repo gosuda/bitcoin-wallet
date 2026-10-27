@@ -1,7 +1,6 @@
 /**
  * Sentences both shells say word for word: the display standard of Round 7
- * (docs/ROADMAP.md). A screen takes them from here, so the two cannot drift
- * apart again, as the Sent screen and Forget's warning had.
+ * (docs/ROADMAP.md). A screen takes them from here, so the two say them alike.
  */
 
 import type { Network, WalletInfo } from "../types";
@@ -16,7 +15,7 @@ import { formatNumber, formatRate, formatSats } from "./format";
 export function sentence(message: string): string {
   const text = message.trim();
   if (text === "") return text;
-  // A word may end the message, as a bare "timeout" does. Found by cubic.
+  // A word may end the message, as a bare "timeout" does.
   const capital = /^[a-z]{1,15}(?=[\s:,;'.!?]|$)/.test(text)
     ? `${text.charAt(0).toUpperCase()}${text.slice(1)}`
     : text;
@@ -30,9 +29,8 @@ const UNKNOWN_WORD = /unknown word \(word (\d+)\)/i;
 const CORE_PREFIX = /^(?:invalid key material:\s*)?(?:invalid mnemonic:\s*)?/i;
 
 /**
- * Why a recovery phrase was refused, on both Restore screens. An unknown word
- * is named by its place in the grid, and by what was typed there: the core
- * counts from 0, and "(word 3)" was the fourth.
+ * Why a recovery phrase was refused, on both Restore screens: an unknown word
+ * is named by its place in the grid, and by what was typed there.
  */
 export function phraseError(message: string, typed: readonly string[]): string {
   const unknown = UNKNOWN_WORD.exec(message);
@@ -76,20 +74,12 @@ export function forgetWarning(wallet: Pick<WalletInfo, "is_watch_only" | "is_hd"
     : "The saved key and this device's copy of the wallet history will be deleted. You will need that private key to open it again.";
 }
 
-/**
- * Every way back to a wallet, where nothing says which kind it is: only a
- * wallet made from words has a recovery phrase to restore it from.
- */
+/** Every way back to a wallet, where nothing says which kind it is. */
 export const OPENED_WITH =
   "what you opened it with — a recovery phrase and any passphrase you set, a private key, or an xpub or descriptor";
 
 /** What Import PSBT is for: under its heading, and on the desktop Settings card that opens it. */
 export const PSBT_LEDE = "Sign or send a transaction that another wallet or device made.";
-
-/** When the system would not open the block explorer, on every screen that offers it. */
-export function explorerFailed(reason: string): string {
-  return `Could not open the explorer: ${reason}`;
-}
 
 /** Under Setup's heading on both shells. */
 export const SETUP_LEDE =
@@ -142,6 +132,13 @@ export const WORDS_KEEP =
 
 /** A phrase with a blank in it: Create's confirmation, and the phone's Restore. */
 export const MISSING_WORDS = "Fill in the missing words to continue.";
+
+/** When Create is pressed with a word typed back that is not the phrase's. */
+export const WORDS_MISMATCH = "The words you typed do not match the phrase.";
+
+/** When a single key, or a wallet to follow, is opened with its field empty. */
+export const NO_PRIVATE_KEY = "Enter a private key (hex or WIF) or generate one.";
+export const NO_WATCH_SOURCE = "Paste an xpub or a public descriptor.";
 
 /** What a single key is entered as, and what one key means. */
 export const PRIVATE_KEY_HINT =

@@ -252,8 +252,7 @@ th {
   gap: 6px;
 }
 
-/* The focus ring both shells share. The phone draws its own for rows, tabs
-   and the primary button, in mobile.css. */
+/* The focus ring both shells share, except where mobile.css draws the phone's own. */
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
@@ -263,6 +262,12 @@ a:focus-visible,
 .unit-chip:focus-within {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+/* A chip wears its radio's ring, so the radio draws none of its own. */
+.radio input:focus-visible,
+.unit-chip input:focus-visible {
+  outline: none;
 }
 
 /* Radio chips */
@@ -306,10 +311,6 @@ a:focus-visible,
 
 .radio input:checked {
   border: 4px solid var(--accent);
-}
-
-.radio input:focus-visible {
-  outline: none;
 }
 
 /* Checkbox */
@@ -458,7 +459,6 @@ textarea.input-invalid {
 
 .btn-danger {
   color: var(--danger);
-  border-color: var(--border);
 }
 
 .btn-sm {
@@ -725,16 +725,21 @@ tr.coin-frozen td.pending {
   cursor: pointer;
 }
 
-/* The checkbox stays in the tab order and drives `:checked`; the box after it
-   is the skin, drawn in tokens so its check shows in either theme. */
-.tick-input {
+/* The tick's checkbox and the unit chip's radio stay in the tab order and
+   drive `:checked`, unseen: the box after the one and the chip around the
+   other are the skin, drawn in tokens so either shows in either theme. */
+.tick-input,
+.unit-chip input {
   appearance: none;
   -webkit-appearance: none;
-  position: absolute;
   width: 0;
   height: 0;
   margin: 0;
   opacity: 0;
+}
+
+.tick-input {
+  position: absolute;
 }
 
 .tick-box {
@@ -768,7 +773,6 @@ tr.coin-frozen td.pending {
   outline-offset: 1px;
 }
 
-/* Frozen or not: on, the track takes the text colour and the knob moves over. */
 .switch {
   position: relative;
   flex: none;
@@ -865,13 +869,6 @@ tr.tx-detail td {
 
 .tx-detail-box .kv dd {
   overflow-wrap: anywhere;
-}
-
-.tx-detail-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 .bump-inline {
@@ -1086,19 +1083,8 @@ a.link-button {
   background: var(--subtle);
 }
 
-/* The radio stays in the tab order and drives `:checked`; the chip is the skin. */
 .unit-chip input {
-  appearance: none;
-  -webkit-appearance: none;
-  margin: 0;
-  width: 0;
-  height: 0;
-  opacity: 0;
   flex: none;
-}
-
-.unit-chip input:focus-visible {
-  outline: none;
 }
 
 .unit-chip:has(input[disabled]) {
@@ -1375,10 +1361,8 @@ a.link-button {
 }
 
 /*
- * The `hidden` attribute hides an element only through the browser's own
- * `display: none`, which any class that sets `display` outranks: the phone's
- * Custom rate row stayed on screen for every fee target that way. Both shells
- * load this file, so here it wins over every component's layout.
+ * The `hidden` attribute hides only through the browser's own `display: none`,
+ * which any class that sets `display` outranks. Both shells load this file.
  */
 /* biome-ignore-start lint/complexity/noImportantStyles: `hidden` has to beat every component's own display, however specific its selector */
 [hidden] {
@@ -1402,11 +1386,10 @@ a.link-button {
   gap: var(--space-2);
 }
 
-/* A recovery phrase is only useful if it can be read back a word at a time, so
-   the grid loses columns rather than hyphenating. Four columns on a phone leave
-   roughly 46px for the word itself once the index and padding are taken out,
-   and BIP39 runs to eight letters — which is how "dinner" came to render as
-   "dinn/er". Desktop keeps four: its window has a 720px minimum. */
+/* A recovery phrase is read back a word at a time, so the grid loses columns
+   rather than break a word: four on a phone leave about 46px for the word once
+   the index and padding are out, and a BIP39 word runs to eight letters.
+   Desktop keeps four: its window is at least 720px wide. */
 @media (max-width: 560px) {
   .word-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1521,10 +1504,9 @@ a.link-button {
 }
 
 /*
- * Motion here is decoration, never the message. With the preference set, a
- * state change lands at once and the busy spinner holds still: the button it
- * sits in stays disabled while the work runs, which is the actual signal.
- * Both shells load this file; mobile.css has no motion of its own.
+ * With reduced motion asked for, a change lands at once and the busy spinner
+ * holds still: its button, disabled while the work runs, still says so. Both
+ * shells load this file; mobile.css has no motion of its own.
  */
 /* biome-ignore-start lint/complexity/noImportantStyles: a reset has to beat every component's own transition, however specific its selector */
 @media (prefers-reduced-motion: reduce) {

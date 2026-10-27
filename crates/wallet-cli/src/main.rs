@@ -191,14 +191,6 @@ impl CliError {
     }
 }
 
-fn parse_network(s: &str) -> Result<Network, String> {
-    Network::parse(s).ok_or_else(|| format!("unknown network '{s}'"))
-}
-
-fn parse_address_type(s: &str) -> Result<AddressType, String> {
-    AddressType::parse(s).ok_or_else(|| format!("unknown address type '{s}'"))
-}
-
 fn read_key(
     arg: Option<Zeroizing<String>>,
     passphrase: Option<&str>,
@@ -274,8 +266,8 @@ fn parse_recipient(s: &str) -> Result<Recipient, String> {
 }
 
 async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
-    let network = parse_network(&cli.network)?;
-    let address_type = parse_address_type(&cli.address_type)?;
+    let network = Network::parse(&cli.network)?;
+    let address_type = AddressType::parse(&cli.address_type)?;
     match cli.cmd {
         Cmd::Generate { mnemonic, words } => {
             if mnemonic {
@@ -300,7 +292,8 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
             }
             let key = read_key(backend.key, backend.passphrase.as_ref().map(|p| p.as_str()))?;
             let address = wallet_core::address_for_key(&key, network, address_type)?;
-            Ok(serde_json::json!({ "address": address, "hd": key.is_hd() }))
+            let hd = wallet_core::keys::wallet_is_hd(&key, network, address_type)?;
+            Ok(serde_json::json!({ "address": address, "hd": hd }))
         }
         Cmd::Balance(a) => {
             let w = open(network, address_type, &a).await?;
@@ -392,14 +385,7 @@ async fn run(cli: Cli) -> Result<serde_json::Value, CliError> {
             };
             let w = open(network, address_type, &backend).await?;
             w.sync().await?;
-            let rate = match fee_rate {
-                Some(r) => r,
-                None => w
-                    .estimate_fee()
-                    .await?
-                    .for_target(wallet_core::wallet::DEFAULT_FEE_TARGET)
-                    .unwrap_or(wallet_core::wallet::MIN_FEE_RATE_SAT_VB),
-            };
+            let rate = w.fee_rate_or_estimate(fee_rate).await?;
             let built = match drain_to {
                 Some(address) => w.build_drain(address, rate).await?,
                 None => w.build_transfer(&recipients, rate).await?,
@@ -467,11 +453,8 @@ mod tests {
 
     use super::*;
 
-    /// clap only checks an argument definition — like two arguments both
-    /// claiming the same short flag — the first time that subcommand is
-    /// actually parsed, so a broken one can sit unnoticed until someone
-    /// finally runs it for real. `debug_assert` forces every subcommand's
-    /// definition to be checked right here instead.
+    /// clap checks a subcommand's arguments (two claiming one short flag, say)
+    /// only when that subcommand is parsed; `debug_assert` checks them all.
     #[test]
     fn every_subcommand_has_a_well_formed_arg_definition() {
         Cli::command().debug_assert();
@@ -502,68 +485,23 @@ mod tests {
         assert_eq!(passphrased.passphrase(), Some("TREZOR"));
     }
 
-    /// One instance of every `wallet_core::Error` variant, in exit-code
-    /// order. A table, not a chain of asserts, so a new variant only needs
-    /// one new row — and forgetting the row here is safe: `Error::ordinal`'s
-    /// match is exhaustive, so the compiler catches a missing *arm* there
-    /// regardless. What this table catches is two variants sharing a code by
-    /// mistake, or a code that moved, which an exhaustive match does not
-    /// prevent on its own.
-    fn one_of_each_core_error() -> Vec<Error> {
-        vec![
-            Error::InvalidKey("x".into()),
-            Error::InvalidAddress("x".into()),
-            Error::Descriptor("x".into()),
-            Error::Persist("x".into()),
-            Error::Backend("x".into()),
-            Error::Timeout(30),
-            Error::BuildTx("x".into()),
-            Error::InsufficientFunds {
-                needed_sat: 10,
-                available_sat: 5,
-                frozen_sat: 0,
-                all_frozen: false,
-            },
-            Error::InvalidFeeRate("x".into()),
-            Error::Sign("x".into()),
-            Error::Psbt("x".into()),
-            Error::Unsupported("x".into()),
-            Error::Dust { output: 0 },
-            Error::FeeTooLow {
-                required_sat_vb: Some(2.0),
-                required_sat: None,
-            },
-            Error::NoUtxos,
-            Error::InvalidTxid("x".into()),
-            Error::NotReplaceable("x".into()),
-            Error::CorruptState {
-                reason: "mismatch",
-                found: None,
-                supported: None,
-            },
-            Error::UnknownCoin("x".into()),
-        ]
-    }
-
+    /// A core error exits with 10 plus its ordinal, which the core's error
+    /// table pins per variant: so each has a code of its own, and none is 1.
     #[test]
     fn every_core_error_gets_its_own_exit_code_distinct_from_the_cli_level_one() {
-        let codes: Vec<u8> = one_of_each_core_error()
-            .into_iter()
-            .map(|e| CliError::from(e).exit_code())
-            .collect();
-        assert!(
-            codes.iter().all(|&c| c != 1),
-            "a core error's code must not collide with the CLI-level code 1: {codes:?}"
-        );
-        let mut sorted = codes.clone();
-        sorted.sort_unstable();
-        sorted.dedup();
-        assert_eq!(
-            sorted.len(),
-            codes.len(),
-            "duplicate exit code in {codes:?}"
-        );
-        assert_eq!(codes, (10..=28).collect::<Vec<u8>>(), "a code moved");
+        for e in [
+            Error::InvalidKey("x".into()),
+            Error::NoUtxos,
+            Error::UnknownCoin("x".into()),
+        ] {
+            let ordinal = e.ordinal();
+            let code = CliError::from(e).exit_code();
+            assert_eq!(code, 10 + ordinal);
+            assert_ne!(
+                code, 1,
+                "a core error's code must not collide with the CLI-level code 1"
+            );
+        }
     }
 
     #[test]
@@ -605,6 +543,27 @@ mod tests {
             Cli::try_parse_from(["btcw", "send", "--max"]).is_err(),
             "--max still needs its --to"
         );
+    }
+
+    /// `address` reports `hd` as the wallet does, as `address --new` does: an
+    /// account xpub opens with a change keychain, though it is not a phrase.
+    #[tokio::test]
+    async fn address_reports_hd_as_the_wallet_does() {
+        let export = Cli::try_parse_from(["btcw", "-n", "regtest", "export", "--key", TEST_WORDS]);
+        let exported = run(export.unwrap()).await.unwrap();
+        let xpub = exported["account_xpub"].as_str().unwrap();
+        let hex = "0000000000000000000000000000000000000000000000000000000000000001";
+        for key in [TEST_WORDS, xpub, hex] {
+            let cli = Cli::try_parse_from(["btcw", "-n", "regtest", "address", "--key", key]);
+            let reported = run(cli.unwrap()).await.unwrap()["hd"].as_bool();
+            let args = BackendArgs {
+                url: None,
+                key: Some(Zeroizing::new(key.to_owned())),
+                passphrase: None,
+            };
+            let wallet = open(Network::Regtest, AddressType::P2wpkh, &args);
+            assert_eq!(reported, Some(wallet.await.unwrap().is_hd()), "{key}");
+        }
     }
 
     /// Opening the wallet needs no network, and the gap is checked before the

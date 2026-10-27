@@ -9,7 +9,7 @@ import { renderSettings } from "../src/screens/settings";
 import { session } from "../src/session";
 import { DEFAULT_LOCK_AFTER, lockAfterFrom } from "../src/types";
 import { chooseLockAfter, lockAfter, startAutolock } from "../src/ui/autolock";
-import { fake } from "./fakes";
+import { deferred, fake } from "./fakes";
 import { at, buttonNamed, find, mountAt, useScreenHarness } from "./harness";
 
 useScreenHarness();
@@ -190,13 +190,8 @@ describe("a remembered wallet locks in the background (6.11)", () => {
 
   it("waits for a broadcast the same way, when the check comes on return", async () => {
     await openLocking();
-    let finish = (): void => undefined;
-    vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          finish = () => resolve({ txid: TXID, persist_error: null });
-        }),
-    );
+    const broadcast = deferred<{ txid: string; persist_error: null }>();
+    vi.spyOn(fake.FakeWallet.prototype, "broadcast").mockImplementation(() => broadcast.promise);
     const preview = await api.buildTransfer([{ address: fake.ADDRESS, amount_sat: 1_000 }], 2);
     const sending = api.signAndBroadcast(preview.psbt_id);
 
@@ -206,7 +201,7 @@ describe("a remembered wallet locks in the background (6.11)", () => {
     await flush();
     expect(session.wallet).not.toBeNull();
 
-    finish();
+    broadcast.resolve({ txid: TXID, persist_error: null });
     await expect(sending).resolves.toMatchObject({ txid: TXID });
     await flush();
 
@@ -376,6 +371,97 @@ describe("Lock after in Settings (6.11)", () => {
       "The lock time could not be saved (store locked). It holds until the app closes.",
     );
     expect(lockAfter()).toBe(1);
+  });
+
+  // Each shell's control, and a choice on it: the desktop's option, the phone's chip.
+  describe.each([
+    {
+      name: "the desktop",
+      render: renderSettings,
+      choose: (screen: HTMLElement, value: string) => {
+        const select = find<HTMLSelectElement>(screen, "select[name=lock_after]");
+        select.value = value;
+        select.dispatchEvent(new Event("change"));
+      },
+    },
+    {
+      name: "the phone",
+      render: renderPhoneSettings,
+      choose: (screen: HTMLElement, value: string) => {
+        const chips = find(screen, "[role=radiogroup][aria-label='Lock after']");
+        buttonNamed(chips, value === "60" ? "1 hour" : "1 min").click();
+      },
+    },
+  ])("$name, choosing again", ({ render, choose }) => {
+    it("takes back what a failed save said once a later choice saves", async () => {
+      await openLocking();
+      let fail = true;
+      setPlatform({
+        ...platform(),
+        setLockAfter: async (choice) => {
+          if (fail) throw new Error("store locked");
+          saved = choice;
+        },
+      });
+      const screen = mountAt("settings", render);
+      choose(screen, "1");
+      await flush();
+      expect(find(screen, ".banner").textContent).toContain("could not be saved");
+
+      fail = false;
+      choose(screen, "60");
+      await flush();
+
+      expect(find(screen, ".banner").textContent).toBe("");
+      expect(saved).toBe(60);
+    });
+
+    it("keeps the last choice when an earlier save finishes after it", async () => {
+      await openLocking();
+      const slow = deferred<void>();
+      let calls = 0;
+      setPlatform({
+        ...platform(),
+        setLockAfter: async (choice) => {
+          if (calls++ === 0) await slow.promise;
+          saved = choice;
+        },
+      });
+      const screen = mountAt("settings", render);
+      choose(screen, "1");
+      choose(screen, "60");
+      await flush();
+      slow.resolve();
+      await flush();
+
+      expect(saved).toBe(60);
+      expect(lockAfter()).toBe(60);
+    });
+
+    it("says nothing of an earlier choice that failed after a later one", async () => {
+      await openLocking();
+      const slow = deferred<void>();
+      let calls = 0;
+      setPlatform({
+        ...platform(),
+        setLockAfter: async (choice) => {
+          if (calls++ === 0) {
+            await slow.promise;
+            throw new Error("store locked");
+          }
+          saved = choice;
+        },
+      });
+      const screen = mountAt("settings", render);
+      choose(screen, "1");
+      choose(screen, "60");
+      await flush();
+      slow.resolve();
+      await flush();
+
+      expect(find(screen, ".banner").textContent).toBe("");
+      expect(saved).toBe(60);
+    });
   });
 });
 

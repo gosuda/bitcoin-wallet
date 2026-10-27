@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sameWalletGuard, screenGuard } from "../src/screen";
 import { session } from "../src/session";
 import type { WalletInfo } from "../src/types";
+import { leaveTo } from "./harness";
 
 const wallet = (wallet_id: string): WalletInfo => ({
   address: "tb1q0",
@@ -13,15 +14,6 @@ const wallet = (wallet_id: string): WalletInfo => ({
   is_ranged: true,
   is_watch_only: false,
 });
-
-/**
- * jsdom queues its own `hashchange`, so navigation is driven explicitly here.
- * The shell builds screens from that event, which is what the guard keys on.
- */
-const navigateTo = (hash: string): void => {
-  window.location.hash = hash;
-  window.dispatchEvent(new HashChangeEvent("hashchange"));
-};
 
 beforeEach(() => {
   window.location.hash = "#/dashboard";
@@ -35,24 +27,23 @@ describe("screenGuard", () => {
 
   it("lapses when the route changes", () => {
     const onScreen = screenGuard();
-    navigateTo("#/settings");
+    leaveTo("settings");
     expect(onScreen()).toBe(false);
   });
 
-  // The defect this guard was rewritten for. Route and wallet alone are equal
-  // across the two visits, so a promise from the abandoned render read as
-  // current and drove the freshly built one.
+  // Route and wallet alone are equal across the two visits: a promise from the
+  // abandoned render must not read as current.
   it("does not revive when the user returns to the same screen", () => {
     const firstVisit = screenGuard();
-    navigateTo("#/settings");
-    navigateTo("#/dashboard");
+    leaveTo("settings");
+    leaveTo("dashboard");
     expect(firstVisit()).toBe(false);
   });
 
   it("gives each render its own answer", () => {
     const firstVisit = screenGuard();
-    navigateTo("#/settings");
-    navigateTo("#/dashboard");
+    leaveTo("settings");
+    leaveTo("dashboard");
     const secondVisit = screenGuard();
     expect(firstVisit()).toBe(false);
     expect(secondVisit()).toBe(true);
@@ -67,7 +58,7 @@ describe("screenGuard", () => {
       window.removeEventListener("hashchange", build);
     };
     window.addEventListener("hashchange", build);
-    navigateTo("#/settings");
+    leaveTo("settings");
     expect(onScreen).not.toBeNull();
     expect((onScreen as unknown as () => boolean)()).toBe(true);
   });
@@ -86,12 +77,10 @@ describe("screenGuard", () => {
 });
 
 describe("sameWalletGuard", () => {
-  // The property screenGuard's own tests can't isolate: a plain navigation
-  // must not trip this half, or a still-current wallet's own broadcast
-  // result would go unrecorded just because the user changed screens.
+  // A broadcast's result is still the wallet's after the user changes screens.
   it("holds across a route change", () => {
     const sameWallet = sameWalletGuard();
-    navigateTo("#/settings");
+    leaveTo("settings");
     expect(sameWallet()).toBe(true);
   });
 

@@ -1,12 +1,10 @@
-import { platform } from "../../platform";
 import { navigate } from "../../router";
 import { redirect } from "../../screen";
 import { session } from "../../session";
-import { errorMessage } from "../../types";
 import { copyButton } from "../../ui/clipboard";
-import { banner, el, sectionLabel } from "../../ui/dom";
+import { banner, el, openExplorer, sectionLabel } from "../../ui/dom";
 import { icon } from "../../ui/icons";
-import { explorerFailed, SENT_LINE, SENT_TITLE, sentNotSaved } from "../../ui/text";
+import { SENT_LINE, SENT_TITLE, sentNotSaved } from "../../ui/text";
 import { body, button, card, header, lede, spacer } from "../ui";
 
 export function renderResult(): HTMLElement {
@@ -43,22 +41,13 @@ export function renderResult(): HTMLElement {
       copyButton(() => result.txid, "Copy transaction id"),
       // Regtest has no public explorer: no link rather than a dead one.
       result.explorer_url
-        ? button(
-            "Open in explorer",
-            async () => {
-              try {
-                await platform().openUrl(result.explorer_url ?? "");
-              } catch (e) {
-                alert.show("warn", explorerFailed(errorMessage(e)));
-              }
-            },
-            { icon: "external" },
-          )
+        ? button("Open in explorer", () => void openExplorer(result.explorer_url ?? "", alert), {
+            icon: "external",
+          })
         : null,
       button(
         "Back to wallet",
         () => {
-          // Spent, as on the desktop: the result route has nothing to show again.
           session.lastResult = null;
           navigate("dashboard");
         },

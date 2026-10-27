@@ -16,20 +16,28 @@ import { renderSend } from "../src/screens/send";
 import { renderSettings } from "../src/screens/settings";
 import { renderSetup } from "../src/screens/setup";
 import { session } from "../src/session";
-import { NETWORK_LABELS, type Network } from "../src/types";
-import { fake } from "./fakes";
+import { type GeneratedKey, NETWORK_LABELS, type Network, type TxPreview } from "../src/types";
+import { deferred, fake, n } from "./fakes";
 import {
+  BROADCAST,
   buttonNamed,
   CONFIG,
+  camera,
+  expectDropped,
   find,
+  holdBroadcast,
   leaveTo,
   mount,
   mountAt,
+  refusedRead,
+  rememberSaved,
   settle,
   showAt,
   type,
   useScreenHarness,
+  withClipboard,
 } from "./harness";
+import { OPENERS, openerNamed } from "./openers";
 
 useScreenHarness();
 
@@ -95,6 +103,58 @@ describe("secrets do not outlive their screen (1.3)", () => {
   );
 });
 
+/** What the core hands back for Generate new key. */
+const NEW_KEY: GeneratedKey = {
+  priv_hex: "22".repeat(32),
+  wif: "cNewKeyInWifForm",
+  pub_hex: `02${"33".repeat(32)}`,
+  address: fake.ADDRESS,
+};
+
+describe.each([
+  { shell: "desktop", screen: "Key", show: () => mountAt("key", renderKey) },
+  {
+    shell: "phone",
+    screen: "Restore, single key",
+    show: () => {
+      setRestoreMode("key");
+      return mountAt("restore", renderPhoneRestore);
+    },
+  },
+])("Generate new key on the $shell's $screen (1.3)", ({ show }) => {
+  /** The screen, with Generate new key pressed and the key it asked for held. */
+  async function generateHeld() {
+    const key = deferred<GeneratedKey>();
+    vi.spyOn(api, "generateKey").mockImplementationOnce(() => key.promise);
+    const screen = show();
+    const generate = buttonNamed(screen, "Generate new key");
+    generate.click();
+    await settle();
+    return { screen, generate, release: () => key.resolve(NEW_KEY) };
+  }
+
+  it("is off until its key lands", async () => {
+    const { generate, release } = await generateHeld();
+    expect(generate.disabled).toBe(true);
+
+    release();
+    await settle();
+
+    expect(generate.disabled).toBe(false);
+  });
+
+  it("puts a key that lands after the screen is left nowhere", async () => {
+    const { screen, release } = await generateHeld();
+
+    leaveTo("setup");
+    release();
+    await settle();
+
+    expect(find<HTMLInputElement>(screen, "input[name=secret]").value).toBe("");
+    expect(screen.textContent).not.toContain(NEW_KEY.wif);
+  });
+});
+
 describe("work that outlives its screen changes nothing (1.7)", () => {
   it("a sync that finishes after Close wallet stamps no sync time", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
@@ -110,6 +170,28 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     await settle();
 
     expect(session.lastSyncedAt).toBeNull();
+  });
+
+  it("keeps the desktop's Sync busy while a sync runs past the next periodic one", async () => {
+    vi.useFakeTimers();
+    try {
+      await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+      const screen = mountAt("dashboard", renderDashboard);
+      await vi.advanceTimersByTimeAsync(0);
+      const release = fake.holdSync();
+      const sync = buttonNamed(screen, "Sync");
+
+      sync.click();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(sync.disabled).toBe(true);
+      expect(sync.getAttribute("aria-busy")).toBe("true");
+
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sync.disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("leaving Send after Max discards the drain it built, and a return builds fresh", async () => {
@@ -128,9 +210,7 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     leaveTo("dashboard");
 
     expect(discardTx).toHaveBeenCalledWith(drain.psbt_id);
-    await expect(api.signAndBroadcast(drain.psbt_id)).rejects.toMatchObject({
-      code: "unknown_psbt",
-    });
+    await expectDropped(drain.psbt_id);
 
     screen = await showAt("send", renderSend);
     type(find<HTMLInputElement>(screen, "#recipient-address-0"), fake.ADDRESS);
@@ -142,45 +222,28 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(buildDrain).toHaveBeenCalledTimes(1);
     expect(screen.querySelector(".banner-visible")).toBeNull();
     expect(buttonNamed(screen, "Confirm and send")).toBeTruthy();
-    expect(screen.textContent).toContain((1000).toLocaleString());
+    expect(screen.textContent).toContain(n(1000));
   });
 
   it("leaving Scan stops the camera it opened, and the page is solid again", async () => {
-    // A camera that runs until it is told to stop, as the real one does.
-    let signal: AbortSignal | undefined;
-    const scanQr = vi.fn(
-      (given?: AbortSignal) =>
-        new Promise<string | null>((resolve) => {
-          signal = given;
-          given?.addEventListener("abort", () => resolve(null), { once: true });
-        }),
-    );
-    setPlatform({ ...platform(), scanQr });
+    const { scanQr } = camera();
     const root = document.documentElement;
 
     await showAt("scan", renderPhoneScan);
     expect(scanQr).toHaveBeenCalledTimes(1);
-    expect(signal?.aborted).toBe(false);
+    expect(scanQr.mock.calls[0]?.[0]?.aborted).toBe(false);
     expect(root.dataset.scanning).toBeDefined();
 
     leaveTo("dashboard");
 
-    expect(signal?.aborted).toBe(true);
+    expect(scanQr.mock.calls[0]?.[0]?.aborted).toBe(true);
     expect(root.dataset.scanning).toBeUndefined();
     await settle();
     expect(root.dataset.scanning).toBeUndefined();
   });
 
   it("a Scan screen replaced by another leaves the new one's camera showing", async () => {
-    const signals: (AbortSignal | undefined)[] = [];
-    const scanQr = vi.fn(
-      (given?: AbortSignal) =>
-        new Promise<string | null>((resolve) => {
-          signals.push(given);
-          given?.addEventListener("abort", () => resolve(null), { once: true });
-        }),
-    );
-    setPlatform({ ...platform(), scanQr });
+    const { scanQr } = camera();
     const root = document.documentElement;
     // The shell listens from before any screen, so on a hashchange it renders
     // the new screen first, and the old screen hears that it has left after.
@@ -194,41 +257,122 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     window.removeEventListener("hashchange", shell);
 
     expect(scanQr).toHaveBeenCalledTimes(2);
-    expect(signals[0]?.aborted).toBe(true);
-    expect(signals[1]?.aborted).toBe(false);
+    expect(scanQr.mock.calls[0]?.[0]?.aborted).toBe(true);
+    expect(scanQr.mock.calls[1]?.[0]?.aborted).toBe(false);
     expect(root.dataset.scanning).toBeDefined();
 
     leaveTo("dashboard");
     expect(root.dataset.scanning).toBeUndefined();
   });
 
-  // Found in Round 9: Scan read the clipboard itself, which a Tauri webview
-  // refuses with nothing the user could allow, so its Paste failed in the apps.
   it("Scan's Paste reads through the platform where the page's own clipboard is refused", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const screen = await showAt("scan", renderPhoneScan);
-    Object.defineProperty(navigator, "clipboard", {
-      value: {
-        readText: async () => {
-          throw new DOMException("denied", "NotAllowedError");
-        },
-      },
-      configurable: true,
-    });
     setPlatform({ ...platform(), readClipboard: async () => fake.ADDRESS });
 
-    try {
+    await withClipboard(refusedRead, async () => {
       buttonNamed(screen, "Paste from clipboard").click();
       await settle();
-    } finally {
-      Reflect.deleteProperty(navigator, "clipboard");
-    }
+    });
 
     expect(screen.querySelector(".banner-visible")).toBeNull();
     expect(location.hash).toBe("#/send");
     // Where the shell goes next: Send, with the address filled in.
     const send = await showAt("send", renderPhoneSend);
     expect(find<HTMLInputElement>(send, "input[name=address]").value).toBe(fake.ADDRESS);
+  });
+});
+
+describe.each([
+  { shell: "desktop", render: renderSend },
+  { shell: "phone", render: renderPhoneSend },
+])("a send that lands after its moment, on the $shell (1.7)", ({ render }) => {
+  /** Send, filled in and reviewed, with Confirm pressed and its broadcast held. */
+  async function confirmHeld(): Promise<ReturnType<typeof holdBroadcast>> {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const screen = await showAt("send", render);
+    type(find(screen, 'input[placeholder$=" address"]'), fake.ADDRESS);
+    type(find(screen, 'input[placeholder="0"]'), "1000");
+    buttonNamed(screen, "Review").click();
+    await settle();
+    const broadcast = holdBroadcast();
+    buttonNamed(screen, "Confirm and send").click();
+    await settle();
+    return broadcast;
+  }
+
+  it("is recorded once Send is left, and opens nothing", async () => {
+    const broadcast = await confirmHeld();
+
+    leaveTo("settings");
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult?.txid).toBe(BROADCAST.txid);
+    expect(window.location.hash).toBe("#/settings");
+  });
+
+  it("is not recorded for another wallet opened meanwhile", async () => {
+    const broadcast = await confirmHeld();
+
+    vi.spyOn(fake.FakeWallet.prototype, "id", "get").mockReturnValue("testnet4-p2wpkh-other");
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    broadcast.resolve(BROADCAST);
+    await settle();
+
+    expect(session.lastResult).toBeNull();
+    expect(window.location.hash).toBe("#/send");
+  });
+});
+
+describe.each([
+  { shell: "desktop", render: renderSend },
+  { shell: "phone", render: renderPhoneSend },
+])("a Max that lands once another wallet is open, on the $shell (1.7)", ({ render }) => {
+  /** Builds the drain Max asks for with `args`, and holds it until `gate` opens. */
+  type Build = (
+    gate: Promise<void>,
+    ...args: Parameters<typeof api.buildDrain>
+  ) => Promise<TxPreview>;
+
+  /** Send with an address typed and Max pressed, its drain held until another wallet is open. */
+  async function maxHeldPastAnotherOpen(build: Build) {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const screen = await showAt("send", render);
+    type(find(screen, 'input[placeholder$=" address"]'), fake.ADDRESS);
+    const gate = deferred<void>();
+    vi.spyOn(api, "buildDrain").mockImplementationOnce((...args) => build(gate.promise, ...args));
+    buttonNamed(screen, "Max").click();
+    await settle();
+
+    vi.spyOn(fake.FakeWallet.prototype, "id", "get").mockReturnValue("testnet4-p2wpkh-other");
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    gate.resolve();
+    await settle();
+    return screen;
+  }
+
+  it("fills nothing in, and discards the drain", async () => {
+    const drain = api.buildDrain;
+    const discardTx = vi.spyOn(api, "discardTx");
+    let built: TxPreview | undefined;
+    const screen = await maxHeldPastAnotherOpen(async (gate, ...args) => {
+      built = await drain(...args);
+      await gate;
+      return built;
+    });
+
+    expect(find<HTMLInputElement>(screen, 'input[placeholder="0"]').value).toBe("");
+    expect(discardTx).toHaveBeenCalledWith(built?.psbt_id);
+  });
+
+  it("says nothing of a drain that fails", async () => {
+    const screen = await maxHeldPastAnotherOpen(async (gate) => {
+      await gate;
+      throw new Error("the drain could not be built");
+    });
+
+    expect(screen.querySelector(".banner-visible")).toBeNull();
   });
 });
 
@@ -286,19 +430,6 @@ describe("every choice group has a name (3.9)", () => {
 });
 
 describe("a remembered wallet is reachable after Setup (6.2)", () => {
-  /** A device that keeps keys, with `fake.SAVED` remembered on it; returns the key loader. */
-  function rememberSaved() {
-    const loadSecret = vi.fn(async () => ({ secret: "abandon abandon abandon", passphrase: null }));
-    setPlatform({
-      ...platform(),
-      canRememberWallet: true,
-      getRemembered: async () => fake.SAVED,
-      loadSecret,
-    });
-    session.remembered = fake.SAVED;
-    return loadSecret;
-  }
-
   const SHELL_SETUPS = [
     {
       shell: "desktop",
@@ -375,6 +506,81 @@ describe("a remembered wallet is reachable after Setup (6.2)", () => {
     expect(loadSecret).toHaveBeenCalledWith(fake.SAVED.wallet_id);
     expect(info.network).toBe("testnet4");
     expect(session.wallet?.network).toBe("testnet4");
+  });
+});
+
+// The record is read at start and written by Remember; an open does not read it back.
+describe.each(OPENERS.filter((o) => !o.remembered))(
+  "$name, on a device that keeps keys (6.2)",
+  (opener) => {
+    it("remembers what it opened with Remember ticked, though the record cannot be read back", async () => {
+      setPlatform({
+        ...platform(),
+        canRememberWallet: true,
+        getRemembered: async () => {
+          throw new Error("the record cannot be read");
+        },
+      });
+      const screen = await opener.render();
+      for (const box of screen.querySelectorAll<HTMLInputElement>("input[name=remember]")) {
+        box.click();
+      }
+
+      buttonNamed(screen, opener.press).click();
+      await settle();
+
+      expect(window.location.hash).toBe("#/dashboard");
+      expect(session.remembered).toMatchObject(fake.SAVED);
+    });
+
+    it("leaves the remembered record as it was with Remember unticked", async () => {
+      rememberSaved({ inSession: false });
+      const screen = await opener.render();
+
+      buttonNamed(screen, opener.press).click();
+      await settle();
+
+      expect(window.location.hash).toBe("#/dashboard");
+      expect(session.remembered).toBeNull();
+    });
+  },
+);
+
+describe.each([
+  { name: "desktop Key, private key", said: "Enter a private key (hex or WIF) or generate one." },
+  { name: "desktop Key, watch-only", said: "Paste an xpub or a public descriptor." },
+  { name: "phone Restore, single key", said: "Enter a private key (hex or WIF) or generate one." },
+  { name: "phone Restore, watch-only", said: "Paste an xpub or a public descriptor." },
+])("$name with its field left empty", ({ name, said }) => {
+  it("says what to enter, and opens nothing", async () => {
+    const { render, press } = openerNamed(name);
+    const screen = await render();
+    const fields = "input[name=secret], textarea[name=descriptor]";
+    for (const field of screen.querySelectorAll<HTMLInputElement>(fields)) type(field, "");
+
+    buttonNamed(screen, press).click();
+    await settle();
+
+    expect(find(screen, ".banner-visible").textContent).toBe(said);
+    expect(session.wallet).toBeNull();
+  });
+});
+
+describe.each(["desktop Create", "phone Create"].map(openerNamed))("$name", (opener) => {
+  it("checks the words typed back again when pressed", async () => {
+    const screen = await opener.render();
+    const go = buttonNamed(screen, opener.press);
+    expect(go.disabled).toBe(false);
+    // Changed with no input event, so nothing has checked it since.
+    find<HTMLInputElement>(screen, 'input[aria-label^="Word "]').value = "zoo";
+
+    go.click();
+    await settle();
+
+    expect(find(screen, ".banner-visible").textContent).toBe(
+      "The words you typed do not match the phrase.",
+    );
+    expect(session.wallet).toBeNull();
   });
 });
 

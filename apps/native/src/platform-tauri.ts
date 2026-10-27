@@ -1,11 +1,11 @@
 /**
  * The Tauri shell's half of the platform seam.
  *
- * The native side owns exactly two things: the config store (`get_config` /
- * `set_config`, plus the plugin store that holds the remembered-wallet record
- * and the lock time) and the OS keystore (`remember_secret` / `load_secret` /
- * `forget_secret`).
- * Nothing wallet-shaped crosses the IPC boundary.
+ * The native side keeps the config store (`get_config` / `set_config`, plus
+ * the plugin store that holds the remembered-wallet record and the lock time)
+ * and the OS keystore (`remember_secret` / `load_secret` / `forget_secret`);
+ * its plugins also read and write the clipboard, open links, carry chain
+ * requests and, on the phone, scan and ask for biometrics.
  */
 
 import { installChainFetch } from "@bitcoin-wallet/ui/net";
@@ -36,11 +36,7 @@ import { load as loadStore } from "@tauri-apps/plugin-store";
  *
  * Only cross-origin http(s) is diverted. App assets, the dev server and
  * anything relative stay on the webview's own `fetch`. Each diverted request is
- * also cut off after 30 s, since the core cannot bound one itself here — see
- * `@bitcoin-wallet/ui/net`.
- *
- * The browser build has no such escape and still needs the header from the
- * server, which is why the wallet cannot simply assume every endpoint works.
+ * cut off as every chain request is (`@bitcoin-wallet/ui/net`).
  */
 export function installNativeFetch(): void {
   installChainFetch(nativeFetch);
@@ -92,11 +88,9 @@ export async function keystoreAvailable(): Promise<boolean> {
  * `scan` never asks: without the permission it fails at once, so the first
  * scan on a new install could never open the camera.
  *
- * `windowed` puts the camera behind the webview. Without it the plugin lays the
- * camera over the whole app with no control of its own, so nothing short of a
- * readable QR code could end a scan: Android's back key only moved the hidden
- * page, and iOS has no back key at all. Behind the page, the Scan screen stays
- * usable, and leaving it aborts `signal`, which is what stops the camera.
+ * `windowed` puts the camera behind the webview, where the Scan screen stays
+ * usable and leaving it aborts `signal`, which stops the camera. Over the page,
+ * nothing short of a readable code could end a scan.
  *
  * Only a failure is cancelled on the way out. A read or a cancel has already put
  * the camera away, and `cancel` stops whatever scan is running: sent after every
@@ -181,9 +175,7 @@ export function tauriPlatform(canRememberWallet: boolean, mobile: boolean): Plat
     forgetSecret: (walletId) => invoke<void>("forget_secret", { walletId }),
 
     writeClipboard: (text) => writeText(text),
-    // The plugin rejects when there is no text to read, which is an empty
-    // clipboard to Paste; any other rejection is one it cannot read, and is
-    // passed on so Paste can say so.
+    // No text is an empty clipboard to Paste; any other rejection is passed on.
     readClipboard: () =>
       readText().catch((e: unknown) => {
         if (NO_CLIPBOARD_TEXT.test(messageOf(e) ?? "")) return "";

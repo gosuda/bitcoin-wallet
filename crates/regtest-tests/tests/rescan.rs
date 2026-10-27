@@ -1,13 +1,10 @@
 //! A restored wallet that used more addresses than the default gap.
 //!
 //! `sync()` full-scans a wallet with no history and stops after twenty unused
-//! addresses in a row. Funds parked further out are invisible to it, and — the
-//! part that made this a real bug — stayed invisible, because once anything
-//! was known the wallet only ever re-checked what it had already revealed.
-//! `rescan` is the way out; this proves it against a real node.
+//! addresses in a row; after that it re-checks only what it has revealed, so
+//! funds parked further out stay unseen. `rescan` finds them, here against a
+//! real node.
 
-// Only ever compiled as a test. Saying so lets clippy's test exemption
-// reach the helpers here, not just the #[test] functions.
 #![cfg(test)]
 
 mod common;
@@ -37,7 +34,7 @@ async fn rescan_finds_funds_beyond_the_default_gap() -> anyhow::Result<()> {
     assert_eq!(
         wallet.balance().await.confirmed,
         0,
-        "the default gap stops short of index {FAR_INDEX}; this is the bug a rescan exists for"
+        "a sync's default gap stops short of index {FAR_INDEX}"
     );
 
     wallet.rescan(100).await?;

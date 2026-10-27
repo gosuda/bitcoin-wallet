@@ -4,8 +4,7 @@ import { describe, expect, it } from "vitest";
 /*
  * Focus rings exist only in the stylesheets, which no other test loads, and
  * jsdom paints nothing anyway. These tests read the two files as text, so an
- * edit that drops a control's ring fails here rather than for the next person
- * using the app with a keyboard.
+ * edit that drops a control's ring fails here.
  */
 
 interface Rule {

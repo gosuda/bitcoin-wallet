@@ -1,7 +1,7 @@
 import { api } from "../../api";
 import { headlineSat, pendingSat } from "../../balance";
 import { navigate } from "../../router";
-import { redirect, screenGuard } from "../../screen";
+import { autoSync, redirect, screenGuard } from "../../screen";
 import { session } from "../../session";
 import { type Balance, errorMessage, NETWORK_LABELS, type TxSummary } from "../../types";
 import { banner, el, formatBtc, formatNumber, sectionLabel } from "../../ui/dom";
@@ -9,8 +9,6 @@ import { formatConfirmations, formatSats, formatTime, formatWhen } from "../../u
 import { icon } from "../../ui/icons";
 import { body, button, card, header, listCard, row } from "../ui";
 import { showTransaction } from "./tx";
-
-const AUTO_SYNC_MS = 60_000;
 
 /** One history row: a button, because it opens the transaction. */
 function txRow(tx: TxSummary): HTMLElement {
@@ -69,7 +67,6 @@ export function renderWallet(): HTMLElement {
   const paint = (balance: Balance): void => {
     const total = headlineSat(balance);
     hero.textContent = formatNumber(total);
-    // formatBtc already carries the unit; appending another gave "BTC BTC".
     sub.textContent = formatBtc(total);
     const waiting = pendingSat(balance);
     pending.textContent = waiting > 0 ? `${formatSats(waiting)} pending` : "";
@@ -129,9 +126,8 @@ export function renderWallet(): HTMLElement {
   const runSync = async (): Promise<void> => {
     if (sync.disabled) return;
     sync.disabled = true;
-    // A sync outlives the screen that asked for it. Closing this wallet and
-    // opening another mid-sync used to repaint the new wallet's balance with
-    // the previous one's numbers.
+    // A sync can outlive its screen, and a wallet opened meanwhile must not
+    // show its numbers.
     try {
       const balance = await api.sync();
       const txs = await api.listTransactions();
@@ -185,16 +181,7 @@ export function renderWallet(): HTMLElement {
 
   void refresh().catch((e: unknown) => alert.show("warn", errorMessage(e)));
 
-  // Auto-sync while this screen is on top and the app is in the foreground; the
-  // timer retires itself once the node leaves the document.
-  const timer = window.setInterval(() => {
-    if (!host.isConnected) {
-      window.clearInterval(timer);
-      return;
-    }
-    if (document.hidden || sync.disabled) return;
-    void runSync();
-  }, AUTO_SYNC_MS);
+  autoSync(host, () => void runSync());
 
   return host;
 }

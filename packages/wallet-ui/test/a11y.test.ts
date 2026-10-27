@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { chips } from "../src/mobile/ui";
 import { field, radioGroup, textInput } from "../src/ui/dom";
+import { nth } from "./fakes";
 
 const OPTIONS = [
   { value: "1", label: "1 block" },
@@ -57,23 +58,23 @@ describe("chips", () => {
 
     press(last, "ArrowUp");
     expect(group.value()).toBe("3");
-    press(radios(group.node)[1] as HTMLButtonElement, "ArrowDown");
+    press(nth(radios(group.node), 1), "ArrowDown");
     expect(group.value()).toBe("6");
   });
 
   it("jumps to the ends with Home and End", () => {
     const group = mounted(chips(OPTIONS, "3"));
-    const middle = radios(group.node)[1] as HTMLButtonElement;
+    const middle = nth(radios(group.node), 1);
     press(middle, "End");
     expect(group.value()).toBe("6");
-    press(radios(group.node)[2] as HTMLButtonElement, "Home");
+    press(nth(radios(group.node), 2), "Home");
     expect(group.value()).toBe("1");
   });
 
   it("leaves every other key to the browser", () => {
     const onChange = vi.fn();
     const group = mounted(chips(OPTIONS, "3", onChange));
-    const event = press(radios(group.node)[1] as HTMLButtonElement, "a");
+    const event = press(nth(radios(group.node), 1), "a");
     expect(event.defaultPrevented).toBe(false);
     expect(onChange).not.toHaveBeenCalled();
   });

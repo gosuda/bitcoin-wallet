@@ -77,9 +77,7 @@ pub enum Error {
         required_sat_vb: Option<f64>,
         required_sat: Option<u64>,
     },
-    /// A send held to chosen coins was given none. Kept apart from
-    /// [`Error::BuildTx`] for the same reason every other build failure this
-    /// module can name precisely is.
+    /// A send held to chosen coins was given none.
     #[error("no coins were selected to fund this transaction")]
     NoUtxos,
     /// A coin the caller named is not an unspent output of this wallet: spent
@@ -225,10 +223,8 @@ fn frozen_note(frozen_sat: u64) -> String {
     }
 }
 
-/// The shape [`Error`] takes crossing the wasm and Tauri IPC boundaries.
-/// `Error` itself is not [`Serialize`] — nothing about the error domain
-/// forces every future variant to also be a wire format — this is that
-/// wire format, built once from whichever error actually occurred.
+/// The shape [`Error`] takes crossing the wasm and Tauri IPC boundaries. Both
+/// build it here, so they cannot drift; `Error` itself is not [`Serialize`].
 #[derive(Debug, Clone, Serialize)]
 pub struct ErrorPayload {
     pub code: &'static str,
@@ -358,12 +354,19 @@ mod tests {
 
     /// Adding a variant fails to compile in [`Error::ordinal`] until it has
     /// one. Give it the next, raise `VARIANTS` here, and add its row to
-    /// `samples` — `the_table_covers_every_variant` fails until all three agree.
+    /// `samples` and its number to the list below —
+    /// `the_table_covers_every_variant` fails until all four agree.
     const VARIANTS: u8 = 19;
 
     #[test]
     fn the_table_covers_every_variant() {
-        let mut seen: Vec<u8> = samples().iter().map(|(e, ..)| e.ordinal()).collect();
+        let ordinals: Vec<u8> = samples().iter().map(|(e, ..)| e.ordinal()).collect();
+        // Row by row: the CLI exits with 10 plus the ordinal, so none moves.
+        let pinned = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 18, 15, 16, 17,
+        ];
+        assert_eq!(ordinals, pinned, "an ordinal moved");
+        let mut seen = ordinals;
         seen.sort_unstable();
         assert_eq!(seen, (0..VARIANTS).collect::<Vec<_>>());
     }
