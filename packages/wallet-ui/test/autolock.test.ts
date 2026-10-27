@@ -372,6 +372,97 @@ describe("Lock after in Settings (6.11)", () => {
     );
     expect(lockAfter()).toBe(1);
   });
+
+  // Each shell's control, and a choice on it: the desktop's option, the phone's chip.
+  describe.each([
+    {
+      name: "the desktop",
+      render: renderSettings,
+      choose: (screen: HTMLElement, value: string) => {
+        const select = find<HTMLSelectElement>(screen, "select[name=lock_after]");
+        select.value = value;
+        select.dispatchEvent(new Event("change"));
+      },
+    },
+    {
+      name: "the phone",
+      render: renderPhoneSettings,
+      choose: (screen: HTMLElement, value: string) => {
+        const chips = find(screen, "[role=radiogroup][aria-label='Lock after']");
+        buttonNamed(chips, value === "60" ? "1 hour" : "1 min").click();
+      },
+    },
+  ])("$name, choosing again", ({ render, choose }) => {
+    it("takes back what a failed save said once a later choice saves", async () => {
+      await openLocking();
+      let fail = true;
+      setPlatform({
+        ...platform(),
+        setLockAfter: async (choice) => {
+          if (fail) throw new Error("store locked");
+          saved = choice;
+        },
+      });
+      const screen = mountAt("settings", render);
+      choose(screen, "1");
+      await flush();
+      expect(find(screen, ".banner").textContent).toContain("could not be saved");
+
+      fail = false;
+      choose(screen, "60");
+      await flush();
+
+      expect(find(screen, ".banner").textContent).toBe("");
+      expect(saved).toBe(60);
+    });
+
+    it("keeps the last choice when an earlier save finishes after it", async () => {
+      await openLocking();
+      const slow = deferred<void>();
+      let calls = 0;
+      setPlatform({
+        ...platform(),
+        setLockAfter: async (choice) => {
+          if (calls++ === 0) await slow.promise;
+          saved = choice;
+        },
+      });
+      const screen = mountAt("settings", render);
+      choose(screen, "1");
+      choose(screen, "60");
+      await flush();
+      slow.resolve();
+      await flush();
+
+      expect(saved).toBe(60);
+      expect(lockAfter()).toBe(60);
+    });
+
+    it("says nothing of an earlier choice that failed after a later one", async () => {
+      await openLocking();
+      const slow = deferred<void>();
+      let calls = 0;
+      setPlatform({
+        ...platform(),
+        setLockAfter: async (choice) => {
+          if (calls++ === 0) {
+            await slow.promise;
+            throw new Error("store locked");
+          }
+          saved = choice;
+        },
+      });
+      const screen = mountAt("settings", render);
+      choose(screen, "1");
+      choose(screen, "60");
+      await flush();
+      slow.resolve();
+      await flush();
+
+      expect(find(screen, ".banner").textContent).toBe("");
+      expect(saved).toBe(60);
+    });
+  });
 });
 
 /*

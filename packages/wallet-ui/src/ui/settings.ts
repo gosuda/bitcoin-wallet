@@ -88,13 +88,19 @@ export async function rescanAt(gap: string, alert: Banner, onScreen: () => boole
   }
 }
 
+/** How many Lock after choices have been made; only the latest says its save failed. */
+let lockChoices = 0;
+
 /**
  * Lock after's `choice`, applied at once and saved. A save that fails is said
- * while `onScreen` holds; the choice still holds until the app closes.
+ * while `onScreen` holds and no later choice was made; the choice still holds
+ * until the app closes.
  */
 export function saveLockAfter(choice: string, alert: Banner, onScreen: () => boolean): void {
+  alert.hide();
+  const mine = ++lockChoices;
   void chooseLockAfter(lockAfterFrom(choice)).catch((e: unknown) => {
-    if (!onScreen()) return;
+    if (!onScreen() || mine !== lockChoices) return;
     alert.show(
       "error",
       `The lock time could not be saved (${errorMessage(e)}). It holds until the app closes.`,
