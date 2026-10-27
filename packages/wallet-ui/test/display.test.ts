@@ -380,6 +380,13 @@ describe("one name for each thing (7.7)", () => {
     },
   );
 
+  it("names the phone Send's custom fee rate as Bump fee names its rate", async () => {
+    await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+    const screen = await showAt("send", renderPhoneSend);
+    const rate = find<HTMLInputElement>(screen, "input[name=rate]");
+    expect(rate.getAttribute("aria-label")).toBe("Fee rate, in sat/vB");
+  });
+
   it("says what Setup chooses alike on both shells", () => {
     for (const render of [renderSetup, renderPhoneSetup]) {
       expect(mountAt("setup", render).textContent).toContain(SETUP_LEDE);

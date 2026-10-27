@@ -203,6 +203,8 @@ export function renderSend(): HTMLElement {
 
   // --- fee -----------------------------------------------------------------
   const rateInput = textInput({ value: "1", type: "number", mono: true, name: "rate" });
+  // The card's "Fee" names the choice, not the field.
+  rateInput.setAttribute("aria-label", "Fee rate, in sat/vB");
   const customRow = rateRow(rateInput);
   customRow.hidden = true;
   const rateErr = el("span", { className: "m-err", attrs: { role: "status" } });
