@@ -252,7 +252,7 @@ th {
   gap: 6px;
 }
 
-/* The focus ring both shells share, save where mobile.css draws the phone's own. */
+/* The focus ring both shells share, except where mobile.css draws the phone's own. */
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,

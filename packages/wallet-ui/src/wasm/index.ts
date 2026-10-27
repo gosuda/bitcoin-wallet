@@ -4,8 +4,9 @@
  * `wallet-wasm` is the one wallet implementation: this module initializes the
  * WebAssembly binary once (lazily, on first use) and re-exports its API with
  * the app's own types instead of the generated `any`. Shapes are normalized in
- * `normalize.ts`; names need no translation, as the core takes and returns the
- * address-type names the app uses.
+ * `normalize.ts`, and a value the core leaves out (`undefined`) is `null` here;
+ * names need no translation, as the core takes and returns the address-type
+ * names the app uses.
  */
 
 import type {

@@ -341,7 +341,8 @@ async function buildPreview(
   feeRateSatVb: number,
   build: (wallet: WalletApi) => Promise<BuiltTx>,
 ): Promise<TxPreview> {
-  // Refused as the core refuses it, so `errorMessage` words it the same.
+  // The screens' check, stricter than the core's (which takes 0), thrown under
+  // the core's code so `errorMessage` words it as it words the core's refusal.
   const rateErr = feeRateError(feeRateSatVb);
   if (rateErr) throw new WalletError("invalid_fee_rate", rateErr);
   const built = await build(requireWallet());
