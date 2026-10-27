@@ -363,6 +363,23 @@ describe("one name for each thing (7.7)", () => {
     expect(phone.textContent).toContain(RECEIVE_QR_NOTE);
   });
 
+  it.each([
+    { name: "the desktop", route: "dashboard", render: renderDashboard },
+    { name: "the phone", route: "receive", render: renderPhoneReceive },
+  ] as const)(
+    "$name's Receive marks an amount it cannot take as invalid to assistive technology too",
+    async ({ route, render }) => {
+      await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+      const screen = await showAt(route, render);
+      const amount = find<HTMLInputElement>(screen, "input[name=request_amount]");
+
+      type(amount, "abc");
+      expect(amount.getAttribute("aria-invalid")).toBe("true");
+      type(amount, "1000");
+      expect(amount.hasAttribute("aria-invalid")).toBe(false);
+    },
+  );
+
   it("says what Setup chooses alike on both shells", () => {
     for (const render of [renderSetup, renderPhoneSetup]) {
       expect(mountAt("setup", render).textContent).toContain(SETUP_LEDE);

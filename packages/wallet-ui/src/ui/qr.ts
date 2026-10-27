@@ -7,7 +7,7 @@ import QRCode from "qrcode";
 import { parseAmount, type Unit } from "../amount";
 import { buildPaymentUri, qrPayload } from "../bip21";
 import { errorMessage } from "../types";
-import type { Banner } from "./dom";
+import { type Banner, setFieldError } from "./dom";
 
 /** Draws `text` on `canvas`, `width` pixels across; a failure is said in `alert`. */
 export async function drawQr(
@@ -39,8 +39,7 @@ export function receivePayload(
   error: HTMLElement,
 ): string {
   const parsed = parseAmount(amount.value, unit);
-  error.textContent = parsed.error ?? "";
-  amount.classList.toggle("input-invalid", parsed.error !== null);
+  setFieldError(error, amount, parsed.error);
   return parsed.sats === null ? address : buildPaymentUri({ address, amountSat: parsed.sats });
 }
 
