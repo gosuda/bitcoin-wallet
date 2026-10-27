@@ -801,7 +801,10 @@ export function renderDashboard(): HTMLElement {
     el("div", { className: "actions actions-end" }, [closeBtn]),
   ]);
 
-  autoSync(screen, () => void withBusy(syncBtn, () => runSync(true)));
+  // A sync still running keeps the button busy: `withBusy` would turn it back on.
+  autoSync(screen, () => {
+    if (!syncing) void withBusy(syncBtn, () => runSync(true));
+  });
 
   return screen;
 }

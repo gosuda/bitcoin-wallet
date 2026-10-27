@@ -172,6 +172,28 @@ describe("work that outlives its screen changes nothing (1.7)", () => {
     expect(session.lastSyncedAt).toBeNull();
   });
 
+  it("keeps the desktop's Sync busy while a sync runs past the next periodic one", async () => {
+    vi.useFakeTimers();
+    try {
+      await api.openWallet("abandon abandon abandon", "p2wpkh", false);
+      const screen = mountAt("dashboard", renderDashboard);
+      await vi.advanceTimersByTimeAsync(0);
+      const release = fake.holdSync();
+      const sync = buttonNamed(screen, "Sync");
+
+      sync.click();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(sync.disabled).toBe(true);
+      expect(sync.getAttribute("aria-busy")).toBe("true");
+
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sync.disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("leaving Send after Max discards the drain it built, and a return builds fresh", async () => {
     await api.openWallet("abandon abandon abandon", "p2wpkh", false);
     const buildDrain = vi.spyOn(api, "buildDrain");
