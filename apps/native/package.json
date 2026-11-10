@@ -18,15 +18,15 @@
     "@tauri-apps/plugin-barcode-scanner": "^2.5.3",
     "@tauri-apps/plugin-biometric": "^2.5.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
-    "@tauri-apps/plugin-deep-link": "^2.6.2",
+    "@tauri-apps/plugin-deep-link": "^2.6.3",
     "@tauri-apps/plugin-http": "^2.8.3",
     "@tauri-apps/plugin-opener": "^2.7.2",
     "@tauri-apps/plugin-store": "^2.5.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.3",
+    "@biomejs/biome": "^2.6.6",
     "@tauri-apps/cli": "^2.12.4",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.6"
   }
 }
