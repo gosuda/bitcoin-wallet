@@ -47,7 +47,7 @@ jobs:
 
   ios:
     name: iOS Simulator app
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7

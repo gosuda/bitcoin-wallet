@@ -46,7 +46,7 @@ env:
 jobs:
   core:
     name: wallet-core (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -133,7 +133,7 @@ jobs:
   # self-check is for that).
   mobile:
     name: app shell (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false

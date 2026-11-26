@@ -37,11 +37,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: depot-macos-latest
             name: macOS (apple silicon)
             args: --target aarch64-apple-darwin
             rust-target: aarch64-apple-darwin
-          - os: macos-latest
+          - os: depot-macos-latest
             name: macOS (intel)
             args: --target x86_64-apple-darwin
             rust-target: x86_64-apple-darwin
@@ -203,7 +203,7 @@ jobs:
     name: iOS (signed, registered devices)
     needs: [version, keys, bundle]
     if: needs.keys.outputs.ios == 'true'
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
