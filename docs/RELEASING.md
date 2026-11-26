@@ -21,6 +21,9 @@ team's registered devices (see [iOS](#ios)). Phone builds for testing are the
 separate `mobile bundles` workflow. The wasm core is built first because the
 frontend imports it.
 
+macOS DMGs use Tauri's CI mode on headless Depot runners. The application and
+Applications link remain in the image; Finder icon positioning is omitted.
+
 ## Signing
 
 Without secrets the build still succeeds, and produces **unsigned** bundles:
@@ -139,8 +142,8 @@ anything, and stops on a mismatch.
 
 A manual pass over the app. Everything else is what `.github/workflows/rust.yml`
 already runs on each pull request and push to `main` that touches code:
-formatting, clippy and `cargo test -p wallet-core -p wallet-cli` on Linux, macOS
-and Windows; the regtest suite (`cargo test -p regtest-tests`); the wasm build,
+formatting and `cargo test -p wallet-core -p wallet-cli` on Linux, native clippy
+on Linux, macOS and Windows; the regtest suite (`cargo test -p regtest-tests`); the wasm build,
 and the wasm32 tests in Node (`wasm-pack test --node` for `wallet-wasm` and for
 `wallet-core`'s wasm-only paths); clippy for the app shell on the desktop, iOS and
 Android targets; and the frontend's lint, typecheck, tests and builds. Nothing runs

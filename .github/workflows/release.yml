@@ -97,6 +97,8 @@ jobs:
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: "true"
+          TAURI_BUNDLER_DMG_IGNORE_CI: "false"
         with:
           projectPath: apps/native
           tagName: ${{ env.RELEASE_TAG }}
@@ -115,7 +117,7 @@ jobs:
           path: |
             target/release/bundle/**
             target/*/release/bundle/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
 
   # Which store signing keys the repository holds. A phone leg below runs only
