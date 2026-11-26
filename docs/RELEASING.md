@@ -22,7 +22,8 @@ separate `mobile bundles` workflow. The wasm core is built first because the
 frontend imports it.
 
 macOS DMGs use Tauri's CI mode on headless Depot runners. The application and
-Applications link remain in the image; Finder icon positioning is omitted.
+Applications link remain in the image. CI skips the entire Finder AppleScript,
+including icon positioning, the configured window size, and app-extension hiding.
 
 ## Signing
 
@@ -142,7 +143,7 @@ anything, and stops on a mismatch.
 
 A manual pass over the app. Everything else is what `.github/workflows/rust.yml`
 already runs on each pull request and push to `main` that touches code:
-formatting and `cargo test -p wallet-core -p wallet-cli` on Linux, native clippy
+formatting and `cargo test -p wallet-core -p wallet-cli` once on Linux, native Clippy
 on Linux, macOS and Windows; the regtest suite (`cargo test -p regtest-tests`); the wasm build,
 and the wasm32 tests in Node (`wasm-pack test --node` for `wallet-wasm` and for
 `wallet-core`'s wasm-only paths); clippy for the app shell on the desktop, iOS and
