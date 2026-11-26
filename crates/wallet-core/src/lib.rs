@@ -57,3 +57,4 @@ impl<T: Sync> MaybeSync for T {}
 pub trait MaybeSync {}
 #[cfg(target_arch = "wasm32")]
 impl<T> MaybeSync for T {}
+  fn planted_fmt_probe( )  { }
