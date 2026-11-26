@@ -1,0 +1,158 @@
+name: Verify native Depot packages
+on:
+  push:
+    branches: [ci/verify-wallet-packages-20261126]
+permissions:
+  contents: read
+concurrency:
+  group: verify-wallet-packages
+  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
+env:
+  CARGO_TERM_COLOR: always
+  RELEASE_TAG: ''
+jobs:
+  version:
+    name: version matches the tag
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Check the version, and the tag when there is one
+        run: scripts/check-version.sh ${RELEASE_TAG:+"$RELEASE_TAG"}
+
+  bundle:
+    name: ${{ matrix.name }}
+    needs: version
+    # Depot macOS removes the shared-pool queue; the 16-CPU Depot Windows
+    # runner feeds the parallel crate builds. Matrix values and job names
+    # stay unchanged, so the release verdicts report as before.
+    runs-on: ${{ (matrix.os == 'macos-latest' && 'depot-macos-latest') || (matrix.os == 'windows-latest' && 'depot-windows-2025-16') || 'depot-ubuntu-24.04' }}
+    # A release build, with thin LTO, one codegen unit and notarisation.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS (apple silicon)
+            args: --target aarch64-apple-darwin
+            rust-target: aarch64-apple-darwin
+          - os: macos-latest
+            name: macOS (intel)
+            args: --target x86_64-apple-darwin
+            rust-target: x86_64-apple-darwin
+          - os: ubuntu-24.04
+            name: Linux
+            args: ""
+            rust-target: ""
+          - os: windows-latest
+            name: Windows
+            args: ""
+            rust-target: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          targets: wasm32-unknown-unknown${{ matrix.rust-target && format(',{0}', matrix.rust-target) || '' }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: ./.github/actions/frontend
+
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/native
+          # No updater, and tauri-action defaults this to true.
+          uploadUpdaterJson: false
+          args: ${{ matrix.args }}
+
+      - name: Keep the bundles for a manual run
+        if: ${{ !env.RELEASE_TAG }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: bundle-${{ matrix.os }}-${{ matrix.rust-target || 'native' }}
+          path: |
+            target/release/bundle/**
+            target/*/release/bundle/**
+          if-no-files-found: error
+          retention-days: 7
+
+  android-debug:
+    name: Android debug APK
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          targets: aarch64-linux-android,wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      # The generated Gradle project wants JDK 17, whatever the image's default.
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: ./.github/actions/frontend
+      - name: Build the APK
+        working-directory: apps/native
+        # arm64 only: every phone and Apple-silicon emulator this is for runs it,
+        # and each extra ABI is another full Rust build.
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          pnpm tauri android build --debug --apk --target aarch64 --ci
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: android-debug-apk
+          path: apps/native/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios-simulator:
+    name: iOS Simulator app
+    # The Simulator build cannot leave macOS; the Depot runner removes the
+    # shared-pool queue with identical steps. The job name is unchanged.
+    runs-on: depot-macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          targets: aarch64-apple-ios-sim,wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: ./.github/actions/frontend
+      - name: Build the Simulator app
+        working-directory: apps/native
+        run: pnpm tauri ios build --debug --target aarch64-sim --ci
+      # What the app asks the user for has to be declared in the Info.plist it
+      # ships with, or iOS ends the app the moment it asks. Check the built one,
+      # not the source it is merged from. Xcode leaves a Simulator build in
+      # DerivedData; the Tauri CLI does not copy it anywhere.
+      - name: The built app declares its camera, Face ID and link scheme
+        run: |
+          app=$(find "$HOME/Library/Developer/Xcode/DerivedData" -maxdepth 5 -type d -name '*.app' -path '*/Build/Products/debug-iphonesimulator/*' | head -1)
+          if [ -z "$app" ]; then echo "::error::no Simulator .app was built"; exit 1; fi
+          echo "built: $app"
+          for key in NSCameraUsageDescription NSFaceIDUsageDescription; do
+            plutil -extract "$key" raw "$app/Info.plist" >/dev/null ||
+              { echo "::error::$key is missing from the built Info.plist"; exit 1; }
+          done
+          plutil -extract CFBundleURLTypes xml1 -o - "$app/Info.plist" | grep -q '<string>bitcoin</string>' ||
+            { echo "::error::the built Info.plist does not register the bitcoin: scheme"; exit 1; }
+          ditto -c -k --keepParent "$app" bitcoin-wallet-simulator.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ios-simulator-app
+          path: bitcoin-wallet-simulator.zip
+          if-no-files-found: error
+          retention-days: 7
