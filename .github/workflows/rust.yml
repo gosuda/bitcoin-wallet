@@ -46,7 +46,10 @@ env:
 jobs:
   core:
     name: wallet-core (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    # GitHub-hosted macOS queue wait (1000+ minutes on the last PR) sets the
+    # wall; the Depot macOS runner proves the same native behavior. The
+    # matrix value — and so the required check name — stays unchanged.
+    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -139,7 +142,9 @@ jobs:
   # self-check is for that).
   mobile:
     name: app shell (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
+    # Same queue fix as the core job above; app shell names name the phone
+    # target, so they are unaffected by the runner move.
+    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
