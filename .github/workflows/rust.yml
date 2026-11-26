@@ -59,10 +59,8 @@ jobs:
       - name: The justfile parses
         if: runner.os == 'Linux'
         run: just --list
-      # The full test suite and the release link run once on Linux; every
-      # runner still formats and lints natively, so each required check
-      # keeps a native verdict without paying for the same build three
-      # times.
+      # Formatting, core/CLI tests, and the CLI release build run once on Linux.
+      # Clippy runs natively on every OS for its required check.
       - run: cargo test -p wallet-core -p wallet-cli
         if: runner.os == 'Linux'
       - run: cargo build -p wallet-cli --release
