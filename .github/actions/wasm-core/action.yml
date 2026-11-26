@@ -8,7 +8,7 @@ runs:
   using: composite
   steps:
     # A prebuilt binary: building wasm-pack from source takes minutes.
-    - uses: taiki-e/install-action@v2
+    - uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2
       with:
         tool: wasm-pack
     # On macOS, scripts/with-wasm-cc.sh builds with Homebrew's LLVM.
