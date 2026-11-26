@@ -47,8 +47,9 @@ jobs:
 
   ios:
     name: iOS Simulator app
-    runs-on: macos-latest
-    timeout-minutes: 90
+    # The Simulator build cannot leave macOS; the Depot runner removes the
+    # shared-pool queue with identical steps. The job name is unchanged.
+    runs-on: depot-macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable

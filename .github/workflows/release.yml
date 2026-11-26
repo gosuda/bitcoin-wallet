@@ -30,7 +30,10 @@ jobs:
   bundle:
     name: ${{ matrix.name }}
     needs: version
-    runs-on: ${{ matrix.os }}
+    # Depot macOS removes the shared-pool queue; the 16-CPU Depot Windows
+    # runner feeds the parallel crate builds. Matrix values and job names
+    # stay unchanged, so the release verdicts report as before.
+    runs-on: ${{ (matrix.os == 'macos-latest' && 'depot-macos-latest') || (matrix.os == 'windows-latest' && 'depot-windows-2025-16') || matrix.os }}
     # A release build, with thin LTO, one codegen unit and notarisation.
     timeout-minutes: 60
     strategy:
@@ -203,7 +206,7 @@ jobs:
     name: iOS (signed, registered devices)
     needs: [version, keys, bundle]
     if: needs.keys.outputs.ios == 'true'
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
