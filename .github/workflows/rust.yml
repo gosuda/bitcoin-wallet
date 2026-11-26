@@ -1,39 +1,14 @@
 name: rust
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "Cargo.*"
-      - "rust-toolchain.toml"
-      - "deny.toml"
-      - ".cargo/**"
-      - "crates/**"
-      - "apps/**"
-      - "packages/**"
-      - "package.json"
-      - ".nvmrc"
-      - "biome.json"
-      - "tsconfig.base.json"
-      - "pnpm-*"
-      - "clippy.toml"
-      - "scripts/**"
-      - "justfile"
-      - ".github/**"
-  # No path filter: main's ruleset (docs/rulesets/main.json) requires these
-  # jobs by name, and a required check that never reports holds a pull request
-  # open for good — a docs-only change could never be merged.
   pull_request:
+  merge_group:
+  workflow_dispatch:
 
-# Every job here only reads the repository and runs builds and tests, so the
-# token needs nothing else. Without this each job inherits the repository
-# default, which can include write scopes.
 permissions:
   contents: read
 
-# A newer push to a pull request cancels the run it supersedes, which would
-# otherwise still wait for a runner. Pushes to main are never cancelled, so
-# every merge keeps its own verdict.
+# Cancel superseded PR runs; each merge group keeps its own verdict.
 concurrency:
   group: rust-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -46,10 +21,8 @@ env:
 jobs:
   core:
     name: wallet-core (${{ matrix.os }})
-    # GitHub-hosted macOS queue wait (1000+ minutes on the last PR) sets the
-    # wall; the Depot macOS runner proves the same native behavior. The
-    # matrix value — and so the required check name — stays unchanged.
-    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os }}
+    # Preserve the required check names while routing all compute to Depot.
+    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os == 'windows-latest' && 'depot-windows-2025' || 'depot-ubuntu-24.04' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -62,6 +35,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo fmt --all --check
+        if: runner.os == 'Linux'
       - run: cargo clippy -p wallet-core -p wallet-cli --all-targets -- -D warnings
       # Nothing builds the core with no features at all, so a gate that only
       # compiles because a default feature happens to pull in its import would
@@ -91,7 +65,7 @@ jobs:
 
   regtest:
     name: end-to-end on regtest
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -106,7 +80,7 @@ jobs:
 
   deny:
     name: cargo deny
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -116,7 +90,7 @@ jobs:
 
   wasm:
     name: wallet-core + wallet-wasm (wasm32)
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -144,7 +118,7 @@ jobs:
     name: app shell (${{ matrix.name }})
     # Same queue fix as the core job above; app shell names name the phone
     # target, so they are unaffected by the runner move.
-    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os }}
+    runs-on: ${{ matrix.os == 'macos-latest' && 'depot-macos-latest' || matrix.os == 'windows-latest' && 'depot-windows-2025' || 'depot-ubuntu-24.04' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -184,7 +158,7 @@ jobs:
 
   apps:
     name: desktop + web apps
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

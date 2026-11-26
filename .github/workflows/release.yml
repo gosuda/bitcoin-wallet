@@ -20,7 +20,7 @@ jobs:
   # is built until the two match. A manual run just checks the copies agree.
   version:
     name: version matches the tag
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -33,7 +33,7 @@ jobs:
     # Depot macOS removes the shared-pool queue; the 16-CPU Depot Windows
     # runner feeds the parallel crate builds. Matrix values and job names
     # stay unchanged, so the release verdicts report as before.
-    runs-on: ${{ (matrix.os == 'macos-latest' && 'depot-macos-latest') || (matrix.os == 'windows-latest' && 'depot-windows-2025-16') || matrix.os }}
+    runs-on: ${{ (matrix.os == 'macos-latest' && 'depot-macos-latest') || (matrix.os == 'windows-latest' && 'depot-windows-2025-16') || 'depot-ubuntu-24.04' }}
     # A release build, with thin LTO, one codegen unit and notarisation.
     timeout-minutes: 60
     strategy:
@@ -123,7 +123,7 @@ jobs:
   # job's `if` cannot read secrets directly, hence this job.
   keys:
     name: which signing keys exist
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 5
     outputs:
       android: ${{ steps.check.outputs.android }}
@@ -141,7 +141,7 @@ jobs:
     name: Android (signed)
     needs: [version, keys, bundle]
     if: needs.keys.outputs.android == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     # All four ABIs, each a full release build of the Rust library.
     timeout-minutes: 120
     steps:
