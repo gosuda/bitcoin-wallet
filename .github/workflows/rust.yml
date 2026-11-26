@@ -1,6 +1,11 @@
 name: rust
 
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   pull_request:
   merge_group:
   workflow_dispatch:
@@ -10,7 +15,7 @@ permissions:
 
 # Cancel superseded PR runs; each merge group keeps its own verdict.
 concurrency:
-  group: rust-${{ github.ref }}
+  group: rust-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
