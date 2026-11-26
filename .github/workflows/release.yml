@@ -20,17 +20,20 @@ jobs:
   # is built until the two match. A manual run just checks the copies agree.
   version:
     name: version matches the tag
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Check the version, and the tag when there is one
         run: scripts/check-version.sh ${RELEASE_TAG:+"$RELEASE_TAG"}
 
   bundle:
     name: ${{ matrix.name }}
     needs: version
-    runs-on: ${{ matrix.os }}
+    # Depot macOS removes the shared-pool queue; the 16-CPU Depot Windows
+    # runner feeds the parallel crate builds. Matrix values and job names
+    # stay unchanged, so the release verdicts report as before.
+    runs-on: ${{ (matrix.os == 'macos-latest' && 'depot-macos-latest') || (matrix.os == 'windows-latest' && 'depot-windows-2025-16') || 'depot-ubuntu-24.04' }}
     # A release build, with thin LTO, one codegen unit and notarisation.
     timeout-minutes: 60
     strategy:
@@ -54,12 +57,12 @@ jobs:
             args: ""
             rust-target: ""
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           targets: wasm32-unknown-unknown${{ matrix.rust-target && format(',{0}', matrix.rust-target) || '' }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Install Linux build dependencies
         if: matrix.os == 'ubuntu-24.04'
@@ -91,8 +94,10 @@ jobs:
             printf '%s<<%s\n%s\n%s\n' "$name" "$delimiter" "$value" "$delimiter" >> "$GITHUB_ENV"
           done
 
-      - uses: tauri-apps/tauri-action@v1
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
+          CI: "true"
+          TAURI_BUNDLER_DMG_IGNORE_CI: "false"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/native
@@ -106,13 +111,13 @@ jobs:
 
       - name: Keep the bundles for a manual run
         if: ${{ !env.RELEASE_TAG }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: bundle-${{ matrix.os }}-${{ matrix.rust-target || 'native' }}
           path: |
             target/release/bundle/**
             target/*/release/bundle/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
 
   # Which store signing keys the repository holds. A phone leg below runs only
@@ -120,7 +125,7 @@ jobs:
   # job's `if` cannot read secrets directly, hence this job.
   keys:
     name: which signing keys exist
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     timeout-minutes: 5
     outputs:
       android: ${{ steps.check.outputs.android }}
@@ -138,16 +143,16 @@ jobs:
     name: Android (signed)
     needs: [version, keys, bundle]
     if: needs.keys.outputs.android == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-24.04
     # All four ABIs, each a full release build of the Rust library.
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android,wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-java@v6
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6
         with:
           distribution: temurin
           java-version: 17
@@ -187,7 +192,7 @@ jobs:
 
       - name: Keep them for a manual run
         if: ${{ !env.RELEASE_TAG }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: android-release
           path: |
@@ -203,14 +208,14 @@ jobs:
     name: iOS (signed, registered devices)
     needs: [version, keys, bundle]
     if: needs.keys.outputs.ios == 'true'
-    runs-on: macos-latest
+    runs-on: depot-macos-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           targets: aarch64-apple-ios,wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - uses: ./.github/actions/frontend
 
       # The CLI reads the team from APPLE_DEVELOPMENT_TEAM and the key from a
@@ -244,7 +249,7 @@ jobs:
 
       - name: Keep it for a manual run
         if: ${{ !env.RELEASE_TAG }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ios-release
           path: apps/native/src-tauri/gen/apple/build/*/*.ipa
