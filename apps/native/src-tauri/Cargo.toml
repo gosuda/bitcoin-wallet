@@ -29,7 +29,7 @@ tauri = { version = "2.12", features = ["dynamic-acl"] }
 tauri-plugin-store = "2.5"
 tauri-plugin-clipboard-manager = "2.5"
 tauri-plugin-opener = "2.7"
-tauri-plugin-http = "2.8"
+tauri-plugin-http = "2.9"
 
 # Mobile-only: the desktop build has no camera, no biometrics and registers no
 # URI scheme, and these plugins do not build for it.
