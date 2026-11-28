@@ -35,6 +35,9 @@ ignore = [
     { id = "RUSTSEC-2026-0368", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads)" },
     { id = "RUSTSEC-2026-0369", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads)" },
     { id = "RUSTSEC-2026-0403", reason = "zstd-safe 5.0.2, dev-only (zip 0.6 in the regtest harness)" },
+    { id = "RUSTSEC-2026-0429", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads); fixed in >=9.0.0, blocked by electrsd 0.28.0 requiring ^0.6; GHSA-q7v9-x93c-xqv3" },
+    { id = "RUSTSEC-2026-0545", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads); fixed in >=9.0.0, blocked by electrsd 0.28.0 requiring ^0.6" },
+    { id = "RUSTSEC-2026-0548", reason = "zip 0.6.6, dev-only (bitcoind/electrsd build scripts unpack their downloads); fixed in >=9.0.5, blocked by electrsd 0.28.0 requiring ^0.6" },
 
     # quick-xml 0.38.4: denial of service on hostile XML. `plist 1.8` (via
     # Tauri 2.11) requires ^0.38, so the patched release cannot be selected. The
